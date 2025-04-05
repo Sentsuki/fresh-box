@@ -1,73 +1,61 @@
 <script setup lang="ts">
 import { ref } from 'vue';
-// 导入 Tauri Core API 中的 invoke 函数
-import { invoke } from '@tauri-apps/api/core'; // 注意 Tauri 2.0 的导入路径
+import { invoke } from '@tauri-apps/api/core';
 
-// 响应式状态变量
-const isRunning = ref(false); // 标记 sing-box 是否正在运行
+const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
-const isLoading = ref(false); // 用于显示加载状态，防止重复点击
+const isLoading = ref(false);
 
-// 启动服务的函数
 async function startService() {
-  if (isRunning.value || isLoading.value) return; // 防止重复启动或在加载时启动
+  if (isRunning.value || isLoading.value) return;
   isLoading.value = true;
   statusMessage.value = 'Starting sing-box...';
 
   try {
-    // 调用后端的 start_singbox 命令
     await invoke('start_singbox');
     isRunning.value = true;
     statusMessage.value = 'Sing-box is running.';
     console.log('Sing-box started successfully via Tauri command.');
   } catch (error) {
     console.error('Failed to start sing-box:', error);
-    // 根据后端返回的错误类型显示不同的消息
     if (typeof error === 'object' && error !== null && 'ProcessAlreadyRunning' in error) {
       statusMessage.value = 'Error: Sing-box is already running.';
-      isRunning.value = true; // 如果错误是“已运行”，则状态应为 true
+      isRunning.value = true;
     } else if (typeof error === 'object' && error !== null && 'ResourceNotFound' in error) {
        statusMessage.value = `Error starting: Resource not found - ${ (error as any).ResourceNotFound }`;
        isRunning.value = false;
     } else if (typeof error === 'object' && error !== null && 'FailedToStartProcess' in error) {
        statusMessage.value = `Error starting: Failed to start process - ${ (error as any).FailedToStartProcess }`;
        isRunning.value = false;
-    }
-     else {
+    } else {
       statusMessage.value = `Error starting sing-box: ${JSON.stringify(error)}`;
-      isRunning.value = false; // 确保状态正确
+      isRunning.value = false;
     }
   } finally {
     isLoading.value = false;
   }
 }
 
-// 停止服务的函数
 async function stopService() {
-  if (!isRunning.value || isLoading.value) return; // 防止重复停止或在加载时停止
+  if (!isRunning.value || isLoading.value) return;
   isLoading.value = true;
   statusMessage.value = 'Stopping sing-box...';
 
   try {
-    // 调用后端的 stop_singbox 命令
     await invoke('stop_singbox');
     isRunning.value = false;
     statusMessage.value = 'Sing-box is stopped.';
     console.log('Sing-box stopped successfully via Tauri command.');
   } catch (error) {
     console.error('Failed to stop sing-box:', error);
-     // 根据后端返回的错误类型显示不同的消息
     if (typeof error === 'object' && error !== null && 'ProcessNotRunning' in error) {
       statusMessage.value = 'Error stopping: Sing-box was not running.';
-      isRunning.value = false; // 确保状态正确
+      isRunning.value = false;
     } else if (typeof error === 'object' && error !== null && 'FailedToStopProcess' in error) {
       statusMessage.value = `Error stopping: Failed to stop process - ${ (error as any).FailedToStopProcess }`;
-      // 状态可能不确定，但我们假设它停了或者无法再控制
       isRunning.value = false;
-    }
-    else {
+    } else {
       statusMessage.value = `Error stopping sing-box: ${JSON.stringify(error)}`;
-      // 即使停止失败，前端也认为它不再可控，设为 stopped
       isRunning.value = false;
     }
   } finally {
@@ -77,51 +65,218 @@ async function stopService() {
 </script>
 
 <template>
-  <div class="container">
-    <h1>Fresh Box (Sing-box Client)</h1>
-    <div class="status">
-      Status: <span :class="{ 'running': isRunning, 'stopped': !isRunning }">{{ statusMessage }}</span>
-    </div>
-    <div class="controls">
-      <button @click="startService" :disabled="isRunning || isLoading">
-        {{ isLoading && !isRunning ? 'Starting...' : 'Start Sing-box' }}
-      </button>
-      <button @click="stopService" :disabled="!isRunning || isLoading">
-         {{ isLoading && isRunning ? 'Stopping...' : 'Stop Sing-box' }}
-      </button>
+  <div class="app-container">
+    <div class="content-card">
+      <div class="app-header">
+        <h1>Fresh Box</h1>
+        <p class="subtitle">Sing-box Client</p>
+      </div>
+      
+      <div class="status-container">
+        <div class="status-indicator" :class="{ 'active': isRunning }">
+          <span class="status-dot"></span>
+          <span class="status-text">{{ isRunning ? 'Running' : 'Stopped' }}</span>
+        </div>
+        <p class="status-message" :class="{ 'running': isRunning, 'stopped': !isRunning }">
+          {{ statusMessage }}
+        </p>
+      </div>
+      
+      <div class="controls">
+        <button 
+          class="control-button start-button" 
+          @click="startService" 
+          :disabled="isRunning || isLoading"
+          :class="{ 'disabled': isRunning || isLoading }"
+        >
+          <span class="button-icon">▶</span>
+          {{ isLoading && !isRunning ? 'Starting...' : 'Start' }}
+        </button>
+        
+        <button 
+          class="control-button stop-button" 
+          @click="stopService" 
+          :disabled="!isRunning || isLoading"
+          :class="{ 'disabled': !isRunning || isLoading }"
+        >
+          <span class="button-icon">■</span>
+          {{ isLoading && isRunning ? 'Stopping...' : 'Stop' }}
+        </button>
+      </div>
     </div>
   </div>
 </template>
 
+<style>
+/* 添加全局样式重置，消除默认边距造成的滚动条 */
+html, body {
+  margin: 0;
+  padding: 0;
+  overflow-x: hidden;
+  width: 100%;
+  height: 100%;
+  box-sizing: border-box;
+}
+
+*, *:before, *:after {
+  box-sizing: inherit;
+}
+</style>
+
 <style scoped>
-.container {
+.app-container {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  min-height: 100vh;
+  width: 100%;
+  background: linear-gradient(135deg, #f5f7fa 0%, #e4eaf0 100%);
+  font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  color: #2c3e50;
   padding: 20px;
-  font-family: sans-serif;
+  margin: 0;
+  box-sizing: border-box;
+}
+
+.content-card {
+  background-color: white;
+  border-radius: 16px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+  width: 100%;
+  max-width: 400px;
+  padding: 40px 30px;
   text-align: center;
+  transition: all 0.3s ease;
+  box-sizing: border-box;
 }
-.status {
-  margin-bottom: 20px;
-  font-size: 1.1em;
+
+.app-header {
+  margin-bottom: 36px;
 }
-.status span {
-  font-weight: bold;
+
+.app-header h1 {
+  margin: 0;
+  font-size: 32px;
+  font-weight: 600;
+  color: #1a365d;
 }
+
+.subtitle {
+  margin: 8px 0 0;
+  font-size: 16px;
+  color: #718096;
+  font-weight: 400;
+}
+
+.status-container {
+  margin-bottom: 36px;
+  padding: 16px;
+  background-color: #f8fafc;
+  border-radius: 12px;
+}
+
+.status-indicator {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 12px;
+}
+
+.status-dot {
+  width: 12px;
+  height: 12px;
+  background-color: #e53e3e;
+  border-radius: 50%;
+  margin-right: 8px;
+  transition: background-color 0.3s ease;
+}
+
+.status-indicator.active .status-dot {
+  background-color: #38a169;
+  box-shadow: 0 0 12px rgba(56, 161, 105, 0.5);
+}
+
+.status-text {
+  font-weight: 500;
+  font-size: 16px;
+}
+
+.status-message {
+  margin: 8px 0 0;
+  font-size: 14px;
+  opacity: 0.8;
+  word-break: break-word; /* 防止长文本导致溢出 */
+}
+
 .running {
-  color: green;
+  color: #38a169;
 }
+
 .stopped {
-  color: red;
+  color: #e53e3e;
 }
-.controls button {
-  padding: 10px 20px;
-  margin: 0 10px;
-  font-size: 1em;
+
+.controls {
+  display: flex;
+  justify-content: center;
+  gap: 16px;
+  flex-wrap: wrap; /* 在小屏幕上允许按钮换行 */
+}
+
+.control-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px 24px;
+  border-radius: 12px;
+  font-size: 16px;
+  font-weight: 500;
+  border: none;
   cursor: pointer;
-  border: 1px solid #ccc;
-  border-radius: 4px;
+  transition: all 0.2s ease;
+  min-width: 120px;
 }
-.controls button:disabled {
-  opacity: 0.6;
+
+.start-button {
+  background-color: #4299e1;
+  color: white;
+}
+
+.start-button:hover:not(.disabled) {
+  background-color: #3182ce;
+  transform: translateY(-2px);
+}
+
+.stop-button {
+  background-color: #f56565;
+  color: white;
+}
+
+.stop-button:hover:not(.disabled) {
+  background-color: #e53e3e;
+  transform: translateY(-2px);
+}
+
+.control-button.disabled {
+  opacity: 0.5;
   cursor: not-allowed;
+  transform: none;
+}
+
+.button-icon {
+  margin-right: 8px;
+  font-size: 12px;
+}
+
+@media (max-width: 480px) {
+  .content-card {
+    padding: 30px 20px;
+  }
+  
+  .control-button {
+    padding: 10px 16px;
+    min-width: 100px;
+    font-size: 14px;
+  }
 }
 </style>
