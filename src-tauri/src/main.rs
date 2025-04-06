@@ -20,7 +20,7 @@ enum CommandError {
 
 #[tauri::command]
 async fn start_singbox(
-    app_handle: tauri::AppHandle,
+    _app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
 ) -> Result<(), CommandError> {
     let mut process_guard = state.singbox_process.lock().unwrap();
@@ -32,18 +32,38 @@ async fn start_singbox(
 
     println!("Attempting to start sing-box...");
 
-    let singbox_path = app_handle
-        .path()
-        .resolve("bin/sing-box.exe", tauri::path::BaseDirectory::Resource)
-        .map_err(|e| CommandError::ResourceNotFound(format!("sing-box.exe: {}", e)))?;
-    
-    let config_path = app_handle
-        .path()
-        .resolve("bin/config.json", tauri::path::BaseDirectory::Resource)
-        .map_err(|e| CommandError::ResourceNotFound(format!("config.json: {}", e)))?;
+    // 获取当前可执行文件路径
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
+    let exe_dir = exe_path.parent().ok_or_else(|| {
+        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+    })?;
 
-    let mut command = Command::new(singbox_path);
-    command.args(["run", "-c", config_path.to_str().unwrap()])
+    // 构造 bin/ 目录下的文件路径
+    let config_path = exe_dir.join("bin").join("config.json");
+    let singbox_path = exe_dir.join("bin").join("sing-box.exe");
+
+    // 打印路径以便调试
+    println!("Sing-box path: {}", singbox_path.display());
+    println!("Config path: {}", config_path.display());
+
+    // 检查文件是否存在
+    if !singbox_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "sing-box.exe not found at: {}",
+            singbox_path.display()
+        )));
+    }
+    if !config_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "config.json not found at: {}",
+            config_path.display()
+        )));
+    }
+
+    let mut command = Command::new(&singbox_path);
+    command
+        .args(["run", "-c", config_path.to_str().unwrap()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -61,7 +81,7 @@ async fn start_singbox(
             *process_guard = Some(child);
             Ok(())
         }
-        Err(e) => Err(CommandError::FailedToStartProcess(e.to_string()))
+        Err(e) => Err(CommandError::FailedToStartProcess(e.to_string())),
     }
 }
 
