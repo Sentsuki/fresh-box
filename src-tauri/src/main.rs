@@ -22,6 +22,7 @@ enum CommandError {
 async fn start_singbox(
     _app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
+    config_path: String,
 ) -> Result<(), CommandError> {
     let mut process_guard = state.singbox_process.lock().unwrap();
 
@@ -31,39 +32,36 @@ async fn start_singbox(
     }
 
     println!("Attempting to start sing-box...");
-
-    // 获取当前可执行文件路径
     let exe_path = std::env::current_exe()
         .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
         CommandError::ResourceNotFound("Failed to get executable directory".to_string())
     })?;
+    let bin_dir = exe_dir.join("bin");
+    let singbox_path = bin_dir.join("sing-box.exe");
+    let config_file = std::path::Path::new(&config_path)
+        .file_name()
+        .ok_or_else(|| CommandError::ResourceNotFound("Invalid config file path".to_string()))?;
+    let target_config_path = bin_dir.join(config_file);
 
-    // 构造 bin/ 目录下的文件路径
-    let config_path = exe_dir.join("bin").join("config.json");
-    let singbox_path = exe_dir.join("bin").join("sing-box.exe");
-
-    // 打印路径以便调试
-    println!("Sing-box path: {}", singbox_path.display());
-    println!("Config path: {}", config_path.display());
-
-    // 检查文件是否存在
     if !singbox_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
             "sing-box.exe not found at: {}",
             singbox_path.display()
         )));
     }
-    if !config_path.exists() {
+    if !std::path::Path::new(&config_path).exists() {
         return Err(CommandError::ResourceNotFound(format!(
-            "config.json not found at: {}",
-            config_path.display()
+            "Source config file not found at: {}",
+            config_path
         )));
     }
+    std::fs::copy(&config_path, &target_config_path)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to copy config file: {}", e)))?;
 
     let mut command = Command::new(&singbox_path);
     command
-        .args(["run", "-c", config_path.to_str().unwrap()])
+        .args(["run", "-c", target_config_path.to_str().unwrap()])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -115,6 +113,7 @@ fn main() {
     };
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_dialog::init())  // 初始化 dialog 插件
         .manage(initial_state)
         .invoke_handler(tauri::generate_handler![start_singbox, stop_singbox])
         .setup(|app| {
@@ -122,7 +121,6 @@ fn main() {
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
             let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
-            // 解决警告：不需要存储 tray 变量
             TrayIconBuilder::new()
                 .menu(&menu)
                 .icon(app.default_window_icon().unwrap().clone())
@@ -145,15 +143,13 @@ fn main() {
                 .on_menu_event(|app, event| {
                     match event.id.as_ref() {
                         "quit" => {
-                            // 退出前的清理
                             let state = app.state::<AppState>();
                             if let Ok(mut process_guard) = state.singbox_process.lock() {
                                 if let Some(mut child) = process_guard.take() {
                                     let _ = child.kill();
-                                    let _ = child.wait(); // 等待进程结束
+                                    let _ = child.wait();
                                 }
                             }
-                            // 先隐藏窗口，给系统时间处理
                             if let Some(window) = app.get_webview_window("main") {
                                 let _ = window.hide();
                             }

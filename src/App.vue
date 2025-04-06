@@ -1,18 +1,45 @@
 <script setup lang="ts">
 import { ref } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
+import { open } from '@tauri-apps/plugin-dialog';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
 const isLoading = ref(false);
+const selectedConfig = ref<string | null>(null);
+
+async function selectConfigFile() {
+  try {
+    console.log('Attempting to open file dialog...');
+    const file = await open({
+      filters: [{ name: 'JSON Files', extensions: ['json'] }],
+      multiple: false,
+    });
+    console.log('File selected:', file);
+    if (file) {
+      selectedConfig.value = file as string;
+      statusMessage.value = `Selected config: ${file}`;
+    } else {
+      statusMessage.value = 'No config file selected.';
+    }
+  } catch (error) {
+    console.error('Error selecting file:', error);
+    statusMessage.value = `Error selecting config file: ${error}`;
+  }
+}
 
 async function startService() {
   if (isRunning.value || isLoading.value) return;
+  if (!selectedConfig.value) {
+    statusMessage.value = 'Please select a config file first.';
+    return;
+  }
+
   isLoading.value = true;
   statusMessage.value = 'Starting sing-box...';
 
   try {
-    await invoke('start_singbox');
+    await invoke('start_singbox', { configPath: selectedConfig.value });
     isRunning.value = true;
     statusMessage.value = 'Sing-box is running.';
     console.log('Sing-box started successfully via Tauri command.');
@@ -22,11 +49,11 @@ async function startService() {
       statusMessage.value = 'Error: Sing-box is already running.';
       isRunning.value = true;
     } else if (typeof error === 'object' && error !== null && 'ResourceNotFound' in error) {
-       statusMessage.value = `Error starting: Resource not found - ${ (error as any).ResourceNotFound }`;
-       isRunning.value = false;
+      statusMessage.value = `Error starting: Resource not found - ${(error as any).ResourceNotFound}`;
+      isRunning.value = false;
     } else if (typeof error === 'object' && error !== null && 'FailedToStartProcess' in error) {
-       statusMessage.value = `Error starting: Failed to start process - ${ (error as any).FailedToStartProcess }`;
-       isRunning.value = false;
+      statusMessage.value = `Error starting: Failed to start process - ${(error as any).FailedToStartProcess}`;
+      isRunning.value = false;
     } else {
       statusMessage.value = `Error starting sing-box: ${JSON.stringify(error)}`;
       isRunning.value = false;
@@ -52,7 +79,7 @@ async function stopService() {
       statusMessage.value = 'Error stopping: Sing-box was not running.';
       isRunning.value = false;
     } else if (typeof error === 'object' && error !== null && 'FailedToStopProcess' in error) {
-      statusMessage.value = `Error stopping: Failed to stop process - ${ (error as any).FailedToStopProcess }`;
+      statusMessage.value = `Error stopping: Failed to stop process - ${(error as any).FailedToStopProcess}`;
       isRunning.value = false;
     } else {
       statusMessage.value = `Error stopping sing-box: ${JSON.stringify(error)}`;
@@ -71,7 +98,7 @@ async function stopService() {
         <h1>Fresh Box</h1>
         <p class="subtitle">Sing-box Client</p>
       </div>
-      
+
       <div class="status-container">
         <div class="status-indicator" :class="{ 'active': isRunning }">
           <span class="status-dot"></span>
@@ -81,18 +108,28 @@ async function stopService() {
           {{ statusMessage }}
         </p>
       </div>
-      
+
       <div class="controls">
+        <button 
+          class="control-button select-button" 
+          @click="selectConfigFile" 
+          :disabled="isRunning || isLoading"
+          :class="{ 'disabled': isRunning || isLoading }"
+        >
+          <span class="button-icon">📁</span>
+          Select Config
+        </button>
+
         <button 
           class="control-button start-button" 
           @click="startService" 
-          :disabled="isRunning || isLoading"
-          :class="{ 'disabled': isRunning || isLoading }"
+          :disabled="isRunning || isLoading || !selectedConfig"
+          :class="{ 'disabled': isRunning || isLoading || !selectedConfig }"
         >
           <span class="button-icon">▶</span>
           {{ isLoading && !isRunning ? 'Starting...' : 'Start' }}
         </button>
-        
+
         <button 
           class="control-button stop-button" 
           @click="stopService" 
