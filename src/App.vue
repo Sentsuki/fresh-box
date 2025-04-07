@@ -37,7 +37,7 @@ function loadSubscriptionsFromStorage() {
 
 // 添加订阅
 async function addSubscription() {
-  if (!subscriptionUrl.value || isRunning.value || isLoading.value) return;
+  if (!subscriptionUrl.value || isLoading.value) return;
 
   isLoading.value = true;
   try {
@@ -68,7 +68,7 @@ async function addSubscription() {
 
 // 更新订阅
 async function updateSubscription(fileName: string) {
-  if (isRunning.value || isLoading.value || !subscriptions.value[fileName]) return;
+  if (isLoading.value || !subscriptions.value[fileName]) return;
 
   isLoading.value = true;
   try {
@@ -100,11 +100,11 @@ async function selectConfigFile() {
     });
     if (file) {
       // 调用后端复制文件到 bin 目录
-      const targetPath = await invoke<string>('copy_config_to_bin', { configPath: file as string });
-      selectedConfig.value = targetPath;
-      selectedConfigDisplay.value = getCleanFileName(targetPath);
-      localStorage.setItem('lastSelectedConfig', targetPath);
-      localStorage.setItem('lastSelectedConfigDisplay', selectedConfigDisplay.value);
+      await invoke<string>('copy_config_to_bin', { configPath: file as string });
+      // selectedConfig.value = targetPath;
+      // selectedConfigDisplay.value = getCleanFileName(targetPath);
+      // localStorage.setItem('lastSelectedConfig', targetPath);
+      // localStorage.setItem('lastSelectedConfigDisplay', selectedConfigDisplay.value);
       statusMessage.value = `Selected config: ${selectedConfigDisplay.value}`;
       await loadConfigFiles(); // 刷新配置文件列表
     }
@@ -122,7 +122,7 @@ async function loadConfigFiles() {
 
     // 创建显示用的文件名数组（仅文件名，不含路径和扩展名）
     configFilesDisplay.value = files.map(file => getCleanFileName(file));
-    
+
     // 如果之前有选择的配置，恢复选择
     const lastSelectedConfig = localStorage.getItem('lastSelectedConfig');
     if (lastSelectedConfig && configFiles.value.includes(lastSelectedConfig)) {
@@ -190,7 +190,7 @@ async function stopService() {
 onMounted(() => {
   loadSubscriptionsFromStorage(); // 先加载订阅信息
   loadConfigFiles(); // 然后加载配置文件列表
-  
+
   // 检查服务是否已运行（可选，如果后端提供了这个功能）
   invoke<boolean>('is_singbox_running')
     .then(running => {
@@ -272,17 +272,16 @@ onMounted(() => {
             <!-- 添加订阅输入部分 -->
             <div class="subscription-input-container">
               <input v-model="subscriptionUrl" type="text" class="subscription-input"
-                placeholder="Enter subscription URL" :disabled="isRunning">
+                placeholder="Enter subscription URL" :disabled="isLoading">
               <button class="control-button subscribe-button" @click="addSubscription"
-                :disabled="isRunning || !subscriptionUrl || isLoading"
-                :class="{ 'disabled': isRunning || !subscriptionUrl || isLoading }">
+                :disabled="!subscriptionUrl || isLoading" :class="{ 'disabled': !subscriptionUrl || isLoading }">
                 <span class="button-icon">📥</span>
                 {{ isLoading ? 'Subscribing...' : 'Subscribe' }}
               </button>
             </div>
 
-            <button class="control-button select-button" @click="selectConfigFile" :disabled="isRunning"
-              :class="{ 'disabled': isRunning }">
+            <button class="control-button select-button" @click="selectConfigFile" :disabled="isLoading"
+              :class="{ 'disabled': isLoading }">
               <span class="button-icon">📁</span>
               Add Config
             </button>
@@ -294,12 +293,11 @@ onMounted(() => {
               <div v-else v-for="(file, index) in configFilesDisplay" :key="configFiles[index]" class="config-item"
                 :class="{
                   'selected': configFiles[index] === selectedConfig,
-                  'disabled': isRunning
                 }">
                 <div class="config-item-content">
                   <span @click="switchConfig(index)">{{ file }}</span>
                   <button v-if="subscriptions[file]" class="update-button" @click="updateSubscription(file)"
-                    :disabled="isRunning || isLoading" :class="{ 'disabled': isRunning || isLoading }">
+                    :disabled="isLoading" :class="{ 'disabled': isLoading }">
                     🔄 Update
                   </button>
                 </div>
