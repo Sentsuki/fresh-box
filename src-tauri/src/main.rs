@@ -19,6 +19,46 @@ enum CommandError {
 }
 
 #[tauri::command]
+async fn copy_config_to_bin(config_path: String) -> Result<String, CommandError> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
+    let exe_dir = exe_path.parent().ok_or_else(|| {
+        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+    })?;
+    let bin_dir = exe_dir.join("bin");
+    let source_config_path = std::path::Path::new(&config_path);
+
+    if !source_config_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Source config file not found at: {}",
+            config_path
+        )));
+    }
+
+    let config_file = source_config_path
+        .file_name()
+        .ok_or_else(|| CommandError::ResourceNotFound("Invalid config file path".to_string()))?;
+    let target_config_path = bin_dir.join(config_file);
+
+    // 如果文件已存在且内容相同，则无需复制
+    if target_config_path.exists() {
+        let source_content = std::fs::read(&config_path)
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read source file: {}", e)))?;
+        let target_content = std::fs::read(&target_config_path)
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read target file: {}", e)))?;
+        if source_content == target_content {
+            return Ok(target_config_path.to_string_lossy().into_owned());
+        }
+    }
+
+    std::fs::copy(&config_path, &target_config_path)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to copy config file: {}", e)))?;
+    
+    Ok(target_config_path.to_string_lossy().into_owned())
+}
+
+// 更新 start_singbox，移除复制逻辑，直接使用目标路径
+#[tauri::command]
 async fn start_singbox(
     _app_handle: tauri::AppHandle,
     state: State<'_, AppState>,
@@ -27,11 +67,9 @@ async fn start_singbox(
     let mut process_guard = state.singbox_process.lock().unwrap();
 
     if process_guard.is_some() {
-        println!("Sing-box process is already running.");
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
-    println!("Attempting to start sing-box...");
     let exe_path = std::env::current_exe()
         .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
@@ -39,10 +77,6 @@ async fn start_singbox(
     })?;
     let bin_dir = exe_dir.join("bin");
     let singbox_path = bin_dir.join("sing-box.exe");
-    let config_file = std::path::Path::new(&config_path)
-        .file_name()
-        .ok_or_else(|| CommandError::ResourceNotFound("Invalid config file path".to_string()))?;
-    let target_config_path = bin_dir.join(config_file);
 
     if !singbox_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
@@ -52,16 +86,14 @@ async fn start_singbox(
     }
     if !std::path::Path::new(&config_path).exists() {
         return Err(CommandError::ResourceNotFound(format!(
-            "Source config file not found at: {}",
+            "Config file not found at: {}",
             config_path
         )));
     }
-    std::fs::copy(&config_path, &target_config_path)
-        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to copy config file: {}", e)))?;
 
     let mut command = Command::new(&singbox_path);
     command
-        .args(["run", "-c", target_config_path.to_str().unwrap()])
+        .args(["run", "-c", &config_path])
         .stdin(Stdio::null())
         .stdout(Stdio::null())
         .stderr(Stdio::null());
@@ -107,6 +139,30 @@ async fn stop_singbox(state: State<'_, AppState>) -> Result<(), CommandError> {
     }
 }
 
+#[tauri::command]
+async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
+    let exe_dir = exe_path.parent().ok_or_else(|| {
+        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+    })?;
+    let bin_dir = exe_dir.join("bin");
+
+    let mut config_files = Vec::new();
+    for entry in std::fs::read_dir(bin_dir)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read bin directory: {}", e)))?
+    {
+        let entry = entry.map_err(|e| CommandError::ResourceNotFound(format!("Failed to read entry: {}", e)))?;
+        let path = entry.path();
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+            if let Some(path_str) = path.to_str() {
+                config_files.push(path_str.to_string());
+            }
+        }
+    }
+    Ok(config_files)
+}
+
 fn main() {
     let initial_state = AppState {
         singbox_process: Mutex::new(None),
@@ -115,7 +171,7 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_dialog::init())  // 初始化 dialog 插件
         .manage(initial_state)
-        .invoke_handler(tauri::generate_handler![start_singbox, stop_singbox])
+        .invoke_handler(tauri::generate_handler![start_singbox, stop_singbox, list_configs, copy_config_to_bin])
         .setup(|app| {
             let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
             let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;

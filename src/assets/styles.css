@@ -1,70 +1,134 @@
-/* Global Styles (originally in <style>) */
-html, body {
+/* Global Styles */
+html, body, #app {
     margin: 0;
     padding: 0;
-    overflow-x: hidden;
     width: 100%;
     height: 100%;
+    overflow: hidden;
     box-sizing: border-box;
+    font-family: 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    color: #2c3e50;
   }
   
   *, *:before, *:after {
     box-sizing: inherit;
   }
   
-  /* Component Styles (originally in <style scoped>) */
-  /* Note: These are now global styles as the 'scoped' attribute is gone. */
-  /* If you need true scoping, consider CSS Modules. */
-  
+  /* App Container */
   .app-container {
     display: flex;
-    justify-content: center;
-    align-items: center;
-    min-height: 100vh;
     width: 100%;
-    background: linear-gradient(135deg, #f5f7fa 0%, #e4eaf0 100%);
-    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
-    color: #2c3e50;
-    padding: 20px;
-    /* margin: 0; -> redundant due to global reset */
-    /* box-sizing: border-box; -> redundant due to global reset */
+    height: 100vh;
+    background-color: #f8f9fa;
   }
   
-  .content-card {
-    background-color: white;
-    border-radius: 16px;
-    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
-    width: 100%;
-    max-width: 400px;
-    padding: 40px 30px;
+  /* Sidebar */
+  .sidebar {
+    width: 240px;
+    height: 100%;
+    background-color: #ffffff;
+    box-shadow: 1px 0 5px rgba(0, 0, 0, 0.05);
+    display: flex;
+    flex-direction: column;
+    z-index: 10;
+  }
+  
+  .logo-container {
+    padding: 24px 20px;
     text-align: center;
-    transition: all 0.3s ease;
-    box-sizing: border-box; /* Keep for specificity if needed */
+    border-bottom: 1px solid #f0f0f0;
   }
   
-  .app-header {
-    margin-bottom: 36px;
-  }
-  
-  .app-header h1 {
+  .logo {
     margin: 0;
-    font-size: 32px;
+    font-size: 24px;
     font-weight: 600;
     color: #1a365d;
   }
   
   .subtitle {
-    margin: 8px 0 0;
-    font-size: 16px;
+    margin: 4px 0 0;
+    font-size: 14px;
     color: #718096;
     font-weight: 400;
   }
   
-  .status-container {
-    margin-bottom: 36px;
-    padding: 16px;
-    background-color: #f8fafc;
+  .nav-items {
+    padding: 16px 12px;
+    flex-grow: 1;
+  }
+  
+  .sidebar-item {
+    display: flex;
+    align-items: center;
+    padding: 12px 16px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    font-weight: 500;
+  }
+  
+  .sidebar-item:hover {
+    background-color: #f7f7f7;
+  }
+  
+  .sidebar-item.active {
+    background-color: #f0f7ff;
+    color: #3182ce;
+  }
+  
+  .sidebar-icon {
+    margin-right: 12px;
+    font-size: 16px;
+  }
+  
+  /* Main Content */
+  .main-content {
+    flex: 1;
+    padding: 24px;
+    overflow-y: auto;
+    display: flex;
+    flex-direction: column;
+  }
+  
+  .content-card {
+    background-color: white;
     border-radius: 12px;
+    box-shadow: 0 2px 10px rgba(0, 0, 0, 0.05);
+    width: 100%;
+    max-width: 800px;
+    margin: 0 auto;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+    flex-grow: 1;
+  }
+  
+  .card-header {
+    padding: 20px 24px;
+    border-bottom: 1px solid #f0f0f0;
+  }
+  
+  .card-header h2 {
+    margin: 0;
+    font-size: 20px;
+    font-weight: 600;
+    color: #2d3748;
+  }
+  
+  .card-content {
+    padding: 24px;
+    flex-grow: 1;
+  }
+  
+  /* Status Components */
+  .status-container {
+    margin-bottom: 24px;
+    padding: 20px;
+    background-color: #f8fafc;
+    border-radius: 10px;
+    text-align: center;
   }
   
   .status-indicator {
@@ -89,7 +153,7 @@ html, body {
   }
   
   .status-text {
-    font-weight: 500;
+    font-weight: 600;
     font-size: 16px;
   }
   
@@ -97,7 +161,7 @@ html, body {
     margin: 8px 0 0;
     font-size: 14px;
     opacity: 0.8;
-    word-break: break-word; /* Prevent long text overflow */
+    word-break: break-word;
   }
   
   .status-message.running {
@@ -108,19 +172,41 @@ html, body {
     color: #e53e3e;
   }
   
+  /* Selected Config Badge */
+  .selected-config {
+    display: flex;
+    justify-content: center;
+    margin-bottom: 24px;
+  }
+  
+  .config-badge {
+    display: inline-flex;
+    align-items: center;
+    background-color: #ebf8ff;
+    color: #3182ce;
+    padding: 8px 16px;
+    border-radius: 30px;
+    font-weight: 500;
+  }
+  
+  .config-icon {
+    margin-right: 8px;
+  }
+  
+  /* Controls */
   .controls {
     display: flex;
     justify-content: center;
     gap: 16px;
-    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+    margin-top: 16px;
   }
   
   .control-button {
     display: flex;
     align-items: center;
     justify-content: center;
-    padding: 12px 24px;
-    border-radius: 12px;
+    padding: 12px 28px;
+    border-radius: 8px;
     font-size: 16px;
     font-weight: 500;
     border: none;
@@ -130,7 +216,7 @@ html, body {
   }
   
   .select-button {
-    background-color: #6b7280; /* Added a distinct style */
+    background-color: #6b7280;
     color: white;
   }
   
@@ -162,23 +248,83 @@ html, body {
   .control-button.disabled {
     opacity: 0.5;
     cursor: not-allowed;
-    transform: none; /* Disable hover transform */
+    transform: none;
   }
   
   .button-icon {
     margin-right: 8px;
-    font-size: 12px; /* Adjusted for better icon alignment */
+    font-size: 12px;
+  }
+  
+  /* Config List */
+  .config-container {
+    display: flex;
+    flex-direction: column;
+    height: 100%;
+  }
+  
+  .config-list {
+    margin-top: 24px;
+    background-color: #f9fafb;
+    border-radius: 8px;
+    padding: 8px;
+    flex-grow: 1;
+    overflow-y: auto;
+    max-height: 500px;
+  }
+  
+  .config-item {
+    padding: 12px 16px;
+    cursor: pointer;
+    border-radius: 6px;
+    margin-bottom: 4px;
+    transition: background-color 0.2s ease;
+    font-weight: 500;
+  }
+  
+  .config-item:hover:not(.disabled) {
+    background-color: #f0f0f0;
+  }
+  
+  .config-item.selected {
+    background-color: #e6f7ff;
+    color: #2b6cb0;
+  }
+  
+  .config-item.disabled {
+    cursor: not-allowed;
+    opacity: 0.6;
+  }
+  
+  .no-configs {
+    padding: 24px;
+    text-align: center;
+    color: #718096;
+    font-style: italic;
   }
   
   /* Responsive adjustments */
-  @media (max-width: 480px) {
-    .content-card {
-      padding: 30px 20px;
+  @media (max-width: 768px) {
+    .app-container {
+      flex-direction: column;
     }
-  
-    .control-button {
-      padding: 10px 16px;
-      min-width: 100px;
-      font-size: 14px;
+    
+    .sidebar {
+      width: 100%;
+      height: auto;
+    }
+    
+    .nav-items {
+      display: flex;
+      padding: 8px;
+    }
+    
+    .sidebar-item {
+      margin-right: 8px;
+      margin-bottom: 0;
+    }
+    
+    .main-content {
+      padding: 16px;
     }
   }
