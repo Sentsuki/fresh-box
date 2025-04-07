@@ -1,0 +1,184 @@
+/* Global Styles (originally in <style>) */
+html, body {
+    margin: 0;
+    padding: 0;
+    overflow-x: hidden;
+    width: 100%;
+    height: 100%;
+    box-sizing: border-box;
+  }
+  
+  *, *:before, *:after {
+    box-sizing: inherit;
+  }
+  
+  /* Component Styles (originally in <style scoped>) */
+  /* Note: These are now global styles as the 'scoped' attribute is gone. */
+  /* If you need true scoping, consider CSS Modules. */
+  
+  .app-container {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    min-height: 100vh;
+    width: 100%;
+    background: linear-gradient(135deg, #f5f7fa 0%, #e4eaf0 100%);
+    font-family: 'Inter', 'Helvetica Neue', Arial, sans-serif;
+    color: #2c3e50;
+    padding: 20px;
+    /* margin: 0; -> redundant due to global reset */
+    /* box-sizing: border-box; -> redundant due to global reset */
+  }
+  
+  .content-card {
+    background-color: white;
+    border-radius: 16px;
+    box-shadow: 0 10px 30px rgba(0, 0, 0, 0.06);
+    width: 100%;
+    max-width: 400px;
+    padding: 40px 30px;
+    text-align: center;
+    transition: all 0.3s ease;
+    box-sizing: border-box; /* Keep for specificity if needed */
+  }
+  
+  .app-header {
+    margin-bottom: 36px;
+  }
+  
+  .app-header h1 {
+    margin: 0;
+    font-size: 32px;
+    font-weight: 600;
+    color: #1a365d;
+  }
+  
+  .subtitle {
+    margin: 8px 0 0;
+    font-size: 16px;
+    color: #718096;
+    font-weight: 400;
+  }
+  
+  .status-container {
+    margin-bottom: 36px;
+    padding: 16px;
+    background-color: #f8fafc;
+    border-radius: 12px;
+  }
+  
+  .status-indicator {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    margin-bottom: 12px;
+  }
+  
+  .status-dot {
+    width: 12px;
+    height: 12px;
+    background-color: #e53e3e; /* Default to stopped color */
+    border-radius: 50%;
+    margin-right: 8px;
+    transition: background-color 0.3s ease;
+  }
+  
+  .status-indicator.active .status-dot {
+    background-color: #38a169;
+    box-shadow: 0 0 12px rgba(56, 161, 105, 0.5);
+  }
+  
+  .status-text {
+    font-weight: 500;
+    font-size: 16px;
+  }
+  
+  .status-message {
+    margin: 8px 0 0;
+    font-size: 14px;
+    opacity: 0.8;
+    word-break: break-word; /* Prevent long text overflow */
+  }
+  
+  .status-message.running {
+    color: #38a169;
+  }
+  
+  .status-message.stopped {
+    color: #e53e3e;
+  }
+  
+  .controls {
+    display: flex;
+    justify-content: center;
+    gap: 16px;
+    flex-wrap: wrap; /* Allow buttons to wrap on smaller screens */
+  }
+  
+  .control-button {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    padding: 12px 24px;
+    border-radius: 12px;
+    font-size: 16px;
+    font-weight: 500;
+    border: none;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    min-width: 120px;
+  }
+  
+  .select-button {
+    background-color: #6b7280; /* Added a distinct style */
+    color: white;
+  }
+  
+  .select-button:hover:not(.disabled) {
+    background-color: #4b5563;
+    transform: translateY(-2px);
+  }
+  
+  .start-button {
+    background-color: #4299e1;
+    color: white;
+  }
+  
+  .start-button:hover:not(.disabled) {
+    background-color: #3182ce;
+    transform: translateY(-2px);
+  }
+  
+  .stop-button {
+    background-color: #f56565;
+    color: white;
+  }
+  
+  .stop-button:hover:not(.disabled) {
+    background-color: #e53e3e;
+    transform: translateY(-2px);
+  }
+  
+  .control-button.disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none; /* Disable hover transform */
+  }
+  
+  .button-icon {
+    margin-right: 8px;
+    font-size: 12px; /* Adjusted for better icon alignment */
+  }
+  
+  /* Responsive adjustments */
+  @media (max-width: 480px) {
+    .content-card {
+      padding: 30px 20px;
+    }
+  
+    .control-button {
+      padding: 10px 16px;
+      min-width: 100px;
+      font-size: 14px;
+    }
+  }
