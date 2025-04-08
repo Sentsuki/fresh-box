@@ -19,7 +19,57 @@ const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
 const subscriptions = ref<Record<string, string>>({});
 
+// 添加重命名函数
+async function renameConfig(oldFileName: string, newFileName: string) {
+  if (isLoading.value) return;
+  
+  // 检查新文件名是否已经存在
+  if (configFilesDisplay.value.includes(newFileName)) {
+    statusMessage.value = "A config with this name already exists";
+    return;
+  }
+
+  isLoading.value = true;
+  try {
+    // 调用后端重命名文件
+    await invoke('rename_config', { 
+      oldPath: `${oldFileName}.json`,
+      newPath: `${newFileName}.json`
+    });
+    
+    // 更新订阅信息如果存在
+    if (subscriptions.value[oldFileName]) {
+      subscriptions.value[newFileName] = subscriptions.value[oldFileName];
+      delete subscriptions.value[oldFileName];
+      saveSubscriptionsToStorage(subscriptions.value);
+    }
+    
+    statusMessage.value = `Renamed ${oldFileName} to ${newFileName}`;
+    
+    // 更新选中的配置如果是被重命名的那个
+    if (selectedConfig.value?.includes(oldFileName)) {
+      selectedConfig.value = configFiles.value.find(f => f.includes(newFileName)) || null;
+      selectedConfigDisplay.value = newFileName;
+      localStorage.setItem('lastSelectedConfig', selectedConfig.value || '');
+      localStorage.setItem('lastSelectedConfigDisplay', newFileName);
+    }
+    
+    await loadConfigFiles();
+  } catch (error) {
+    statusMessage.value = `Error renaming config: ${error}`;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
 // 添加订阅
+function extractFileNameFromUrl(url: string): string {
+  const parsedUrl = new URL(url);
+  const pathname = parsedUrl.pathname;
+  const originalName = pathname.substring(pathname.lastIndexOf('/') + 1) || 'subscription';
+  return originalName.endsWith('.json') ? originalName : `${originalName}.json`;
+}
+
 async function addSubscription(url: string) {
   if (!url || isLoading.value) return;
 
@@ -29,7 +79,7 @@ async function addSubscription(url: string) {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const content = await response.text();
-    const fileName = `sub_${Date.now()}.json`;
+    const fileName = extractFileNameFromUrl(url); // 使用原始文件名
 
     // 调用后端保存文件
     const targetPath = await invoke<string>('save_subscription_config', {
@@ -265,6 +315,7 @@ onMounted(() => {
         @add-subscription="addSubscription"
         @update-subscription="updateSubscription"
         @delete-config="deleteConfig"
+        @rename-config="renameConfig"
       />
     </div>
   </div>

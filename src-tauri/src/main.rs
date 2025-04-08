@@ -23,6 +23,7 @@ fn main() {
             config::copy_config_to_bin,
             config::save_subscription_config,
             config::delete_config,
+            config::rename_config,
         ])
         .setup(|app| {
             // 设置系统托盘

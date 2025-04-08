@@ -16,7 +16,7 @@ function changePage(page: 'overview' | 'config') {
   <div class="sidebar">
     <div class="logo-container">
       <h1 class="logo">Fresh Box</h1>
-      <p class="subtitle">Sing-box Client</p>
+      <p class="subtitle">sing-box Client</p>
     </div>
     <div class="nav-items">
       <div 

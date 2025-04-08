@@ -97,3 +97,47 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     
     Ok(())
 }
+
+#[tauri::command]
+pub async fn rename_config(
+    old_path: String,
+    new_path: String
+) -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    
+    // 构建完整的旧文件和新文件路径
+    let old_full_path = bin_dir.join(&old_path);
+    let new_full_path = bin_dir.join(&new_path);
+
+    // 检查旧文件是否存在
+    if !old_full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Source config file not found at: {}",
+            old_full_path.display()
+        )));
+    }
+
+    // 检查新文件名是否已经存在
+    if new_full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "A config file already exists at: {}",
+            new_full_path.display()
+        )));
+    }
+
+    // 检查文件扩展名是否为 .json
+    if new_full_path.extension().and_then(|s| s.to_str()) != Some("json") {
+        return Err(CommandError::ResourceNotFound(
+            "New filename must have .json extension".to_string()
+        ));
+    }
+
+    // 执行重命名操作
+    std::fs::rename(&old_full_path, &new_full_path)
+        .map_err(|e| CommandError::ResourceNotFound(format!(
+            "Failed to rename config file: {}", 
+            e
+        )))?;
+
+    Ok(())
+}
