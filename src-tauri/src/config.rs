@@ -79,3 +79,21 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
     }
     Ok(config_files)
 }
+
+#[tauri::command]
+pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
+    let rm_dir = get_bin_dir()?;
+    let rm_full_path = rm_dir.join(&config_path);
+    
+    if !rm_full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            rm_full_path.display()
+        )));
+    }
+    
+    std::fs::remove_file(rm_full_path)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to delete config file: {}", e)))?;
+    
+    Ok(())
+}

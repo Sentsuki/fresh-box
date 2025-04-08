@@ -21,7 +21,8 @@ fn main() {
             singbox::stop_singbox,
             config::list_configs,
             config::copy_config_to_bin,
-            config::save_subscription_config
+            config::save_subscription_config,
+            config::delete_config,
         ])
         .setup(|app| {
             // 设置系统托盘

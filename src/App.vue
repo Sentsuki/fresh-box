@@ -4,6 +4,10 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { fetch } from '@tauri-apps/plugin-http';
 import './assets/styles.css';
+import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStorage } from './utils';
+import Sidebar from './components/Sidebar.vue';
+import Overview from './components/Overview.vue';
+import Config from './components/Config.vue';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
@@ -13,35 +17,15 @@ const selectedConfigDisplay = ref<string | null>(null);
 const currentPage = ref<'overview' | 'config'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
-const subscriptionUrl = ref('');
 const subscriptions = ref<Record<string, string>>({});
 
-// 获取纯文件名（不包含路径和扩展名）
-function getCleanFileName(filePath: string): string {
-  const fileNameWithExt = filePath.split(/[/\\]/).pop() || filePath;
-  return fileNameWithExt.replace('.json', '');
-}
-
-// 保存订阅信息到本地存储
-function saveSubscriptionsToStorage() {
-  localStorage.setItem('subscriptions', JSON.stringify(subscriptions.value));
-}
-
-// 从本地存储加载订阅信息
-function loadSubscriptionsFromStorage() {
-  const savedSubscriptions = localStorage.getItem('subscriptions');
-  if (savedSubscriptions) {
-    subscriptions.value = JSON.parse(savedSubscriptions);
-  }
-}
-
 // 添加订阅
-async function addSubscription() {
-  if (!subscriptionUrl.value || isLoading.value) return;
+async function addSubscription(url: string) {
+  if (!url || isLoading.value) return;
 
   isLoading.value = true;
   try {
-    const response = await fetch(subscriptionUrl.value);
+    const response = await fetch(url);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const content = await response.text();
@@ -54,11 +38,10 @@ async function addSubscription() {
     });
 
     const cleanFileName = getCleanFileName(targetPath);
-    subscriptions.value[cleanFileName] = subscriptionUrl.value;
-    saveSubscriptionsToStorage(); // 保存订阅信息到本地存储
+    subscriptions.value[cleanFileName] = url;
+    saveSubscriptionsToStorage(subscriptions.value); // 保存订阅信息到本地存储
     statusMessage.value = `Subscribed to: ${cleanFileName}`;
     await loadConfigFiles();
-    subscriptionUrl.value = '';
   } catch (error) {
     statusMessage.value = `Error adding subscription: ${error}`;
   } finally {
@@ -91,6 +74,54 @@ async function updateSubscription(fileName: string) {
   }
 }
 
+// 删除配置文件
+async function deleteConfig(fileName: string) {
+  if (isLoading.value) return;
+  
+  // 检查是否正在使用该配置文件
+  const fullFileName = configFiles.value.find(file => getCleanFileName(file) === fileName);
+  if (fullFileName === selectedConfig.value && isRunning.value) {
+    statusMessage.value = "Cannot delete active configuration. Stop the service first.";
+    return;
+  }
+  
+  isLoading.value = true;
+  try {
+    // 调用后端删除文件
+    await invoke('delete_config', { configPath: `${fileName}.json` });
+    
+    // 如果是订阅配置，从订阅列表中删除
+    if (subscriptions.value[fileName]) {
+      delete subscriptions.value[fileName];
+      saveSubscriptionsToStorage(subscriptions.value);
+    }
+    
+    statusMessage.value = `Deleted config: ${fileName}`;
+    
+    // 重新加载配置文件列表
+    await loadConfigFiles();
+    
+    // 如果删除的是当前选中的配置，重置选择
+    if (fullFileName === selectedConfig.value) {
+      if (configFiles.value.length > 0) {
+        selectedConfig.value = configFiles.value[0];
+        selectedConfigDisplay.value = configFilesDisplay.value[0];
+        localStorage.setItem('lastSelectedConfig', selectedConfig.value);
+        localStorage.setItem('lastSelectedConfigDisplay', selectedConfigDisplay.value);
+      } else {
+        selectedConfig.value = null;
+        selectedConfigDisplay.value = null;
+        localStorage.removeItem('lastSelectedConfig');
+        localStorage.removeItem('lastSelectedConfigDisplay');
+      }
+    }
+  } catch (error) {
+    statusMessage.value = `Error deleting config: ${error}`;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
 // 选择配置文件
 async function selectConfigFile() {
   try {
@@ -101,11 +132,7 @@ async function selectConfigFile() {
     if (file) {
       // 调用后端复制文件到 bin 目录
       await invoke<string>('copy_config_to_bin', { configPath: file as string });
-      // selectedConfig.value = targetPath;
-      // selectedConfigDisplay.value = getCleanFileName(targetPath);
-      // localStorage.setItem('lastSelectedConfig', targetPath);
-      // localStorage.setItem('lastSelectedConfigDisplay', selectedConfigDisplay.value);
-      statusMessage.value = `Selected config: ${selectedConfigDisplay.value}`;
+      statusMessage.value = `Added config file successfully`;
       await loadConfigFiles(); // 刷新配置文件列表
     }
   } catch (error) {
@@ -150,6 +177,8 @@ function switchConfig(index: number) {
     localStorage.setItem('lastSelectedConfig', selectedConfig.value);
     localStorage.setItem('lastSelectedConfigDisplay', selectedConfigDisplay.value);
     statusMessage.value = `Selected config: ${selectedConfigDisplay.value}`;
+  } else {
+    statusMessage.value = 'Cannot change config while service is running. Stop the service first.';
   }
 }
 
@@ -188,7 +217,7 @@ async function stopService() {
 
 // 初始化时加载配置文件列表和订阅信息
 onMounted(() => {
-  loadSubscriptionsFromStorage(); // 先加载订阅信息
+  subscriptions.value = loadSubscriptionsFromStorage(); // 先加载订阅信息
   loadConfigFiles(); // 然后加载配置文件列表
 
   // 检查服务是否已运行（可选，如果后端提供了这个功能）
@@ -205,107 +234,38 @@ onMounted(() => {
 
 <template>
   <div class="app-container">
-    <div class="sidebar">
-      <div class="logo-container">
-        <h1 class="logo">Fresh Box</h1>
-        <p class="subtitle">Sing-box Client</p>
-      </div>
-      <div class="nav-items">
-        <div class="sidebar-item" :class="{ 'active': currentPage === 'overview' }" @click="currentPage = 'overview'">
-          <span class="sidebar-icon">📊</span>
-          Overview
-        </div>
-        <div class="sidebar-item" :class="{ 'active': currentPage === 'config' }" @click="currentPage = 'config'">
-          <span class="sidebar-icon">⚙️</span>
-          Config
-        </div>
-      </div>
-    </div>
+    <Sidebar 
+      :current-page="currentPage"
+      @update:current-page="currentPage = $event"
+    />
 
     <div class="main-content">
       <!-- Overview 页面 -->
-      <div v-if="currentPage === 'overview'" class="content-card">
-        <div class="card-header">
-          <h2>Service Status</h2>
-        </div>
-        <div class="card-content">
-          <div class="status-container">
-            <div class="status-indicator" :class="{ 'active': isRunning }">
-              <span class="status-dot"></span>
-              <span class="status-text">{{ isRunning ? 'Running' : 'Stopped' }}</span>
-            </div>
-            <p class="status-message" :class="{ 'running': isRunning, 'stopped': !isRunning }">
-              {{ statusMessage }}
-            </p>
-          </div>
-
-          <div class="selected-config" v-if="selectedConfigDisplay">
-            <div class="config-badge">
-              <span class="config-icon">📄</span>
-              <span>{{ selectedConfigDisplay }}</span>
-            </div>
-          </div>
-
-          <div class="controls">
-            <button class="control-button start-button" @click="startService"
-              :disabled="isRunning || isLoading || !selectedConfig"
-              :class="{ 'disabled': isRunning || isLoading || !selectedConfig }">
-              <span class="button-icon">▶</span>
-              {{ isLoading && !isRunning ? 'Starting...' : 'Start' }}
-            </button>
-            <button class="control-button stop-button" @click="stopService" :disabled="!isRunning || isLoading"
-              :class="{ 'disabled': !isRunning || isLoading }">
-              <span class="button-icon">■</span>
-              {{ isLoading && isRunning ? 'Stopping...' : 'Stop' }}
-            </button>
-          </div>
-        </div>
-      </div>
+      <Overview 
+        v-if="currentPage === 'overview'"
+        :is-running="isRunning"
+        :is-loading="isLoading"
+        :status-message="statusMessage"
+        :selected-config-display="selectedConfigDisplay"
+        :selected-config="selectedConfig"
+        @start-service="startService"
+        @stop-service="stopService"
+      />
 
       <!-- Config 页面 -->
-      <div v-if="currentPage === 'config'" class="content-card">
-        <div class="card-header">
-          <h2>Configuration Files</h2>
-        </div>
-        <div class="card-content">
-          <div class="config-container">
-            <!-- 添加订阅输入部分 -->
-            <div class="subscription-input-container">
-              <input v-model="subscriptionUrl" type="text" class="subscription-input"
-                placeholder="Enter subscription URL" :disabled="isLoading">
-              <button class="control-button subscribe-button" @click="addSubscription"
-                :disabled="!subscriptionUrl || isLoading" :class="{ 'disabled': !subscriptionUrl || isLoading }">
-                <span class="button-icon">📥</span>
-                {{ isLoading ? 'Subscribing...' : 'Subscribe' }}
-              </button>
-            </div>
-
-            <button class="control-button select-button" @click="selectConfigFile" :disabled="isLoading"
-              :class="{ 'disabled': isLoading }">
-              <span class="button-icon">📁</span>
-              Add Config
-            </button>
-
-            <div class="config-list">
-              <div v-if="configFiles.length === 0" class="no-configs">
-                No configuration files found
-              </div>
-              <div v-else v-for="(file, index) in configFilesDisplay" :key="configFiles[index]" class="config-item"
-                :class="{
-                  'selected': configFiles[index] === selectedConfig,
-                }">
-                <div class="config-item-content">
-                  <span @click="switchConfig(index)">{{ file }}</span>
-                  <button v-if="subscriptions[file]" class="update-button" @click="updateSubscription(file)"
-                    :disabled="isLoading" :class="{ 'disabled': isLoading }">
-                    🔄 Update
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div>
-      </div>
+      <Config 
+        v-if="currentPage === 'config'"
+        :config-files="configFiles"
+        :config-files-display="configFilesDisplay"
+        :selected-config="selectedConfig"
+        :is-loading="isLoading"
+        :subscriptions="subscriptions"
+        @select-config-file="selectConfigFile"
+        @switch-config="switchConfig"
+        @add-subscription="addSubscription"
+        @update-subscription="updateSubscription"
+        @delete-config="deleteConfig"
+      />
     </div>
   </div>
 </template>
