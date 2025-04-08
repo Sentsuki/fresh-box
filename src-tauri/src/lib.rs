@@ -1,14 +1,10 @@
-// Learn more about Tauri commands at https://tauri.app/develop/calling-rust/
-#[tauri::command]
-fn greet(name: &str) -> String {
-    format!("Hello, {}! You've been greeted from Rust!", name)
-}
+// lib.rs - 可选的库文件，用于导出所有公共模块和函数
 
-#[cfg_attr(mobile, tauri::mobile_entry_point)]
-pub fn run() {
-    tauri::Builder::default()
-        .plugin(tauri_plugin_opener::init())
-        .invoke_handler(tauri::generate_handler![greet])
-        .run(tauri::generate_context!())
-        .expect("error while running tauri application");
-}
+pub mod errors;
+pub mod singbox;
+pub mod config;
+pub mod tray;
+
+// 重新导出常用类型，让它们更容易访问
+pub use errors::CommandError;
+pub use singbox::SingboxState;
