@@ -4,6 +4,7 @@ pub mod errors;
 pub mod singbox;
 pub mod config;
 pub mod tray;
+pub mod proxy;
 
 // 重新导出常用类型，让它们更容易访问
 pub use errors::CommandError;

@@ -5,6 +5,7 @@ mod errors;
 mod singbox;
 mod config;
 mod tray;
+mod proxy;
 
 use singbox::SingboxState;
 
@@ -19,6 +20,9 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             singbox::start_singbox,
             singbox::stop_singbox,
+            singbox::is_singbox_running,
+            proxy::get_proxies,
+            proxy::select_proxy,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
