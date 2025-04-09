@@ -1,14 +1,14 @@
 <script setup lang="ts">
 defineProps<{
-  currentPage: 'overview' | 'config' | 'proxy';
+  currentPage: 'overview' | 'config';
 }>();
 
 const emit = defineEmits<{
-  'navigate': ['overview' | 'config' | 'proxy'];
+  'update:currentPage': ['overview' | 'config'];
 }>();
 
-function changePage(page: 'overview' | 'config' | 'proxy') {
-  emit('navigate', page);
+function changePage(page: 'overview' | 'config') {
+  emit('update:currentPage', page);
 }
 </script>
 
@@ -34,14 +34,6 @@ function changePage(page: 'overview' | 'config' | 'proxy') {
       >
         <span class="sidebar-icon">⚙️</span>
         Config
-      </div>
-      <div 
-        class="sidebar-item" 
-        :class="{ 'active': currentPage === 'proxy' }" 
-        @click="changePage('proxy')"
-      >
-        <span class="sidebar-icon">🌐</span>
-        Proxy
       </div>
     </div>
   </div>

@@ -8,14 +8,13 @@ import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStor
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
-import ProxyPage from './components/ProxyPage.vue';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
 const isLoading = ref(false);
 const selectedConfig = ref<string | null>(null);
 const selectedConfigDisplay = ref<string | null>(null);
-const currentPage = ref<'overview' | 'config' | 'proxy'>('overview');
+const currentPage = ref<'overview' | 'config'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
 const subscriptions = ref<Record<string, string>>({});
@@ -284,48 +283,40 @@ onMounted(() => {
 </script>
 
 <template>
-  <div class="app">
-    <Sidebar
+  <div class="app-container">
+    <Sidebar 
       :current-page="currentPage"
-      @navigate="(page) => currentPage = page"
+      @update:current-page="currentPage = $event"
     />
-    <main class="main-content">
-      <div v-if="currentPage === 'overview'">
-        <Overview
-          :is-running="isRunning"
-          :status-message="statusMessage"
-          :is-loading="isLoading"
-          :selected-config-display="selectedConfigDisplay"
-          :selected-config="selectedConfig"
-          :config-files="configFilesDisplay"
-          @start-service="startService"
-          @stop-service="stopService"
-          @select-config="switchConfig"
-          @select-config-file="selectConfigFile"
-          @delete-config="deleteConfig"
-          @add-subscription="addSubscription"
-          @update-subscription="updateSubscription"
-          @rename-config="renameConfig"
-        />
-      </div>
-      <div v-else-if="currentPage === 'config'">
-        <Config
-          :config-files="configFiles"
-          :config-files-display="configFilesDisplay"
-          :selected-config="selectedConfig"
-          :is-loading="isLoading"
-          :subscriptions="subscriptions"
-          @select-config="switchConfig"
-          @select-config-file="selectConfigFile"
-          @delete-config="deleteConfig"
-          @add-subscription="addSubscription"
-          @update-subscription="updateSubscription"
-          @rename-config="renameConfig"
-        />
-      </div>
-      <div v-else-if="currentPage === 'proxy'">
-        <ProxyPage />
-      </div>
-    </main>
+
+    <div class="main-content">
+      <!-- Overview 页面 -->
+      <Overview 
+        v-if="currentPage === 'overview'"
+        :is-running="isRunning"
+        :is-loading="isLoading"
+        :status-message="statusMessage"
+        :selected-config-display="selectedConfigDisplay"
+        :selected-config="selectedConfig"
+        @start-service="startService"
+        @stop-service="stopService"
+      />
+
+      <!-- Config 页面 -->
+      <Config 
+        v-if="currentPage === 'config'"
+        :config-files="configFiles"
+        :config-files-display="configFilesDisplay"
+        :selected-config="selectedConfig"
+        :is-loading="isLoading"
+        :subscriptions="subscriptions"
+        @select-config-file="selectConfigFile"
+        @switch-config="switchConfig"
+        @add-subscription="addSubscription"
+        @update-subscription="updateSubscription"
+        @delete-config="deleteConfig"
+        @rename-config="renameConfig"
+      />
+    </div>
   </div>
 </template>

@@ -98,12 +98,6 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     }
 }
 
-#[tauri::command]
-pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
-    let process_guard = state.singbox_process.lock().unwrap();
-    Ok(process_guard.is_some())
-}
-
 // 清理系统资源的函数
 pub fn cleanup_process(state: &SingboxState) {
     if let Ok(mut process_guard) = state.singbox_process.lock() {
