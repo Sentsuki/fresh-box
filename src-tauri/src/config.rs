@@ -71,7 +71,15 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
     {
         let entry = entry.map_err(|e| CommandError::ResourceNotFound(format!("Failed to read entry: {}", e)))?;
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
+        let file_name = path.file_name()
+            .and_then(|s| s.to_str())
+            .unwrap_or("");
+            
+        // 过滤掉临时文件和覆盖配置文件
+        if path.extension().and_then(|s| s.to_str()) == Some("json") 
+            && file_name != "temp_config.json" 
+            && file_name != "config_override.json" 
+            && file_name != "singbox.log" {
             if let Some(path_str) = path.to_str() {
                 config_files.push(path_str.to_string());
             }
