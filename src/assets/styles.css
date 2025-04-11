@@ -279,14 +279,14 @@ body,
   display: flex;
   align-items: center;
   justify-content: center;
-  padding: var(--space-md) var(--space-xl);
+  padding: var(--space-sm) var(--space-lg);
   border-radius: var(--border-radius-lg);
-  font-size: var(--font-size-lg);
+  font-size: var(--font-size-md);
   font-weight: 500;
   border: none;
   cursor: pointer;
   transition: var(--transition);
-  min-width: 180px;
+  min-width: 140px;
   box-shadow: var(--shadow-md);
 }
 
