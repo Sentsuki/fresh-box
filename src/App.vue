@@ -80,7 +80,7 @@ async function addSubscription(url: string) {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const content = await response.text();
-    const fileName = extractFileNameFromUrl(url); // 使用原始文件名
+    const fileName = extractFileNameFromUrl(url);
 
     // 调用后端保存文件
     const targetPath = await invoke<string>('save_subscription_config', {
@@ -90,12 +90,14 @@ async function addSubscription(url: string) {
 
     const cleanFileName = getCleanFileName(targetPath);
     subscriptions.value[cleanFileName] = url;
-    saveSubscriptionsToStorage(subscriptions.value); // 保存订阅信息到本地存储
+    saveSubscriptionsToStorage(subscriptions.value);
     statusMessage.value = `Subscribed to: ${cleanFileName}`;
     await loadConfigFiles();
   } catch (error) {
     statusMessage.value = `Error adding subscription: ${error}`;
+    isLoading.value = false; // 发生错误时立即恢复按钮状态
   } finally {
+    if (!isLoading.value) return; // 如果已经因为错误恢复了状态，就不再执行下面的代码
     isLoading.value = false;
   }
 }
@@ -311,6 +313,7 @@ onMounted(() => {
         :selected-config="selectedConfig"
         :is-loading="isLoading"
         :subscriptions="subscriptions"
+        :status-message="statusMessage"
         @select-config-file="selectConfigFile"
         @switch-config="switchConfig"
         @add-subscription="addSubscription"
