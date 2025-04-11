@@ -8,6 +8,7 @@ const props = defineProps<{
   selectedConfig: string | null;
   isLoading: boolean;
   subscriptions: Record<string, string>;
+  statusMessage: string | null;
 }>();
 
 // 事件定义
@@ -99,6 +100,11 @@ function handleKeydown(event: KeyboardEvent) {
     
     <div class="card-content">
       <div class="config-container">
+        <!-- 错误提示 -->
+        <div v-if="statusMessage && (statusMessage.includes('Error') || statusMessage.includes('timed out'))" class="error-message">
+          {{ statusMessage }}
+        </div>
+
         <!-- 订阅输入区域 -->
         <div class="subscription-input-container">
           <input 

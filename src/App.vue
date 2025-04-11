@@ -8,13 +8,14 @@ import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStor
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
+import Settings from './components/Settings.vue';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
 const isLoading = ref(false);
 const selectedConfig = ref<string | null>(null);
 const selectedConfigDisplay = ref<string | null>(null);
-const currentPage = ref<'overview' | 'config'>('overview');
+const currentPage = ref<'overview' | 'config' | 'settings'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
 const subscriptions = ref<Record<string, string>>({});
@@ -79,7 +80,7 @@ async function addSubscription(url: string) {
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const content = await response.text();
-    const fileName = extractFileNameFromUrl(url); // 使用原始文件名
+    const fileName = extractFileNameFromUrl(url);
 
     // 调用后端保存文件
     const targetPath = await invoke<string>('save_subscription_config', {
@@ -89,12 +90,14 @@ async function addSubscription(url: string) {
 
     const cleanFileName = getCleanFileName(targetPath);
     subscriptions.value[cleanFileName] = url;
-    saveSubscriptionsToStorage(subscriptions.value); // 保存订阅信息到本地存储
+    saveSubscriptionsToStorage(subscriptions.value);
     statusMessage.value = `Subscribed to: ${cleanFileName}`;
     await loadConfigFiles();
   } catch (error) {
     statusMessage.value = `Error adding subscription: ${error}`;
+    isLoading.value = false; // 发生错误时立即恢复按钮状态
   } finally {
+    if (!isLoading.value) return; // 如果已经因为错误恢复了状态，就不再执行下面的代码
     isLoading.value = false;
   }
 }
@@ -310,6 +313,7 @@ onMounted(() => {
         :selected-config="selectedConfig"
         :is-loading="isLoading"
         :subscriptions="subscriptions"
+        :status-message="statusMessage"
         @select-config-file="selectConfigFile"
         @switch-config="switchConfig"
         @add-subscription="addSubscription"
@@ -317,6 +321,9 @@ onMounted(() => {
         @delete-config="deleteConfig"
         @rename-config="renameConfig"
       />
+
+      <!-- Settings 页面 -->
+      <Settings v-if="currentPage === 'settings'" />
     </div>
   </div>
 </template>
