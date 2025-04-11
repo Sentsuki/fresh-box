@@ -7,4 +7,18 @@ pub enum CommandError {
     ResourceNotFound(String),
     FailedToStartProcess(String),
     FailedToStopProcess(String),
+    IoError(String),
+    JsonError(String),
+}
+
+impl From<std::io::Error> for CommandError {
+    fn from(error: std::io::Error) -> Self {
+        CommandError::IoError(error.to_string())
+    }
+}
+
+impl From<serde_json::Error> for CommandError {
+    fn from(error: serde_json::Error) -> Self {
+        CommandError::JsonError(error.to_string())
+    }
 }

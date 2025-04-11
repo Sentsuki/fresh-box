@@ -8,13 +8,14 @@ import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStor
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
+import Settings from './pages/Settings.vue';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
 const isLoading = ref(false);
 const selectedConfig = ref<string | null>(null);
 const selectedConfigDisplay = ref<string | null>(null);
-const currentPage = ref<'overview' | 'config'>('overview');
+const currentPage = ref<'overview' | 'config' | 'settings'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
 const subscriptions = ref<Record<string, string>>({});
@@ -317,6 +318,9 @@ onMounted(() => {
         @delete-config="deleteConfig"
         @rename-config="renameConfig"
       />
+
+      <!-- Settings 页面 -->
+      <Settings v-if="currentPage === 'settings'" />
     </div>
   </div>
 </template>

@@ -1,13 +1,13 @@
 <script setup lang="ts">
 defineProps<{
-  currentPage: 'overview' | 'config';
+  currentPage: 'overview' | 'config' | 'settings';
 }>();
 
 const emit = defineEmits<{
-  'update:currentPage': ['overview' | 'config'];
+  'update:currentPage': ['overview' | 'config' | 'settings'];
 }>();
 
-function changePage(page: 'overview' | 'config') {
+function changePage(page: 'overview' | 'config' | 'settings') {
   emit('update:currentPage', page);
 }
 </script>
@@ -34,6 +34,14 @@ function changePage(page: 'overview' | 'config') {
       >
         <span class="sidebar-icon">⚙️</span>
         Config
+      </div>
+      <div 
+        class="sidebar-item" 
+        :class="{ 'active': currentPage === 'settings' }" 
+        @click="changePage('settings')"
+      >
+        <span class="sidebar-icon">⚙️</span>
+        Settings
       </div>
     </div>
   </div>

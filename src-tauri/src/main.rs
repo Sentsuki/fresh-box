@@ -4,6 +4,7 @@
 mod errors;
 mod singbox;
 mod config;
+mod config_override;
 mod tray;
 
 use singbox::SingboxState;
@@ -24,6 +25,11 @@ fn main() {
             config::save_subscription_config,
             config::delete_config,
             config::rename_config,
+            config_override::enable_config_override,
+            config_override::disable_config_override,
+            config_override::save_config_override,
+            config_override::clear_config_override,
+            config_override::load_config_override,
         ])
         .setup(|app| {
             // 设置系统托盘
