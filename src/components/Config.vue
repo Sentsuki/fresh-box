@@ -101,7 +101,7 @@ function handleKeydown(event: KeyboardEvent) {
     <div class="card-content">
       <div class="config-container">
         <!-- 错误提示 -->
-        <div v-if="statusMessage && statusMessage.includes('Error') || statusMessage.includes('timed out')" class="error-message">
+        <div v-if="statusMessage && (statusMessage.includes('Error') || statusMessage.includes('timed out'))" class="error-message">
           {{ statusMessage }}
         </div>
 
