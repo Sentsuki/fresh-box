@@ -8,7 +8,7 @@ import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStor
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
-import Settings from './pages/Settings.vue';
+import Settings from './components/Settings.vue';
 
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
