@@ -11,3 +11,4 @@
 
 - 使用 tun 需要以管理员权限运行
 - clash-api 相关可以使用 web panel
+- 本项目与 sing-box 官方没有任何关系
