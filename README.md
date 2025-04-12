@@ -10,7 +10,7 @@
 ## 注意
 
 - 使用 tun 需要以管理员权限运行
-- clash-api 相关可以使用 web panel
+- clash-api 相关可以使用其他 web panel
 - 本项目与 sing-box 官方无任何关系
 
 ## License
