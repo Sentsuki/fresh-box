@@ -12,6 +12,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     TrayIconBuilder::new()
         .menu(&menu)
         .icon(app.default_window_icon().unwrap().clone())
+        .tooltip("fresh-box")
         .on_tray_icon_event(|tray, event| {
             match event {
                 TrayIconEvent::Click {
