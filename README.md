@@ -1,4 +1,4 @@
-# Windows 上简单的 sing-box 客户端
+# A simple sing-box client for Windows
 
 ## 功能
 
