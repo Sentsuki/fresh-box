@@ -62,7 +62,7 @@ pub async fn start_singbox(
     let mut base_config: Value = serde_json::from_str(&config_content)?;
 
     // 创建命令
-    let mut command = Command::new(&singbox_path);
+    let mut command = Command::new(&*singbox_path.to_string_lossy());
 
     // 检查是否存在覆盖配置
     let override_path = bin_dir.join("config_override.json");
@@ -79,7 +79,7 @@ pub async fn start_singbox(
         
         // 使用临时配置文件启动 sing-box
         command
-            .args(["run", "-c", temp_config_path.to_str().unwrap()])
+            .args(["run", "-c", &*temp_config_path.to_string_lossy()])
             .stdin(Stdio::null())
             .stdout(Stdio::from(log_file.try_clone()?))
             .stderr(Stdio::from(log_file));

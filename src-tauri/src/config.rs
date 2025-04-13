@@ -80,9 +80,7 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
             && file_name != "temp_config.json" 
             && file_name != "config_override.json" 
             && file_name != "singbox.log" {
-            if let Some(path_str) = path.to_str() {
-                config_files.push(path_str.to_string());
-            }
+            config_files.push(path.to_string_lossy().into_owned());
         }
     }
     Ok(config_files)
@@ -96,7 +94,7 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     if !rm_full_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
             "Config file not found at: {}",
-            rm_full_path.display()
+            rm_full_path.to_string_lossy()
         )));
     }
     

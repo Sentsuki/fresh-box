@@ -58,18 +58,19 @@ pub async fn load_config_override() -> Result<Value, CommandError> {
 }
 
 pub fn apply_config_override(base_config: &mut Value, override_config: &Value) {
-    match (base_config, override_config) {
-        (Value::Object(base), Value::Object(override_obj)) => {
+    if let Some(obj) = base_config.as_object_mut() {
+        if let Some(override_obj) = override_config.as_object() {
             for (key, value) in override_obj {
-                if let Some(base_value) = base.get_mut(key) {
-                    apply_config_override(base_value, value);
+                if let Some(existing_value) = obj.get_mut(key) {
+                    if existing_value.is_object() && value.is_object() {
+                        apply_config_override(existing_value, value);
+                    } else {
+                        obj[key] = value.clone();
+                    }
                 } else {
-                    base.insert(key.clone(), value.clone());
+                    obj.insert(key.clone(), value.clone());
                 }
             }
-        }
-        (base, override_value) => {
-            *base = override_value.clone();
         }
     }
 } 
