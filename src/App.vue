@@ -1,5 +1,5 @@
 <script setup lang="ts">
-import { ref, onMounted } from 'vue';
+import { ref, onMounted, onUnmounted } from 'vue';
 import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { fetch } from '@tauri-apps/plugin-http';
@@ -19,6 +19,7 @@ const currentPage = ref<'overview' | 'config' | 'settings'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
 const subscriptions = ref<Record<string, string>>({});
+let statusCheckInterval: number | null = null;
 
 // 添加重命名函数
 async function renameConfig(oldFileName: string, newFileName: string) {
@@ -235,6 +236,21 @@ function switchConfig(index: number) {
   }
 }
 
+// 检查 singbox 状态
+async function checkSingboxStatus() {
+  if (!isRunning.value) return;
+  
+  try {
+    const running = await invoke<boolean>('is_singbox_running');
+    if (!running) {
+      isRunning.value = false;
+      statusMessage.value = 'Sing-box has stopped unexpectedly.';
+    }
+  } catch (err) {
+    console.error('Failed to check service status:', err);
+  }
+}
+
 // 启动服务
 async function startService() {
   if (isRunning.value || isLoading.value || !selectedConfig.value) return;
@@ -244,6 +260,10 @@ async function startService() {
     await invoke('start_singbox', { configPath: selectedConfig.value });
     isRunning.value = true;
     statusMessage.value = 'Sing-box is running.';
+    // 启动定期检查
+    if (statusCheckInterval === null) {
+      statusCheckInterval = window.setInterval(checkSingboxStatus, 5000); // 每5秒检查一次
+    }
   } catch (error) {
     statusMessage.value = `Error starting sing-box: ${JSON.stringify(error)}`;
     isRunning.value = false;
@@ -261,6 +281,11 @@ async function stopService() {
     await invoke('stop_singbox');
     isRunning.value = false;
     statusMessage.value = 'Sing-box is stopped.';
+    // 停止定期检查
+    if (statusCheckInterval !== null) {
+      window.clearInterval(statusCheckInterval);
+      statusCheckInterval = null;
+    }
   } catch (error) {
     statusMessage.value = `Error stopping sing-box: ${JSON.stringify(error)}`;
   } finally {
@@ -273,15 +298,27 @@ onMounted(() => {
   subscriptions.value = loadSubscriptionsFromStorage(); // 先加载订阅信息
   loadConfigFiles(); // 然后加载配置文件列表
 
-  // 检查服务是否已运行（可选，如果后端提供了这个功能）
+  // 检查服务是否已运行
   invoke<boolean>('is_singbox_running')
     .then(running => {
       isRunning.value = running;
       statusMessage.value = running ? 'Sing-box is running.' : 'Sing-box is stopped.';
+      if (running) {
+        // 如果服务在运行，启动定期检查
+        statusCheckInterval = window.setInterval(checkSingboxStatus, 5000);
+      }
     })
     .catch(err => {
       console.error('Failed to check service status:', err);
     });
+});
+
+// 组件卸载时清理定时器
+onUnmounted(() => {
+  if (statusCheckInterval !== null) {
+    window.clearInterval(statusCheckInterval);
+    statusCheckInterval = null;
+  }
 });
 </script>
 

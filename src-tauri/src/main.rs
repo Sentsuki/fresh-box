@@ -20,6 +20,7 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             singbox::start_singbox,
             singbox::stop_singbox,
+            singbox::is_singbox_running,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,

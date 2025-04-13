@@ -133,6 +133,30 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     }
 }
 
+#[tauri::command]
+pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
+    let mut process_guard = state.singbox_process.lock().unwrap();
+    
+    if let Some(child) = &mut *process_guard {
+        // 在 Windows 上，我们可以使用 try_wait 来检查进程是否还在运行
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                // 进程已经结束，清理状态
+                *process_guard = None;
+                Ok(false)
+            },
+            Ok(None) => Ok(true),     // 进程还在运行
+            Err(_) => {
+                // 发生错误，清理状态
+                *process_guard = None;
+                Ok(false)
+            }
+        }
+    } else {
+        Ok(false)
+    }
+}
+
 // 清理系统资源的函数
 pub fn cleanup_process(state: &SingboxState) {
     if let Ok(mut process_guard) = state.singbox_process.lock() {
