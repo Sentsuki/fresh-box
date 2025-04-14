@@ -72,6 +72,7 @@ function extractFileNameFromUrl(url: string): string {
   return originalName.endsWith('.json') ? originalName : `${originalName}.json`;
 }
 
+// 修改 addSubscription 函数
 async function addSubscription(url: string) {
   if (!url || isLoading.value) return;
 
@@ -91,19 +92,19 @@ async function addSubscription(url: string) {
 
     const cleanFileName = getCleanFileName(targetPath);
     subscriptions.value[cleanFileName] = url;
-    saveSubscriptionsToStorage(subscriptions.value);
+    await saveSubscriptionsToStorage(subscriptions.value);
     statusMessage.value = `Subscribed to: ${cleanFileName}`;
     await loadConfigFiles();
   } catch (error) {
     statusMessage.value = `Error adding subscription: ${error}`;
-    isLoading.value = false; // 发生错误时立即恢复按钮状态
+    isLoading.value = false;
   } finally {
-    if (!isLoading.value) return; // 如果已经因为错误恢复了状态，就不再执行下面的代码
+    if (!isLoading.value) return;
     isLoading.value = false;
   }
 }
 
-// 更新订阅
+// 修改 updateSubscription 函数
 async function updateSubscription(fileName: string) {
   if (isLoading.value || !subscriptions.value[fileName]) return;
 
@@ -128,7 +129,23 @@ async function updateSubscription(fileName: string) {
   }
 }
 
-// 删除配置文件
+// 添加编辑订阅链接的函数
+async function editSubscription(fileName: string, newUrl: string) {
+  if (isLoading.value) return;
+  
+  isLoading.value = true;
+  try {
+    subscriptions.value[fileName] = newUrl;
+    await saveSubscriptionsToStorage(subscriptions.value);
+    statusMessage.value = `Updated subscription URL for: ${fileName}`;
+  } catch (error) {
+    statusMessage.value = `Error updating subscription URL: ${error}`;
+  } finally {
+    isLoading.value = false;
+  }
+}
+
+// 修改 deleteConfig 函数
 async function deleteConfig(fileName: string) {
   if (isLoading.value) return;
   
@@ -147,7 +164,7 @@ async function deleteConfig(fileName: string) {
     // 如果是订阅配置，从订阅列表中删除
     if (subscriptions.value[fileName]) {
       delete subscriptions.value[fileName];
-      saveSubscriptionsToStorage(subscriptions.value);
+      await saveSubscriptionsToStorage(subscriptions.value);
     }
     
     statusMessage.value = `Deleted config: ${fileName}`;
@@ -293,10 +310,10 @@ async function stopService() {
   }
 }
 
-// 初始化时加载配置文件列表和订阅信息
-onMounted(() => {
-  subscriptions.value = loadSubscriptionsFromStorage(); // 先加载订阅信息
-  loadConfigFiles(); // 然后加载配置文件列表
+// 在 onMounted 中加载订阅信息
+onMounted(async () => {
+  await loadConfigFiles();
+  subscriptions.value = await loadSubscriptionsFromStorage();
 
   // 检查服务是否已运行
   invoke<boolean>('is_singbox_running')
@@ -355,6 +372,7 @@ onUnmounted(() => {
         @switch-config="switchConfig"
         @add-subscription="addSubscription"
         @update-subscription="updateSubscription"
+        @edit-subscription="editSubscription"
         @delete-config="deleteConfig"
         @rename-config="renameConfig"
       />

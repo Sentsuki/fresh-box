@@ -183,3 +183,29 @@ pub async fn rename_config(
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let subscriptions_path = bin_dir.join("subscriptions.json");
+    
+    std::fs::write(&subscriptions_path, subscriptions)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to write subscriptions file: {}", e)))?;
+    
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn load_subscriptions() -> Result<String, CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let subscriptions_path = bin_dir.join("subscriptions.json");
+    
+    if !subscriptions_path.exists() {
+        return Ok("{}".to_string());
+    }
+    
+    let content = std::fs::read_to_string(&subscriptions_path)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read subscriptions file: {}", e)))?;
+    
+    Ok(content)
+}

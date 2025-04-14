@@ -23,9 +23,10 @@ const emit = defineEmits<{
 
 // 响应式状态
 const subscriptionUrl = ref('');
-const isRenaming = ref(false);
+const isManaging = ref(false);
+const managingFile = ref('');
 const newFileName = ref('');
-const renamingFile = ref('');
+const editingSubscriptionUrl = ref('');
 
 // 计算属性
 const hasConfigFiles = computed(() => props.configFiles.length > 0);
@@ -37,7 +38,7 @@ function selectConfigFile() {
 }
 
 function switchConfig(index: number) {
-  if (props.isLoading || isRenaming.value) return;
+  if (props.isLoading || isManaging.value) return;
   emit('switch-config', index);
 }
 
@@ -55,39 +56,43 @@ function updateSubscription(fileName: string) {
 function deleteConfig(fileName: string, event: Event) {
   if (props.isLoading) return;
   event.stopPropagation();
-  emit('delete-config', fileName); // 删除
+  emit('delete-config', fileName);
 }
 
-function startRename(fileName: string, event: Event) {
+function startManage(fileName: string, event: Event) {
   if (props.isLoading) return;
   event.stopPropagation();
-  isRenaming.value = true;
-  renamingFile.value = fileName;
+  isManaging.value = true;
+  managingFile.value = fileName;
   newFileName.value = fileName;
+  editingSubscriptionUrl.value = props.subscriptions[fileName] || '';
 }
 
-function cancelRename(event?: Event) {
+function cancelManage(event?: Event) {
   if (event) event.stopPropagation();
-  isRenaming.value = false;
+  isManaging.value = false;
+  managingFile.value = '';
   newFileName.value = '';
-  renamingFile.value = '';
+  editingSubscriptionUrl.value = '';
 }
 
-function renameConfig(oldFileName: string, event?: Event) {
+function saveManage(fileName: string, event?: Event) {
   if (event) event.stopPropagation();
-  if (!newFileName.value || newFileName.value === oldFileName) {
-    cancelRename();
-    return;
+  if (newFileName.value !== fileName) {
+    emit('rename-config', fileName, newFileName.value);
   }
-  emit('rename-config', oldFileName, newFileName.value);
-  cancelRename();
+  if (editingSubscriptionUrl.value !== props.subscriptions[fileName]) {
+    props.subscriptions[fileName] = editingSubscriptionUrl.value;
+    emit('update-subscription', fileName);
+  }
+  cancelManage();
 }
 
 function handleKeydown(event: KeyboardEvent) {
   if (event.key === 'Enter') {
-    renameConfig(renamingFile.value);
+    saveManage(managingFile.value);
   } else if (event.key === 'Escape') {
-    cancelRename();
+    cancelManage();
   }
 }
 </script>
@@ -114,7 +119,7 @@ function handleKeydown(event: KeyboardEvent) {
             placeholder="Enter subscription URL"
             :disabled="isLoading"
             @keyup.enter="addSubscription"
-          >
+          />
           <button 
             class="control-button subscribe-button" 
             @click="addSubscription"
@@ -152,56 +157,71 @@ function handleKeydown(event: KeyboardEvent) {
             class="config-item"
             :class="{ 
               'selected': configFiles[index] === selectedConfig,
-              'renaming': isRenaming && renamingFile === file
+              'managing': isManaging && managingFile === file
             }" 
             @click="switchConfig(index)"
           >
             <div class="config-item-content">
-              <!-- 重命名状态 -->
-              <div v-if="isRenaming && renamingFile === file" class="rename-container" @click.stop>
-                <input 
-                  v-model="newFileName" 
-                  class="subscription-input rename-input" 
-                  :disabled="isLoading"
-                  @keydown="handleKeydown"
-                  ref="renameInput"
-                  autofocus
-                />
-                <div class="rename-actions">
+              <!-- 管理窗口 -->
+              <div v-if="isManaging && managingFile === file" class="manage-container" @click.stop>
+                <div class="manage-section">
+                  <label>Rename:</label>
+                  <input 
+                    v-model="newFileName" 
+                    class="subscription-input" 
+                    :disabled="isLoading"
+                    @keydown="handleKeydown"
+                    ref="renameInput"
+                    autofocus
+                  />
+                </div>
+                <div class="manage-section">
+                  <label>Subscription URL:</label>
+                  <input 
+                    v-model="editingSubscriptionUrl" 
+                    class="subscription-input" 
+                    placeholder="Enter subscription URL"
+                    :disabled="isLoading"
+                    @keydown="handleKeydown"
+                  />
+                </div>
+                <div class="manage-actions">
                   <button 
-                    @click="renameConfig(file)"
+                    @click="saveManage(file)"
                     class="action-button update-button"
-                    :disabled="isLoading || !newFileName || newFileName === file"
-                    :class="{ 'disabled': isLoading || !newFileName || newFileName === file }"
+                    :disabled="isLoading"
+                    :class="{ 'disabled': isLoading }"
                     title="Save"
                   >
-                    💾
+                    💾 Save
                   </button>
                   <button 
-                    @click="cancelRename"
+                    @click="cancelManage"
                     class="action-button delete-button"
                     :disabled="isLoading"
                     :class="{ 'disabled': isLoading }"
                     title="Cancel"
                   >
-                    ✖
+                    ✖ Cancel
                   </button>
                 </div>
               </div>
               
               <!-- 普通显示状态 -->
-              <span v-else class="config-name">{{ file }}</span>
+              <div v-else class="config-info">
+                <span class="config-name">{{ file }}</span>
+              </div>
 
               <!-- 操作按钮组 -->
-              <div v-if="!isRenaming || renamingFile !== file" class="config-actions">
+              <div v-if="!isManaging" class="config-actions">
                 <button 
-                  class="action-button rename-button"
-                  @click.stop="startRename(file, $event)" 
+                  class="action-button manage-button"
+                  @click.stop="startManage(file, $event)" 
                   :disabled="isLoading" 
                   :class="{ 'disabled': isLoading }"
-                  title="Rename this configuration"
+                  title="Manage configuration"
                 >
-                  ✏️ Rename
+                  ⚙️ Manage
                 </button>
                 <button 
                   v-if="subscriptions[file]" 
@@ -230,3 +250,50 @@ function handleKeydown(event: KeyboardEvent) {
     </div>
   </div>
 </template>
+
+<style scoped>
+/* ... existing styles ... */
+
+.manage-container {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  width: 100%;
+  padding: 12px;
+  background-color: #f8f8f8;
+  border-radius: 4px;
+}
+
+.manage-section {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.manage-section label {
+  font-size: 0.9em;
+  color: #666;
+}
+
+.manage-actions {
+  display: flex;
+  gap: 8px;
+  justify-content: flex-end;
+  margin-top: 8px;
+}
+
+.config-item.managing {
+  background-color: #f0f0f0;
+}
+
+.config-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+/* 移除不需要的样式 */
+.subscription-url {
+  display: none;
+}
+</style>
