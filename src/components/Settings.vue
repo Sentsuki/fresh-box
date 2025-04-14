@@ -59,16 +59,33 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref } from 'vue'
+import { computed, ref, onMounted } from 'vue'
 import { useConfigOverride } from '../services/configOverride'
 import { invoke } from '@tauri-apps/api/core'
 import Toast from './Toast.vue'
+
+interface ConfigOverride {
+  [key: string]: any
+}
 
 const toastRef = ref<InstanceType<typeof Toast> | null>(null)
 const jsonError = ref<string>('')
 const rawConfig = ref<string>('')
 
 const { isEnabled, config, enableOverride, disableOverride, saveConfig, clearConfig } = useConfigOverride()
+
+// 加载已有配置
+onMounted(async () => {
+  try {
+    const loadedConfig = await invoke<ConfigOverride>('load_config_override')
+    if (Object.keys(loadedConfig).length > 0) {
+      rawConfig.value = JSON.stringify(loadedConfig, null, 2)
+      config.value = loadedConfig
+    }
+  } catch (error) {
+    console.error('Failed to load config override:', error)
+  }
+})
 
 const isOverrideEnabled = computed({
   get: () => isEnabled.value,
@@ -115,6 +132,12 @@ const saveOverride = async () => {
 const clearOverride = async () => {
   try {
     await clearConfig()
+    // 清除 temp_config.json
+    try {
+      await invoke('delete_config', { configPath: 'temp_config.json' })
+    } catch (error) {
+      console.error('Failed to delete temp config:', error)
+    }
     rawConfig.value = '{}'
     jsonError.value = ''
     toastRef.value?.showToast('Configuration override cleared successfully', 'success', 'clear')
