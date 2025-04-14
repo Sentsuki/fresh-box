@@ -193,7 +193,7 @@ function handleKeydown(event: KeyboardEvent) {
                     :class="{ 'disabled': isLoading }"
                     title="Save"
                   >
-                    💾 Save
+                    Save
                   </button>
                   <button 
                     @click="cancelManage"
@@ -202,7 +202,7 @@ function handleKeydown(event: KeyboardEvent) {
                     :class="{ 'disabled': isLoading }"
                     title="Cancel"
                   >
-                    ✖ Cancel
+                    Cancel
                   </button>
                 </div>
               </div>
@@ -215,15 +215,6 @@ function handleKeydown(event: KeyboardEvent) {
               <!-- 操作按钮组 -->
               <div v-if="!isManaging" class="config-actions">
                 <button 
-                  class="action-button manage-button"
-                  @click.stop="startManage(file, $event)" 
-                  :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }"
-                  title="Manage configuration"
-                >
-                  ⚙️ Manage
-                </button>
-                <button 
                   v-if="subscriptions[file]" 
                   class="action-button update-button"
                   @click.stop="updateSubscription(file)" 
@@ -231,7 +222,16 @@ function handleKeydown(event: KeyboardEvent) {
                   :class="{ 'disabled': isLoading }"
                   title="Update from subscription source"
                 >
-                  🔄 Update
+                  Update
+                </button>
+                <button 
+                  class="action-button manage-button"
+                  @click.stop="startManage(file, $event)" 
+                  :disabled="isLoading" 
+                  :class="{ 'disabled': isLoading }"
+                  title="Manage configuration"
+                >
+                  Manage
                 </button>
                 <button 
                   class="action-button delete-button"
@@ -240,7 +240,7 @@ function handleKeydown(event: KeyboardEvent) {
                   :class="{ 'disabled': isLoading }"
                   title="Delete this configuration"
                 >
-                  🗑️ Delete
+                  Delete
                 </button>
               </div>
             </div>
@@ -252,44 +252,120 @@ function handleKeydown(event: KeyboardEvent) {
 </template>
 
 <style scoped>
-/* ... existing styles ... */
+.config-actions {
+  display: flex;
+  gap: var(--space-sm);
+  margin-left: auto;
+}
+
+.action-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: var(--space-xs);
+  padding: var(--space-sm) var(--space-md);
+  min-width: 80px;
+  border: none;
+  border-radius: var(--border-radius-sm);
+  font-size: var(--font-size-sm);
+  font-weight: 500;
+  cursor: pointer;
+  transition: var(--transition);
+  background: var(--color-gray-lightest);
+  color: var(--color-gray-dark);
+}
+
+.action-button:hover:not(.disabled) {
+  transform: translateY(-1px);
+  box-shadow: var(--shadow-sm);
+}
+
+.action-button:active:not(.disabled) {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.action-button.disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.manage-button {
+  background: var(--color-primary);
+  color: var(--color-white);
+}
+
+.manage-button:hover:not(.disabled) {
+  background: var(--color-primary-dark);
+}
+
+.update-button {
+  background: var(--color-success);
+  color: var(--color-white);
+}
+
+.update-button:hover:not(.disabled) {
+  background: var(--color-success-dark);
+}
+
+.delete-button {
+  background: var(--color-danger);
+  color: var(--color-white);
+}
+
+.delete-button:hover:not(.disabled) {
+  background: var(--color-danger-dark);
+}
 
 .manage-container {
   display: flex;
   flex-direction: column;
-  gap: 12px;
+  gap: var(--space-lg);
   width: 100%;
-  padding: 12px;
-  background-color: #f8f8f8;
-  border-radius: 4px;
+  padding: var(--space-lg);
+  background-color: var(--color-white);
+  border-radius: var(--border-radius-lg);
+  box-shadow: var(--shadow-md);
 }
 
 .manage-section {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 .manage-section label {
-  font-size: 0.9em;
-  color: #666;
+  font-size: var(--font-size-sm);
+  color: var(--color-gray-dark);
+  font-weight: 500;
 }
 
 .manage-actions {
   display: flex;
-  gap: 8px;
+  gap: var(--space-md);
   justify-content: flex-end;
-  margin-top: 8px;
+  margin-top: var(--space-lg);
+  padding-top: var(--space-md);
+  border-top: 1px solid var(--color-gray-lightest);
+}
+
+.manage-actions .action-button {
+  min-width: 100px;
+  padding: var(--space-sm) var(--space-lg);
 }
 
 .config-item.managing {
-  background-color: #f0f0f0;
+  background-color: var(--color-white);
+  border: 1px solid var(--color-gray-lightest);
+  border-radius: var(--border-radius-lg);
+  margin: var(--space-xs) 0;
+  box-shadow: var(--shadow-sm);
 }
 
 .config-info {
   display: flex;
   flex-direction: column;
-  gap: 4px;
+  gap: var(--space-xs);
 }
 
 /* 移除不需要的样式 */
