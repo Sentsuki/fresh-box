@@ -32,7 +32,7 @@ function changePage(page: 'overview' | 'config' | 'settings') {
         :class="{ 'active': currentPage === 'config' }" 
         @click="changePage('config')"
       >
-        <span class="sidebar-icon">⚙️</span>
+        <span class="sidebar-icon">📝</span>
         Config
       </div>
       <div 
