@@ -1,17 +1,15 @@
 # A simple sing-box client for Windows
 
-## 功能
+## Features
+- Start and Stop
+- Import or Subscribe Configurations
+- Customize Configuration Fields and Override Original Settings
+- Minimize to Tray
 
-- 启动、停止
-- 导入或订阅配置
-- 自定义配置字段并覆盖原配置
-- 最小化到托盘
-
-## 注意
-
-- 使用 tun 需要以管理员权限运行
-- clash-api 相关可以使用其他 web panel
-- 本项目与 sing-box 官方无任何关系
+## Notes
+- Tun requires administrator privileges
+- Clash-API can be used with other web panels
+- This project is not affiliated with the official Sing-box team
 
 ## License
 
