@@ -29,6 +29,7 @@
           "url": "https://*"
         }
       ]
-    }
+    },
+    "shell:default"
   ]
 }

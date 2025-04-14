@@ -1,6 +1,7 @@
 // config.rs - 管理配置文件
 
 use crate::errors::CommandError;
+use std::process::Command;
 
 // 获取 bin 目录路径的公共函数
 pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
@@ -11,6 +12,41 @@ pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
     })?;
     
     Ok(exe_dir.join("bin"))
+}
+
+#[tauri::command]
+pub async fn open_app_directory() -> Result<(), CommandError> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
+    let exe_dir = exe_path.parent().ok_or_else(|| {
+        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+    })?;
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("explorer")
+            .arg(exe_dir)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open directory: {}", e)))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(exe_dir)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open directory: {}", e)))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(exe_dir)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open directory: {}", e)))?;
+    }
+
+    Ok(())
 }
 
 #[tauri::command]

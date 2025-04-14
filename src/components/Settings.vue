@@ -7,13 +7,13 @@
       
       <div class="card-content">
         <div class="settings-section">
+          <h3>Configuration</h3>
           <div class="setting-item">
             <label>Enable Config Override</label>
             <input type="checkbox" v-model="isOverrideEnabled" class="checkbox" />
           </div>
           
           <div v-if="isOverrideEnabled" class="override-section">
-            <h3>Configuration Override</h3>
             <div class="config-editor">
               <textarea 
                 v-model="overrideConfig" 
@@ -39,6 +39,15 @@
             </div>
           </div>
         </div>
+
+        <div class="settings-section">
+          <h3>Application</h3>
+          <div class="setting-item">
+            <button @click="openAppDirectory" class="control-button">
+              Open App Directory
+            </button>
+          </div>
+        </div>
       </div>
     </div>
   </div>
@@ -47,6 +56,7 @@
 <script setup lang="ts">
 import { computed } from 'vue'
 import { useConfigOverride } from '../services/configOverride'
+import { invoke } from '@tauri-apps/api/core'
 
 const { isEnabled, config, enableOverride, disableOverride, saveConfig, clearConfig } = useConfigOverride()
 
@@ -83,5 +93,13 @@ const saveOverride = () => {
 
 const clearOverride = () => {
   clearConfig()
+}
+
+const openAppDirectory = async () => {
+  try {
+    await invoke('open_app_directory')
+  } catch (error) {
+    console.error('Failed to open app directory:', error)
+  }
 }
 </script>

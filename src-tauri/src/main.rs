@@ -26,6 +26,7 @@ fn main() {
             config::save_subscription_config,
             config::delete_config,
             config::rename_config,
+            config::open_app_directory,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,
