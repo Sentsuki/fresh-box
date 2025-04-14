@@ -1,5 +1,6 @@
 <template>
   <div class="settings-container">
+    <Toast ref="toastRef" />
     <div class="content-card">
       <div class="card-header">
         <h2>Settings</h2>
@@ -20,7 +21,11 @@
                 placeholder="Enter your configuration override here (JSON format)"
                 rows="10"
                 class="config-textarea"
+                :class="{ 'error': !isValidJson }"
               ></textarea>
+              <div v-if="!isValidJson" class="error-message">
+                {{ jsonError }}
+              </div>
             </div>
             <div class="button-group">
               <button 
@@ -54,9 +59,14 @@
 </template>
 
 <script setup lang="ts">
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 import { useConfigOverride } from '../services/configOverride'
 import { invoke } from '@tauri-apps/api/core'
+import Toast from './Toast.vue'
+
+const toastRef = ref<InstanceType<typeof Toast> | null>(null)
+const jsonError = ref<string>('')
+const rawConfig = ref<string>('')
 
 const { isEnabled, config, enableOverride, disableOverride, saveConfig, clearConfig } = useConfigOverride()
 
@@ -66,33 +76,52 @@ const isOverrideEnabled = computed({
 })
 
 const overrideConfig = computed({
-  get: () => JSON.stringify(config.value, null, 2),
+  get: () => rawConfig.value,
   set: (value) => {
+    rawConfig.value = value
     try {
-      config.value = JSON.parse(value)
+      const parsed = JSON.parse(value)
+      config.value = parsed
+      jsonError.value = ''
     } catch (e) {
-      // Invalid JSON, keep the current value
+      if (e instanceof SyntaxError) {
+        jsonError.value = e.message
+      } else {
+        jsonError.value = 'Invalid JSON format'
+      }
     }
   }
 })
 
 const isValidJson = computed(() => {
-  try {
-    JSON.parse(overrideConfig.value)
-    return true
-  } catch (e) {
-    return false
-  }
+  return jsonError.value === ''
 })
 
-const saveOverride = () => {
-  if (isValidJson.value) {
-    saveConfig(JSON.parse(overrideConfig.value))
+const saveOverride = async () => {
+  if (!isValidJson.value) {
+    toastRef.value?.showToast('Please fix JSON format errors before saving', 'error')
+    return
+  }
+
+  try {
+    await saveConfig(JSON.parse(overrideConfig.value))
+    toastRef.value?.showToast('Configuration override saved successfully', 'success', 'save')
+  } catch (error) {
+    console.error('Failed to save config override:', error)
+    toastRef.value?.showToast('Failed to save configuration override', 'error')
   }
 }
 
-const clearOverride = () => {
-  clearConfig()
+const clearOverride = async () => {
+  try {
+    await clearConfig()
+    rawConfig.value = '{}'
+    jsonError.value = ''
+    toastRef.value?.showToast('Configuration override cleared successfully', 'success', 'clear')
+  } catch (error) {
+    console.error('Failed to clear config override:', error)
+    toastRef.value?.showToast('Failed to clear configuration override', 'error')
+  }
 }
 
 const openAppDirectory = async () => {
@@ -100,6 +129,25 @@ const openAppDirectory = async () => {
     await invoke('open_app_directory')
   } catch (error) {
     console.error('Failed to open app directory:', error)
+    toastRef.value?.showToast('Failed to open app directory', 'error')
   }
 }
 </script>
+
+<style scoped>
+.config-textarea.error {
+  border-color: #f44336;
+  background-color: #fff5f5;
+}
+
+.error-message {
+  color: #d32f2f;
+  margin-top: 8px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 8px 12px;
+  background-color: #ffebee;
+  border-radius: 4px;
+  border-left: 4px solid #f44336;
+}
+</style>
