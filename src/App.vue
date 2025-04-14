@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { fetch } from '@tauri-apps/plugin-http';
 import './assets/styles.css';
-import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStorage } from './utils';
+import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStorage } from './services/utils';
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
