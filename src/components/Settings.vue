@@ -1,57 +1,55 @@
 <template>
-  <div class="settings-container">
+  <div class="content-card">
     <Toast ref="toastRef" />
-    <div class="content-card">
-      <div class="card-header">
-        <h2>Settings</h2>
-      </div>
-      
-      <div class="card-content">
-        <div class="settings-section">
-          <h3>Configuration</h3>
-          <div class="setting-item">
-            <label>Enable Config Override</label>
-            <input type="checkbox" v-model="isOverrideEnabled" class="checkbox" />
-          </div>
-          
-          <div v-if="isOverrideEnabled" class="override-section">
-            <div class="config-editor">
-              <textarea 
-                v-model="overrideConfig" 
-                placeholder="Enter your configuration override here (JSON format)"
-                rows="10"
-                class="config-textarea"
-                :class="{ 'error': !isValidJson }"
-              ></textarea>
-              <div v-if="!isValidJson" class="error-message">
-                {{ jsonError }}
-              </div>
-            </div>
-            <div class="button-group">
-              <button 
-                @click="saveOverride" 
-                :disabled="!isValidJson"
-                class="control-button save-button"
-              >
-                Save Override
-              </button>
-              <button 
-                @click="clearOverride"
-                class="control-button clear-button"
-              >
-                Clear Override
-              </button>
-            </div>
-          </div>
+    <div class="card-header">
+      <h2>Settings</h2>
+    </div>
+    
+    <div class="card-content">
+      <div class="settings-section">
+        <h3>Configuration</h3>
+        <div class="setting-item">
+          <label>Enable Config Override</label>
+          <input type="checkbox" v-model="isOverrideEnabled" class="checkbox" />
         </div>
-
-        <div class="settings-section">
-          <h3>Application</h3>
-          <div class="setting-item">
-            <button @click="openAppDirectory" class="control-button">
-              Open App Directory
+        
+        <div v-if="isOverrideEnabled" class="override-section">
+          <div class="config-editor">
+            <textarea 
+              v-model="overrideConfig" 
+              placeholder="Enter your configuration override here (JSON format)"
+              rows="10"
+              class="config-textarea"
+              :class="{ 'error': !isValidJson }"
+            ></textarea>
+            <div v-if="!isValidJson" class="error-message">
+              {{ jsonError }}
+            </div>
+          </div>
+          <div class="button-group">
+            <button 
+              @click="saveOverride" 
+              :disabled="!isValidJson"
+              class="control-button save-button"
+            >
+              Save Override
+            </button>
+            <button 
+              @click="clearOverride"
+              class="control-button clear-button"
+            >
+              Clear Override
             </button>
           </div>
+        </div>
+      </div>
+
+      <div class="settings-section">
+        <h3>Application</h3>
+        <div class="setting-item">
+          <button @click="openAppDirectory" class="control-button">
+            Open App Directory
+          </button>
         </div>
       </div>
     </div>

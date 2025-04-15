@@ -171,7 +171,6 @@ body,
   border-radius: var(--border-radius-xxl);
   box-shadow: var(--shadow-md);
   width: 100%;
-  max-width: var(--content-max-width);
   margin: 0 auto;
   overflow: hidden;
   display: flex;
@@ -194,6 +193,8 @@ body,
 .card-content {
   padding: var(--space-xxl);
   flex-grow: 1;
+  overflow-y: auto;
+  max-height: calc(100vh - var(--space-xxl) * 2 - 60px); /* 减去 header 和 padding 的高度 */
 }
 
 /* ===== Status Components ===== */
@@ -481,7 +482,6 @@ body,
 .settings-container {
   padding: var(--space-xxl);
   width: 100%;
-  max-width: var(--content-max-width);
   margin: 0 auto;
 }
 
