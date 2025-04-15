@@ -1,7 +1,7 @@
 {
   "name": "fresh-box",
   "private": true,
-  "version": "1.2.4",
+  "version": "1.2.5",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -14,7 +14,6 @@
     "@tauri-apps/plugin-dialog": "~2",
     "@tauri-apps/plugin-http": "~2",
     "@tauri-apps/plugin-opener": "^2",
-    "@tauri-apps/plugin-shell": "~2",
     "vue": "^3.5.13"
   },
   "devDependencies": {
