@@ -11,6 +11,12 @@
 - Clash-API can be used with other web panels
 - This project is not affiliated with the official Sing-box team
 
+## Local build
+- Install tauri with [DOC](https://v2.tauri.app/)
+- Download [sing-box core for windows](https://github.com/SagerNet/sing-box) and put it in `src-tauri\bin`
+- `pnpm install`
+- `pnpm tauri dev` or `pnpm tauri build`
+
 ## License
 
 This project is licensed under the GNU General Public License v3.0 - see the [LICENSE](./LICENSE) file for details.
