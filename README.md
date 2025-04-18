@@ -12,7 +12,7 @@
 - This project is not affiliated with the official Sing-box team
 
 ## Local build
-- Install tauri with [DOC](https://v2.tauri.app/)
+- Install Tauri with [DOC](https://v2.tauri.app/)
 - Download [sing-box core for windows](https://github.com/SagerNet/sing-box) and put it in `src-tauri\bin`
 - `pnpm install`
 - `pnpm tauri dev` or `pnpm tauri build`
