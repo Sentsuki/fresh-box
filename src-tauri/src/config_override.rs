@@ -1,7 +1,7 @@
+use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
-use crate::errors::CommandError;
 
 const OVERRIDE_CONFIG_FILE: &str = "config_override.json";
 
@@ -51,7 +51,7 @@ pub async fn load_config_override() -> Result<Value, CommandError> {
     if !config_path.exists() {
         return Ok(serde_json::json!({}));
     }
-    
+
     let config_str = fs::read_to_string(&config_path)?;
     let config: Value = serde_json::from_str(&config_str)?;
     Ok(config)
@@ -73,4 +73,4 @@ pub fn apply_config_override(base_config: &mut Value, override_config: &Value) {
             }
         }
     }
-} 
+}

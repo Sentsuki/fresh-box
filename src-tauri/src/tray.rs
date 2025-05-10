@@ -1,7 +1,11 @@
 // tray.rs - 托盘功能模块
 
-use tauri::{Manager, menu::{Menu, MenuItem}, tray::{TrayIconBuilder, TrayIconEvent, MouseButton, MouseButtonState}};
 use crate::singbox::SingboxState;
+use tauri::{
+    menu::{Menu, MenuItem},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
+    Manager,
+};
 
 // 创建系统托盘
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -13,40 +17,36 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .menu(&menu)
         .icon(app.default_window_icon().unwrap().clone())
         .tooltip("fresh-box")
-        .on_tray_icon_event(|tray, event| {
-            match event {
-                TrayIconEvent::Click {
-                    button: MouseButton::Left,
-                    button_state: MouseButtonState::Up,
-                    ..
-                } => {
-                    let app = tray.app_handle();
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
+        .on_tray_icon_event(|tray, event| match event {
+            TrayIconEvent::Click {
+                button: MouseButton::Left,
+                button_state: MouseButtonState::Up,
+                ..
+            } => {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
                 }
-                _ => {}
             }
+            _ => {}
         })
-        .on_menu_event(|app, event| {
-            match event.id.as_ref() {
-                "quit" => {
-                    let state = app.state::<SingboxState>();
-                    crate::singbox::cleanup_process(&state);
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.hide();
-                    }
-                    app.exit(0);
+        .on_menu_event(|app, event| match event.id.as_ref() {
+            "quit" => {
+                let state = app.state::<SingboxState>();
+                crate::singbox::cleanup_process(&state);
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.hide();
                 }
-                "show" => {
-                    if let Some(window) = app.get_webview_window("main") {
-                        let _ = window.show();
-                        let _ = window.set_focus();
-                    }
-                }
-                _ => {}
+                app.exit(0);
             }
+            "show" => {
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
+            }
+            _ => {}
         })
         .build(app)?;
 

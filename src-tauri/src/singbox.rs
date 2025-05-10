@@ -1,11 +1,11 @@
 // singbox.rs - 管理 singbox 进程的启动和停止
 
-use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
-use tauri::{State};
 use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
+use std::process::{Child, Command, Stdio};
+use std::sync::Mutex;
+use tauri::State;
 
 pub struct SingboxState {
     pub singbox_process: Mutex<Option<Child>>,
@@ -31,8 +31,9 @@ pub async fn start_singbox(
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
-    let exe_path = std::env::current_exe()
-        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e)))?;
+    let exe_path = std::env::current_exe().map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
+    })?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
         CommandError::ResourceNotFound("Failed to get executable directory".to_string())
     })?;
@@ -69,14 +70,17 @@ pub async fn start_singbox(
     if override_path.exists() {
         let override_content = fs::read_to_string(&override_path)?;
         let override_config: Value = serde_json::from_str(&override_content)?;
-        
+
         // 应用覆盖配置
         crate::config_override::apply_config_override(&mut base_config, &override_config);
-        
+
         // 将合并后的配置写入临时文件
         let temp_config_path = bin_dir.join("temp_config.json");
-        fs::write(&temp_config_path, serde_json::to_string_pretty(&base_config)?)?;
-        
+        fs::write(
+            &temp_config_path,
+            serde_json::to_string_pretty(&base_config)?,
+        )?;
+
         // 使用临时配置文件启动 sing-box
         command
             .args(["run", "-c", &*temp_config_path.to_string_lossy()])
@@ -101,7 +105,10 @@ pub async fn start_singbox(
 
     match command.spawn() {
         Ok(child) => {
-            println!("Sing-box process started successfully (PID: {}).", child.id());
+            println!(
+                "Sing-box process started successfully (PID: {}).",
+                child.id()
+            );
             *process_guard = Some(child);
             Ok(())
         }
@@ -114,11 +121,17 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     let mut process_guard = state.singbox_process.lock().unwrap();
 
     if let Some(mut child) = process_guard.take() {
-        println!("Attempting to stop sing-box process (PID: {})...", child.id());
+        println!(
+            "Attempting to stop sing-box process (PID: {})...",
+            child.id()
+        );
         match child.kill() {
             Ok(_) => {
                 match child.wait() {
-                    Ok(status) => println!("Sing-box process stopped successfully with status: {}", status),
+                    Ok(status) => println!(
+                        "Sing-box process stopped successfully with status: {}",
+                        status
+                    ),
                     Err(e) => eprintln!("Error waiting for sing-box process termination: {}", e),
                 }
                 Ok(())
@@ -136,7 +149,7 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 #[tauri::command]
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
     let mut process_guard = state.singbox_process.lock().unwrap();
-    
+
     if let Some(child) = &mut *process_guard {
         // 在 Windows 上，我们可以使用 try_wait 来检查进程是否还在运行
         match child.try_wait() {
@@ -144,8 +157,8 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
                 // 进程已经结束，清理状态
                 *process_guard = None;
                 Ok(false)
-            },
-            Ok(None) => Ok(true),     // 进程还在运行
+            }
+            Ok(None) => Ok(true), // 进程还在运行
             Err(_) => {
                 // 发生错误，清理状态
                 *process_guard = None;

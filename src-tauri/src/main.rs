@@ -1,13 +1,14 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod errors;
-mod singbox;
 mod config;
 mod config_override;
+mod errors;
+mod singbox;
 mod tray;
 
 use singbox::SingboxState;
+use tauri::Manager;
 
 fn main() {
     // 创建初始状态
@@ -40,15 +41,23 @@ fn main() {
             tray::setup_system_tray(app)?;
             Ok(())
         })
-        .on_window_event(|window, event| {
-            match event {
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    api.prevent_close();
-                    let _ = window.hide();
-                }
-                _ => {}
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                let _ = window.hide();
             }
+            _ => {}
         })
+        .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
+            println!(
+                "Second instance launched with args: {:?} in {:?}",
+                argv, cwd
+            );
+            if let Some(window) = app.get_webview_window("main") {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+        }))
         .run(tauri::generate_context!())
         .expect("error while running fresh-box");
 }
