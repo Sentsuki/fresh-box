@@ -1,7 +1,7 @@
 {
   "name": "fresh-box",
   "private": true,
-  "version": "1.2.9",
+  "version": "1.2.10",
   "type": "module",
   "scripts": {
     "dev": "vite",
@@ -10,17 +10,17 @@
     "tauri": "tauri"
   },
   "dependencies": {
-    "@tauri-apps/api": "^2.6.0",
-    "@tauri-apps/plugin-dialog": "~2.3.0",
-    "@tauri-apps/plugin-http": "~2.5.0",
+    "@tauri-apps/api": "^2.7.0",
+    "@tauri-apps/plugin-dialog": "~2.3.2",
+    "@tauri-apps/plugin-http": "~2.5.1",
     "@tauri-apps/plugin-opener": "^2.4.0",
-    "vue": "^3.5.17"
+    "vue": "^3.5.18"
   },
   "devDependencies": {
-    "@tauri-apps/cli": "^2.6.2",
-    "@vitejs/plugin-vue": "^6.0.0",
-    "typescript": "~5.8.3",
-    "vite": "^7.0.2",
-    "vue-tsc": "^3.0.1"
+    "@tauri-apps/cli": "^2.7.1",
+    "@vitejs/plugin-vue": "^6.0.1",
+    "typescript": "~5.9.2",
+    "vite": "^7.0.6",
+    "vue-tsc": "^3.0.4"
   }
 }
