@@ -12,6 +12,8 @@ jobs:
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0  # 确保完整检出仓库，包括所有文件
 
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -46,6 +48,15 @@ jobs:
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
           restore-keys: |
             ${{ runner.os }}-pnpm-
+
+      - name: Debug project files
+        run: |
+          Write-Output "Listing project files:"
+          dir
+          if (Test-Path package.json) { Write-Output "package.json:"; cat package.json }
+          if (Test-Path pnpm-workspace.yaml) { Write-Output "pnpm-workspace.yaml:"; cat pnpm-workspace.yaml }
+          if (Test-Path pnpm-lock.yaml) { Write-Output "pnpm-lock.yaml exists" }
+        shell: pwsh
 
       - name: Install dependencies
         run: pnpm install
