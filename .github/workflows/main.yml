@@ -49,6 +49,30 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
+      - name: Install jq and 7-Zip
+        run: |
+          choco install jq -y
+          choco install 7zip -y
+        shell: pwsh
+
+      - name: Download and extract sing-box
+        run: |
+          # Create src-tauri/bin directory if it doesn't exist
+          New-Item -Path src-tauri/bin -ItemType Directory -Force
+          # Fetch the latest release download URL for sing-box-windows-amd64.zip
+          $url = curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("windows-amd64.zip")) | .browser_download_url'
+          Write-Output "Downloading from: $url"
+          # Download the zip file
+          curl -L -o sing-box.zip $url
+          # Extract sing-box.exe to src-tauri/bin
+          7z e sing-box.zip -osrc-tauri/bin sing-box.exe -r
+          # Verify the file exists
+          if (Test-Path src-tauri/bin/sing-box.exe) { Write-Output "sing-box.exe extracted successfully" }
+          else { Write-Output "Failed to extract sing-box.exe"; exit 1 }
+          # Clean up
+          Remove-Item sing-box.zip
+        shell: pwsh
+
       - name: Install dependencies
         run: pnpm install
 
