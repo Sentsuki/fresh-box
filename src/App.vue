@@ -24,7 +24,7 @@ let statusCheckInterval: number | null = null;
 // 添加重命名函数
 async function renameConfig(oldFileName: string, newFileName: string) {
   if (isLoading.value) return;
-  
+
   // 检查新文件名是否已经存在
   if (configFilesDisplay.value.includes(newFileName)) {
     statusMessage.value = "A config with this name already exists";
@@ -34,20 +34,20 @@ async function renameConfig(oldFileName: string, newFileName: string) {
   isLoading.value = true;
   try {
     // 调用后端重命名文件
-    await invoke('rename_config', { 
+    await invoke('rename_config', {
       oldPath: `${oldFileName}.json`,
       newPath: `${newFileName}.json`
     });
-    
+
     // 更新订阅信息如果存在
     if (subscriptions.value[oldFileName]) {
       subscriptions.value[newFileName] = subscriptions.value[oldFileName];
       delete subscriptions.value[oldFileName];
-      saveSubscriptionsToStorage(subscriptions.value);
+      await saveSubscriptionsToStorage(subscriptions.value);
     }
-    
+
     statusMessage.value = `Renamed ${oldFileName} to ${newFileName}`;
-    
+
     // 更新选中的配置如果是被重命名的那个
     if (selectedConfig.value?.includes(oldFileName)) {
       selectedConfig.value = configFiles.value.find(f => f.includes(newFileName)) || null;
@@ -55,7 +55,7 @@ async function renameConfig(oldFileName: string, newFileName: string) {
       localStorage.setItem('lastSelectedConfig', selectedConfig.value || '');
       localStorage.setItem('lastSelectedConfigDisplay', newFileName);
     }
-    
+
     await loadConfigFiles();
   } catch (error) {
     statusMessage.value = `Error renaming config: ${error}`;
@@ -132,7 +132,7 @@ async function updateSubscription(fileName: string) {
 // 添加编辑订阅链接的函数
 async function editSubscription(fileName: string, newUrl: string) {
   if (isLoading.value) return;
-  
+
   isLoading.value = true;
   try {
     subscriptions.value[fileName] = newUrl;
@@ -148,30 +148,30 @@ async function editSubscription(fileName: string, newUrl: string) {
 // 修改 deleteConfig 函数
 async function deleteConfig(fileName: string) {
   if (isLoading.value) return;
-  
+
   // 检查是否正在使用该配置文件
   const fullFileName = configFiles.value.find(file => getCleanFileName(file) === fileName);
   if (fullFileName === selectedConfig.value && isRunning.value) {
     statusMessage.value = "Cannot delete active configuration. Stop the service first.";
     return;
   }
-  
+
   isLoading.value = true;
   try {
     // 调用后端删除文件
     await invoke('delete_config', { configPath: `${fileName}.json` });
-    
+
     // 如果是订阅配置，从订阅列表中删除
     if (subscriptions.value[fileName]) {
       delete subscriptions.value[fileName];
       await saveSubscriptionsToStorage(subscriptions.value);
     }
-    
+
     statusMessage.value = `Deleted config: ${fileName}`;
-    
+
     // 重新加载配置文件列表
     await loadConfigFiles();
-    
+
     // 如果删除的是当前选中的配置，重置选择
     if (fullFileName === selectedConfig.value) {
       if (configFiles.value.length > 0) {
@@ -256,7 +256,7 @@ function switchConfig(index: number) {
 // 检查 singbox 状态
 async function checkSingboxStatus() {
   if (!isRunning.value) return;
-  
+
   try {
     const running = await invoke<boolean>('is_singbox_running');
     if (!running) {
@@ -341,41 +341,20 @@ onUnmounted(() => {
 
 <template>
   <div class="app-container">
-    <Sidebar 
-      :current-page="currentPage"
-      @update:current-page="currentPage = $event"
-    />
+    <Sidebar :current-page="currentPage" @update:current-page="currentPage = $event" />
 
     <div class="main-content">
       <!-- Overview 页面 -->
-      <Overview 
-        v-if="currentPage === 'overview'"
-        :is-running="isRunning"
-        :is-loading="isLoading"
-        :status-message="statusMessage"
-        :selected-config-display="selectedConfigDisplay"
-        :selected-config="selectedConfig"
-        @start-service="startService"
-        @stop-service="stopService"
-      />
+      <Overview v-if="currentPage === 'overview'" :is-running="isRunning" :is-loading="isLoading"
+        :status-message="statusMessage" :selected-config-display="selectedConfigDisplay"
+        :selected-config="selectedConfig" @start-service="startService" @stop-service="stopService" />
 
       <!-- Config 页面 -->
-      <Config 
-        v-if="currentPage === 'config'"
-        :config-files="configFiles"
-        :config-files-display="configFilesDisplay"
-        :selected-config="selectedConfig"
-        :is-loading="isLoading"
-        :subscriptions="subscriptions"
-        :status-message="statusMessage"
-        @select-config-file="selectConfigFile"
-        @switch-config="switchConfig"
-        @add-subscription="addSubscription"
-        @update-subscription="updateSubscription"
-        @edit-subscription="editSubscription"
-        @delete-config="deleteConfig"
-        @rename-config="renameConfig"
-      />
+      <Config v-if="currentPage === 'config'" :config-files="configFiles" :config-files-display="configFilesDisplay"
+        :selected-config="selectedConfig" :is-loading="isLoading" :subscriptions="subscriptions"
+        :status-message="statusMessage" @select-config-file="selectConfigFile" @switch-config="switchConfig"
+        @add-subscription="addSubscription" @update-subscription="updateSubscription"
+        @edit-subscription="editSubscription" @delete-config="deleteConfig" @rename-config="renameConfig" />
 
       <!-- Settings 页面 -->
       <Settings v-if="currentPage === 'settings'" />

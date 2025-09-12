@@ -17,6 +17,7 @@ const emit = defineEmits<{
   'switch-config': [number];
   'add-subscription': [string];
   'update-subscription': [string];
+  'edit-subscription': [string, string];
   'delete-config': [string];
   'rename-config': [string, string];
 }>();
@@ -82,8 +83,7 @@ function saveManage(fileName: string, event?: Event) {
     emit('rename-config', fileName, newFileName.value);
   }
   if (editingSubscriptionUrl.value !== props.subscriptions[fileName]) {
-    props.subscriptions[fileName] = editingSubscriptionUrl.value;
-    emit('update-subscription', fileName);
+    emit('edit-subscription', fileName, editingSubscriptionUrl.value);
   }
   cancelManage();
 }
