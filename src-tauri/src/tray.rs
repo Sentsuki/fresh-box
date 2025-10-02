@@ -17,15 +17,18 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .menu(&menu)
         .icon(app.default_window_icon().unwrap().clone())
         .tooltip("fresh-box")
-        .on_tray_icon_event(|tray, event| if let TrayIconEvent::Click {
+        .on_tray_icon_event(|tray, event| {
+            if let TrayIconEvent::Click {
                 button: MouseButton::Left,
                 button_state: MouseButtonState::Up,
                 ..
-            } = event {
-            let app = tray.app_handle();
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
+            } = event
+            {
+                let app = tray.app_handle();
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.show();
+                    let _ = window.set_focus();
+                }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
