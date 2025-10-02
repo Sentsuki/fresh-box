@@ -1,13 +1,15 @@
 <script setup lang="ts">
 import { ref, computed } from 'vue';
 
+import { formatLastUpdated, SubscriptionInfo } from '../services/utils';
+
 // 组件属性定义
 const props = defineProps<{
   configFiles: string[];
   configFilesDisplay: string[];
   selectedConfig: string | null;
   isLoading: boolean;
-  subscriptions: Record<string, string>;
+  subscriptions: Record<string, SubscriptionInfo>;
   statusMessage: string | null;
 }>();
 
@@ -66,7 +68,7 @@ function startManage(fileName: string, event: Event) {
   isManaging.value = true;
   managingFile.value = fileName;
   newFileName.value = fileName;
-  editingSubscriptionUrl.value = props.subscriptions[fileName] || '';
+  editingSubscriptionUrl.value = props.subscriptions[fileName]?.url || '';
 }
 
 function cancelManage(event?: Event) {
@@ -82,7 +84,7 @@ function saveManage(fileName: string, event?: Event) {
   if (newFileName.value !== fileName) {
     emit('rename-config', fileName, newFileName.value);
   }
-  if (editingSubscriptionUrl.value !== props.subscriptions[fileName]) {
+  if (editingSubscriptionUrl.value !== props.subscriptions[fileName]?.url) {
     emit('edit-subscription', fileName, editingSubscriptionUrl.value);
   }
   cancelManage();
@@ -210,6 +212,9 @@ function handleKeydown(event: KeyboardEvent) {
               <!-- 普通显示状态 -->
               <div v-else class="config-info">
                 <span class="config-name">{{ file }}</span>
+                <span v-if="subscriptions[file]" class="last-updated">
+                  {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
+                </span>
               </div>
 
               <!-- 操作按钮组 -->
@@ -366,6 +371,17 @@ function handleKeydown(event: KeyboardEvent) {
   display: flex;
   flex-direction: column;
   gap: var(--space-xs);
+}
+
+.config-name {
+  font-weight: 500;
+  color: var(--color-gray-dark);
+}
+
+.last-updated {
+  font-size: var(--font-size-xs);
+  color: var(--color-gray);
+  font-style: italic;
 }
 
 /* 移除不需要的样式 */

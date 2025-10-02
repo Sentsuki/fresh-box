@@ -4,7 +4,7 @@ import { invoke } from '@tauri-apps/api/core';
 import { open } from '@tauri-apps/plugin-dialog';
 import { fetch } from '@tauri-apps/plugin-http';
 import './assets/styles.css';
-import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStorage } from './services/utils';
+import { getCleanFileName, saveSubscriptionsToStorage, loadSubscriptionsFromStorage, SubscriptionInfo } from './services/utils';
 import Sidebar from './components/Sidebar.vue';
 import Overview from './components/Overview.vue';
 import Config from './components/Config.vue';
@@ -18,7 +18,7 @@ const selectedConfigDisplay = ref<string | null>(null);
 const currentPage = ref<'overview' | 'config' | 'settings'>('overview');
 const configFiles = ref<string[]>([]);
 const configFilesDisplay = ref<string[]>([]);
-const subscriptions = ref<Record<string, string>>({});
+const subscriptions = ref<Record<string, SubscriptionInfo>>({});
 let statusCheckInterval: number | null = null;
 
 // 添加重命名函数
@@ -91,7 +91,10 @@ async function addSubscription(url: string) {
     });
 
     const cleanFileName = getCleanFileName(targetPath);
-    subscriptions.value[cleanFileName] = url;
+    subscriptions.value[cleanFileName] = {
+      url: url,
+      lastUpdated: new Date().toISOString()
+    };
     await saveSubscriptionsToStorage(subscriptions.value);
     statusMessage.value = `Subscribed to: ${cleanFileName}`;
     await loadConfigFiles();
@@ -110,7 +113,7 @@ async function updateSubscription(fileName: string) {
 
   isLoading.value = true;
   try {
-    const response = await fetch(subscriptions.value[fileName]);
+    const response = await fetch(subscriptions.value[fileName].url);
     if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
 
     const content = await response.text();
@@ -119,6 +122,10 @@ async function updateSubscription(fileName: string) {
       fileName: `${fileName}.json`,
       content
     });
+
+    // 更新最后更新时间
+    subscriptions.value[fileName].lastUpdated = new Date().toISOString();
+    await saveSubscriptionsToStorage(subscriptions.value);
 
     statusMessage.value = `Updated subscription: ${fileName}`;
     await loadConfigFiles();
@@ -135,7 +142,11 @@ async function editSubscription(fileName: string, newUrl: string) {
 
   isLoading.value = true;
   try {
-    subscriptions.value[fileName] = newUrl;
+    if (subscriptions.value[fileName]) {
+      subscriptions.value[fileName].url = newUrl;
+    } else {
+      subscriptions.value[fileName] = { url: newUrl };
+    }
     await saveSubscriptionsToStorage(subscriptions.value);
     statusMessage.value = `Updated subscription URL for: ${fileName}`;
   } catch (error) {
