@@ -11,6 +11,12 @@ pub struct SingboxState {
     pub singbox_process: Mutex<Option<Child>>,
 }
 
+impl Default for SingboxState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl SingboxState {
     pub fn new() -> Self {
         Self {
