@@ -1,46 +1,44 @@
-import { ref } from 'vue'
-import { invoke } from '@tauri-apps/api/core'
+import { ref } from "vue";
+import { invoke } from "@tauri-apps/api/core";
 
-interface ConfigOverride {
-  [key: string]: any
-}
+type ConfigOverride = Record<string, any>;
 
-const isEnabled = ref(false)
-const config = ref<ConfigOverride>({})
+const isEnabled = ref(false);
+const config = ref({} as ConfigOverride);
 
 export function useConfigOverride() {
   const enableOverride = async () => {
-    isEnabled.value = true
-    await invoke('enable_config_override')
-  }
+    isEnabled.value = true;
+    await invoke("enable_config_override");
+  };
 
   const disableOverride = async () => {
-    isEnabled.value = false
-    await invoke('disable_config_override')
-  }
+    isEnabled.value = false;
+    await invoke("disable_config_override");
+  };
 
   const saveConfig = async (newConfig: ConfigOverride) => {
-    config.value = newConfig
-    await invoke('save_config_override', { config: newConfig })
-  }
+    config.value = newConfig;
+    await invoke("save_config_override", { config: newConfig });
+  };
 
   const clearConfig = async () => {
-    config.value = {}
-    await invoke('clear_config_override')
-  }
+    config.value = {};
+    await invoke("clear_config_override");
+  };
 
   const loadConfig = async () => {
     try {
-      const loadedConfig = await invoke<ConfigOverride>('load_config_override')
-      config.value = loadedConfig
-      isEnabled.value = Object.keys(loadedConfig).length > 0
+      const loadedConfig = await invoke<ConfigOverride>("load_config_override");
+      config.value = loadedConfig;
+      isEnabled.value = Object.keys(loadedConfig).length > 0;
     } catch (error) {
-      console.error('Failed to load config override:', error)
+      console.error("Failed to load config override:", error);
     }
-  }
+  };
 
   // Load config on initialization
-  loadConfig()
+  loadConfig();
 
   return {
     isEnabled,
@@ -48,6 +46,6 @@ export function useConfigOverride() {
     enableOverride,
     disableOverride,
     saveConfig,
-    clearConfig
-  }
-} 
+    clearConfig,
+  };
+}

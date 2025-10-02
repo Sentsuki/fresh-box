@@ -12,29 +12,33 @@
 </template>
 
 <script setup lang="ts">
-import { ref } from 'vue'
+import { ref } from "vue";
 
-interface Toast {
-  id: number
-  message: string
-  type: 'success' | 'error'
-  subtype?: 'save' | 'clear'
-}
+type Toast = {
+  id: number;
+  message: string;
+  type: "success" | "error";
+  subtype?: "save" | "clear";
+};
 
-const toasts = ref<Toast[]>([])
-let toastId = 0
+const toasts = ref([] as Toast[]);
+let toastId = 0;
 
-const showToast = (message: string, type: 'success' | 'error' = 'success', subtype?: 'save' | 'clear') => {
-  const id = toastId++
-  toasts.value.push({ id, message, type, subtype })
+const showToast = (
+  message: string,
+  type: "success" | "error" = "success",
+  subtype?: "save" | "clear",
+) => {
+  const id = toastId++;
+  toasts.value.push({ id, message, type, subtype });
   setTimeout(() => {
-    toasts.value = toasts.value.filter(toast => toast.id !== id)
-  }, 3000)
-}
+    toasts.value = toasts.value.filter((toast) => toast.id !== id);
+  }, 3000);
+};
 
 defineExpose({
-  showToast
-})
+  showToast,
+});
 </script>
 
 <style scoped>
@@ -86,4 +90,4 @@ defineExpose({
     opacity: 1;
   }
 }
-</style> 
+</style>

@@ -4,40 +4,37 @@
     <div class="card-header">
       <h2>Settings</h2>
     </div>
-    
+
     <div class="card-content">
       <div class="settings-section">
         <h3>Configuration</h3>
         <div class="setting-item">
           <label>Enable Config Override</label>
-          <input type="checkbox" v-model="isOverrideEnabled" class="checkbox" />
+          <input v-model="isOverrideEnabled" type="checkbox" class="checkbox" />
         </div>
-        
+
         <div v-if="isOverrideEnabled" class="override-section">
           <div class="config-editor">
-            <textarea 
-              v-model="overrideConfig" 
+            <textarea
+              v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
               rows="10"
               class="config-textarea"
-              :class="{ 'error': !isValidJson }"
+              :class="{ error: !isValidJson }"
             ></textarea>
             <div v-if="!isValidJson" class="error-message">
               {{ jsonError }}
             </div>
           </div>
           <div class="button-group">
-            <button 
-              @click="saveOverride" 
+            <button
               :disabled="!isValidJson"
               class="control-button save-button"
+              @click="saveOverride"
             >
               Save Override
             </button>
-            <button 
-              @click="clearOverride"
-              class="control-button clear-button"
-            >
+            <button class="control-button clear-button" @click="clearOverride">
               Clear Override
             </button>
           </div>
@@ -47,7 +44,7 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button @click="openAppDirectory" class="control-button">
+          <button class="control-button" @click="openAppDirectory">
             Open App Directory
           </button>
         </div>
@@ -57,102 +54,121 @@
 </template>
 
 <script setup lang="ts">
-import { computed, ref, onMounted } from 'vue'
-import { useConfigOverride } from '../services/configOverride'
-import { invoke } from '@tauri-apps/api/core'
-import Toast from './Toast.vue'
+import { computed, ref, onMounted } from "vue";
+import { useConfigOverride } from "../services/configOverride";
+import { invoke } from "@tauri-apps/api/core";
+import Toast from "./Toast.vue";
 
-interface ConfigOverride {
-  [key: string]: any
-}
+type ConfigOverride = Record<string, any>;
 
-const toastRef = ref<InstanceType<typeof Toast> | null>(null)
-const jsonError = ref<string>('')
-const rawConfig = ref<string>('')
+const toastRef = ref(null as InstanceType<typeof Toast> | null);
+const jsonError = ref("");
+const rawConfig = ref("");
 
-const { isEnabled, config, enableOverride, disableOverride, saveConfig, clearConfig } = useConfigOverride()
+const {
+  isEnabled,
+  config,
+  enableOverride,
+  disableOverride,
+  saveConfig,
+  clearConfig,
+} = useConfigOverride();
 
 // 加载已有配置
 onMounted(async () => {
   try {
-    const loadedConfig = await invoke<ConfigOverride>('load_config_override')
+    const loadedConfig = await invoke<ConfigOverride>("load_config_override");
     if (Object.keys(loadedConfig).length > 0) {
-      rawConfig.value = JSON.stringify(loadedConfig, null, 2)
-      config.value = loadedConfig
+      rawConfig.value = JSON.stringify(loadedConfig, null, 2);
+      config.value = loadedConfig;
     }
   } catch (error) {
-    console.error('Failed to load config override:', error)
+    console.error("Failed to load config override:", error);
   }
-})
+});
 
 const isOverrideEnabled = computed({
   get: () => isEnabled.value,
-  set: (value) => value ? enableOverride() : disableOverride()
-})
+  set: (value) => (value ? enableOverride() : disableOverride()),
+});
 
 const overrideConfig = computed({
   get: () => rawConfig.value,
   set: (value) => {
-    rawConfig.value = value
+    rawConfig.value = value;
     try {
-      const parsed = JSON.parse(value)
-      config.value = parsed
-      jsonError.value = ''
+      const parsed = JSON.parse(value);
+      config.value = parsed;
+      jsonError.value = "";
     } catch (e) {
       if (e instanceof SyntaxError) {
-        jsonError.value = e.message
+        jsonError.value = e.message;
       } else {
-        jsonError.value = 'Invalid JSON format'
+        jsonError.value = "Invalid JSON format";
       }
     }
-  }
-})
+  },
+});
 
 const isValidJson = computed(() => {
-  return jsonError.value === ''
-})
+  return jsonError.value === "";
+});
 
 const saveOverride = async () => {
   if (!isValidJson.value) {
-    toastRef.value?.showToast('Please fix JSON format errors before saving', 'error')
-    return
+    toastRef.value?.showToast(
+      "Please fix JSON format errors before saving",
+      "error",
+    );
+    return;
   }
 
   try {
-    await saveConfig(JSON.parse(overrideConfig.value))
-    toastRef.value?.showToast('Configuration override saved successfully', 'success', 'save')
+    await saveConfig(JSON.parse(overrideConfig.value));
+    toastRef.value?.showToast(
+      "Configuration override saved successfully",
+      "success",
+      "save",
+    );
   } catch (error) {
-    console.error('Failed to save config override:', error)
-    toastRef.value?.showToast('Failed to save configuration override', 'error')
+    console.error("Failed to save config override:", error);
+    toastRef.value?.showToast("Failed to save configuration override", "error");
   }
-}
+};
 
 const clearOverride = async () => {
   try {
-    await clearConfig()
+    await clearConfig();
     // 清除 temp_config.json
     try {
-      await invoke('delete_config', { configPath: 'temp_config.json' })
+      await invoke("delete_config", { configPath: "temp_config.json" });
     } catch (error) {
-      console.error('Failed to delete temp config:', error)
+      console.error("Failed to delete temp config:", error);
     }
-    rawConfig.value = '{}'
-    jsonError.value = ''
-    toastRef.value?.showToast('Configuration override cleared successfully', 'success', 'clear')
+    rawConfig.value = "{}";
+    jsonError.value = "";
+    toastRef.value?.showToast(
+      "Configuration override cleared successfully",
+      "success",
+      "clear",
+    );
   } catch (error) {
-    console.error('Failed to clear config override:', error)
-    toastRef.value?.showToast('Failed to clear configuration override', 'error')
+    console.error("Failed to clear config override:", error);
+    toastRef.value?.showToast(
+      "Failed to clear configuration override",
+      "error",
+    );
   }
-}
+};
 
 const openAppDirectory = async () => {
   try {
-    await invoke('open_app_directory')
+    await invoke("open_app_directory");
   } catch (error) {
-    console.error('Failed to open app directory:', error)
-    toastRef.value?.showToast('Failed to open app directory', 'error')
+    console.error("Failed to open app directory:", error);
+    toastRef.value?.showToast("Failed to open app directory", "error");
   }
-}
+};
 </script>
 
 <style scoped>

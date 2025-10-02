@@ -74,7 +74,7 @@ body,
   height: 100%;
   overflow: hidden;
   box-sizing: border-box;
-  font-family: 'Segoe UI', 'Inter', 'Helvetica Neue', Arial, sans-serif;
+  font-family: "Segoe UI", "Inter", "Helvetica Neue", Arial, sans-serif;
   color: var(--color-text);
   min-width: var(--min-window-width);
   min-height: var(--min-window-height);
@@ -194,7 +194,9 @@ body,
   padding: var(--space-xxl);
   flex-grow: 1;
   overflow-y: auto;
-  max-height: calc(100vh - var(--space-xxl) * 2 - 60px); /* 减去 header 和 padding 的高度 */
+  max-height: calc(
+    100vh - var(--space-xxl) * 2 - 60px
+  ); /* 减去 header 和 padding 的高度 */
 }
 
 /* ===== Status Components ===== */
@@ -552,7 +554,7 @@ body,
   border-radius: var(--border-radius-md);
   background-color: var(--color-white);
   color: var(--color-gray-darker);
-  font-family: 'Consolas', 'Monaco', monospace;
+  font-family: "Consolas", "Monaco", monospace;
   font-size: var(--font-size-sm);
   line-height: 1.5;
   resize: vertical;

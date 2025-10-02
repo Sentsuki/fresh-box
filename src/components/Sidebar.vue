@@ -1,14 +1,15 @@
 <script setup lang="ts">
-defineProps<{
-  currentPage: 'overview' | 'config' | 'settings';
-}>();
+defineProps({
+  currentPage: {
+    type: String as () => "overview" | "config" | "settings",
+    required: true,
+  },
+});
 
-const emit = defineEmits<{
-  'update:currentPage': ['overview' | 'config' | 'settings'];
-}>();
+const emit = defineEmits(["update:currentPage"]);
 
-function changePage(page: 'overview' | 'config' | 'settings') {
-  emit('update:currentPage', page);
+function changePage(page: "overview" | "config" | "settings") {
+  emit("update:currentPage", page);
 }
 </script>
 
@@ -19,25 +20,25 @@ function changePage(page: 'overview' | 'config' | 'settings') {
       <p class="subtitle">sing-box Client</p>
     </div>
     <div class="nav-items">
-      <div 
-        class="sidebar-item" 
-        :class="{ 'active': currentPage === 'overview' }" 
+      <div
+        class="sidebar-item"
+        :class="{ active: currentPage === 'overview' }"
         @click="changePage('overview')"
       >
         <span class="sidebar-icon">📊</span>
         Overview
       </div>
-      <div 
-        class="sidebar-item" 
-        :class="{ 'active': currentPage === 'config' }" 
+      <div
+        class="sidebar-item"
+        :class="{ active: currentPage === 'config' }"
         @click="changePage('config')"
       >
         <span class="sidebar-icon">📝</span>
         Config
       </div>
-      <div 
-        class="sidebar-item" 
-        :class="{ 'active': currentPage === 'settings' }" 
+      <div
+        class="sidebar-item"
+        :class="{ active: currentPage === 'settings' }"
         @click="changePage('settings')"
       >
         <span class="sidebar-icon">⚙️</span>
