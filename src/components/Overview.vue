@@ -49,7 +49,7 @@ function stopService() {
         </p>
       </div>
 
-      <div class="selected-config" v-if="selectedConfigDisplay">
+      <div v-if="selectedConfigDisplay" class="selected-config">
         <div class="config-badge">
           <span class="config-icon">📄</span>
           <span>{{ selectedConfigDisplay }}</span>
@@ -59,18 +59,18 @@ function stopService() {
       <div class="controls">
         <button 
           class="control-button start-button" 
-          @click="startService"
           :disabled="isRunning || isLoading || !selectedConfig"
           :class="{ 'disabled': isRunning || isLoading || !selectedConfig }"
+          @click="startService"
         >
           <span class="button-icon">▶</span>
           {{ isLoading && !isRunning ? 'Starting...' : 'Start' }}
         </button>
         <button 
           class="control-button stop-button" 
-          @click="stopService" 
-          :disabled="!isRunning || isLoading"
+          :disabled="!isRunning || isLoading" 
           :class="{ 'disabled': !isRunning || isLoading }"
+          @click="stopService"
         >
           <span class="button-icon">■</span>
           {{ isLoading && isRunning ? 'Stopping...' : 'Stop' }}

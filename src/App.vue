@@ -356,12 +356,14 @@ onUnmounted(() => {
 
     <div class="main-content">
       <!-- Overview 页面 -->
-      <Overview v-if="currentPage === 'overview'" :is-running="isRunning" :is-loading="isLoading"
+      <Overview
+v-if="currentPage === 'overview'" :is-running="isRunning" :is-loading="isLoading"
         :status-message="statusMessage" :selected-config-display="selectedConfigDisplay"
         :selected-config="selectedConfig" @start-service="startService" @stop-service="stopService" />
 
       <!-- Config 页面 -->
-      <Config v-if="currentPage === 'config'" :config-files="configFiles" :config-files-display="configFilesDisplay"
+      <Config
+v-if="currentPage === 'config'" :config-files="configFiles" :config-files-display="configFilesDisplay"
         :selected-config="selectedConfig" :is-loading="isLoading" :subscriptions="subscriptions"
         :status-message="statusMessage" @select-config-file="selectConfigFile" @switch-config="switchConfig"
         @add-subscription="addSubscription" @update-subscription="updateSubscription"

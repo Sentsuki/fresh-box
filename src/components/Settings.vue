@@ -10,7 +10,7 @@
         <h3>Configuration</h3>
         <div class="setting-item">
           <label>Enable Config Override</label>
-          <input type="checkbox" v-model="isOverrideEnabled" class="checkbox" />
+          <input v-model="isOverrideEnabled" type="checkbox" class="checkbox" />
         </div>
         
         <div v-if="isOverrideEnabled" class="override-section">
@@ -28,15 +28,15 @@
           </div>
           <div class="button-group">
             <button 
-              @click="saveOverride" 
-              :disabled="!isValidJson"
+              :disabled="!isValidJson" 
               class="control-button save-button"
+              @click="saveOverride"
             >
               Save Override
             </button>
             <button 
-              @click="clearOverride"
               class="control-button clear-button"
+              @click="clearOverride"
             >
               Clear Override
             </button>
@@ -47,7 +47,7 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button @click="openAppDirectory" class="control-button">
+          <button class="control-button" @click="openAppDirectory">
             Open App Directory
           </button>
         </div>

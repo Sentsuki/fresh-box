@@ -142,9 +142,9 @@ function handleKeydown(event: KeyboardEvent) {
           />
           <button 
             class="control-button subscribe-button" 
+            :disabled="!canAddSubscription"
+            :class="{ 'disabled': !canAddSubscription }" 
             @click="addSubscription"
-            :disabled="!canAddSubscription" 
-            :class="{ 'disabled': !canAddSubscription }"
           >
             <span class="button-icon">📥</span>
             {{ isLoading ? 'Subscribing...' : 'Subscribe' }}
@@ -154,9 +154,9 @@ function handleKeydown(event: KeyboardEvent) {
         <!-- 添加配置按钮 -->
         <button 
           class="control-button select-button" 
-          @click="selectConfigFile" 
-          :disabled="isLoading"
+          :disabled="isLoading" 
           :class="{ 'disabled': isLoading }"
+          @click="selectConfigFile"
         >
           <span class="button-icon">📁</span>
           Add Config
@@ -171,8 +171,8 @@ function handleKeydown(event: KeyboardEvent) {
           
           <!-- 配置文件列表 -->
           <div 
-            v-else
-            v-for="(file, index) in configFilesDisplay" 
+            v-for="(file, index) in configFilesDisplay"
+            v-else 
             :key="configFiles[index]" 
             class="config-item"
             :class="{ 
@@ -187,12 +187,12 @@ function handleKeydown(event: KeyboardEvent) {
                 <div class="manage-section">
                   <label>Rename:</label>
                   <input 
+                    ref="renameInput" 
                     v-model="newFileName" 
-                    class="subscription-input" 
+                    class="subscription-input"
                     :disabled="isLoading"
-                    @keydown="handleKeydown"
-                    ref="renameInput"
                     autofocus
+                    @keydown="handleKeydown"
                   />
                 </div>
                 <div class="manage-section">
@@ -207,20 +207,20 @@ function handleKeydown(event: KeyboardEvent) {
                 </div>
                 <div class="manage-actions">
                   <button 
-                    @click="saveManage(file)"
                     class="action-button update-button"
                     :disabled="isLoading"
                     :class="{ 'disabled': isLoading }"
                     title="Save"
+                    @click="saveManage(file)"
                   >
                     Save
                   </button>
                   <button 
-                    @click="cancelManage"
                     class="action-button delete-button"
                     :disabled="isLoading"
                     :class="{ 'disabled': isLoading }"
                     title="Cancel"
+                    @click="cancelManage"
                   >
                     Cancel
                   </button>
@@ -240,28 +240,28 @@ function handleKeydown(event: KeyboardEvent) {
                 <button 
                   v-if="subscriptions[file]" 
                   class="action-button update-button"
-                  @click.stop="updateSubscription(file)" 
                   :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }"
+                  :class="{ 'disabled': isLoading }" 
                   title="Update from subscription source"
+                  @click.stop="updateSubscription(file)"
                 >
                   Update
                 </button>
                 <button 
                   class="action-button manage-button"
-                  @click.stop="startManage(file, $event)" 
                   :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }"
+                  :class="{ 'disabled': isLoading }" 
                   title="Manage configuration"
+                  @click.stop="startManage(file, $event)"
                 >
                   Manage
                 </button>
                 <button 
                   class="action-button delete-button"
-                  @click.stop="deleteConfig(file, $event)" 
                   :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }"
+                  :class="{ 'disabled': isLoading }" 
                   title="Delete this configuration"
+                  @click.stop="deleteConfig(file, $event)"
                 >
                   Delete
                 </button>
