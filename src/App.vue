@@ -102,7 +102,6 @@ async function addSubscription(url: string) {
     statusMessage.value = `Error adding subscription: ${error}`;
     isLoading.value = false;
   } finally {
-    if (!isLoading.value) return;
     isLoading.value = false;
   }
 }
