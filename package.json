@@ -9,7 +9,9 @@
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --ext .vue,.js,.ts --fix",
-    "lint:check": "eslint src --ext .vue,.js,.ts"
+    "lint:check": "eslint src --ext .vue,.js,.ts",
+    "format": "prettier --write src/**/*.{vue,js,ts,json,css,scss}",
+    "format:check": "prettier --check src/**/*.{vue,js,ts,json,css,scss}"
   },
   "dependencies": {
     "@tauri-apps/api": "^2.8.0",

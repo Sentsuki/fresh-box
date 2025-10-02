@@ -2,34 +2,34 @@
 defineProps({
   isRunning: {
     type: Boolean,
-    required: true
+    required: true,
   },
   isLoading: {
     type: Boolean,
-    required: true
+    required: true,
   },
   statusMessage: {
     type: String,
-    required: true
+    required: true,
   },
   selectedConfigDisplay: {
     type: String as () => string | null,
-    default: null
+    default: null,
   },
   selectedConfig: {
     type: String as () => string | null,
-    default: null
-  }
+    default: null,
+  },
 });
 
-const emit = defineEmits(['start-service', 'stop-service']);
+const emit = defineEmits(["start-service", "stop-service"]);
 
 function startService() {
-  emit('start-service');
+  emit("start-service");
 }
 
 function stopService() {
-  emit('stop-service');
+  emit("stop-service");
 }
 </script>
 
@@ -40,11 +40,16 @@ function stopService() {
     </div>
     <div class="card-content">
       <div class="status-container">
-        <div class="status-indicator" :class="{ 'active': isRunning }">
+        <div class="status-indicator" :class="{ active: isRunning }">
           <span class="status-dot"></span>
-          <span class="status-text">{{ isRunning ? 'Running' : 'Stopped' }}</span>
+          <span class="status-text">{{
+            isRunning ? "Running" : "Stopped"
+          }}</span>
         </div>
-        <p class="status-message" :class="{ 'running': isRunning, 'stopped': !isRunning }">
+        <p
+          class="status-message"
+          :class="{ running: isRunning, stopped: !isRunning }"
+        >
           {{ statusMessage }}
         </p>
       </div>
@@ -57,23 +62,23 @@ function stopService() {
       </div>
 
       <div class="controls">
-        <button 
-          class="control-button start-button" 
+        <button
+          class="control-button start-button"
           :disabled="isRunning || isLoading || !selectedConfig"
-          :class="{ 'disabled': isRunning || isLoading || !selectedConfig }"
+          :class="{ disabled: isRunning || isLoading || !selectedConfig }"
           @click="startService"
         >
           <span class="button-icon">▶</span>
-          {{ isLoading && !isRunning ? 'Starting...' : 'Start' }}
+          {{ isLoading && !isRunning ? "Starting..." : "Start" }}
         </button>
-        <button 
-          class="control-button stop-button" 
-          :disabled="!isRunning || isLoading" 
-          :class="{ 'disabled': !isRunning || isLoading }"
+        <button
+          class="control-button stop-button"
+          :disabled="!isRunning || isLoading"
+          :class="{ disabled: !isRunning || isLoading }"
           @click="stopService"
         >
           <span class="button-icon">■</span>
-          {{ isLoading && isRunning ? 'Stopping...' : 'Stop' }}
+          {{ isLoading && isRunning ? "Stopping..." : "Stop" }}
         </button>
       </div>
     </div>

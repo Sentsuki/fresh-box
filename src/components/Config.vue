@@ -1,83 +1,85 @@
 <script setup lang="ts">
-import { ref, computed } from 'vue';
+import { ref, computed } from "vue";
 
-import { formatLastUpdated, SubscriptionInfo } from '../services/utils';
+import { formatLastUpdated, SubscriptionInfo } from "../services/utils";
 
 // 组件属性定义
 const props = defineProps({
   configFiles: {
     type: Array as () => string[],
-    required: true
+    required: true,
   },
   configFilesDisplay: {
     type: Array as () => string[],
-    required: true
+    required: true,
   },
   selectedConfig: {
     type: String as () => string | null,
-    default: null
+    default: null,
   },
   isLoading: {
     type: Boolean,
-    required: true
+    required: true,
   },
   subscriptions: {
     type: Object as () => Record<string, SubscriptionInfo>,
-    required: true
+    required: true,
   },
   statusMessage: {
     type: String as () => string | null,
-    default: null
-  }
+    default: null,
+  },
 });
 
 // 事件定义
 const emit = defineEmits([
-  'select-config-file',
-  'switch-config',
-  'add-subscription',
-  'update-subscription',
-  'edit-subscription',
-  'delete-config',
-  'rename-config'
+  "select-config-file",
+  "switch-config",
+  "add-subscription",
+  "update-subscription",
+  "edit-subscription",
+  "delete-config",
+  "rename-config",
 ]);
 
 // 响应式状态
-const subscriptionUrl = ref('');
+const subscriptionUrl = ref("");
 const isManaging = ref(false);
-const managingFile = ref('');
-const newFileName = ref('');
-const editingSubscriptionUrl = ref('');
+const managingFile = ref("");
+const newFileName = ref("");
+const editingSubscriptionUrl = ref("");
 
 // 计算属性
 const hasConfigFiles = computed(() => props.configFiles.length > 0);
-const canAddSubscription = computed(() => !!subscriptionUrl.value && !props.isLoading);
+const canAddSubscription = computed(
+  () => !!subscriptionUrl.value && !props.isLoading,
+);
 
 // 方法
 function selectConfigFile() {
-  emit('select-config-file');
+  emit("select-config-file");
 }
 
 function switchConfig(index: number) {
   if (props.isLoading || isManaging.value) return;
-  emit('switch-config', index);
+  emit("switch-config", index);
 }
 
 function addSubscription() {
   if (!canAddSubscription.value) return;
-  emit('add-subscription', subscriptionUrl.value);
-  subscriptionUrl.value = '';
+  emit("add-subscription", subscriptionUrl.value);
+  subscriptionUrl.value = "";
 }
 
 function updateSubscription(fileName: string) {
   if (props.isLoading) return;
-  emit('update-subscription', fileName);
+  emit("update-subscription", fileName);
 }
 
 function deleteConfig(fileName: string, event: Event) {
   if (props.isLoading) return;
   event.stopPropagation();
-  emit('delete-config', fileName);
+  emit("delete-config", fileName);
 }
 
 function startManage(fileName: string, event: Event) {
@@ -86,32 +88,32 @@ function startManage(fileName: string, event: Event) {
   isManaging.value = true;
   managingFile.value = fileName;
   newFileName.value = fileName;
-  editingSubscriptionUrl.value = props.subscriptions[fileName]?.url || '';
+  editingSubscriptionUrl.value = props.subscriptions[fileName]?.url || "";
 }
 
 function cancelManage(event?: Event) {
   if (event) event.stopPropagation();
   isManaging.value = false;
-  managingFile.value = '';
-  newFileName.value = '';
-  editingSubscriptionUrl.value = '';
+  managingFile.value = "";
+  newFileName.value = "";
+  editingSubscriptionUrl.value = "";
 }
 
 function saveManage(fileName: string, event?: Event) {
   if (event) event.stopPropagation();
   if (newFileName.value !== fileName) {
-    emit('rename-config', fileName, newFileName.value);
+    emit("rename-config", fileName, newFileName.value);
   }
   if (editingSubscriptionUrl.value !== props.subscriptions[fileName]?.url) {
-    emit('edit-subscription', fileName, editingSubscriptionUrl.value);
+    emit("edit-subscription", fileName, editingSubscriptionUrl.value);
   }
   cancelManage();
 }
 
 function handleKeydown(event: KeyboardEvent) {
-  if (event.key === 'Enter') {
+  if (event.key === "Enter") {
     saveManage(managingFile.value);
-  } else if (event.key === 'Escape') {
+  } else if (event.key === "Escape") {
     cancelManage();
   }
 }
@@ -122,40 +124,47 @@ function handleKeydown(event: KeyboardEvent) {
     <div class="card-header">
       <h2>Configuration Files</h2>
     </div>
-    
+
     <div class="card-content">
       <div class="config-container">
         <!-- 错误提示 -->
-        <div v-if="statusMessage && (statusMessage.includes('Error') || statusMessage.includes('timed out'))" class="error-message">
+        <div
+          v-if="
+            statusMessage &&
+            (statusMessage.includes('Error') ||
+              statusMessage.includes('timed out'))
+          "
+          class="error-message"
+        >
           {{ statusMessage }}
         </div>
 
         <!-- 订阅输入区域 -->
         <div class="subscription-input-container">
-          <input 
-            v-model="subscriptionUrl" 
-            type="text" 
-            class="subscription-input" 
+          <input
+            v-model="subscriptionUrl"
+            type="text"
+            class="subscription-input"
             placeholder="Enter subscription URL"
             :disabled="isLoading"
             @keyup.enter="addSubscription"
           />
-          <button 
-            class="control-button subscribe-button" 
+          <button
+            class="control-button subscribe-button"
             :disabled="!canAddSubscription"
-            :class="{ 'disabled': !canAddSubscription }" 
+            :class="{ disabled: !canAddSubscription }"
             @click="addSubscription"
           >
             <span class="button-icon">📥</span>
-            {{ isLoading ? 'Subscribing...' : 'Subscribe' }}
+            {{ isLoading ? "Subscribing..." : "Subscribe" }}
           </button>
         </div>
 
         <!-- 添加配置按钮 -->
-        <button 
-          class="control-button select-button" 
-          :disabled="isLoading" 
-          :class="{ 'disabled': isLoading }"
+        <button
+          class="control-button select-button"
+          :disabled="isLoading"
+          :class="{ disabled: isLoading }"
           @click="selectConfigFile"
         >
           <span class="button-icon">📁</span>
@@ -168,27 +177,31 @@ function handleKeydown(event: KeyboardEvent) {
           <div v-if="!hasConfigFiles" class="no-configs">
             No configuration files found
           </div>
-          
+
           <!-- 配置文件列表 -->
-          <div 
+          <div
             v-for="(file, index) in configFilesDisplay"
-            v-else 
-            :key="configFiles[index]" 
+            v-else
+            :key="configFiles[index]"
             class="config-item"
-            :class="{ 
-              'selected': configFiles[index] === selectedConfig,
-              'managing': isManaging && managingFile === file
-            }" 
+            :class="{
+              selected: configFiles[index] === selectedConfig,
+              managing: isManaging && managingFile === file,
+            }"
             @click="switchConfig(index)"
           >
             <div class="config-item-content">
               <!-- 管理窗口 -->
-              <div v-if="isManaging && managingFile === file" class="manage-container" @click.stop>
+              <div
+                v-if="isManaging && managingFile === file"
+                class="manage-container"
+                @click.stop
+              >
                 <div class="manage-section">
                   <label>Rename:</label>
-                  <input 
-                    ref="renameInput" 
-                    v-model="newFileName" 
+                  <input
+                    ref="renameInput"
+                    v-model="newFileName"
                     class="subscription-input"
                     :disabled="isLoading"
                     autofocus
@@ -197,28 +210,28 @@ function handleKeydown(event: KeyboardEvent) {
                 </div>
                 <div class="manage-section">
                   <label>Subscription URL:</label>
-                  <input 
-                    v-model="editingSubscriptionUrl" 
-                    class="subscription-input" 
+                  <input
+                    v-model="editingSubscriptionUrl"
+                    class="subscription-input"
                     placeholder="Enter subscription URL"
                     :disabled="isLoading"
                     @keydown="handleKeydown"
                   />
                 </div>
                 <div class="manage-actions">
-                  <button 
+                  <button
                     class="action-button update-button"
                     :disabled="isLoading"
-                    :class="{ 'disabled': isLoading }"
+                    :class="{ disabled: isLoading }"
                     title="Save"
                     @click="saveManage(file)"
                   >
                     Save
                   </button>
-                  <button 
+                  <button
                     class="action-button delete-button"
                     :disabled="isLoading"
-                    :class="{ 'disabled': isLoading }"
+                    :class="{ disabled: isLoading }"
                     title="Cancel"
                     @click="cancelManage"
                   >
@@ -226,7 +239,7 @@ function handleKeydown(event: KeyboardEvent) {
                   </button>
                 </div>
               </div>
-              
+
               <!-- 普通显示状态 -->
               <div v-else class="config-info">
                 <span class="config-name">{{ file }}</span>
@@ -237,29 +250,29 @@ function handleKeydown(event: KeyboardEvent) {
 
               <!-- 操作按钮组 -->
               <div v-if="!isManaging" class="config-actions">
-                <button 
-                  v-if="subscriptions[file]" 
+                <button
+                  v-if="subscriptions[file]"
                   class="action-button update-button"
-                  :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }" 
+                  :disabled="isLoading"
+                  :class="{ disabled: isLoading }"
                   title="Update from subscription source"
                   @click.stop="updateSubscription(file)"
                 >
                   Update
                 </button>
-                <button 
+                <button
                   class="action-button manage-button"
-                  :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }" 
+                  :disabled="isLoading"
+                  :class="{ disabled: isLoading }"
                   title="Manage configuration"
                   @click.stop="startManage(file, $event)"
                 >
                   Manage
                 </button>
-                <button 
+                <button
                   class="action-button delete-button"
-                  :disabled="isLoading" 
-                  :class="{ 'disabled': isLoading }" 
+                  :disabled="isLoading"
+                  :class="{ disabled: isLoading }"
                   title="Delete this configuration"
                   @click.stop="deleteConfig(file, $event)"
                 >
