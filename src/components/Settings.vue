@@ -62,13 +62,11 @@ import { useConfigOverride } from '../services/configOverride'
 import { invoke } from '@tauri-apps/api/core'
 import Toast from './Toast.vue'
 
-interface ConfigOverride {
-  [key: string]: any
-}
+type ConfigOverride = Record<string, any>
 
-const toastRef = ref<InstanceType<typeof Toast> | null>(null)
-const jsonError = ref<string>('')
-const rawConfig = ref<string>('')
+const toastRef = ref(null as InstanceType<typeof Toast> | null)
+const jsonError = ref('')
+const rawConfig = ref('')
 
 const { isEnabled, config, enableOverride, disableOverride, saveConfig, clearConfig } = useConfigOverride()
 

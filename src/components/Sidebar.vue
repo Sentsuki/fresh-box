@@ -1,11 +1,12 @@
 <script setup lang="ts">
-defineProps<{
-  currentPage: 'overview' | 'config' | 'settings';
-}>();
+defineProps({
+  currentPage: {
+    type: String as () => 'overview' | 'config' | 'settings',
+    required: true
+  }
+});
 
-const emit = defineEmits<{
-  'update:currentPage': ['overview' | 'config' | 'settings'];
-}>();
+const emit = defineEmits(['update:currentPage']);
 
 function changePage(page: 'overview' | 'config' | 'settings') {
   emit('update:currentPage', page);

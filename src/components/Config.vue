@@ -4,25 +4,43 @@ import { ref, computed } from 'vue';
 import { formatLastUpdated, SubscriptionInfo } from '../services/utils';
 
 // 组件属性定义
-const props = defineProps<{
-  configFiles: string[];
-  configFilesDisplay: string[];
-  selectedConfig: string | null;
-  isLoading: boolean;
-  subscriptions: Record<string, SubscriptionInfo>;
-  statusMessage: string | null;
-}>();
+const props = defineProps({
+  configFiles: {
+    type: Array as () => string[],
+    required: true
+  },
+  configFilesDisplay: {
+    type: Array as () => string[],
+    required: true
+  },
+  selectedConfig: {
+    type: String as () => string | null,
+    default: null
+  },
+  isLoading: {
+    type: Boolean,
+    required: true
+  },
+  subscriptions: {
+    type: Object as () => Record<string, SubscriptionInfo>,
+    required: true
+  },
+  statusMessage: {
+    type: String as () => string | null,
+    default: null
+  }
+});
 
 // 事件定义
-const emit = defineEmits<{
-  'select-config-file': [];
-  'switch-config': [number];
-  'add-subscription': [string];
-  'update-subscription': [string];
-  'edit-subscription': [string, string];
-  'delete-config': [string];
-  'rename-config': [string, string];
-}>();
+const emit = defineEmits([
+  'select-config-file',
+  'switch-config',
+  'add-subscription',
+  'update-subscription',
+  'edit-subscription',
+  'delete-config',
+  'rename-config'
+]);
 
 // 响应式状态
 const subscriptionUrl = ref('');

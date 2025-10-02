@@ -13,12 +13,12 @@ import Settings from './components/Settings.vue';
 const isRunning = ref(false);
 const statusMessage = ref('Sing-box is stopped.');
 const isLoading = ref(false);
-const selectedConfig = ref<string | null>(null);
-const selectedConfigDisplay = ref<string | null>(null);
-const currentPage = ref<'overview' | 'config' | 'settings'>('overview');
-const configFiles = ref<string[]>([]);
-const configFilesDisplay = ref<string[]>([]);
-const subscriptions = ref<Record<string, SubscriptionInfo>>({});
+const selectedConfig = ref(null as string | null);
+const selectedConfigDisplay = ref(null as string | null);
+const currentPage = ref('overview' as 'overview' | 'config' | 'settings');
+const configFiles = ref([] as string[]);
+const configFilesDisplay = ref([] as string[]);
+const subscriptions = ref({} as Record<string, SubscriptionInfo>);
 let statusCheckInterval: number | null = null;
 
 // 添加重命名函数

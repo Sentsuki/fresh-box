@@ -1,12 +1,10 @@
 import { ref } from 'vue'
 import { invoke } from '@tauri-apps/api/core'
 
-interface ConfigOverride {
-  [key: string]: any
-}
+type ConfigOverride = Record<string, any>
 
 const isEnabled = ref(false)
-const config = ref<ConfigOverride>({})
+const config = ref({} as ConfigOverride)
 
 export function useConfigOverride() {
   const enableOverride = async () => {

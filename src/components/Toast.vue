@@ -14,14 +14,14 @@
 <script setup lang="ts">
 import { ref } from 'vue'
 
-interface Toast {
+type Toast = {
   id: number
   message: string
   type: 'success' | 'error'
   subtype?: 'save' | 'clear'
 }
 
-const toasts = ref<Toast[]>([])
+const toasts = ref([] as Toast[])
 let toastId = 0
 
 const showToast = (message: string, type: 'success' | 'error' = 'success', subtype?: 'save' | 'clear') => {

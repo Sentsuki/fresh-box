@@ -1,16 +1,28 @@
 <script setup lang="ts">
-defineProps<{
-  isRunning: boolean;
-  isLoading: boolean;
-  statusMessage: string;
-  selectedConfigDisplay: string | null;
-  selectedConfig: string | null;
-}>();
+defineProps({
+  isRunning: {
+    type: Boolean,
+    required: true
+  },
+  isLoading: {
+    type: Boolean,
+    required: true
+  },
+  statusMessage: {
+    type: String,
+    required: true
+  },
+  selectedConfigDisplay: {
+    type: String as () => string | null,
+    default: null
+  },
+  selectedConfig: {
+    type: String as () => string | null,
+    default: null
+  }
+});
 
-const emit = defineEmits<{
-  'start-service': [];
-  'stop-service': [];
-}>();
+const emit = defineEmits(['start-service', 'stop-service']);
 
 function startService() {
   emit('start-service');
