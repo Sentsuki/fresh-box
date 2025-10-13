@@ -186,25 +186,63 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
         }
     };
 
+    // 首先尝试停止我们管理的进程
     if let Some(mut child) = process_guard.take() {
         println!(
-            "Attempting to stop sing-box process (PID: {})...",
+            "Attempting to stop managed sing-box process (PID: {})...",
             child.id()
         );
         match child.kill() {
             Ok(_) => {
                 match child.wait() {
                     Ok(status) => println!(
-                        "Sing-box process stopped successfully with status: {}",
+                        "Managed sing-box process stopped successfully with status: {}",
                         status
                     ),
-                    Err(e) => eprintln!("Error waiting for sing-box process termination: {}", e),
+                    Err(e) => eprintln!("Error waiting for managed sing-box process termination: {}", e),
                 }
-                Ok(())
+                
+                // 清除外部进程标记
+                if let Ok(mut external_flag) = state.external_process_detected.lock() {
+                    *external_flag = false;
+                }
+                
+                return Ok(());
             }
             Err(e) => {
                 *process_guard = None;
-                Err(CommandError::FailedToStopProcess(e.to_string()))
+                return Err(CommandError::FailedToStopProcess(e.to_string()));
+            }
+        }
+    }
+    
+    // 如果没有管理的进程，检查是否有外部进程需要停止
+    let external_flag = match state.external_process_detected.lock() {
+        Ok(flag) => *flag,
+        Err(poisoned) => {
+            eprintln!("External flag mutex was poisoned, recovering...");
+            *poisoned.into_inner()
+        }
+    };
+    
+    if external_flag {
+        println!("Attempting to stop external sing-box process...");
+        
+        // 尝试停止外部进程
+        match stop_external_singbox_process() {
+            Ok(_) => {
+                println!("External sing-box process stopped successfully");
+                
+                // 清除外部进程标记
+                if let Ok(mut external_flag) = state.external_process_detected.lock() {
+                    *external_flag = false;
+                }
+                
+                Ok(())
+            }
+            Err(e) => {
+                eprintln!("Failed to stop external sing-box process: {:?}", e);
+                Err(CommandError::FailedToStopProcess(format!("Failed to stop external process: {:?}", e)))
             }
         }
     } else {
@@ -280,6 +318,43 @@ pub async fn initialize_singbox_state(state: State<'_, SingboxState>) -> Result<
         }
         
         Ok("No sing-box process detected".to_string())
+    }
+}
+
+// 停止外部的sing-box进程
+fn stop_external_singbox_process() -> Result<(), CommandError> {
+    #[cfg(windows)]
+    {
+        // 在Windows上使用taskkill命令停止所有sing-box.exe进程
+        let output = Command::new("taskkill")
+            .args(["/f", "/im", "sing-box.exe"])
+            .output()
+            .map_err(|e| CommandError::FailedToStopProcess(format!("Failed to run taskkill: {}", e)))?;
+        
+        if output.status.success() {
+            println!("Successfully killed external sing-box.exe processes");
+            Ok(())
+        } else {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            Err(CommandError::FailedToStopProcess(format!("taskkill failed: {}", error_msg)))
+        }
+    }
+    
+    #[cfg(not(windows))]
+    {
+        // 在Unix系统上使用pkill命令停止sing-box进程
+        let output = Command::new("pkill")
+            .args(["-f", "sing-box"])
+            .output()
+            .map_err(|e| CommandError::FailedToStopProcess(format!("Failed to run pkill: {}", e)))?;
+        
+        if output.status.success() {
+            println!("Successfully killed external sing-box processes");
+            Ok(())
+        } else {
+            let error_msg = String::from_utf8_lossy(&output.stderr);
+            Err(CommandError::FailedToStopProcess(format!("pkill failed: {}", error_msg)))
+        }
     }
 }
 
