@@ -52,7 +52,7 @@
 
       <div class="settings-section">
         <h3>Process Management</h3>
-        <div class="setting-item">
+        <div class="button-row">
           <button 
             class="control-button refresh-button" 
             :disabled="isRefreshing"
@@ -60,13 +60,8 @@
           >
             <span v-if="isRefreshing" class="button-icon">🔄</span>
             <span v-else class="button-icon">🔍</span>
-            {{ isRefreshing ? 'Detecting...' : 'Detect Sing-box Process' }}
+            {{ isRefreshing ? 'Detecting...' : 'Detect Process' }}
           </button>
-        </div>
-        <div v-if="processStatus" class="process-status">
-          <p class="status-text" :class="processStatusClass">{{ processStatus }}</p>
-        </div>
-        <div class="setting-item">
           <button 
             class="control-button status-button" 
             :disabled="isGettingStatus"
@@ -74,8 +69,11 @@
           >
             <span v-if="isGettingStatus" class="button-icon">⏳</span>
             <span v-else class="button-icon">📊</span>
-            {{ isGettingStatus ? 'Getting Status...' : 'Get Detailed Status' }}
+            {{ isGettingStatus ? 'Getting Status...' : 'Get Status' }}
           </button>
+        </div>
+        <div v-if="processStatus" class="process-status">
+          <p class="status-text" :class="processStatusClass">{{ processStatus }}</p>
         </div>
       </div>
     </div>
@@ -214,18 +212,8 @@ const refreshSingboxDetection = async () => {
     
     if (hasExternal) {
       processStatus.value = "External sing-box process detected";
-      toastRef.value?.showToast(
-        "External sing-box process detected",
-        "success",
-        "detect"
-      );
     } else {
       processStatus.value = "No sing-box process found";
-      toastRef.value?.showToast(
-        "No sing-box process found",
-        "info",
-        "detect"
-      );
     }
   } catch (error) {
     console.error("Failed to refresh sing-box detection:", error);
@@ -245,12 +233,6 @@ const getSingboxStatus = async () => {
   try {
     const status = await invoke<string>("get_singbox_status");
     processStatus.value = status;
-    
-    if (status.includes("running")) {
-      toastRef.value?.showToast(status, "success", "status");
-    } else {
-      toastRef.value?.showToast(status, "info", "status");
-    }
   } catch (error) {
     console.error("Failed to get sing-box status:", error);
     processStatus.value = "Failed to get sing-box status";
@@ -292,6 +274,12 @@ const processStatusClass = computed(() => {
   border-left: 4px solid #f44336;
 }
 
+.button-row {
+  display: flex;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
 .refresh-button {
   background: linear-gradient(135deg, #4caf50, #45a049);
   color: white;
@@ -305,6 +293,8 @@ const processStatusClass = computed(() => {
   align-items: center;
   gap: 8px;
   transition: all 0.2s ease;
+  flex: 1;
+  min-width: 140px;
 }
 
 .refresh-button:hover:not(:disabled) {
@@ -333,6 +323,8 @@ const processStatusClass = computed(() => {
   align-items: center;
   gap: 8px;
   transition: all 0.2s ease;
+  flex: 1;
+  min-width: 140px;
 }
 
 .status-button:hover:not(:disabled) {
