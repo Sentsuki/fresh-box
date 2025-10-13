@@ -293,14 +293,33 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
         }
     }
     
-    // 如果我们没有管理的进程，检查外部进程标记（避免频繁系统调用）
-    let external_flag = match state.external_process_detected.lock() {
+    // 如果我们没有管理的进程，检查外部进程标记
+    let mut external_flag = match state.external_process_detected.lock() {
         Ok(flag) => *flag,
         Err(poisoned) => {
             eprintln!("External flag mutex was poisoned, recovering...");
             *poisoned.into_inner()
         }
     };
+    
+    // 如果外部进程标记为false，主动检测一次确保状态准确
+    if !external_flag {
+        match state.detect_existing_singbox() {
+            Ok(has_external) => {
+                if has_external {
+                    // 发现了外部进程，更新标记
+                    if let Ok(mut flag) = state.external_process_detected.lock() {
+                        *flag = true;
+                        external_flag = true;
+                        println!("Updated external process flag to true in is_singbox_running");
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to detect external process in is_singbox_running: {:?}", e);
+            }
+        }
+    }
     
     Ok(external_flag)
 }
