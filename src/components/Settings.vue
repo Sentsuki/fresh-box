@@ -77,12 +77,14 @@
               </span>
             </button>
           </div>
-          
+
           <div v-if="processStatus" class="process-status-card">
             <div class="status-header">
               <span class="status-icon" :class="processStatusClass">
                 <span v-if="processStatusClass === 'status-success'">✅</span>
-                <span v-else-if="processStatusClass === 'status-error'">❌</span>
+                <span v-else-if="processStatusClass === 'status-error'"
+                  >❌</span
+                >
                 <span v-else>ℹ️</span>
               </span>
               <span class="status-title">Process Status</span>
@@ -230,7 +232,8 @@ const refreshSingboxDetection = async () => {
     const hasProcess = await invoke<boolean>("refresh_singbox_detection");
 
     if (hasProcess) {
-      processStatus.value = "Sing-box process detected and now under management";
+      processStatus.value =
+        "Sing-box process detected and now under management";
     } else {
       processStatus.value = "No sing-box process found";
     }
@@ -470,7 +473,8 @@ const processStatusClass = computed(() => {
 }
 
 @keyframes pulse {
-  0%, 100% {
+  0%,
+  100% {
     opacity: 1;
     transform: scale(1);
   }
