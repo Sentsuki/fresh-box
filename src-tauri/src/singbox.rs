@@ -480,30 +480,7 @@ fn get_singbox_process_info_by_pid(pid: u32) -> Result<String, CommandError> {
     Ok("Process not found or not a sing-box process".to_string())
 }
 
-// 获取任何sing-box进程信息
-fn get_singbox_process_info() -> Result<String, CommandError> {
-    use sysinfo::System;
-    
-    let mut system = System::new_all();
-    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-    
-    for (pid, process) in system.processes() {
-        let process_name = process.name().to_string_lossy().to_lowercase();
-        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-            let memory_kb = process.memory() / 1024;
-            let cpu_usage = process.cpu_usage();
-            
-            return Ok(format!(
-                "PID: {}, Memory: {} KB, CPU: {:.1}%", 
-                pid, 
-                memory_kb, 
-                cpu_usage
-            ));
-        }
-    }
-    
-    Ok("No sing-box process found".to_string())
-}
+
 
 // 刷新进程检测状态
 #[tauri::command]
