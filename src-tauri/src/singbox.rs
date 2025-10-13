@@ -30,39 +30,55 @@ impl SingboxState {
         }
     }
     
-    // 检测系统中是否有sing-box进程在运行
+    // 检测系统中是否有sing-box进程在运行 - 使用原生API避免命令行工具挂起
     pub fn detect_existing_singbox(&self) -> Result<bool, CommandError> {
         #[cfg(windows)]
         {
-            let output = Command::new("tasklist")
-                .args(["/fi", "imagename eq sing-box.exe", "/fo", "csv", "/nh"])
-                .output()
-                .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to run tasklist: {}", e)))?;
+            // 使用 sysinfo crate 来安全地检测进程，避免命令行工具的问题
+            use sysinfo::{System, SystemExt, ProcessExt};
             
-            let output_str = String::from_utf8_lossy(&output.stdout);
-            let has_process = output_str.contains("sing-box.exe");
+            let mut system = System::new();
+            system.refresh_processes();
             
-            if has_process {
-                println!("Detected existing sing-box.exe process in system");
+            for (pid, process) in system.processes() {
+                let process_name = process.name().to_lowercase();
+                if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
+                    println!("Detected existing sing-box process (PID: {}, Name: {})", pid, process.name());
+                    return Ok(true);
+                }
             }
             
-            Ok(has_process)
+            Ok(false)
         }
         
         #[cfg(not(windows))]
         {
-            let output = Command::new("pgrep")
-                .args(["-f", "sing-box"])
-                .output()
-                .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to run pgrep: {}", e)))?;
+            // 在Unix系统上，直接读取/proc目录避免外部命令
+            use std::fs;
             
-            let has_process = !output.stdout.is_empty();
+            let proc_dir = match fs::read_dir("/proc") {
+                Ok(dir) => dir,
+                Err(_) => return Ok(false),
+            };
             
-            if has_process {
-                println!("Detected existing sing-box process in system");
+            for entry in proc_dir {
+                if let Ok(entry) = entry {
+                    if let Ok(file_name) = entry.file_name().into_string() {
+                        if file_name.chars().all(|c| c.is_ascii_digit()) {
+                            // 这是一个PID目录
+                            let cmdline_path = format!("/proc/{}/cmdline", file_name);
+                            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
+                                if cmdline.contains("sing-box") {
+                                    println!("Detected existing sing-box process (PID: {})", file_name);
+                                    return Ok(true);
+                                }
+                            }
+                        }
+                    }
+                }
             }
             
-            Ok(has_process)
+            Ok(false)
         }
     }
 }
@@ -321,91 +337,76 @@ pub async fn initialize_singbox_state(state: State<'_, SingboxState>) -> Result<
     }
 }
 
-// 停止外部的sing-box进程
+// 停止外部的sing-box进程 - 使用 sysinfo 避免命令行工具挂起
 fn stop_external_singbox_process() -> Result<(), CommandError> {
-    #[cfg(windows)]
-    {
-        // 在Windows上使用taskkill命令停止所有sing-box.exe进程
-        let output = Command::new("taskkill")
-            .args(["/f", "/im", "sing-box.exe"])
-            .output()
-            .map_err(|e| CommandError::FailedToStopProcess(format!("Failed to run taskkill: {}", e)))?;
-        
-        if output.status.success() {
-            println!("Successfully killed external sing-box.exe processes");
-            Ok(())
-        } else {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-            Err(CommandError::FailedToStopProcess(format!("taskkill failed: {}", error_msg)))
+    use sysinfo::{System, SystemExt, ProcessExt, Signal};
+    
+    let mut system = System::new();
+    system.refresh_processes();
+    
+    let mut killed_processes = Vec::new();
+    
+    for (pid, process) in system.processes() {
+        let process_name = process.name().to_lowercase();
+        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
+            println!("Attempting to kill sing-box process (PID: {}, Name: {})", pid, process.name());
+            
+            #[cfg(windows)]
+            {
+                // 在Windows上使用terminate
+                if process.kill() {
+                    killed_processes.push(*pid);
+                    println!("Successfully terminated sing-box process (PID: {})", pid);
+                } else {
+                    eprintln!("Failed to terminate sing-box process (PID: {})", pid);
+                }
+            }
+            
+            #[cfg(not(windows))]
+            {
+                // 在Unix系统上使用SIGTERM信号
+                if process.kill_with(Signal::Term).unwrap_or(false) {
+                    killed_processes.push(*pid);
+                    println!("Successfully sent SIGTERM to sing-box process (PID: {})", pid);
+                } else {
+                    eprintln!("Failed to send SIGTERM to sing-box process (PID: {})", pid);
+                }
+            }
         }
     }
     
-    #[cfg(not(windows))]
-    {
-        // 在Unix系统上使用pkill命令停止sing-box进程
-        let output = Command::new("pkill")
-            .args(["-f", "sing-box"])
-            .output()
-            .map_err(|e| CommandError::FailedToStopProcess(format!("Failed to run pkill: {}", e)))?;
-        
-        if output.status.success() {
-            println!("Successfully killed external sing-box processes");
-            Ok(())
-        } else {
-            let error_msg = String::from_utf8_lossy(&output.stderr);
-            Err(CommandError::FailedToStopProcess(format!("pkill failed: {}", error_msg)))
-        }
+    if killed_processes.is_empty() {
+        println!("No external sing-box processes found to kill");
+    } else {
+        println!("Killed {} external sing-box process(es)", killed_processes.len());
     }
+    
+    Ok(())
 }
 
-// 获取sing-box进程信息
+// 获取sing-box进程信息 - 使用 sysinfo 避免命令行工具挂起
 fn get_singbox_process_info() -> Result<String, CommandError> {
-    #[cfg(windows)]
-    {
-        let output = Command::new("tasklist")
-            .args(["/fi", "imagename eq sing-box.exe", "/fo", "table"])
-            .output()
-            .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to get process info: {}", e)))?;
-        
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        
-        // 解析输出获取PID和内存使用情况
-        for line in output_str.lines() {
-            if line.contains("sing-box.exe") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 5 {
-                    let pid = parts[1];
-                    let memory = parts[4];
-                    return Ok(format!("PID: {}, Memory: {}", pid, memory));
-                }
-            }
+    use sysinfo::{System, SystemExt, ProcessExt};
+    
+    let mut system = System::new();
+    system.refresh_processes();
+    
+    for (pid, process) in system.processes() {
+        let process_name = process.name().to_lowercase();
+        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
+            let memory_kb = process.memory() / 1024; // 转换为KB
+            let cpu_usage = process.cpu_usage();
+            
+            return Ok(format!(
+                "PID: {}, Memory: {} KB, CPU: {:.1}%", 
+                pid, 
+                memory_kb, 
+                cpu_usage
+            ));
         }
-        
-        Ok("Process found but details unavailable".to_string())
     }
     
-    #[cfg(not(windows))]
-    {
-        let output = Command::new("ps")
-            .args(["-eo", "pid,rss,comm", "-C", "sing-box"])
-            .output()
-            .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to get process info: {}", e)))?;
-        
-        let output_str = String::from_utf8_lossy(&output.stdout);
-        
-        for line in output_str.lines().skip(1) { // 跳过标题行
-            if line.contains("sing-box") {
-                let parts: Vec<&str> = line.split_whitespace().collect();
-                if parts.len() >= 3 {
-                    let pid = parts[0];
-                    let memory = parts[1];
-                    return Ok(format!("PID: {}, Memory: {} KB", pid, memory));
-                }
-            }
-        }
-        
-        Ok("Process found but details unavailable".to_string())
-    }
+    Ok("No sing-box process found".to_string())
 }
 
 // 刷新外部进程检测状态
@@ -550,7 +551,7 @@ pub async fn refresh_singbox_detection_directly(state: &SingboxState) -> Result<
     Ok(has_external)
 }
 
-// 清理系统资源的函数
+// 清理系统资源的函数 - 使用异步和超时机制避免挂起
 pub fn cleanup_process(state: &SingboxState) {
     let mut process_guard = match state.singbox_process.lock() {
         Ok(guard) => guard,
@@ -561,8 +562,48 @@ pub fn cleanup_process(state: &SingboxState) {
     };
     
     if let Some(mut child) = process_guard.take() {
-        println!("Cleaning up sing-box process (PID: {})...", child.id());
-        let _ = child.kill();
-        let _ = child.wait();
+        let pid = child.id();
+        println!("Cleaning up sing-box process (PID: {})...", pid);
+        
+        // 首先尝试优雅地终止进程
+        match child.kill() {
+            Ok(_) => {
+                println!("Sent kill signal to sing-box process (PID: {})", pid);
+                
+                // 使用非阻塞方式检查进程状态，避免主线程挂起
+                let start_time = std::time::Instant::now();
+                let timeout = std::time::Duration::from_secs(3); // 3秒超时
+                
+                loop {
+                    match child.try_wait() {
+                        Ok(Some(status)) => {
+                            println!("Sing-box process (PID: {}) terminated with status: {}", pid, status);
+                            break;
+                        }
+                        Ok(None) => {
+                            // 进程仍在运行
+                            if start_time.elapsed() > timeout {
+                                println!("Timeout waiting for sing-box process (PID: {}) to terminate, will be cleaned up by OS", pid);
+                                break;
+                            }
+                            std::thread::sleep(std::time::Duration::from_millis(100));
+                        }
+                        Err(e) => {
+                            eprintln!("Error checking sing-box process (PID: {}) status: {}", pid, e);
+                            break;
+                        }
+                    }
+                }
+            }
+            Err(e) => {
+                eprintln!("Failed to kill sing-box process (PID: {}): {}", pid, e);
+                // 即使kill失败，我们也不等待，让操作系统处理
+            }
+        }
+    }
+    
+    // 清理外部进程标记
+    if let Ok(mut external_flag) = state.external_process_detected.lock() {
+        *external_flag = false;
     }
 }
