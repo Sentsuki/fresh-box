@@ -4,14 +4,15 @@ use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
 use std::process::{Child, Command, Stdio};
-use std::sync::Mutex;
-use std::time::{Duration, SystemTime};
+use std::sync::{Arc, Mutex};
+use std::time::SystemTime;
 use tauri::State;
 
+#[derive(Clone)]
 pub struct SingboxState {
-    pub singbox_process: Mutex<Option<Child>>,
-    pub last_start_time: Mutex<Option<SystemTime>>,
-    pub external_process_detected: Mutex<bool>,
+    pub singbox_process: Arc<Mutex<Option<Child>>>,
+    pub last_start_time: Arc<Mutex<Option<SystemTime>>>,
+    pub external_process_detected: Arc<Mutex<bool>>,
 }
 
 impl Default for SingboxState {
@@ -23,9 +24,9 @@ impl Default for SingboxState {
 impl SingboxState {
     pub fn new() -> Self {
         Self {
-            singbox_process: Mutex::new(None),
-            last_start_time: Mutex::new(None),
-            external_process_detected: Mutex::new(false),
+            singbox_process: Arc::new(Mutex::new(None)),
+            last_start_time: Arc::new(Mutex::new(None)),
+            external_process_detected: Arc::new(Mutex::new(false)),
         }
     }
     
@@ -342,7 +343,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
         }
     };
     
-    let external_flag = state.external_process_detected.lock().unwrap_or_else(|poisoned| {
+    let _external_flag = state.external_process_detected.lock().unwrap_or_else(|poisoned| {
         eprintln!("External flag mutex was poisoned, recovering...");
         poisoned.into_inner()
     });
@@ -404,6 +405,71 @@ pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<Stri
         }
     } else {
         Ok("No process running".to_string())
+    }
+}
+
+// 直接调用的初始化函数（不通过Tauri命令系统）
+pub async fn initialize_singbox_directly(state: &SingboxState) -> Result<String, CommandError> {
+    println!("Initializing sing-box state...");
+    
+    // 检测系统中是否有sing-box进程
+    let has_existing = state.detect_existing_singbox()?;
+    
+    if has_existing {
+        println!("Found existing sing-box process, updating state to running");
+        
+        // 设置外部进程标记
+        if let Ok(mut external_flag) = state.external_process_detected.lock() {
+            *external_flag = true;
+        }
+        
+        // 获取进程详细信息
+        let process_info = get_singbox_process_info()?;
+        
+        Ok(format!("Sing-box is running (External Process) - {}", process_info))
+    } else {
+        println!("No existing sing-box process found");
+        
+        // 清除外部进程标记
+        if let Ok(mut external_flag) = state.external_process_detected.lock() {
+            *external_flag = false;
+        }
+        
+        Ok("No sing-box process detected".to_string())
+    }
+}
+
+// 直接调用的健康检查函数（不通过Tauri命令系统）
+pub async fn health_check_directly(state: &SingboxState) -> Result<String, CommandError> {
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in health_check_directly, recovering...");
+            poisoned.into_inner()
+        }
+    };
+
+    if let Some(child) = &mut *process_guard {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                // 进程已经结束
+                *process_guard = None;
+                Ok(format!("Process exited with status: {}", status))
+            }
+            Ok(None) => Ok(format!("Process running (PID: {})", child.id())),
+            Err(e) => {
+                *process_guard = None;
+                Ok(format!("Process check failed: {}", e))
+            }
+        }
+    } else {
+        // 检查是否有外部进程
+        let has_external = state.detect_existing_singbox().unwrap_or(false);
+        if has_external {
+            Ok("External sing-box process detected".to_string())
+        } else {
+            Ok("No process running".to_string())
+        }
     }
 }
 

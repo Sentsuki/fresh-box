@@ -7,7 +7,7 @@ mod errors;
 mod singbox;
 mod tray;
 
-use singbox::SingboxState;
+use singbox::{SingboxState, initialize_singbox_directly, health_check_directly};
 use tauri::Manager;
 use std::panic;
 
@@ -74,8 +74,9 @@ fn main() {
             
             // 初始化时检测现有的sing-box进程
             let state = app.state::<SingboxState>();
+            let state_clone = state.inner().clone();
             tauri::async_runtime::spawn(async move {
-                match singbox::initialize_singbox_state(tauri::State::from(&*state)).await {
+                match initialize_singbox_directly(&state_clone).await {
                     Ok(status) => {
                         println!("Initialization result: {}", status);
                     }
@@ -100,8 +101,9 @@ fn main() {
                         let state = app.state::<SingboxState>();
                         
                         // 异步检查进程状态
+                        let state_clone = state.inner().clone();
                         tauri::async_runtime::spawn(async move {
-                            if let Ok(status) = singbox::health_check_singbox(tauri::State::from(&*state)).await {
+                            if let Ok(status) = health_check_directly(&state_clone).await {
                                 println!("Health check result: {}", status);
                             }
                         });
