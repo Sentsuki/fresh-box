@@ -35,15 +35,15 @@ impl SingboxState {
         #[cfg(windows)]
         {
             // 使用 sysinfo crate 来安全地检测进程，避免命令行工具的问题
-            use sysinfo::{System, SystemExt, ProcessExt};
+            use sysinfo::System;
             
-            let mut system = System::new();
-            system.refresh_processes();
+            let mut system = System::new_all();
+            system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
             
             for (pid, process) in system.processes() {
-                let process_name = process.name().to_lowercase();
+                let process_name = process.name().to_string_lossy().to_lowercase();
                 if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-                    println!("Detected existing sing-box process (PID: {}, Name: {})", pid, process.name());
+                    println!("Detected existing sing-box process (PID: {}, Name: {})", pid, process.name().to_string_lossy());
                     return Ok(true);
                 }
             }
@@ -339,17 +339,17 @@ pub async fn initialize_singbox_state(state: State<'_, SingboxState>) -> Result<
 
 // 停止外部的sing-box进程 - 使用 sysinfo 避免命令行工具挂起
 fn stop_external_singbox_process() -> Result<(), CommandError> {
-    use sysinfo::{System, SystemExt, ProcessExt, Signal};
+    use sysinfo::System;
     
-    let mut system = System::new();
-    system.refresh_processes();
+    let mut system = System::new_all();
+    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     
     let mut killed_processes = Vec::new();
     
     for (pid, process) in system.processes() {
-        let process_name = process.name().to_lowercase();
+        let process_name = process.name().to_string_lossy().to_lowercase();
         if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-            println!("Attempting to kill sing-box process (PID: {}, Name: {})", pid, process.name());
+            println!("Attempting to kill sing-box process (PID: {}, Name: {})", pid, process.name().to_string_lossy());
             
             #[cfg(windows)]
             {
@@ -365,6 +365,7 @@ fn stop_external_singbox_process() -> Result<(), CommandError> {
             #[cfg(not(windows))]
             {
                 // 在Unix系统上使用SIGTERM信号
+                use sysinfo::Signal;
                 if process.kill_with(Signal::Term).unwrap_or(false) {
                     killed_processes.push(*pid);
                     println!("Successfully sent SIGTERM to sing-box process (PID: {})", pid);
@@ -386,13 +387,13 @@ fn stop_external_singbox_process() -> Result<(), CommandError> {
 
 // 获取sing-box进程信息 - 使用 sysinfo 避免命令行工具挂起
 fn get_singbox_process_info() -> Result<String, CommandError> {
-    use sysinfo::{System, SystemExt, ProcessExt};
+    use sysinfo::System;
     
-    let mut system = System::new();
-    system.refresh_processes();
+    let mut system = System::new_all();
+    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
     
     for (pid, process) in system.processes() {
-        let process_name = process.name().to_lowercase();
+        let process_name = process.name().to_string_lossy().to_lowercase();
         if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
             let memory_kb = process.memory() / 1024; // 转换为KB
             let cpu_usage = process.cpu_usage();
