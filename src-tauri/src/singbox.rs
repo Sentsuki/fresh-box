@@ -11,6 +11,7 @@ use tauri::State;
 pub struct SingboxState {
     pub singbox_process: Mutex<Option<Child>>,
     pub last_start_time: Mutex<Option<SystemTime>>,
+    pub external_process_detected: Mutex<bool>,
 }
 
 impl Default for SingboxState {
@@ -24,6 +25,43 @@ impl SingboxState {
         Self {
             singbox_process: Mutex::new(None),
             last_start_time: Mutex::new(None),
+            external_process_detected: Mutex::new(false),
+        }
+    }
+    
+    // 检测系统中是否有sing-box进程在运行
+    pub fn detect_existing_singbox(&self) -> Result<bool, CommandError> {
+        #[cfg(windows)]
+        {
+            let output = Command::new("tasklist")
+                .args(["/fi", "imagename eq sing-box.exe", "/fo", "csv", "/nh"])
+                .output()
+                .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to run tasklist: {}", e)))?;
+            
+            let output_str = String::from_utf8_lossy(&output.stdout);
+            let has_process = output_str.contains("sing-box.exe");
+            
+            if has_process {
+                println!("Detected existing sing-box.exe process in system");
+            }
+            
+            Ok(has_process)
+        }
+        
+        #[cfg(not(windows))]
+        {
+            let output = Command::new("pgrep")
+                .args(["-f", "sing-box"])
+                .output()
+                .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to run pgrep: {}", e)))?;
+            
+            let has_process = !output.stdout.is_empty();
+            
+            if has_process {
+                println!("Detected existing sing-box process in system");
+            }
+            
+            Ok(has_process)
         }
     }
 }
@@ -183,23 +221,160 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
         }
     };
 
+    // 首先检查我们管理的进程
     if let Some(child) = &mut *process_guard {
-        // 在 Windows 上，我们可以使用 try_wait 来检查进程是否还在运行
         match child.try_wait() {
             Ok(Some(_)) => {
                 // 进程已经结束，清理状态
                 *process_guard = None;
-                Ok(false)
+                // 继续检查是否有外部进程
             }
-            Ok(None) => Ok(true), // 进程还在运行
+            Ok(None) => return Ok(true), // 我们的进程还在运行
             Err(_) => {
                 // 发生错误，清理状态
                 *process_guard = None;
-                Ok(false)
+                // 继续检查是否有外部进程
+            }
+        }
+    }
+    
+    // 如果我们没有管理的进程，检查系统中是否有外部的sing-box进程
+    let has_external = state.detect_existing_singbox().unwrap_or(false);
+    
+    // 更新外部进程标记
+    if let Ok(mut external_flag) = state.external_process_detected.lock() {
+        *external_flag = has_external;
+    }
+    
+    Ok(has_external)
+}
+
+// 初始化时检测现有的sing-box进程
+#[tauri::command]
+pub async fn initialize_singbox_state(state: State<'_, SingboxState>) -> Result<String, CommandError> {
+    println!("Initializing sing-box state...");
+    
+    // 检测系统中是否有sing-box进程
+    let has_existing = state.detect_existing_singbox()?;
+    
+    if has_existing {
+        println!("Found existing sing-box process, updating state to running");
+        
+        // 设置外部进程标记
+        if let Ok(mut external_flag) = state.external_process_detected.lock() {
+            *external_flag = true;
+        }
+        
+        // 获取进程详细信息
+        let process_info = get_singbox_process_info()?;
+        
+        Ok(format!("Sing-box is running (External Process) - {}", process_info))
+    } else {
+        println!("No existing sing-box process found");
+        
+        // 清除外部进程标记
+        if let Ok(mut external_flag) = state.external_process_detected.lock() {
+            *external_flag = false;
+        }
+        
+        Ok("No sing-box process detected".to_string())
+    }
+}
+
+// 获取sing-box进程信息
+fn get_singbox_process_info() -> Result<String, CommandError> {
+    #[cfg(windows)]
+    {
+        let output = Command::new("tasklist")
+            .args(["/fi", "imagename eq sing-box.exe", "/fo", "table"])
+            .output()
+            .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to get process info: {}", e)))?;
+        
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        
+        // 解析输出获取PID和内存使用情况
+        for line in output_str.lines() {
+            if line.contains("sing-box.exe") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 5 {
+                    let pid = parts[1];
+                    let memory = parts[4];
+                    return Ok(format!("PID: {}, Memory: {}", pid, memory));
+                }
+            }
+        }
+        
+        Ok("Process found but details unavailable".to_string())
+    }
+    
+    #[cfg(not(windows))]
+    {
+        let output = Command::new("ps")
+            .args(["-eo", "pid,rss,comm", "-C", "sing-box"])
+            .output()
+            .map_err(|e| CommandError::FailedToStartProcess(format!("Failed to get process info: {}", e)))?;
+        
+        let output_str = String::from_utf8_lossy(&output.stdout);
+        
+        for line in output_str.lines().skip(1) { // 跳过标题行
+            if line.contains("sing-box") {
+                let parts: Vec<&str> = line.split_whitespace().collect();
+                if parts.len() >= 3 {
+                    let pid = parts[0];
+                    let memory = parts[1];
+                    return Ok(format!("PID: {}, Memory: {} KB", pid, memory));
+                }
+            }
+        }
+        
+        Ok("Process found but details unavailable".to_string())
+    }
+}
+
+// 获取详细的sing-box运行状态
+#[tauri::command]
+pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in get_singbox_status, recovering...");
+            poisoned.into_inner()
+        }
+    };
+    
+    let external_flag = state.external_process_detected.lock().unwrap_or_else(|poisoned| {
+        eprintln!("External flag mutex was poisoned, recovering...");
+        poisoned.into_inner()
+    });
+    
+    // 检查我们管理的进程
+    let managed_running = if let Some(child) = &mut *process_guard {
+        match child.try_wait() {
+            Ok(Some(_)) => {
+                *process_guard = None;
+                false
+            }
+            Ok(None) => true,
+            Err(_) => {
+                *process_guard = None;
+                false
             }
         }
     } else {
-        Ok(false)
+        false
+    };
+    
+    // 检查外部进程
+    let external_running = state.detect_existing_singbox().unwrap_or(false);
+    
+    if managed_running {
+        let pid = process_guard.as_ref().unwrap().id();
+        Ok(format!("Sing-box is running (Managed Process, PID: {})", pid))
+    } else if external_running {
+        let process_info = get_singbox_process_info().unwrap_or_else(|_| "Unknown".to_string());
+        Ok(format!("Sing-box is running (External Process) - {}", process_info))
+    } else {
+        Ok("Sing-box is not running".to_string())
     }
 }
 

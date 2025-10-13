@@ -52,6 +52,8 @@ fn main() {
             singbox::stop_singbox,
             singbox::is_singbox_running,
             singbox::health_check_singbox,
+            singbox::initialize_singbox_state,
+            singbox::get_singbox_status,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
@@ -69,6 +71,20 @@ fn main() {
         .setup(|app| {
             // 设置系统托盘
             tray::setup_system_tray(app)?;
+            
+            // 初始化时检测现有的sing-box进程
+            let state = app.state::<SingboxState>();
+            tauri::async_runtime::spawn(async move {
+                match singbox::initialize_singbox_state(tauri::State::from(&*state)).await {
+                    Ok(status) => {
+                        println!("Initialization result: {}", status);
+                    }
+                    Err(e) => {
+                        eprintln!("Failed to initialize sing-box state: {:?}", e);
+                    }
+                }
+            });
+            
             Ok(())
         })
         .on_window_event(|window, event| {
