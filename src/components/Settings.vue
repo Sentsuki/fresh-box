@@ -52,30 +52,47 @@
 
       <div class="settings-section">
         <h3>Process Management</h3>
-        <div class="button-row">
-          <button
-            class="control-button refresh-button"
-            :disabled="isRefreshing"
-            @click="refreshSingboxDetection"
-          >
-            <span v-if="isRefreshing" class="button-icon">🔄</span>
-            <span v-else class="button-icon">🔍</span>
-            {{ isRefreshing ? "Detecting..." : "Detect Process" }}
-          </button>
-          <button
-            class="control-button status-button"
-            :disabled="isGettingStatus"
-            @click="getSingboxStatus"
-          >
-            <span v-if="isGettingStatus" class="button-icon">⏳</span>
-            <span v-else class="button-icon">📊</span>
-            {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
-          </button>
-        </div>
-        <div v-if="processStatus" class="process-status">
-          <p class="status-text" :class="processStatusClass">
-            {{ processStatus }}
-          </p>
+        <div class="process-management-container">
+          <div class="button-row">
+            <button
+              class="control-button detect-button"
+              :disabled="isRefreshing"
+              @click="refreshSingboxDetection"
+            >
+              <span v-if="isRefreshing" class="button-icon spinning">🔄</span>
+              <span v-else class="button-icon">🔍</span>
+              <span class="button-text">
+                {{ isRefreshing ? "Detecting..." : "Detect Process" }}
+              </span>
+            </button>
+            <button
+              class="control-button status-button"
+              :disabled="isGettingStatus"
+              @click="getSingboxStatus"
+            >
+              <span v-if="isGettingStatus" class="button-icon pulsing">⏳</span>
+              <span v-else class="button-icon">📊</span>
+              <span class="button-text">
+                {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
+              </span>
+            </button>
+          </div>
+          
+          <div v-if="processStatus" class="process-status-card">
+            <div class="status-header">
+              <span class="status-icon" :class="processStatusClass">
+                <span v-if="processStatusClass === 'status-success'">✅</span>
+                <span v-else-if="processStatusClass === 'status-error'">❌</span>
+                <span v-else>ℹ️</span>
+              </span>
+              <span class="status-title">Process Status</span>
+            </div>
+            <div class="status-content">
+              <p class="status-text" :class="processStatusClass">
+                {{ processStatus }}
+              </p>
+            </div>
+          </div>
         </div>
       </div>
     </div>
@@ -210,10 +227,10 @@ const refreshSingboxDetection = async () => {
   processStatus.value = "";
 
   try {
-    const hasExternal = await invoke<boolean>("refresh_singbox_detection");
+    const hasProcess = await invoke<boolean>("refresh_singbox_detection");
 
-    if (hasExternal) {
-      processStatus.value = "External sing-box process detected";
+    if (hasProcess) {
+      processStatus.value = "Sing-box process detected and now under management";
     } else {
       processStatus.value = "No sing-box process found";
     }
@@ -276,117 +293,171 @@ const processStatusClass = computed(() => {
   border-left: 4px solid #f44336;
 }
 
+.process-management-container {
+  display: flex;
+  flex-direction: column;
+  gap: var(--space-lg);
+}
+
 .button-row {
   display: flex;
-  gap: 12px;
+  gap: var(--space-md);
   flex-wrap: wrap;
 }
 
-.refresh-button {
-  background: linear-gradient(135deg, #4caf50, #45a049);
+.detect-button {
+  background: linear-gradient(135deg, #38a169, #2f855a);
   color: white;
   border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--border-radius-lg);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
+  gap: var(--space-sm);
+  transition: var(--transition);
   flex: 1;
-  min-width: 140px;
+  min-width: 160px;
+  box-shadow: var(--shadow-sm);
 }
 
-.refresh-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #45a049, #3d8b40);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+.detect-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #2f855a, #276749);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
-.refresh-button:disabled {
-  background: #cccccc;
+.detect-button:disabled {
+  background: var(--color-gray-lighter);
+  color: var(--color-gray);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
 .status-button {
-  background: linear-gradient(135deg, #2196f3, #1976d2);
+  background: linear-gradient(135deg, #3182ce, #2b6cb0);
   color: white;
   border: none;
-  padding: 10px 16px;
-  border-radius: 6px;
+  padding: var(--space-md) var(--space-lg);
+  border-radius: var(--border-radius-lg);
   cursor: pointer;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
   display: flex;
   align-items: center;
-  gap: 8px;
-  transition: all 0.2s ease;
+  gap: var(--space-sm);
+  transition: var(--transition);
   flex: 1;
-  min-width: 140px;
+  min-width: 160px;
+  box-shadow: var(--shadow-sm);
 }
 
 .status-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #1976d2, #1565c0);
-  transform: translateY(-1px);
-  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+  background: linear-gradient(135deg, #2b6cb0, #2c5282);
+  transform: translateY(-2px);
+  box-shadow: var(--shadow-md);
 }
 
 .status-button:disabled {
-  background: #cccccc;
+  background: var(--color-gray-lighter);
+  color: var(--color-gray);
   cursor: not-allowed;
   transform: none;
   box-shadow: none;
 }
 
-.process-status {
-  margin-top: 12px;
-  padding: 12px;
-  border-radius: 6px;
-  background-color: #f8f9fa;
-  border: 1px solid #e9ecef;
+.process-status-card {
+  background: var(--color-white);
+  border: 1px solid var(--color-gray-lightest);
+  border-radius: var(--border-radius-xl);
+  overflow: hidden;
+  box-shadow: var(--shadow-sm);
+  transition: var(--transition);
+}
+
+.process-status-card:hover {
+  box-shadow: var(--shadow-md);
+}
+
+.status-header {
+  display: flex;
+  align-items: center;
+  gap: var(--space-sm);
+  padding: var(--space-md) var(--space-lg);
+  background: var(--color-bg-light);
+  border-bottom: 1px solid var(--color-gray-lightest);
+}
+
+.status-icon {
+  font-size: var(--font-size-md);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+}
+
+.status-title {
+  font-weight: 600;
+  color: var(--color-gray-darker);
+  font-size: var(--font-size-sm);
+}
+
+.status-content {
+  padding: var(--space-lg);
 }
 
 .status-text {
   margin: 0;
-  font-size: 14px;
+  font-size: var(--font-size-sm);
   font-weight: 500;
-  line-height: 1.4;
+  line-height: 1.5;
+  padding: var(--space-md);
+  border-radius: var(--border-radius-md);
+  border-left: 4px solid;
 }
 
 .status-success {
-  color: #2e7d32;
-  background-color: #e8f5e8;
-  border-color: #c8e6c9;
+  color: var(--color-success-dark);
+  background-color: #f0fff4;
+  border-left-color: var(--color-success);
 }
 
 .status-error {
-  color: #d32f2f;
-  background-color: #ffebee;
-  border-color: #ffcdd2;
+  color: var(--color-danger-dark);
+  background-color: #fff5f5;
+  border-left-color: var(--color-danger);
 }
 
 .status-info {
-  color: #1976d2;
-  background-color: #e3f2fd;
-  border-color: #bbdefb;
+  color: var(--color-primary-dark);
+  background-color: var(--color-primary-bg-light);
+  border-left-color: var(--color-primary);
 }
 
 .button-icon {
-  font-size: 16px;
-  display: inline-flex;
+  font-size: var(--font-size-md);
+  display: flex;
   align-items: center;
+  justify-content: center;
+  width: 20px;
+  height: 20px;
 }
 
-.refresh-button .button-icon {
-  animation: none;
+.button-text {
+  font-weight: 500;
 }
 
-.refresh-button:disabled .button-icon {
+.spinning {
   animation: spin 1s linear infinite;
+}
+
+.pulsing {
+  animation: pulse 1.5s ease-in-out infinite;
 }
 
 @keyframes spin {
@@ -395,6 +466,17 @@ const processStatusClass = computed(() => {
   }
   to {
     transform: rotate(360deg);
+  }
+}
+
+@keyframes pulse {
+  0%, 100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+  50% {
+    opacity: 0.7;
+    transform: scale(0.95);
   }
 }
 </style>
