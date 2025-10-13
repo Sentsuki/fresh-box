@@ -210,10 +210,10 @@ const refreshSingboxDetection = async () => {
   processStatus.value = "";
 
   try {
-    const hasExternal = await invoke<boolean>("refresh_singbox_detection");
+    const hasProcess = await invoke<boolean>("refresh_singbox_detection");
 
-    if (hasExternal) {
-      processStatus.value = "External sing-box process detected";
+    if (hasProcess) {
+      processStatus.value = "Sing-box process detected and now under management";
     } else {
       processStatus.value = "No sing-box process found";
     }

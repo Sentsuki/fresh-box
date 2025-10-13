@@ -104,9 +104,9 @@ fn main() {
                         // 异步刷新进程检测状态
                         let state_clone = state.inner().clone();
                         tauri::async_runtime::spawn(async move {
-                            if let Ok(has_external) = refresh_singbox_detection_directly(&state_clone).await {
-                                if has_external {
-                                    println!("Window focused: External sing-box process detected");
+                            if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
+                                if has_process {
+                                    println!("Window focused: Sing-box process detected and under management");
                                 }
                             }
                         });
