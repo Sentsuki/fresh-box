@@ -49,6 +49,35 @@
           </button>
         </div>
       </div>
+
+      <div class="settings-section">
+        <h3>Process Management</h3>
+        <div class="setting-item">
+          <button 
+            class="control-button refresh-button" 
+            :disabled="isRefreshing"
+            @click="refreshSingboxDetection"
+          >
+            <span v-if="isRefreshing" class="button-icon">🔄</span>
+            <span v-else class="button-icon">🔍</span>
+            {{ isRefreshing ? 'Detecting...' : 'Detect Sing-box Process' }}
+          </button>
+        </div>
+        <div v-if="processStatus" class="process-status">
+          <p class="status-text" :class="processStatusClass">{{ processStatus }}</p>
+        </div>
+        <div class="setting-item">
+          <button 
+            class="control-button status-button" 
+            :disabled="isGettingStatus"
+            @click="getSingboxStatus"
+          >
+            <span v-if="isGettingStatus" class="button-icon">⏳</span>
+            <span v-else class="button-icon">📊</span>
+            {{ isGettingStatus ? 'Getting Status...' : 'Get Detailed Status' }}
+          </button>
+        </div>
+      </div>
     </div>
   </div>
 </template>
@@ -64,6 +93,9 @@ type ConfigOverride = Record<string, any>;
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
 const rawConfig = ref("");
+const isRefreshing = ref(false);
+const isGettingStatus = ref(false);
+const processStatus = ref("");
 
 const {
   isEnabled,
@@ -169,6 +201,78 @@ const openAppDirectory = async () => {
     toastRef.value?.showToast("Failed to open app directory", "error");
   }
 };
+
+// 刷新sing-box进程检测
+const refreshSingboxDetection = async () => {
+  if (isRefreshing.value) return;
+  
+  isRefreshing.value = true;
+  processStatus.value = "";
+  
+  try {
+    const hasExternal = await invoke<boolean>("refresh_singbox_detection");
+    
+    if (hasExternal) {
+      processStatus.value = "External sing-box process detected";
+      toastRef.value?.showToast(
+        "External sing-box process detected",
+        "success",
+        "detect"
+      );
+    } else {
+      processStatus.value = "No sing-box process found";
+      toastRef.value?.showToast(
+        "No sing-box process found",
+        "info",
+        "detect"
+      );
+    }
+  } catch (error) {
+    console.error("Failed to refresh sing-box detection:", error);
+    processStatus.value = "Failed to detect sing-box process";
+    toastRef.value?.showToast("Failed to detect sing-box process", "error");
+  } finally {
+    isRefreshing.value = false;
+  }
+};
+
+// 获取详细的sing-box状态
+const getSingboxStatus = async () => {
+  if (isGettingStatus.value) return;
+  
+  isGettingStatus.value = true;
+  
+  try {
+    const status = await invoke<string>("get_singbox_status");
+    processStatus.value = status;
+    
+    if (status.includes("running")) {
+      toastRef.value?.showToast(status, "success", "status");
+    } else {
+      toastRef.value?.showToast(status, "info", "status");
+    }
+  } catch (error) {
+    console.error("Failed to get sing-box status:", error);
+    processStatus.value = "Failed to get sing-box status";
+    toastRef.value?.showToast("Failed to get sing-box status", "error");
+  } finally {
+    isGettingStatus.value = false;
+  }
+};
+
+// 计算状态文本的样式类
+const processStatusClass = computed(() => {
+  if (!processStatus.value) return "";
+  
+  const status = processStatus.value.toLowerCase();
+  if (status.includes("running") || status.includes("detected")) {
+    return "status-success";
+  } else if (status.includes("failed") || status.includes("error")) {
+    return "status-error";
+  } else {
+    return "status-info";
+  }
+});
 </script>
 
 <style scoped>
@@ -186,5 +290,117 @@ const openAppDirectory = async () => {
   background-color: #ffebee;
   border-radius: 4px;
   border-left: 4px solid #f44336;
+}
+
+.refresh-button {
+  background: linear-gradient(135deg, #4caf50, #45a049);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.refresh-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #45a049, #3d8b40);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(76, 175, 80, 0.3);
+}
+
+.refresh-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.status-button {
+  background: linear-gradient(135deg, #2196f3, #1976d2);
+  color: white;
+  border: none;
+  padding: 10px 16px;
+  border-radius: 6px;
+  cursor: pointer;
+  font-size: 14px;
+  font-weight: 500;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  transition: all 0.2s ease;
+}
+
+.status-button:hover:not(:disabled) {
+  background: linear-gradient(135deg, #1976d2, #1565c0);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(33, 150, 243, 0.3);
+}
+
+.status-button:disabled {
+  background: #cccccc;
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+.process-status {
+  margin-top: 12px;
+  padding: 12px;
+  border-radius: 6px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+}
+
+.status-text {
+  margin: 0;
+  font-size: 14px;
+  font-weight: 500;
+  line-height: 1.4;
+}
+
+.status-success {
+  color: #2e7d32;
+  background-color: #e8f5e8;
+  border-color: #c8e6c9;
+}
+
+.status-error {
+  color: #d32f2f;
+  background-color: #ffebee;
+  border-color: #ffcdd2;
+}
+
+.status-info {
+  color: #1976d2;
+  background-color: #e3f2fd;
+  border-color: #bbdefb;
+}
+
+.button-icon {
+  font-size: 16px;
+  display: inline-flex;
+  align-items: center;
+}
+
+.refresh-button .button-icon {
+  animation: none;
+}
+
+.refresh-button:disabled .button-icon {
+  animation: spin 1s linear infinite;
+}
+
+@keyframes spin {
+  from {
+    transform: rotate(0deg);
+  }
+  to {
+    transform: rotate(360deg);
+  }
 }
 </style>
