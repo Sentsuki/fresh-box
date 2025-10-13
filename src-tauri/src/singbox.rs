@@ -194,12 +194,17 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
         );
         match child.kill() {
             Ok(_) => {
-                match child.wait() {
-                    Ok(status) => println!(
+                // 使用非阻塞方式检查进程状态，避免挂起
+                match child.try_wait() {
+                    Ok(Some(status)) => println!(
                         "Managed sing-box process stopped successfully with status: {}",
                         status
                     ),
-                    Err(e) => eprintln!("Error waiting for managed sing-box process termination: {}", e),
+                    Ok(None) => {
+                        println!("Managed sing-box process is still terminating, will be cleaned up by OS");
+                        // 进程仍在终止中，我们不等待它
+                    }
+                    Err(e) => eprintln!("Error checking managed sing-box process status: {}", e),
                 }
                 
                 // 清除外部进程标记
@@ -563,6 +568,19 @@ pub fn cleanup_process(state: &SingboxState) {
     if let Some(mut child) = process_guard.take() {
         println!("Cleaning up sing-box process (PID: {})...", child.id());
         let _ = child.kill();
-        let _ = child.wait();
+        
+        // 使用非阻塞方式检查进程状态，避免主线程挂起
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                println!("Sing-box process terminated with status: {}", status);
+            }
+            Ok(None) => {
+                println!("Sing-box process is still running, will be cleaned up by OS");
+                // 进程仍在运行，但我们不等待它，让操作系统清理
+            }
+            Err(e) => {
+                eprintln!("Error checking sing-box process status: {}", e);
+            }
+        }
     }
 }
