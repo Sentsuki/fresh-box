@@ -5,10 +5,12 @@ use serde_json::Value;
 use std::fs;
 use std::process::{Child, Command, Stdio};
 use std::sync::Mutex;
+use std::time::{Duration, SystemTime};
 use tauri::State;
 
 pub struct SingboxState {
     pub singbox_process: Mutex<Option<Child>>,
+    pub last_start_time: Mutex<Option<SystemTime>>,
 }
 
 impl Default for SingboxState {
@@ -21,6 +23,7 @@ impl SingboxState {
     pub fn new() -> Self {
         Self {
             singbox_process: Mutex::new(None),
+            last_start_time: Mutex::new(None),
         }
     }
 }
@@ -31,7 +34,13 @@ pub async fn start_singbox(
     state: State<'_, SingboxState>,
     config_path: String,
 ) -> Result<(), CommandError> {
-    let mut process_guard = state.singbox_process.lock().unwrap();
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in start_singbox, recovering...");
+            poisoned.into_inner()
+        }
+    };
 
     if process_guard.is_some() {
         return Err(CommandError::ProcessAlreadyRunning);
@@ -116,6 +125,12 @@ pub async fn start_singbox(
                 child.id()
             );
             *process_guard = Some(child);
+            
+            // 记录启动时间
+            if let Ok(mut time_guard) = state.last_start_time.lock() {
+                *time_guard = Some(SystemTime::now());
+            }
+            
             Ok(())
         }
         Err(e) => Err(CommandError::FailedToStartProcess(e.to_string())),
@@ -124,7 +139,13 @@ pub async fn start_singbox(
 
 #[tauri::command]
 pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
-    let mut process_guard = state.singbox_process.lock().unwrap();
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in stop_singbox, recovering...");
+            poisoned.into_inner()
+        }
+    };
 
     if let Some(mut child) = process_guard.take() {
         println!(
@@ -154,7 +175,13 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 
 #[tauri::command]
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
-    let mut process_guard = state.singbox_process.lock().unwrap();
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in is_singbox_running, recovering...");
+            poisoned.into_inner()
+        }
+    };
 
     if let Some(child) = &mut *process_guard {
         // 在 Windows 上，我们可以使用 try_wait 来检查进程是否还在运行
@@ -176,12 +203,48 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
     }
 }
 
+// 健康检查函数
+#[tauri::command]
+pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in health_check_singbox, recovering...");
+            poisoned.into_inner()
+        }
+    };
+
+    if let Some(child) = &mut *process_guard {
+        match child.try_wait() {
+            Ok(Some(status)) => {
+                // 进程已经结束
+                *process_guard = None;
+                Ok(format!("Process exited with status: {}", status))
+            }
+            Ok(None) => Ok(format!("Process running (PID: {})", child.id())),
+            Err(e) => {
+                *process_guard = None;
+                Ok(format!("Process check failed: {}", e))
+            }
+        }
+    } else {
+        Ok("No process running".to_string())
+    }
+}
+
 // 清理系统资源的函数
 pub fn cleanup_process(state: &SingboxState) {
-    if let Ok(mut process_guard) = state.singbox_process.lock() {
-        if let Some(mut child) = process_guard.take() {
-            let _ = child.kill();
-            let _ = child.wait();
+    let mut process_guard = match state.singbox_process.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in cleanup_process, recovering...");
+            poisoned.into_inner()
         }
+    };
+    
+    if let Some(mut child) = process_guard.take() {
+        println!("Cleaning up sing-box process (PID: {})...", child.id());
+        let _ = child.kill();
+        let _ = child.wait();
     }
 }
