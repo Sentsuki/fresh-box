@@ -16,6 +16,7 @@
 - Download [sing-box core for windows](https://github.com/SagerNet/sing-box) and put it in `src-tauri/bin`
 - `pnpm install`
 - `pnpm tauri dev` or `pnpm tauri build`
+- cargo clippy --fix 
 
 ## License
 

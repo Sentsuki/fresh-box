@@ -25,7 +25,7 @@ fn main() {
         );
         
         // 尝试写入崩溃日志
-        if let Err(_) = std::fs::write(&log_path, &crash_msg) {
+        if std::fs::write(&log_path, &crash_msg).is_err() {
             // 如果写入失败，尝试追加到现有文件
             let _ = std::fs::OpenOptions::new()
                 .create(true)
