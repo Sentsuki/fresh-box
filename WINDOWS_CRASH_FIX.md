@@ -17,7 +17,22 @@
 
 ## 修复内容
 
-### 1. 添加了全局panic hook
+### 1. 添加了启动时sing-box进程检测
+- 应用启动时自动检测系统中已运行的sing-box进程
+- 如果检测到外部进程，会在状态中标记为"Sing-box is running (External Process)"
+- 避免重复启动sing-box进程
+
+### 2. 优化了进程检测机制
+- 减少了频繁的系统调用，避免持续的"Detected existing sing-box.exe process"消息
+- 使用内存标记来缓存外部进程状态
+- 只在必要时（如窗口获得焦点、手动刷新）才重新检测
+
+### 3. 新增的命令
+- `initialize_singbox_state` - 初始化时检测现有进程
+- `refresh_singbox_detection` - 手动刷新进程检测状态
+- `get_singbox_status` - 获取详细的运行状态信息
+
+### 4. 添加了全局panic hook
 - 在 `main.rs` 中添加了panic处理
 - 崩溃时会生成 `crash.log` 文件
 - 包含时间戳和详细错误信息

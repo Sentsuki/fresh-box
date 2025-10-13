@@ -239,15 +239,16 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
         }
     }
     
-    // 如果我们没有管理的进程，检查系统中是否有外部的sing-box进程
-    let has_external = state.detect_existing_singbox().unwrap_or(false);
+    // 如果我们没有管理的进程，检查外部进程标记（避免频繁系统调用）
+    let external_flag = match state.external_process_detected.lock() {
+        Ok(flag) => *flag,
+        Err(poisoned) => {
+            eprintln!("External flag mutex was poisoned, recovering...");
+            *poisoned.into_inner()
+        }
+    };
     
-    // 更新外部进程标记
-    if let Ok(mut external_flag) = state.external_process_detected.lock() {
-        *external_flag = has_external;
-    }
-    
-    Ok(has_external)
+    Ok(external_flag)
 }
 
 // 初始化时检测现有的sing-box进程
@@ -332,6 +333,27 @@ fn get_singbox_process_info() -> Result<String, CommandError> {
     }
 }
 
+// 刷新外部进程检测状态
+#[tauri::command]
+pub async fn refresh_singbox_detection(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
+    println!("Refreshing sing-box process detection...");
+    
+    // 检测系统中是否有外部的sing-box进程
+    let has_external = state.detect_existing_singbox().unwrap_or(false);
+    
+    // 更新外部进程标记
+    if let Ok(mut external_flag) = state.external_process_detected.lock() {
+        *external_flag = has_external;
+        if has_external {
+            println!("External sing-box process detected and flag updated");
+        } else {
+            println!("No external sing-box process found, flag cleared");
+        }
+    }
+    
+    Ok(has_external)
+}
+
 // 获取详细的sing-box运行状态
 #[tauri::command]
 pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
@@ -343,10 +365,13 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
         }
     };
     
-    let _external_flag = state.external_process_detected.lock().unwrap_or_else(|poisoned| {
-        eprintln!("External flag mutex was poisoned, recovering...");
-        poisoned.into_inner()
-    });
+    let external_flag = match state.external_process_detected.lock() {
+        Ok(flag) => *flag,
+        Err(poisoned) => {
+            eprintln!("External flag mutex was poisoned, recovering...");
+            *poisoned.into_inner()
+        }
+    };
     
     // 检查我们管理的进程
     let managed_running = if let Some(child) = &mut *process_guard {
@@ -365,13 +390,11 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
         false
     };
     
-    // 检查外部进程
-    let external_running = state.detect_existing_singbox().unwrap_or(false);
-    
     if managed_running {
         let pid = process_guard.as_ref().unwrap().id();
         Ok(format!("Sing-box is running (Managed Process, PID: {})", pid))
-    } else if external_running {
+    } else if external_flag {
+        // 只有在需要详细信息时才调用系统命令
         let process_info = get_singbox_process_info().unwrap_or_else(|_| "Unknown".to_string());
         Ok(format!("Sing-box is running (External Process) - {}", process_info))
     } else {
@@ -439,38 +462,17 @@ pub async fn initialize_singbox_directly(state: &SingboxState) -> Result<String,
     }
 }
 
-// 直接调用的健康检查函数（不通过Tauri命令系统）
-pub async fn health_check_directly(state: &SingboxState) -> Result<String, CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in health_check_directly, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    if let Some(child) = &mut *process_guard {
-        match child.try_wait() {
-            Ok(Some(status)) => {
-                // 进程已经结束
-                *process_guard = None;
-                Ok(format!("Process exited with status: {}", status))
-            }
-            Ok(None) => Ok(format!("Process running (PID: {})", child.id())),
-            Err(e) => {
-                *process_guard = None;
-                Ok(format!("Process check failed: {}", e))
-            }
-        }
-    } else {
-        // 检查是否有外部进程
-        let has_external = state.detect_existing_singbox().unwrap_or(false);
-        if has_external {
-            Ok("External sing-box process detected".to_string())
-        } else {
-            Ok("No process running".to_string())
-        }
+// 直接调用的刷新检测函数（不通过Tauri命令系统）
+pub async fn refresh_singbox_detection_directly(state: &SingboxState) -> Result<bool, CommandError> {
+    // 检测系统中是否有外部的sing-box进程
+    let has_external = state.detect_existing_singbox().unwrap_or(false);
+    
+    // 更新外部进程标记
+    if let Ok(mut external_flag) = state.external_process_detected.lock() {
+        *external_flag = has_external;
     }
+    
+    Ok(has_external)
 }
 
 // 清理系统资源的函数

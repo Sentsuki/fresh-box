@@ -7,7 +7,7 @@ mod errors;
 mod singbox;
 mod tray;
 
-use singbox::{SingboxState, initialize_singbox_directly, health_check_directly};
+use singbox::{SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly};
 use tauri::Manager;
 use std::panic;
 
@@ -54,6 +54,7 @@ fn main() {
             singbox::health_check_singbox,
             singbox::initialize_singbox_state,
             singbox::get_singbox_status,
+            singbox::refresh_singbox_detection,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
@@ -100,11 +101,13 @@ fn main() {
                         let app = window.app_handle();
                         let state = app.state::<SingboxState>();
                         
-                        // 异步检查进程状态
+                        // 异步刷新进程检测状态
                         let state_clone = state.inner().clone();
                         tauri::async_runtime::spawn(async move {
-                            if let Ok(status) = health_check_directly(&state_clone).await {
-                                println!("Health check result: {}", status);
+                            if let Ok(has_external) = refresh_singbox_detection_directly(&state_clone).await {
+                                if has_external {
+                                    println!("Window focused: External sing-box process detected");
+                                }
                             }
                         });
                     }
