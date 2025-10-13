@@ -53,27 +53,29 @@
       <div class="settings-section">
         <h3>Process Management</h3>
         <div class="button-row">
-          <button 
-            class="control-button refresh-button" 
+          <button
+            class="control-button refresh-button"
             :disabled="isRefreshing"
             @click="refreshSingboxDetection"
           >
             <span v-if="isRefreshing" class="button-icon">🔄</span>
             <span v-else class="button-icon">🔍</span>
-            {{ isRefreshing ? 'Detecting...' : 'Detect Process' }}
+            {{ isRefreshing ? "Detecting..." : "Detect Process" }}
           </button>
-          <button 
-            class="control-button status-button" 
+          <button
+            class="control-button status-button"
             :disabled="isGettingStatus"
             @click="getSingboxStatus"
           >
             <span v-if="isGettingStatus" class="button-icon">⏳</span>
             <span v-else class="button-icon">📊</span>
-            {{ isGettingStatus ? 'Getting Status...' : 'Get Status' }}
+            {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
           </button>
         </div>
         <div v-if="processStatus" class="process-status">
-          <p class="status-text" :class="processStatusClass">{{ processStatus }}</p>
+          <p class="status-text" :class="processStatusClass">
+            {{ processStatus }}
+          </p>
         </div>
       </div>
     </div>
@@ -203,13 +205,13 @@ const openAppDirectory = async () => {
 // 刷新sing-box进程检测
 const refreshSingboxDetection = async () => {
   if (isRefreshing.value) return;
-  
+
   isRefreshing.value = true;
   processStatus.value = "";
-  
+
   try {
     const hasExternal = await invoke<boolean>("refresh_singbox_detection");
-    
+
     if (hasExternal) {
       processStatus.value = "External sing-box process detected";
     } else {
@@ -227,9 +229,9 @@ const refreshSingboxDetection = async () => {
 // 获取详细的sing-box状态
 const getSingboxStatus = async () => {
   if (isGettingStatus.value) return;
-  
+
   isGettingStatus.value = true;
-  
+
   try {
     const status = await invoke<string>("get_singbox_status");
     processStatus.value = status;
@@ -245,7 +247,7 @@ const getSingboxStatus = async () => {
 // 计算状态文本的样式类
 const processStatusClass = computed(() => {
   if (!processStatus.value) return "";
-  
+
   const status = processStatus.value.toLowerCase();
   if (status.includes("running") || status.includes("detected")) {
     return "status-success";
