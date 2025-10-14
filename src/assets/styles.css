@@ -165,12 +165,12 @@ body,
 }
 
 .status-badge {
-  @apply px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide transition-all duration-300;
-  @apply bg-gray-100 text-gray-600;
+  @apply px-3 py-1.5 rounded-full text-xs font-bold uppercase tracking-wide transition-all duration-300;
+  @apply bg-gray-200 text-gray-700;
 }
 
 .status-badge.active {
-  @apply bg-gradient-to-r from-green-100 to-green-200 text-green-700;
+  @apply bg-green-500 text-white;
   animation: badge-pulse-green 2s infinite;
 }
 
@@ -179,12 +179,12 @@ body,
     opacity: 1;
   }
   50% {
-    opacity: 0.8;
+    opacity: 0.9;
   }
 }
 
 .overview-config-card {
-  @apply mb-6 p-6 bg-white rounded-xl border border-gray-200 transition-all duration-300;
+  @apply mb-4 p-4 bg-white rounded-xl border border-gray-200 transition-all duration-300;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
   background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
 }
@@ -196,7 +196,7 @@ body,
 }
 
 .config-header {
-  @apply flex items-center mb-4;
+  @apply flex items-center;
 }
 
 .config-icon-wrapper {
@@ -234,16 +234,8 @@ body,
   @apply bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700;
 }
 
-.config-details {
-  @apply space-y-3 pt-4 border-t border-gray-100;
-}
-
-.config-detail-item {
-  @apply flex justify-between items-center;
-}
-
-.detail-label {
-  @apply text-sm font-medium text-gray-500;
+.config-status-simple {
+  @apply mt-3 pt-3 border-t border-gray-100;
 }
 
 .detail-value {
@@ -277,11 +269,9 @@ body,
 }
 
 .overview-btn {
-  @apply flex items-center justify-center px-8 py-3 rounded-xl font-semibold transition-all duration-300;
-  @apply border-0 shadow-lg;
+  @apply flex items-center justify-center px-8 py-3 rounded-xl font-semibold transition-all duration-200;
+  @apply border-0 shadow-sm;
   min-width: 160px;
-  position: relative;
-  overflow: hidden;
 }
 
 .overview-btn:disabled {
@@ -289,44 +279,23 @@ body,
 }
 
 .overview-btn:hover:not(:disabled) {
-  @apply transform -translate-y-1 shadow-xl;
-}
-
-.overview-btn::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: -100%;
-  width: 100%;
-  height: 100%;
-  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
-  transition: left 0.5s;
-}
-
-.overview-btn:hover:not(:disabled)::before {
-  left: 100%;
+  @apply transform -translate-y-0.5 shadow-md;
 }
 
 .start-btn {
-  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
-  @apply text-white;
-  box-shadow: 0 4px 15px rgba(59, 130, 246, 0.4);
+  @apply bg-blue-600 text-white;
 }
 
 .start-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
-  box-shadow: 0 8px 25px rgba(59, 130, 246, 0.5);
+  @apply bg-blue-700;
 }
 
 .stop-btn {
-  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
-  @apply text-white;
-  box-shadow: 0 4px 15px rgba(239, 68, 68, 0.4);
+  @apply bg-red-600 text-white;
 }
 
 .stop-btn:hover:not(:disabled) {
-  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
-  box-shadow: 0 8px 25px rgba(239, 68, 68, 0.5);
+  @apply bg-red-700;
 }
 
 /* ===== Legacy Status Components (for other components) ===== */

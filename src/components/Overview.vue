@@ -99,27 +99,12 @@ function stopService() {
           </div>
         </div>
 
-        <!-- 配置详情 -->
-        <div class="config-details">
-          <div class="config-detail-item">
-            <span class="detail-label">Type</span>
-            <span class="detail-value" :class="{ subscription: isSubscription }">
-              {{ isSubscription ? 'Remote Subscription' : 'Local File' }}
-            </span>
-          </div>
-          <div v-if="isSubscription && subscriptions[selectedConfigDisplay]?.lastUpdated" class="config-detail-item">
-            <span class="detail-label">Last Updated</span>
-            <span class="detail-value">
-              {{ new Date(subscriptions[selectedConfigDisplay].lastUpdated).toLocaleString() }}
-            </span>
-          </div>
-          <div class="config-detail-item">
-            <span class="detail-label">Status</span>
-            <span class="detail-value status-active">
-              <span class="status-indicator"></span>
-              Ready to use
-            </span>
-          </div>
+        <!-- 配置状态 -->
+        <div class="config-status-simple">
+          <span class="detail-value status-active">
+            <span class="status-indicator"></span>
+            Ready to use
+          </span>
         </div>
       </div>
 
