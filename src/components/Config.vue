@@ -171,9 +171,9 @@ async function openConfigFile(fileName: string, event: Event) {
           <div v-else class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
             <div v-for="(file, index) in configFilesDisplay" :key="configFiles[index]"
               class="bg-white border rounded-lg p-4 cursor-pointer transition-all duration-300" :class="{
-                'border-blue-400 bg-blue-50 shadow-md': configFiles[index] === selectedConfig,
+                'border-blue-400 bg-blue-50 shadow-sm': configFiles[index] === selectedConfig,
                 'border-orange-400 bg-orange-50 cursor-default': isManaging && managingFile === file,
-                'border-gray-200 hover:shadow-lg hover:border-gray-300 hover:transform hover:-translate-y-1': configFiles[index] !== selectedConfig && !(isManaging && managingFile === file)
+                'border-gray-200 hover:shadow-sm hover:border-gray-300 hover:transform hover:-translate-y-0.5': configFiles[index] !== selectedConfig && !(isManaging && managingFile === file)
               }" @click="switchConfig(index)">
               <!-- 管理模式 -->
               <div v-if="isManaging && managingFile === file" class="space-y-4" @click.stop>
