@@ -250,12 +250,12 @@ body,
 }
 
 .action-button {
-  @apply flex items-center justify-center px-8 py-3 rounded-xl text-lg font-semibold border-0 cursor-pointer transition-all duration-200 shadow-lg;
+  @apply flex items-center justify-center px-8 py-3 rounded-xl text-lg font-semibold cursor-pointer transition-all duration-200 shadow-sm border border-transparent;
   min-width: 150px;
 }
 
 .action-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-sm;
+  @apply -translate-y-0.5 shadow-md;
 }
 
 /* ===== Legacy Controls (for other components) ===== */
@@ -264,12 +264,12 @@ body,
 }
 
 .control-button {
-  @apply flex items-center justify-center px-4 py-2 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 shadow-md;
+  @apply flex items-center justify-center px-4 py-2 rounded-lg text-base font-medium border-0 cursor-pointer transition-all duration-200 shadow-sm;
   min-width: 140px;
 }
 
 .control-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-sm;
+  @apply -translate-y-0.5 shadow-md;
 }
 
 .select-button {
@@ -281,19 +281,19 @@ body,
 }
 
 .action-button.start-button {
-  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white;
+  @apply bg-blue-500 text-white border-blue-500;
 }
 
 .action-button.start-button:hover:not(.disabled) {
-  @apply from-blue-600 to-blue-700;
+  @apply bg-blue-600 border-blue-600;
 }
 
 .action-button.stop-button {
-  @apply bg-gradient-to-r from-red-500 to-rose-500 text-white;
+  @apply bg-red-500 text-white border-red-500;
 }
 
 .action-button.stop-button:hover:not(.disabled) {
-  @apply from-red-600 to-rose-600;
+  @apply bg-red-600 border-red-600;
 }
 
 .start-button {
