@@ -178,12 +178,12 @@ body,
 }
 
 .config-icon-wrapper {
-  @apply flex-shrink-0 mr-2;
+  @apply flex-shrink-0 mr-1.5;
 }
 
 .config-icon {
-  @apply w-4 h-4 rounded-full flex items-center justify-center transition-all duration-200;
-  @apply bg-white text-gray-600;
+  @apply w-5 h-5 rounded-md flex items-center justify-center transition-all duration-200;
+  @apply bg-blue-200 text-blue-700;
 }
 
 .config-icon.subscription {
@@ -191,25 +191,25 @@ body,
 }
 
 .config-content {
-  @apply flex-1 min-w-0;
+  @apply flex-1 min-w-0 flex items-center;
 }
 
 .config-name-section {
-  @apply flex flex-col justify-center;
+  @apply flex flex-col justify-center items-center;
 }
 
 .config-title {
-  @apply text-sm font-semibold text-blue-800 leading-tight truncate;
+  @apply text-sm font-bold text-blue-800 leading-tight truncate;
 }
 
 .config-type-label {
   @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-0.5;
-  @apply bg-blue-100 text-blue-600;
+  @apply bg-emerald-100 text-emerald-700;
   width: fit-content;
 }
 
 .config-type-label.subscription {
-  @apply bg-blue-200 text-blue-700;
+  @apply bg-orange-100 text-orange-700;
 }
 
 .config-status-badge {
