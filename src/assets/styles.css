@@ -217,17 +217,22 @@ body,
   @apply flex-1;
 }
 
+.config-name-section {
+  @apply flex flex-col;
+}
+
 .config-title {
-  @apply text-lg font-semibold text-gray-800 mb-1;
+  @apply text-lg font-semibold text-gray-800 mb-2;
 }
 
-.config-description {
-  @apply text-xs font-medium text-gray-500 mt-1 uppercase tracking-wider;
-  letter-spacing: 0.05em;
+.config-type-label {
+  @apply inline-flex items-center px-2 py-1 rounded-md text-xs font-medium;
+  @apply bg-gray-100 text-gray-700;
+  width: fit-content;
 }
 
-.config-description.subscription {
-  @apply text-blue-600;
+.config-type-label.subscription {
+  @apply bg-blue-100 text-blue-700;
 }
 
 .config-status-badge {
