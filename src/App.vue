@@ -14,9 +14,9 @@ import Sidebar from "./components/Sidebar.vue";
 import Overview from "./components/Overview.vue";
 import Config from "./components/Config.vue";
 import Settings from "./components/Settings.vue";
+import Toast from "./components/Toast.vue";
 
 const isRunning = ref(false);
-const statusMessage = ref("Sing-box is stopped.");
 const isLoading = ref(false);
 const selectedConfig = ref(null as string | null);
 const selectedConfigDisplay = ref(null as string | null);
@@ -25,6 +25,14 @@ const configFiles = ref([] as string[]);
 const configFilesDisplay = ref([] as string[]);
 const subscriptions = ref({} as Record<string, SubscriptionInfo>);
 let statusCheckInterval: number | null = null;
+const toastRef = ref<InstanceType<typeof Toast> | null>(null);
+
+// Toast 辅助函数
+function showToast(message: string, type: "success" | "error" = "success") {
+  if (toastRef.value) {
+    toastRef.value.showToast(message, type);
+  }
+}
 
 // 添加重命名函数
 async function renameConfig(oldFileName: string, newFileName: string) {
@@ -32,7 +40,7 @@ async function renameConfig(oldFileName: string, newFileName: string) {
 
   // 检查新文件名是否已经存在
   if (configFilesDisplay.value.includes(newFileName)) {
-    statusMessage.value = "A config with this name already exists";
+    showToast("A config with this name already exists", "error");
     return;
   }
 
@@ -51,7 +59,7 @@ async function renameConfig(oldFileName: string, newFileName: string) {
       await saveSubscriptionsToStorage(subscriptions.value);
     }
 
-    statusMessage.value = `Renamed ${oldFileName} to ${newFileName}`;
+    showToast(`Renamed ${oldFileName} to ${newFileName}`);
 
     // 更新选中的配置如果是被重命名的那个
     if (selectedConfig.value?.includes(oldFileName)) {
@@ -64,7 +72,7 @@ async function renameConfig(oldFileName: string, newFileName: string) {
 
     await loadConfigFiles();
   } catch (error) {
-    statusMessage.value = `Error renaming config: ${error}`;
+    showToast(`Error renaming config: ${error}`, "error");
   } finally {
     isLoading.value = false;
   }
@@ -103,10 +111,10 @@ async function addSubscription(url: string) {
       lastUpdated: new Date().toISOString(),
     };
     await saveSubscriptionsToStorage(subscriptions.value);
-    statusMessage.value = `Subscribed to: ${cleanFileName}`;
+    showToast(`Subscribed to: ${cleanFileName}`);
     await loadConfigFiles();
   } catch (error) {
-    statusMessage.value = `Error adding subscription: ${error}`;
+    showToast(`Error adding subscription: ${error}`, "error");
     isLoading.value = false;
   } finally {
     isLoading.value = false;
@@ -133,10 +141,10 @@ async function updateSubscription(fileName: string) {
     subscriptions.value[fileName].lastUpdated = new Date().toISOString();
     await saveSubscriptionsToStorage(subscriptions.value);
 
-    statusMessage.value = `Updated subscription: ${fileName}`;
+    showToast(`Updated subscription: ${fileName}`);
     await loadConfigFiles();
   } catch (error) {
-    statusMessage.value = `Error updating subscription: ${error}`;
+    showToast(`Error updating subscription: ${error}`, "error");
   } finally {
     isLoading.value = false;
   }
@@ -154,9 +162,9 @@ async function editSubscription(fileName: string, newUrl: string) {
       subscriptions.value[fileName] = { url: newUrl };
     }
     await saveSubscriptionsToStorage(subscriptions.value);
-    statusMessage.value = `Updated subscription URL for: ${fileName}`;
+    showToast(`Updated subscription URL for: ${fileName}`);
   } catch (error) {
-    statusMessage.value = `Error updating subscription URL: ${error}`;
+    showToast(`Error updating subscription URL: ${error}`, "error");
   } finally {
     isLoading.value = false;
   }
@@ -171,8 +179,7 @@ async function deleteConfig(fileName: string) {
     (file) => getCleanFileName(file) === fileName,
   );
   if (fullFileName === selectedConfig.value && isRunning.value) {
-    statusMessage.value =
-      "Cannot delete active configuration. Stop the service first.";
+    showToast("Cannot delete active configuration. Stop the service first.", "error");
     return;
   }
 
@@ -187,7 +194,7 @@ async function deleteConfig(fileName: string) {
       await saveSubscriptionsToStorage(subscriptions.value);
     }
 
-    statusMessage.value = `Deleted config: ${fileName}`;
+    showToast(`Deleted config: ${fileName}`);
 
     // 重新加载配置文件列表
     await loadConfigFiles();
@@ -210,7 +217,7 @@ async function deleteConfig(fileName: string) {
       }
     }
   } catch (error) {
-    statusMessage.value = `Error deleting config: ${error}`;
+    showToast(`Error deleting config: ${error}`, "error");
   } finally {
     isLoading.value = false;
   }
@@ -228,11 +235,11 @@ async function selectConfigFile() {
       await invoke<string>("copy_config_to_bin", {
         configPath: file as string,
       });
-      statusMessage.value = `Added config file successfully`;
+      showToast(`Added config file successfully`);
       await loadConfigFiles(); // 刷新配置文件列表
     }
   } catch (error) {
-    statusMessage.value = `Error selecting config file: ${error}`;
+    showToast(`Error selecting config file: ${error}`, "error");
   }
 }
 
@@ -253,7 +260,6 @@ async function loadConfigFiles() {
       selectedConfigDisplay.value =
         localStorage.getItem("lastSelectedConfigDisplay") ||
         getCleanFileName(lastSelectedConfig);
-      statusMessage.value = `Selected config: ${selectedConfigDisplay.value}`;
     } else if (configFiles.value.length > 0) {
       // 如果找不到上次的配置，选择列表中的第一个
       selectedConfig.value = configFiles.value[0];
@@ -280,10 +286,9 @@ function switchConfig(index: number) {
       "lastSelectedConfigDisplay",
       selectedConfigDisplay.value,
     );
-    statusMessage.value = `Selected config: ${selectedConfigDisplay.value}`;
+    showToast(`Selected config: ${selectedConfigDisplay.value}`);
   } else {
-    statusMessage.value =
-      "Cannot change config while service is running. Stop the service first.";
+    showToast("Cannot change config while service is running. Stop the service first.", "error");
   }
 }
 
@@ -295,7 +300,7 @@ async function checkSingboxStatus() {
     const running = await invoke<boolean>("is_singbox_running");
     if (!running) {
       isRunning.value = false;
-      statusMessage.value = "Sing-box has stopped unexpectedly.";
+      showToast("Sing-box has stopped unexpectedly.", "error");
     }
   } catch (err) {
     console.error("Failed to check service status:", err);
@@ -306,17 +311,17 @@ async function checkSingboxStatus() {
 async function startService() {
   if (isRunning.value || isLoading.value || !selectedConfig.value) return;
   isLoading.value = true;
-  statusMessage.value = "Starting sing-box...";
+  showToast("Starting sing-box...");
   try {
     await invoke("start_singbox", { configPath: selectedConfig.value });
     isRunning.value = true;
-    statusMessage.value = "Sing-box is running.";
+    showToast("Sing-box is running.");
     // 启动定期检查
     if (statusCheckInterval === null) {
       statusCheckInterval = window.setInterval(checkSingboxStatus, 5000); // 每5秒检查一次
     }
   } catch (error) {
-    statusMessage.value = `Error starting sing-box: ${JSON.stringify(error)}`;
+    showToast(`Error starting sing-box: ${JSON.stringify(error)}`, "error");
     isRunning.value = false;
   } finally {
     isLoading.value = false;
@@ -327,18 +332,18 @@ async function startService() {
 async function stopService() {
   if (!isRunning.value || isLoading.value) return;
   isLoading.value = true;
-  statusMessage.value = "Stopping sing-box...";
+  showToast("Stopping sing-box...");
   try {
     await invoke("stop_singbox");
     isRunning.value = false;
-    statusMessage.value = "Sing-box is stopped.";
+    showToast("Sing-box is stopped.");
     // 停止定期检查
     if (statusCheckInterval !== null) {
       window.clearInterval(statusCheckInterval);
       statusCheckInterval = null;
     }
   } catch (error) {
-    statusMessage.value = `Error stopping sing-box: ${JSON.stringify(error)}`;
+    showToast(`Error stopping sing-box: ${JSON.stringify(error)}`, "error");
   } finally {
     isLoading.value = false;
   }
@@ -353,9 +358,6 @@ onMounted(async () => {
   invoke<boolean>("is_singbox_running")
     .then((running) => {
       isRunning.value = running;
-      statusMessage.value = running
-        ? "Sing-box is running."
-        : "Sing-box is stopped.";
       if (running) {
         // 如果服务在运行，启动定期检查
         statusCheckInterval = window.setInterval(checkSingboxStatus, 5000);
@@ -388,9 +390,9 @@ onUnmounted(() => {
         v-if="currentPage === 'overview'"
         :is-running="isRunning"
         :is-loading="isLoading"
-        :status-message="statusMessage"
         :selected-config-display="selectedConfigDisplay"
         :selected-config="selectedConfig"
+        :subscriptions="subscriptions"
         @start-service="startService"
         @stop-service="stopService"
       />
@@ -403,7 +405,7 @@ onUnmounted(() => {
         :selected-config="selectedConfig"
         :is-loading="isLoading"
         :subscriptions="subscriptions"
-        :status-message="statusMessage"
+
         @select-config-file="selectConfigFile"
         @switch-config="switchConfig"
         @add-subscription="addSubscription"
@@ -416,5 +418,8 @@ onUnmounted(() => {
       <!-- Settings 页面 -->
       <Settings v-if="currentPage === 'settings'" />
     </div>
+
+    <!-- Toast 组件 -->
+    <Toast ref="toastRef" />
   </div>
 </template>
