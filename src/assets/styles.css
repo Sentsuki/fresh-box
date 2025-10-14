@@ -161,48 +161,52 @@ body,
 
 
 
-/* ===== Config Card - Modern Card Design ===== */
-.overview-config-card {
-  @apply mb-6 p-5 bg-white rounded-xl border border-gray-200 transition-all duration-300 ease-out;
-  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.05);
+/* ===== Status Card Config Info ===== */
+.status-config-info {
+  @apply mt-3 pt-3 border-t border-gray-200 flex items-center justify-between;
 }
 
-.overview-config-card:hover {
-  @apply border-blue-200 shadow-md;
-  transform: translateY(-1px);
+.overview-status-card.running .status-config-info {
+  @apply border-green-200;
 }
 
-.config-header {
-  @apply flex items-center justify-between;
+.config-info-left {
+  @apply flex items-center gap-2;
 }
 
-.config-content {
-  @apply flex items-center gap-3;
+.config-info-icon {
+  @apply w-4 h-4 text-gray-400 flex-shrink-0;
 }
 
-.config-icon {
-  @apply w-10 h-10 bg-blue-100 text-blue-600 rounded-lg flex items-center justify-center flex-shrink-0;
+.overview-status-card.running .config-info-icon {
+  @apply text-green-600;
 }
 
-.config-details {
-  @apply flex flex-col flex-1;
+.config-info-icon.subscription {
+  @apply text-blue-500;
 }
 
-.config-title {
-  @apply text-base font-semibold text-gray-800 mb-1;
+.config-info-text {
+  @apply text-sm text-gray-600 font-medium;
 }
 
-.config-subtitle {
-  @apply text-sm text-gray-500;
+.overview-status-card.running .config-info-text {
+  @apply text-green-700;
 }
 
-.config-type-label {
-  @apply px-3 py-1.5 rounded-full text-xs font-medium uppercase tracking-wide;
-  background: #f1f5f9;
-  color: #64748b;
+.config-info-label {
+  @apply px-2 py-0.5 rounded text-xs font-medium;
+  background: #f3f4f6;
+  color: #6b7280;
+  font-size: 10px;
 }
 
-.config-type-label.subscription {
+.overview-status-card.running .config-info-label {
+  background: rgba(34, 197, 94, 0.1);
+  color: #15803d;
+}
+
+.config-info-label.subscription {
   background: #dbeafe;
   color: #2563eb;
 }
