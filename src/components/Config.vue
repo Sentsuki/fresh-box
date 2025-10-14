@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-import ConfigViewer from "./ConfigViewer.vue";
+import { invoke } from "@tauri-apps/api/core";
 import { formatLastUpdated, SubscriptionInfo } from "../services/utils";
 
 // 组件属性定义
@@ -44,8 +44,6 @@ const isManaging = ref(false);
 const managingFile = ref("");
 const newFileName = ref("");
 const editingSubscriptionUrl = ref("");
-const isViewerVisible = ref(false);
-const viewingConfigFile = ref("");
 
 // 计算属性
 const hasConfigFiles = computed(() => props.configFiles.length > 0);
@@ -116,16 +114,18 @@ function handleKeydown(event: KeyboardEvent) {
   }
 }
 
-function viewConfig(fileName: string, event: Event) {
+async function openConfigFile(fileName: string, event: Event) {
   if (props.isLoading) return;
   event.stopPropagation();
-  viewingConfigFile.value = fileName;
-  isViewerVisible.value = true;
-}
-
-function closeViewer() {
-  isViewerVisible.value = false;
-  viewingConfigFile.value = "";
+  
+  try {
+    await invoke("open_config_file", {
+      configPath: `${fileName}.json`,
+    });
+  } catch (error) {
+    console.error("Failed to open config file:", error);
+    // 这里可以添加错误提示，但为了简化就先用console.error
+  }
 }
 </script>
 
@@ -276,10 +276,10 @@ function closeViewer() {
                       : 'hover:shadow-sm hover:bg-gray-700 hover:-translate-y-0.5'
                   "
                   :disabled="isLoading"
-                  title="View configuration content"
-                  @click.stop="viewConfig(file, $event)"
+                  title="Open configuration file"
+                  @click.stop="openConfigFile(file, $event)"
                 >
-                  View
+                  Open
                 </button>
                 <button
                   v-if="subscriptions[file]"
@@ -327,12 +327,5 @@ function closeViewer() {
         </div>
       </div>
     </div>
-
-    <!-- 配置文件查看器 -->
-    <ConfigViewer
-      :is-visible="isViewerVisible"
-      :config-file-name="viewingConfigFile"
-      @close="closeViewer"
-    />
   </div>
 </template>
