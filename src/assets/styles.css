@@ -246,7 +246,7 @@ body,
 
 /* ===== Action Controls ===== */
 .action-controls {
-  @apply flex justify-center gap-4;
+  @apply flex justify-center gap-6;
 }
 
 .action-button {
