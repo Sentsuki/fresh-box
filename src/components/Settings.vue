@@ -9,8 +9,24 @@
       <div class="settings-section">
         <h3>Configuration</h3>
         <div class="setting-item">
-          <label>Enable Config Override</label>
-          <input v-model="isOverrideEnabled" type="checkbox" class="checkbox" />
+          <label class="flex items-center gap-3 cursor-pointer">
+            <span class="text-sm text-gray-700 font-medium">Enable Config Override</span>
+            <div class="relative">
+              <input 
+                v-model="isOverrideEnabled" 
+                type="checkbox" 
+                class="sr-only"
+              />
+              <div 
+                class="w-11 h-6 bg-gray-200 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'"
+              ></div>
+              <div 
+                class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                :class="isOverrideEnabled ? 'translate-x-5' : 'translate-x-0'"
+              ></div>
+            </div>
+          </label>
         </div>
 
         <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
@@ -44,7 +60,7 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button class="control-button bg-purple-500 text-white hover:bg-purple-600 flex items-center gap-2" @click="openAppDirectory">
+          <button class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2" @click="openAppDirectory">
             <span class="text-base">📁</span>
             Open App Directory
           </button>
