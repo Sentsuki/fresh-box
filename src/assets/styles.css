@@ -184,15 +184,15 @@ body,
 }
 
 .overview-config-card {
-  @apply mb-4 p-4 bg-white rounded-xl border border-gray-200 transition-all duration-300;
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.08);
-  background: linear-gradient(135deg, #ffffff 0%, #f8fafc 100%);
+  @apply mb-6 p-4 rounded-xl border border-gray-200 transition-all duration-300;
+  background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .overview-config-card:hover {
   @apply border-blue-200;
-  box-shadow: 0 4px 16px rgba(0, 0, 0, 0.12);
-  transform: translateY(-1px);
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
+  transform: translateY(-0.5px);
 }
 
 .config-header {
@@ -204,13 +204,13 @@ body,
 }
 
 .config-icon {
-  @apply w-12 h-12 rounded-xl flex items-center justify-center transition-all duration-300;
+  @apply w-10 h-10 rounded-xl flex items-center justify-center transition-all duration-300;
   @apply bg-gray-100 text-gray-600;
 }
 
 .config-icon.subscription {
   @apply bg-gradient-to-br from-blue-500 to-blue-600 text-white;
-  box-shadow: 0 4px 12px rgba(59, 130, 246, 0.3);
+  box-shadow: 0 1px 4px rgba(59, 130, 246, 0.2);
 }
 
 .config-content {
@@ -280,13 +280,14 @@ body,
 }
 
 .overview-actions {
-  @apply flex gap-6 justify-center;
+  @apply flex gap-6 justify-center mt-8;
 }
 
 .overview-btn {
   @apply flex items-center justify-center px-8 py-3 rounded-xl font-semibold transition-all duration-300;
   @apply border-0;
   min-width: 160px;
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
 
 .overview-btn:disabled {
@@ -295,6 +296,7 @@ body,
 
 .overview-btn:hover:not(:disabled) {
   @apply transform -translate-y-1;
+  box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
 .start-btn {
