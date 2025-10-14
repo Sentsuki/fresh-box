@@ -308,7 +308,7 @@ body,
 }
 
 .overview-btn:hover:not(:disabled) {
-  @apply transform -translate-y-1;
+  transform: translateY(-1px);
   box-shadow: 0 1px 4px rgba(0, 0, 0, 0.1);
 }
 
@@ -499,7 +499,8 @@ body,
 }
 
 .action-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-md;
+  @apply shadow-md;
+  transform: translateY(-1px);
 }
 
 /* ===== Legacy Controls (for other components) ===== */
@@ -513,7 +514,8 @@ body,
 }
 
 .control-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-md;
+  @apply shadow-md;
+  transform: translateY(-1px);
 }
 
 .select-button {
@@ -521,7 +523,8 @@ body,
 }
 
 .select-button:hover:not(.disabled) {
-  @apply bg-gray-700 -translate-y-0.5;
+  @apply bg-gray-700;
+  transform: translateY(-1px);
 }
 
 .action-button.start-button {
@@ -561,7 +564,8 @@ body,
 }
 
 .subscribe-button:hover:not(.disabled) {
-  @apply bg-green-600 -translate-y-0.5;
+  @apply bg-green-600;
+  transform: translateY(-1px);
 }
 
 .action-button.disabled {
@@ -730,6 +734,11 @@ body,
 .toast-enter-from,
 .toast-leave-to {
   @apply opacity-0 translate-x-full;
+}
+
+/* ===== Config Button Hover ===== */
+.config-button-hover:hover:not(:disabled) {
+  transform: translateY(-1px);
 }
 
 /* ===== Custom Animations ===== */

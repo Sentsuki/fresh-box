@@ -230,7 +230,7 @@ function handleKeydown(event: KeyboardEvent) {
                     :class="
                       isLoading
                         ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'
+                        : 'hover:shadow-sm hover:bg-green-700 config-button-hover'
                     "
                     :disabled="isLoading"
                     title="Save"
@@ -243,7 +243,7 @@ function handleKeydown(event: KeyboardEvent) {
                     :class="
                       isLoading
                         ? 'opacity-50 cursor-not-allowed'
-                        : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'
+                        : 'hover:shadow-sm hover:bg-red-700 config-button-hover'
                     "
                     :disabled="isLoading"
                     title="Cancel"
@@ -273,7 +273,7 @@ function handleKeydown(event: KeyboardEvent) {
                   :class="
                     isLoading
                       ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'
+                      : 'hover:shadow-sm hover:bg-green-700 config-button-hover'
                   "
                   :disabled="isLoading"
                   title="Update from subscription source"
@@ -286,7 +286,7 @@ function handleKeydown(event: KeyboardEvent) {
                   :class="
                     isLoading
                       ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-blue-700'
+                      : 'hover:shadow-sm hover:bg-blue-700 config-button-hover'
                   "
                   :disabled="isLoading"
                   title="Manage configuration"
@@ -299,7 +299,7 @@ function handleKeydown(event: KeyboardEvent) {
                   :class="
                     isLoading
                       ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'
+                      : 'hover:shadow-sm hover:bg-red-700 config-button-hover'
                   "
                   :disabled="isLoading"
                   title="Delete this configuration"

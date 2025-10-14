@@ -59,7 +59,7 @@
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
               :class="isRefreshing
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
-                : 'bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-sm'
+                : 'bg-green-500 hover:bg-green-600 hover:shadow-sm config-button-hover'
                 " :disabled="isRefreshing" @click="refreshSingboxDetection">
               <span v-if="isRefreshing"
                 class="text-base flex items-center justify-center w-5 h-5 animate-spin">🔄</span>
@@ -72,7 +72,7 @@
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
               :class="isGettingStatus
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
-                : 'bg-blue-500 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-sm'
+                : 'bg-blue-500 hover:bg-blue-600 hover:shadow-sm config-button-hover'
                 " :disabled="isGettingStatus" @click="getSingboxStatus">
               <span v-if="isGettingStatus"
                 class="text-base flex items-center justify-center w-5 h-5 animate-pulse">⏳</span>
