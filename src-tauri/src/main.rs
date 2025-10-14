@@ -60,6 +60,7 @@ fn main() {
             config::save_subscription_config,
             config::delete_config,
             config::rename_config,
+            config::read_config_content,
             config::open_app_directory,
             config::save_subscriptions,
             config::load_subscriptions,

@@ -211,3 +211,22 @@ pub async fn load_subscriptions() -> Result<String, CommandError> {
 
     Ok(content)
 }
+
+#[tauri::command]
+pub async fn read_config_content(config_path: String) -> Result<String, CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    if !full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            full_path.display()
+        )));
+    }
+
+    let content = std::fs::read_to_string(&full_path).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
+    })?;
+
+    Ok(content)
+}

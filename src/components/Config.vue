@@ -1,6 +1,6 @@
 <script setup lang="ts">
 import { ref, computed } from "vue";
-
+import ConfigViewer from "./ConfigViewer.vue";
 import { formatLastUpdated, SubscriptionInfo } from "../services/utils";
 
 // 组件属性定义
@@ -44,6 +44,8 @@ const isManaging = ref(false);
 const managingFile = ref("");
 const newFileName = ref("");
 const editingSubscriptionUrl = ref("");
+const isViewerVisible = ref(false);
+const viewingConfigFile = ref("");
 
 // 计算属性
 const hasConfigFiles = computed(() => props.configFiles.length > 0);
@@ -112,6 +114,18 @@ function handleKeydown(event: KeyboardEvent) {
   } else if (event.key === "Escape") {
     cancelManage();
   }
+}
+
+function viewConfig(fileName: string, event: Event) {
+  if (props.isLoading) return;
+  event.stopPropagation();
+  viewingConfigFile.value = fileName;
+  isViewerVisible.value = true;
+}
+
+function closeViewer() {
+  isViewerVisible.value = false;
+  viewingConfigFile.value = "";
 }
 </script>
 
@@ -255,6 +269,19 @@ function handleKeydown(event: KeyboardEvent) {
               <!-- 操作按钮组 -->
               <div v-if="!isManaging" class="flex gap-2 ml-auto">
                 <button
+                  class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-gray-600 text-white min-w-20"
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:shadow-sm hover:bg-gray-700 hover:-translate-y-0.5'
+                  "
+                  :disabled="isLoading"
+                  title="View configuration content"
+                  @click.stop="viewConfig(file, $event)"
+                >
+                  View
+                </button>
+                <button
                   v-if="subscriptions[file]"
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-20"
                   :class="
@@ -300,5 +327,12 @@ function handleKeydown(event: KeyboardEvent) {
         </div>
       </div>
     </div>
+
+    <!-- 配置文件查看器 -->
+    <ConfigViewer
+      :is-visible="isViewerVisible"
+      :config-file-name="viewingConfigFile"
+      @close="closeViewer"
+    />
   </div>
 </template>
