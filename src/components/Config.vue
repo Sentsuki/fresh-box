@@ -242,7 +242,7 @@ async function openConfigFile(fileName: string, event: Event) {
                   <button
                     class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-slate-200 text-slate-700 hover:bg-slate-300 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading" title="Open configuration file" @click.stop="openConfigFile(file, $event)">
-                    <span class="text-sm">👀</span>
+                    <span class="text-sm">↗</span>
                   </button>
 
                   <button v-if="subscriptions[file]"
