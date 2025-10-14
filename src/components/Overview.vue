@@ -75,23 +75,13 @@ function stopService() {
       <!-- 配置信息卡片 -->
       <div v-if="selectedConfigDisplay" class="overview-config-card">
         <div class="config-header">
-          <div class="config-icon-wrapper">
-            <div class="config-icon" :class="{ subscription: isSubscription }"></div>
-          </div>
           <div class="config-content">
-            <div class="config-name-section">
-              <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
-              <span class="config-type-label" :class="{ subscription: isSubscription }">
-                {{ isSubscription ? 'Subscription' : 'Local' }}
-              </span>
-            </div>
-          </div>
-          <div class="config-status-badge">
-            <span class="config-status-indicator"></span>
+            <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
+            <span class="config-type-label" :class="{ subscription: isSubscription }">
+              {{ isSubscription ? 'Subscription' : 'Local' }}
+            </span>
           </div>
         </div>
-
-
       </div>
 
       <!-- 操作按钮 -->

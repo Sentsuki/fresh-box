@@ -161,101 +161,46 @@ body,
 
 
 
+/* ===== Config Card - Clean Modern Design ===== */
 .overview-config-card {
-  @apply mb-6 px-4 py-2.5 bg-blue-50 border border-blue-100 rounded-full transition-all duration-200;
+  @apply mb-6 px-4 py-3 rounded-full transition-all duration-300 ease-out;
   width: fit-content;
-  margin-left: auto;
-  margin-right: auto;
-  min-width: 200px;
+  margin: 0 auto;
+  background: #f8fafc;
+  border: 1px solid #e2e8f0;
+  box-shadow: 0 1px 3px rgba(15, 23, 42, 0.08);
 }
 
 .overview-config-card:hover {
-  @apply bg-blue-100 border-blue-200;
+  background: #f1f5f9;
+  border-color: #cbd5e1;
+  box-shadow: 0 4px 12px rgba(15, 23, 42, 0.12);
+  transform: translateY(-1px);
 }
 
 .config-header {
-  @apply flex items-center justify-between w-full;
-}
-
-.config-icon-wrapper {
-  @apply flex-shrink-0 mr-1.5;
-}
-
-.config-icon {
-  @apply w-3 h-3 rounded-full transition-all duration-200;
-  @apply bg-green-500;
-  animation: pulse-status 2s infinite;
-}
-
-.config-icon.subscription {
-  @apply bg-blue-500;
-}
-
-@keyframes pulse-status {
-
-  0%,
-  100% {
-    opacity: 1;
-  }
-
-  50% {
-    opacity: 0.6;
-  }
+  @apply flex items-center justify-center;
 }
 
 .config-content {
-  @apply flex-1 min-w-0 flex items-center;
-}
-
-.config-name-section {
-  @apply flex flex-col justify-center items-center;
+  @apply flex items-center gap-2;
 }
 
 .config-title {
-  @apply text-sm font-bold text-blue-800 leading-tight truncate;
+  @apply text-sm font-medium text-slate-700;
+  letter-spacing: -0.01em;
 }
 
 .config-type-label {
-  @apply inline-flex items-center px-2 py-0.5 rounded-full text-xs font-medium mt-0.5;
-  @apply bg-green-100 text-green-700;
-  width: fit-content;
+  @apply px-2 py-0.5 rounded-full text-xs font-medium;
+  background: #e2e8f0;
+  color: #64748b;
+  font-size: 11px;
 }
 
 .config-type-label.subscription {
-  @apply bg-green-200 text-green-800;
-}
-
-.config-status-badge {
-  @apply hidden;
-}
-
-.config-badge {
-  @apply px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide;
-  @apply bg-gray-100 text-gray-600;
-}
-
-.config-badge.subscription {
-  @apply bg-gradient-to-r from-blue-100 to-blue-200 text-blue-700;
-}
-
-.config-status-simple {
-  @apply mt-3 pt-3 border-t border-gray-100;
-}
-
-.detail-value {
-  @apply text-sm font-medium text-gray-800;
-}
-
-.detail-value.subscription {
-  @apply text-blue-600;
-}
-
-.detail-value.status-active {
-  @apply flex items-center text-green-600;
-}
-
-.status-indicator {
-  @apply w-2 h-2 bg-green-500 rounded-full mr-2;
+  background: #dbeafe;
+  color: #2563eb;
 }
 
 
