@@ -134,7 +134,8 @@ function handleKeydown(event: KeyboardEvent) {
             (statusMessage.includes('Error') ||
               statusMessage.includes('timed out'))
           "
-          class="error-message"
+          class="bg-red-500 text-white p-3 rounded-md mb-4 font-medium text-center"
+          style="animation: fadeIn 0.3s ease-in-out"
         >
           {{ statusMessage }}
         </div>
@@ -155,7 +156,7 @@ function handleKeydown(event: KeyboardEvent) {
             :class="{ disabled: !canAddSubscription }"
             @click="addSubscription"
           >
-            <span class="button-icon">📥</span>
+            <span class="mr-3 text-lg">📥</span>
             {{ isLoading ? "Subscribing..." : "Subscribe" }}
           </button>
         </div>
@@ -167,14 +168,14 @@ function handleKeydown(event: KeyboardEvent) {
           :class="{ disabled: isLoading }"
           @click="selectConfigFile"
         >
-          <span class="button-icon">📁</span>
+          <span class="mr-3 text-lg">📁</span>
           Add Config
         </button>
 
         <!-- 配置列表区域 -->
         <div class="config-list">
           <!-- 无配置文件时的提示 -->
-          <div v-if="!hasConfigFiles" class="no-configs">
+          <div v-if="!hasConfigFiles" class="p-6 text-center text-gray-600 italic">
             No configuration files found
           </div>
 

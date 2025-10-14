@@ -136,10 +136,6 @@ body,
   @apply inline-flex items-center bg-blue-50 text-blue-600 px-4 py-2 rounded-full font-medium;
 }
 
-.config-icon {
-  @apply mr-2;
-}
-
 /* ===== Controls ===== */
 .controls {
   @apply flex justify-center gap-5 mt-5;
@@ -190,10 +186,6 @@ body,
   @apply opacity-50 cursor-not-allowed transform-none shadow-none;
 }
 
-.button-icon {
-  @apply mr-3 text-lg;
-}
-
 /* ===== Config List ===== */
 .config-container {
   @apply flex flex-col h-full;
@@ -220,10 +212,6 @@ body,
   @apply cursor-not-allowed opacity-60;
 }
 
-.no-configs {
-  @apply p-6 text-center text-gray-600 italic;
-}
-
 .config-item-content {
   @apply flex justify-between items-center w-full;
 }
@@ -239,48 +227,6 @@ body,
 
 .subscription-input:focus {
   @apply border-blue-500 ring-2 ring-blue-200;
-}
-
-/* ===== Action Buttons ===== */
-.config-actions {
-  @apply flex gap-2;
-}
-
-.action-button {
-  @apply px-2 py-1 rounded text-xs cursor-pointer border border-gray-200 bg-gray-100 transition-all duration-200;
-}
-
-.action-button:hover:not(.disabled) {
-  @apply bg-gray-200;
-}
-
-.update-button {
-  @apply text-blue-600;
-}
-
-.delete-button {
-  @apply text-red-600;
-}
-
-.rename-button {
-  @apply text-gray-700;
-}
-
-.action-button.disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-/* ===== Rename Functionality ===== */
-.rename-container {
-  @apply flex items-center gap-2 w-full;
-}
-
-.rename-input {
-  @apply flex-1 px-2 py-1 text-sm;
-}
-
-.rename-actions {
-  @apply flex gap-1;
 }
 
 /* ===== Settings Page Styles ===== */
@@ -314,14 +260,6 @@ body,
 
 .checkbox:checked {
   @apply bg-blue-600 border-blue-600;
-}
-
-.override-section {
-  @apply mt-4 p-4 bg-gray-50 rounded-md;
-}
-
-.config-editor {
-  @apply mb-4;
 }
 
 .config-textarea {
@@ -395,12 +333,6 @@ body,
   .subscription-input-container {
     @apply flex-col;
   }
-}
-
-/* ===== Common Components ===== */
-.error-message {
-  @apply bg-red-500 text-white p-3 rounded-md mb-4 font-medium text-center;
-  animation: fadeIn 0.3s ease-in-out;
 }
 
 /* ===== Toast Transitions ===== */

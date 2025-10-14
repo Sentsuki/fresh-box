@@ -13,8 +13,8 @@
           <input v-model="isOverrideEnabled" type="checkbox" class="checkbox" />
         </div>
 
-        <div v-if="isOverrideEnabled" class="override-section">
-          <div class="config-editor">
+        <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
+          <div class="mb-4">
             <textarea
               v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
