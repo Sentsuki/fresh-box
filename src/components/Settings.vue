@@ -12,7 +12,8 @@
           <span class="text-sm text-gray-700 font-medium">Enable Config Override</span>
           <label class="relative cursor-pointer">
             <input v-model="isOverrideEnabled" type="checkbox" class="sr-only" />
-            <div class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+            <div
+class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
               :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'" />
             <div
               class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
@@ -22,9 +23,11 @@
 
         <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
           <div class="mb-4">
-            <textarea v-model="overrideConfig" placeholder="Enter your configuration override here (JSON format)"
+            <textarea
+v-model="overrideConfig" placeholder="Enter your configuration override here (JSON format)"
               rows="10" class="w-full p-3 border border-gray-300 rounded-md bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200" :class="!isValidJson ? 'border-red-500 bg-red-50' : ''" style="font-family: 'Consolas', 'Monaco', monospace; min-height: 200px;" />
-            <div v-if="!isValidJson"
+            <div
+v-if="!isValidJson"
               class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500">
               {{ jsonError }}
             </div>
@@ -43,7 +46,8 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
+          <button
+class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
             @click="openAppDirectory">
             <span class="text-base">📁</span>
             Open App Directory
@@ -61,7 +65,8 @@
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
                 : 'bg-green-500 hover:bg-green-600 hover:shadow-sm config-button-hover'
                 " :disabled="isRefreshing" @click="refreshSingboxDetection">
-              <span v-if="isRefreshing"
+              <span
+v-if="isRefreshing"
                 class="text-base flex items-center justify-center w-5 h-5 animate-spin">🔄</span>
               <span v-else class="text-base flex items-center justify-center w-5 h-5">🔍</span>
               <span class="font-medium">
@@ -74,7 +79,8 @@
                 ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
                 : 'bg-blue-500 hover:bg-blue-600 hover:shadow-sm config-button-hover'
                 " :disabled="isGettingStatus" @click="getSingboxStatus">
-              <span v-if="isGettingStatus"
+              <span
+v-if="isGettingStatus"
                 class="text-base flex items-center justify-center w-5 h-5 animate-pulse">⏳</span>
               <span v-else class="text-base flex items-center justify-center w-5 h-5">📊</span>
               <span class="font-medium">
@@ -83,7 +89,8 @@
             </button>
           </div>
 
-          <div v-if="processStatus"
+          <div
+v-if="processStatus"
             class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md">
             <div class="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
               <span class="text-base flex items-center justify-center w-6 h-6 rounded-full">
@@ -94,7 +101,8 @@
               <span class="font-semibold text-gray-800 text-sm">Process Status</span>
             </div>
             <div class="p-4">
-              <p class="m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4"
+              <p
+class="m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4"
                 :class="getStatusTextClass()">
                 {{ processStatus }}
               </p>
