@@ -43,41 +43,34 @@ defineExpose({
 
 <style scoped>
 .toast {
-  position: fixed;
-  bottom: 20px;
-  right: 20px;
-  padding: 12px 24px;
-  border-radius: 4px;
-  color: white;
-  z-index: 1000;
+  @apply fixed bottom-5 right-5 px-6 py-3 rounded text-white z-50;
   animation: slideIn 0.3s ease-out;
 }
 
 .toast.success {
-  background-color: #4caf50;
+  @apply bg-green-500;
 }
 
 .toast.success.save {
-  background-color: #2196f3;
+  @apply bg-blue-500;
 }
 
 .toast.success.clear {
-  background-color: #ff9800;
+  @apply bg-orange-500;
 }
 
 .toast.error {
-  background-color: #f44336;
+  @apply bg-red-500;
 }
 
 .toast-enter-active,
 .toast-leave-active {
-  transition: all 0.3s ease;
+  @apply transition-all duration-300 ease-in-out;
 }
 
 .toast-enter-from,
 .toast-leave-to {
-  opacity: 0;
-  transform: translateX(100%);
+  @apply opacity-0 translate-x-full;
 }
 
 @keyframes slideIn {

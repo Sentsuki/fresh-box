@@ -289,134 +289,84 @@ function handleKeydown(event: KeyboardEvent) {
 
 <style scoped>
 .config-actions {
-  display: flex;
-  gap: var(--space-sm);
-  margin-left: auto;
+  @apply flex gap-2 ml-auto;
 }
 
 .action-button {
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  gap: var(--space-xs);
-  padding: var(--space-sm) var(--space-md);
+  @apply flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-gray-100 text-gray-700;
   min-width: 80px;
-  border: none;
-  border-radius: var(--border-radius-sm);
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  cursor: pointer;
-  transition: var(--transition);
-  background: var(--color-gray-lightest);
-  color: var(--color-gray-dark);
 }
 
 .action-button:hover:not(.disabled) {
-  transform: translateY(-1px);
-  box-shadow: var(--shadow-sm);
+  @apply -translate-y-0.5 shadow-sm;
 }
 
 .action-button:active:not(.disabled) {
-  transform: translateY(0);
-  box-shadow: none;
+  @apply translate-y-0 shadow-none;
 }
 
 .action-button.disabled {
-  opacity: 0.5;
-  cursor: not-allowed;
+  @apply opacity-50 cursor-not-allowed;
 }
 
 .manage-button {
-  background: var(--color-primary);
-  color: var(--color-white);
+  @apply bg-blue-600 text-white;
 }
 
 .manage-button:hover:not(.disabled) {
-  background: var(--color-primary-dark);
+  @apply bg-blue-700;
 }
 
 .update-button {
-  background: var(--color-success);
-  color: var(--color-white);
+  @apply bg-green-600 text-white;
 }
 
 .update-button:hover:not(.disabled) {
-  background: var(--color-success-dark);
+  @apply bg-green-700;
 }
 
 .delete-button {
-  background: var(--color-danger);
-  color: var(--color-white);
+  @apply bg-red-600 text-white;
 }
 
 .delete-button:hover:not(.disabled) {
-  background: var(--color-danger-dark);
+  @apply bg-red-700;
 }
 
 .manage-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-  width: 100%;
-  padding: var(--space-lg);
-  background-color: var(--color-white);
-  border-radius: var(--border-radius-lg);
-  box-shadow: var(--shadow-md);
+  @apply flex flex-col gap-4 w-full p-4 bg-white rounded-lg shadow-md;
 }
 
 .manage-section {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+  @apply flex flex-col gap-1;
 }
 
 .manage-section label {
-  font-size: var(--font-size-sm);
-  color: var(--color-gray-dark);
-  font-weight: 500;
+  @apply text-sm text-gray-700 font-medium;
 }
 
 .manage-actions {
-  display: flex;
-  gap: var(--space-md);
-  justify-content: flex-end;
-  margin-top: var(--space-lg);
-  padding-top: var(--space-md);
-  border-top: 1px solid var(--color-gray-lightest);
+  @apply flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200;
 }
 
 .manage-actions .action-button {
+  @apply px-4 py-2;
   min-width: 100px;
-  padding: var(--space-sm) var(--space-lg);
 }
 
 .config-item.managing {
-  background-color: var(--color-white);
-  border: 1px solid var(--color-gray-lightest);
-  border-radius: var(--border-radius-lg);
-  margin: var(--space-xs) 0;
-  box-shadow: var(--shadow-sm);
+  @apply bg-white border border-gray-200 rounded-lg my-1 shadow-sm;
 }
 
 .config-info {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-xs);
+  @apply flex flex-col gap-1;
 }
 
 .config-name {
-  font-weight: 500;
-  color: var(--color-gray-dark);
+  @apply font-medium text-gray-700;
 }
 
 .last-updated {
-  font-size: var(--font-size-xs);
-  color: var(--color-gray);
-  font-style: italic;
-}
-
-/* 移除不需要的样式 */
-.subscription-url {
-  display: none;
+  @apply text-xs text-gray-500 italic;
 }
 </style>

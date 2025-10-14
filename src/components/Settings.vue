@@ -281,178 +281,97 @@ const processStatusClass = computed(() => {
 
 <style scoped>
 .config-textarea.error {
-  border-color: #f44336;
-  background-color: #fff5f5;
+  @apply border-red-500 bg-red-50;
 }
 
 .error-message {
-  color: #d32f2f;
-  margin-top: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 8px 12px;
-  background-color: #ffebee;
-  border-radius: 4px;
-  border-left: 4px solid #f44336;
+  @apply text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500;
 }
 
 .process-management-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
+  @apply flex flex-col gap-4;
 }
 
 .button-row {
-  display: flex;
-  gap: var(--space-md);
-  flex-wrap: wrap;
+  @apply flex gap-3 flex-wrap;
 }
 
 .detect-button {
+  @apply text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm;
   background: linear-gradient(135deg, #38a169, #2f855a);
-  color: white;
-  border: none;
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--border-radius-lg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  transition: var(--transition);
-  flex: 1;
   min-width: 160px;
-  box-shadow: var(--shadow-sm);
 }
 
 .detect-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #2f855a, #276749);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  @apply -translate-y-0.5 shadow-md;
 }
 
 .detect-button:disabled {
-  background: var(--color-gray-lighter);
-  color: var(--color-gray);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  @apply bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none;
 }
 
 .status-button {
+  @apply text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm;
   background: linear-gradient(135deg, #3182ce, #2b6cb0);
-  color: white;
-  border: none;
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--border-radius-lg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  transition: var(--transition);
-  flex: 1;
   min-width: 160px;
-  box-shadow: var(--shadow-sm);
 }
 
 .status-button:hover:not(:disabled) {
   background: linear-gradient(135deg, #2b6cb0, #2c5282);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
+  @apply -translate-y-0.5 shadow-md;
 }
 
 .status-button:disabled {
-  background: var(--color-gray-lighter);
-  color: var(--color-gray);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
+  @apply bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none;
 }
 
 .process-status-card {
-  background: var(--color-white);
-  border: 1px solid var(--color-gray-lightest);
-  border-radius: var(--border-radius-xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition);
+  @apply bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-200;
 }
 
 .process-status-card:hover {
-  box-shadow: var(--shadow-md);
+  @apply shadow-md;
 }
 
 .status-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-bg-light);
-  border-bottom: 1px solid var(--color-gray-lightest);
+  @apply flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200;
 }
 
 .status-icon {
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
+  @apply text-base flex items-center justify-center w-6 h-6 rounded-full;
 }
 
 .status-title {
-  font-weight: 600;
-  color: var(--color-gray-darker);
-  font-size: var(--font-size-sm);
+  @apply font-semibold text-gray-800 text-sm;
 }
 
 .status-content {
-  padding: var(--space-lg);
+  @apply p-4;
 }
 
 .status-text {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  line-height: 1.5;
-  padding: var(--space-md);
-  border-radius: var(--border-radius-md);
-  border-left: 4px solid;
+  @apply m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4;
 }
 
 .status-success {
-  color: var(--color-success-dark);
-  background-color: #f0fff4;
-  border-left-color: var(--color-success);
+  @apply text-green-800 bg-green-50 border-green-500;
 }
 
 .status-error {
-  color: var(--color-danger-dark);
-  background-color: #fff5f5;
-  border-left-color: var(--color-danger);
+  @apply text-red-800 bg-red-50 border-red-500;
 }
 
 .status-info {
-  color: var(--color-primary-dark);
-  background-color: var(--color-primary-bg-light);
-  border-left-color: var(--color-primary);
+  @apply text-blue-800 bg-blue-50 border-blue-500;
 }
 
 .button-icon {
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
+  @apply text-base flex items-center justify-center w-5 h-5;
 }
 
 .button-text {
-  font-weight: 500;
+  @apply font-medium;
 }
 
 .spinning {
