@@ -255,7 +255,7 @@ body,
 }
 
 .action-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-xl;
+  @apply -translate-y-0.5 shadow-sm;
 }
 
 /* ===== Legacy Controls (for other components) ===== */
@@ -269,7 +269,7 @@ body,
 }
 
 .control-button:hover:not(.disabled) {
-  @apply -translate-y-1 shadow-lg;
+  @apply -translate-y-0.5 shadow-sm;
 }
 
 .select-button {

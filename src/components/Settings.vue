@@ -9,48 +9,28 @@
       <div class="settings-section">
         <h3>Configuration</h3>
         <div class="setting-item">
-          <span class="text-sm text-gray-700 font-medium"
-            >Enable Config Override</span
-          >
+          <span class="text-sm text-gray-700 font-medium">Enable Config Override</span>
           <label class="relative cursor-pointer">
-            <input
-              v-model="isOverrideEnabled"
-              type="checkbox"
-              class="sr-only"
-            />
-            <div
-              class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-              :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'"
-            />
+            <input v-model="isOverrideEnabled" type="checkbox" class="sr-only" />
+            <div class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+              :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'" />
             <div
               class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-              :class="isOverrideEnabled ? 'translate-x-5' : 'translate-x-0'"
-            />
+              :class="isOverrideEnabled ? 'translate-x-5' : 'translate-x-0'" />
           </label>
         </div>
 
         <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
           <div class="mb-4">
-            <textarea
-              v-model="overrideConfig"
-              placeholder="Enter your configuration override here (JSON format)"
-              rows="10"
-              class="config-textarea"
-              :class="!isValidJson ? 'border-red-500 bg-red-50' : ''"
-            />
-            <div
-              v-if="!isValidJson"
-              class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500"
-            >
+            <textarea v-model="overrideConfig" placeholder="Enter your configuration override here (JSON format)"
+              rows="10" class="config-textarea" :class="!isValidJson ? 'border-red-500 bg-red-50' : ''" />
+            <div v-if="!isValidJson"
+              class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500">
               {{ jsonError }}
             </div>
           </div>
           <div class="button-group">
-            <button
-              :disabled="!isValidJson"
-              class="control-button save-button"
-              @click="saveOverride"
-            >
+            <button :disabled="!isValidJson" class="control-button save-button" @click="saveOverride">
               Save Override
             </button>
             <button class="control-button clear-button" @click="clearOverride">
@@ -63,10 +43,8 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button
-            class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
-            @click="openAppDirectory"
-          >
+          <button class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
+            @click="openAppDirectory">
             <span class="text-base">📁</span>
             Open App Directory
           </button>
@@ -79,79 +57,45 @@
           <div class="flex gap-3 flex-wrap">
             <button
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
-              :class="
-                isRefreshing
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
-                  : 'bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-md'
-              "
-              :disabled="isRefreshing"
-              @click="refreshSingboxDetection"
-            >
-              <span
-                v-if="isRefreshing"
-                class="text-base flex items-center justify-center w-5 h-5 animate-spin"
-                >🔄</span
-              >
-              <span
-                v-else
-                class="text-base flex items-center justify-center w-5 h-5"
-                >🔍</span
-              >
+              :class="isRefreshing
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                : 'bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-sm'
+                " :disabled="isRefreshing" @click="refreshSingboxDetection">
+              <span v-if="isRefreshing"
+                class="text-base flex items-center justify-center w-5 h-5 animate-spin">🔄</span>
+              <span v-else class="text-base flex items-center justify-center w-5 h-5">🔍</span>
               <span class="font-medium">
                 {{ isRefreshing ? "Detecting..." : "Detect Process" }}
               </span>
             </button>
             <button
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
-              :class="
-                isGettingStatus
-                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
-                  : 'bg-blue-500 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-md'
-              "
-              :disabled="isGettingStatus"
-              @click="getSingboxStatus"
-            >
-              <span
-                v-if="isGettingStatus"
-                class="text-base flex items-center justify-center w-5 h-5 animate-pulse"
-                >⏳</span
-              >
-              <span
-                v-else
-                class="text-base flex items-center justify-center w-5 h-5"
-                >📊</span
-              >
+              :class="isGettingStatus
+                ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                : 'bg-blue-500 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-sm'
+                " :disabled="isGettingStatus" @click="getSingboxStatus">
+              <span v-if="isGettingStatus"
+                class="text-base flex items-center justify-center w-5 h-5 animate-pulse">⏳</span>
+              <span v-else class="text-base flex items-center justify-center w-5 h-5">📊</span>
               <span class="font-medium">
                 {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
               </span>
             </button>
           </div>
 
-          <div
-            v-if="processStatus"
-            class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md"
-          >
-            <div
-              class="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200"
-            >
-              <span
-                class="text-base flex items-center justify-center w-6 h-6 rounded-full"
-              >
+          <div v-if="processStatus"
+            class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md">
+            <div class="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200">
+              <span class="text-base flex items-center justify-center w-6 h-6 rounded-full">
                 <span v-if="processStatusClass === 'status-success'">✅</span>
-                <span v-else-if="processStatusClass === 'status-error'"
-                  >❌</span
-                >
+                <span v-else-if="processStatusClass === 'status-error'">❌</span>
                 <span v-else>ℹ️</span>
               </span>
-              <span class="font-semibold text-gray-800 text-sm"
-                >Process Status</span
-              >
+              <span class="font-semibold text-gray-800 text-sm">Process Status</span>
             </div>
             <div class="p-4">
-              <p
-                class="m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4"
-                :class="getStatusTextClass()"
-              >
+              <p class="m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4"
+                :class="getStatusTextClass()">
                 {{ processStatus }}
               </p>
             </div>
