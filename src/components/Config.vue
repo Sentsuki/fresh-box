@@ -240,27 +240,27 @@ async function openConfigFile(fileName: string, event: Event) {
                 <!-- 右侧操作按钮区域 -->
                 <div class="flex gap-1.5 flex-shrink-0 ml-4">
                   <button
-                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-gray-100 text-gray-600 hover:bg-gray-200 hover:text-gray-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-slate-200 text-slate-700 hover:bg-slate-300 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading" title="Open configuration file" @click.stop="openConfigFile(file, $event)">
-                    <span class="text-sm">👁️</span>
+                    <span class="text-sm">👀</span>
                   </button>
 
                   <button v-if="subscriptions[file]"
-                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-green-100 text-green-600 hover:bg-green-200 hover:text-green-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-emerald-200 text-emerald-700 hover:bg-emerald-300 hover:text-emerald-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading" title="Update from subscription" @click.stop="updateSubscription(file)">
-                    <span class="text-sm">🔄</span>
+                    <span class="text-sm">↻</span>
                   </button>
 
                   <button
-                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-blue-100 text-blue-600 hover:bg-blue-200 hover:text-blue-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-indigo-200 text-indigo-700 hover:bg-indigo-300 hover:text-indigo-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading" title="Edit configuration" @click.stop="startManage(file, $event)">
-                    <span class="text-sm">⚙️</span>
+                    <span class="text-sm">✎</span>
                   </button>
 
                   <button
-                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-red-100 text-red-600 hover:bg-red-200 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                    class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-rose-200 text-rose-700 hover:bg-rose-300 hover:text-rose-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading" title="Delete configuration" @click.stop="deleteConfig(file, $event)">
-                    <span class="text-sm">🗑️</span>
+                    <span class="text-sm">✕</span>
                   </button>
                 </div>
               </div>
