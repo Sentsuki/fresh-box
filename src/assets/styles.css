@@ -183,11 +183,11 @@ body,
 }
 
 .config-info-icon.subscription {
-  @apply text-indigo-500;
+  @apply text-indigo-400;
 }
 
 .overview-status-card.running .config-info-icon.subscription {
-  @apply text-indigo-600;
+  @apply text-indigo-500;
 }
 
 .config-info-text {
