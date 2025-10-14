@@ -30,6 +30,9 @@ const showToast = (
   type: "success" | "error" = "success",
   subtype?: "save" | "clear",
 ) => {
+  // 清除所有现有的 toast
+  toasts.value = [];
+  
   const id = toastId++;
   toasts.value.push({ id, message, type, subtype });
   setTimeout(() => {
