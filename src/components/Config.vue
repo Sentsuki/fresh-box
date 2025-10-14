@@ -170,7 +170,7 @@ async function openConfigFile(fileName: string, event: Event) {
           <!-- 配置文件列表 -->
           <div v-else class="grid gap-4" style="grid-template-columns: repeat(auto-fill, minmax(400px, 1fr));">
             <div v-for="(file, index) in configFilesDisplay" :key="configFiles[index]"
-              class="bg-white border rounded-xl p-5 cursor-pointer transition-all duration-300" :class="{
+              class="bg-white border rounded-lg p-4 cursor-pointer transition-all duration-300" :class="{
                 'border-blue-400 bg-blue-50 shadow-md': configFiles[index] === selectedConfig,
                 'border-orange-400 bg-orange-50 cursor-default': isManaging && managingFile === file,
                 'border-gray-200 hover:shadow-lg hover:border-gray-300 hover:transform hover:-translate-y-1': configFiles[index] !== selectedConfig && !(isManaging && managingFile === file)
@@ -212,55 +212,58 @@ async function openConfigFile(fileName: string, event: Event) {
               </div>
 
               <!-- 普通显示模式 -->
-              <div v-else class="space-y-4">
-                <div class="flex items-start gap-3">
-                  <div class="text-2xl flex-shrink-0 mt-1">
+              <div v-else class="space-y-3">
+                <!-- 标题行 -->
+                <div class="flex items-center gap-3">
+                  <div class="text-xl flex-shrink-0">
                     <span v-if="subscriptions[file]">🔗</span>
                     <span v-else>📄</span>
                   </div>
-                  <div class="flex-grow min-w-0">
-                    <h4 class="text-lg font-semibold text-gray-800 mb-1 truncate">{{ file }}</h4>
-                    <p v-if="subscriptions[file]" class="text-sm text-gray-500 mb-0">
-                      Subscription • {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
-                    </p>
-                    <p v-else class="text-sm text-gray-500 mb-0">Local file</p>
-                  </div>
-                  <div v-if="configFiles[index] === selectedConfig"
-                    class="px-3 py-1 bg-green-100 text-green-800 text-xs font-semibold rounded-full flex-shrink-0">
-                    Active
+                  <div class="flex items-center gap-2 flex-grow min-w-0">
+                    <h4 class="text-base font-semibold text-gray-800 truncate">{{ file }}</h4>
+                    <div v-if="subscriptions[file]"
+                      class="px-2 py-0.5 bg-blue-100 text-blue-800 text-xs font-medium rounded-full flex-shrink-0">
+                      Subscription
+                    </div>
+                    <div v-if="configFiles[index] === selectedConfig"
+                      class="px-2 py-0.5 bg-green-100 text-green-800 text-xs font-medium rounded-full flex-shrink-0">
+                      Active
+                    </div>
                   </div>
                 </div>
 
-                <div class="flex gap-2 flex-wrap">
+                <!-- 更新时间行 -->
+                <div v-if="subscriptions[file]" class="text-xs text-gray-500 ml-8">
+                  Last updated: {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
+                </div>
+
+                <!-- 操作按钮行 -->
+                <div class="flex gap-2 flex-wrap ml-8">
                   <button
-                    class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-0 cursor-pointer bg-gray-100 text-gray-700 hover:bg-gray-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="min-width: 80px;" :disabled="isLoading" title="Open configuration file"
-                    @click.stop="openConfigFile(file, $event)">
-                    <span class="text-base">👁️</span>
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-gray-100 text-gray-700 hover:bg-gray-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="isLoading" title="Open configuration file" @click.stop="openConfigFile(file, $event)">
+                    <span class="text-sm">👁️</span>
                     Open
                   </button>
 
                   <button v-if="subscriptions[file]"
-                    class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-0 cursor-pointer bg-green-100 text-green-700 hover:bg-green-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="min-width: 80px;" :disabled="isLoading" title="Update from subscription"
-                    @click.stop="updateSubscription(file)">
-                    <span class="text-base">🔄</span>
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-green-100 text-green-700 hover:bg-green-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="isLoading" title="Update from subscription" @click.stop="updateSubscription(file)">
+                    <span class="text-sm">🔄</span>
                     Update
                   </button>
 
                   <button
-                    class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-0 cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="min-width: 80px;" :disabled="isLoading" title="Edit configuration"
-                    @click.stop="startManage(file, $event)">
-                    <span class="text-base">⚙️</span>
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-blue-100 text-blue-700 hover:bg-blue-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="isLoading" title="Edit configuration" @click.stop="startManage(file, $event)">
+                    <span class="text-sm">⚙️</span>
                     Edit
                   </button>
 
                   <button
-                    class="flex items-center gap-2 px-3 py-2 rounded-lg text-sm font-medium transition-all duration-200 border-0 cursor-pointer bg-red-100 text-red-700 hover:bg-red-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
-                    style="min-width: 80px;" :disabled="isLoading" title="Delete configuration"
-                    @click.stop="deleteConfig(file, $event)">
-                    <span class="text-base">🗑️</span>
+                    class="flex items-center gap-1.5 px-2.5 py-1.5 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-red-100 text-red-700 hover:bg-red-200 hover:transform hover:-translate-y-0.5 hover:shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                    :disabled="isLoading" title="Delete configuration" @click.stop="deleteConfig(file, $event)">
+                    <span class="text-sm">🗑️</span>
                     Delete
                   </button>
                 </div>
