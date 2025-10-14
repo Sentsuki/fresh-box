@@ -25,7 +25,6 @@ const props = defineProps({
     type: Object as () => Record<string, SubscriptionInfo>,
     required: true,
   },
-
 });
 
 // 事件定义
