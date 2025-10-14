@@ -28,7 +28,7 @@ body,
 
 /* ===== Layout Components ===== */
 .app-container {
-  @apply flex w-full h-screen bg-gray-50;
+  @apply flex w-full h-screen bg-gray-100;
   min-width: var(--min-window-width);
   min-height: var(--min-window-height);
 }
@@ -36,7 +36,7 @@ body,
 /* --- Sidebar --- */
 .sidebar {
   width: var(--sidebar-width);
-  @apply h-full bg-white shadow-sm flex flex-col z-10;
+  @apply h-full bg-white shadow-lg flex flex-col z-10 border-r border-gray-200;
 }
 
 .logo-container {
@@ -73,15 +73,15 @@ body,
 
 /* --- Main Content --- */
 .main-content {
-  @apply flex-1 p-6 overflow-y-auto flex flex-col;
+  @apply flex-1 p-0 overflow-y-auto flex flex-col;
 }
 
 .content-card {
-  @apply bg-white rounded-xl shadow-md w-full mx-auto overflow-hidden flex flex-col flex-grow;
+  @apply bg-white w-full h-full overflow-hidden flex flex-col flex-grow;
 }
 
 .card-header {
-  @apply px-6 py-5 border-b border-gray-200;
+  @apply px-6 py-5 border-b border-gray-200 bg-gray-50;
 }
 
 .card-header h2 {
@@ -89,8 +89,7 @@ body,
 }
 
 .card-content {
-  @apply p-6 flex-grow overflow-y-auto;
-  max-height: calc(100vh - 6rem - 60px);
+  @apply p-6 flex-grow overflow-y-auto bg-white;
 }
 
 /* ===== Status Components ===== */
