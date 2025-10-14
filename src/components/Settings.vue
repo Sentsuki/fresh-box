@@ -21,11 +21,11 @@
             <div
               class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
               :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'"
-            ></div>
+            />
             <div
               class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
               :class="isOverrideEnabled ? 'translate-x-5' : 'translate-x-0'"
-            ></div>
+            />
           </label>
         </div>
 
@@ -37,7 +37,7 @@
               rows="10"
               class="config-textarea"
               :class="!isValidJson ? 'border-red-500 bg-red-50' : ''"
-            ></textarea>
+            />
             <div
               v-if="!isValidJson"
               class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500"

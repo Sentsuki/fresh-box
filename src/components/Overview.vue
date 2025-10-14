@@ -41,7 +41,7 @@ function stopService() {
     <div class="card-content">
       <div class="status-container">
         <div class="status-indicator" :class="{ active: isRunning }">
-          <span class="status-dot"></span>
+          <span class="status-dot"/>
           <span class="status-text">{{
             isRunning ? "Running" : "Stopped"
           }}</span>
