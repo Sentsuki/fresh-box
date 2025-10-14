@@ -76,11 +76,22 @@ function stopService() {
       <div v-if="selectedConfigDisplay" class="overview-config-card">
         <div class="config-header">
           <div class="config-content">
-            <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
-            <span class="config-type-label" :class="{ subscription: isSubscription }">
-              {{ isSubscription ? 'Subscription' : 'Local' }}
-            </span>
+            <div class="config-icon">
+              <svg v-if="isSubscription" class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path d="M3 4a1 1 0 011-1h12a1 1 0 011 1v2a1 1 0 01-1 1H4a1 1 0 01-1-1V4zM3 10a1 1 0 011-1h6a1 1 0 011 1v6a1 1 0 01-1 1H4a1 1 0 01-1-1v-6zM14 9a1 1 0 00-1 1v6a1 1 0 001 1h2a1 1 0 001-1v-6a1 1 0 00-1-1h-2z"/>
+              </svg>
+              <svg v-else class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd"/>
+              </svg>
+            </div>
+            <div class="config-details">
+              <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
+              <p class="config-subtitle">{{ isSubscription ? 'Remote subscription config' : 'Local configuration file' }}</p>
+            </div>
           </div>
+          <span class="config-type-label" :class="{ subscription: isSubscription }">
+            {{ isSubscription ? 'Subscription' : 'Local' }}
+          </span>
         </div>
       </div>
 
