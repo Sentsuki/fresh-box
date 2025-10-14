@@ -168,7 +168,7 @@ import { useConfigOverride } from "../services/configOverride";
 import { invoke } from "@tauri-apps/api/core";
 import Toast from "./Toast.vue";
 
-type ConfigOverride = Record<string, any>;
+type ConfigOverride = Record<string, unknown>;
 
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
