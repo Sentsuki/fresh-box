@@ -250,8 +250,8 @@ body,
 }
 
 .action-button {
-  @apply flex items-center justify-center px-8 py-4 rounded-xl text-base font-semibold border-0 cursor-pointer transition-all duration-200 shadow-lg;
-  min-width: 160px;
+  @apply flex items-center justify-center px-8 py-3 rounded-xl text-lg font-semibold border-0 cursor-pointer transition-all duration-200 shadow-lg;
+  min-width: 150px;
 }
 
 .action-button:hover:not(.disabled) {
