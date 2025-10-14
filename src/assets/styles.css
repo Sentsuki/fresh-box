@@ -269,8 +269,8 @@ body,
 }
 
 .overview-btn {
-  @apply flex items-center justify-center px-8 py-3 rounded-xl font-semibold transition-all duration-200;
-  @apply border-0 shadow-sm;
+  @apply flex items-center justify-center px-8 py-3 rounded-xl font-semibold transition-all duration-300;
+  @apply border-0;
   min-width: 160px;
 }
 
@@ -279,23 +279,25 @@ body,
 }
 
 .overview-btn:hover:not(:disabled) {
-  @apply transform -translate-y-0.5 shadow-md;
+  @apply transform -translate-y-1;
 }
 
 .start-btn {
-  @apply bg-blue-600 text-white;
+  background: linear-gradient(135deg, #3b82f6 0%, #1d4ed8 100%);
+  @apply text-white;
 }
 
 .start-btn:hover:not(:disabled) {
-  @apply bg-blue-700;
+  background: linear-gradient(135deg, #2563eb 0%, #1e40af 100%);
 }
 
 .stop-btn {
-  @apply bg-red-600 text-white;
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  @apply text-white;
 }
 
 .stop-btn:hover:not(:disabled) {
-  @apply bg-red-700;
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
 }
 
 /* ===== Legacy Status Components (for other components) ===== */
