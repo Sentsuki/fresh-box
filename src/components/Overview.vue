@@ -8,10 +8,6 @@ defineProps({
     type: Boolean,
     required: true,
   },
-  statusMessage: {
-    type: String,
-    required: true,
-  },
   selectedConfigDisplay: {
     type: String as () => string | null,
     default: null,
@@ -43,15 +39,9 @@ function stopService() {
         <div class="status-indicator" :class="{ active: isRunning }">
           <span class="status-dot" />
           <span class="status-text">{{
-            isRunning ? "Running" : "Stopped"
+            isRunning ? "Running" : "Stop"
           }}</span>
         </div>
-        <p
-          class="status-message"
-          :class="{ running: isRunning, stopped: !isRunning }"
-        >
-          {{ statusMessage }}
-        </p>
       </div>
 
       <div v-if="selectedConfigDisplay" class="selected-config">

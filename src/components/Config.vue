@@ -25,10 +25,6 @@ const props = defineProps({
     type: Object as () => Record<string, SubscriptionInfo>,
     required: true,
   },
-  statusMessage: {
-    type: String as () => string | null,
-    default: null,
-  },
 });
 
 // 事件定义
