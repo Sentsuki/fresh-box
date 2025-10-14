@@ -97,8 +97,7 @@ function stopService() {
             </div>
           </div>
           <div class="config-status-badge">
-            <span class="status-indicator"></span>
-            In use
+            <span class="config-status-indicator"></span>
           </div>
         </div>
 
