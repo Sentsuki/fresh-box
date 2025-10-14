@@ -42,17 +42,18 @@ function stopService() {
 <template>
   <div class="content-card">
     <div class="card-header">
-      <h2>Service Status</h2>
+      <h2>Overview</h2>
     </div>
     <div class="card-content">
-      <div class="status-display">
-        <div class="status-card" :class="{ running: isRunning, stopped: !isRunning }">
-          <div class="status-icon-container">
-            <div class="status-icon" :class="{ pulse: isRunning }">
-              <svg v-if="isRunning" class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+      <!-- 状态卡片 -->
+      <div class="overview-status-card" :class="{ running: isRunning }">
+        <div class="status-header">
+          <div class="status-icon-wrapper">
+            <div class="status-icon" :class="{ active: isRunning }">
+              <svg v-if="isRunning" class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
               </svg>
-              <svg v-else class="w-8 h-8" fill="currentColor" viewBox="0 0 20 20">
+              <svg v-else class="w-6 h-6" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
               </svg>
             </div>
@@ -67,47 +68,41 @@ function stopService() {
         </div>
       </div>
 
-      <div v-if="selectedConfigDisplay" class="config-info">
-        <div class="config-card">
-          <div class="config-left">
-            <div class="config-icon">
-              <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
-                <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
-              </svg>
-            </div>
-            <div class="config-details">
-              <span class="config-name">{{ selectedConfigDisplay }}</span>
-              <span class="config-type">{{ isSubscription ? 'Subscription' : 'Local File' }}</span>
-            </div>
+      <!-- 配置信息卡片 -->
+      <div v-if="selectedConfigDisplay" class="overview-config-card">
+        <div class="config-content">
+          <div class="config-icon-wrapper">
+            <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+              <path fill-rule="evenodd" d="M4 4a2 2 0 012-2h4.586A2 2 0 0112 2.586L15.414 6A2 2 0 0116 7.414V16a2 2 0 01-2 2H6a2 2 0 01-2-2V4zm2 6a1 1 0 011-1h6a1 1 0 110 2H7a1 1 0 01-1-1zm1 3a1 1 0 100 2h6a1 1 0 100-2H7z" clip-rule="evenodd" />
+            </svg>
           </div>
-          <div class="config-right">
-            <div class="config-status">
-              <span class="config-status-dot" :class="{ active: isRunning }"></span>
-              <span class="config-status-text">{{ isRunning ? 'In Use' : 'Ready' }}</span>
-            </div>
+          <div class="config-info">
+            <span class="config-name">{{ selectedConfigDisplay }}</span>
+            <span class="config-type" :class="{ subscription: isSubscription }">
+              {{ isSubscription ? 'Subscription' : 'Local File' }}
+            </span>
           </div>
         </div>
       </div>
 
-      <div class="action-controls">
+      <!-- 操作按钮 -->
+      <div class="overview-actions">
         <button
-          class="action-button start-button"
+          class="overview-btn start-btn"
           :disabled="isRunning || isLoading || !selectedConfig"
-          :class="{ disabled: isRunning || isLoading || !selectedConfig }"
           @click="startService"
         >
-          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z" clip-rule="evenodd" />
           </svg>
           {{ isLoading && !isRunning ? "Starting..." : "Start" }}
         </button>
         <button
-          class="action-button stop-button"
+          class="overview-btn stop-btn"
           :disabled="!isRunning || isLoading"
-          :class="{ disabled: !isRunning || isLoading }"
           @click="stopService"
         >
-          <svg class="w-5 h-5 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
             <path fill-rule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z" clip-rule="evenodd" />
           </svg>
           {{ isLoading && isRunning ? "Stopping..." : "Stop" }}
