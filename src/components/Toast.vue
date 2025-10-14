@@ -38,23 +38,21 @@ const showToast = (
 };
 
 const getToastClass = (toast: Toast) => {
-  if (toast.type === 'success') {
-    if (toast.subtype === 'save') {
-      return 'bg-blue-500';
-    } else if (toast.subtype === 'clear') {
-      return 'bg-orange-500';
+  if (toast.type === "success") {
+    if (toast.subtype === "save") {
+      return "bg-blue-500";
+    } else if (toast.subtype === "clear") {
+      return "bg-orange-500";
     } else {
-      return 'bg-green-500';
+      return "bg-green-500";
     }
-  } else if (toast.type === 'error') {
-    return 'bg-red-500';
+  } else if (toast.type === "error") {
+    return "bg-red-500";
   }
-  return 'bg-green-500';
+  return "bg-green-500";
 };
 
 defineExpose({
   showToast,
 });
 </script>
-
-

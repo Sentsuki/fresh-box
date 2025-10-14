@@ -175,7 +175,10 @@ function handleKeydown(event: KeyboardEvent) {
         <!-- 配置列表区域 -->
         <div class="config-list">
           <!-- 无配置文件时的提示 -->
-          <div v-if="!hasConfigFiles" class="p-6 text-center text-gray-600 italic">
+          <div
+            v-if="!hasConfigFiles"
+            class="p-6 text-center text-gray-600 italic"
+          >
             No configuration files found
           </div>
 
@@ -199,7 +202,9 @@ function handleKeydown(event: KeyboardEvent) {
                 @click.stop
               >
                 <div class="flex flex-col gap-1">
-                  <label class="text-sm text-gray-700 font-medium">Rename:</label>
+                  <label class="text-sm text-gray-700 font-medium"
+                    >Rename:</label
+                  >
                   <input
                     ref="renameInput"
                     v-model="newFileName"
@@ -210,7 +215,9 @@ function handleKeydown(event: KeyboardEvent) {
                   />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-sm text-gray-700 font-medium">Subscription URL:</label>
+                  <label class="text-sm text-gray-700 font-medium"
+                    >Subscription URL:</label
+                  >
                   <input
                     v-model="editingSubscriptionUrl"
                     class="subscription-input"
@@ -219,10 +226,16 @@ function handleKeydown(event: KeyboardEvent) {
                     @keydown="handleKeydown"
                   />
                 </div>
-                <div class="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200">
+                <div
+                  class="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200"
+                >
                   <button
                     class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-25"
-                    :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'"
+                    :class="
+                      isLoading
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'
+                    "
                     :disabled="isLoading"
                     title="Save"
                     @click="saveManage(file)"
@@ -231,7 +244,11 @@ function handleKeydown(event: KeyboardEvent) {
                   </button>
                   <button
                     class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-25"
-                    :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'"
+                    :class="
+                      isLoading
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'
+                    "
                     :disabled="isLoading"
                     title="Cancel"
                     @click="cancelManage"
@@ -244,7 +261,10 @@ function handleKeydown(event: KeyboardEvent) {
               <!-- 普通显示状态 -->
               <div v-else class="flex flex-col gap-1">
                 <span class="font-medium text-gray-700">{{ file }}</span>
-                <span v-if="subscriptions[file]" class="text-xs text-gray-500 italic">
+                <span
+                  v-if="subscriptions[file]"
+                  class="text-xs text-gray-500 italic"
+                >
                   {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
                 </span>
               </div>
@@ -254,7 +274,11 @@ function handleKeydown(event: KeyboardEvent) {
                 <button
                   v-if="subscriptions[file]"
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-20"
-                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'"
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'
+                  "
                   :disabled="isLoading"
                   title="Update from subscription source"
                   @click.stop="updateSubscription(file)"
@@ -263,7 +287,11 @@ function handleKeydown(event: KeyboardEvent) {
                 </button>
                 <button
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-blue-600 text-white min-w-20"
-                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-blue-700'"
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-blue-700'
+                  "
                   :disabled="isLoading"
                   title="Manage configuration"
                   @click.stop="startManage(file, $event)"
@@ -272,7 +300,11 @@ function handleKeydown(event: KeyboardEvent) {
                 </button>
                 <button
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-20"
-                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'"
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'
+                  "
                   :disabled="isLoading"
                   title="Delete this configuration"
                   @click.stop="deleteConfig(file, $event)"
@@ -287,5 +319,3 @@ function handleKeydown(event: KeyboardEvent) {
     </div>
   </div>
 </template>
-
-
