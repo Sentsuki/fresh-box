@@ -222,7 +222,17 @@ body,
 }
 
 .config-description {
-  @apply flex items-center text-sm font-medium text-green-600;
+  @apply text-xs font-medium text-gray-500 mt-1 uppercase tracking-wider;
+  letter-spacing: 0.05em;
+}
+
+.config-description.subscription {
+  @apply text-blue-600;
+}
+
+.config-status-badge {
+  @apply px-3 py-1.5 rounded-full text-xs font-semibold uppercase tracking-wide;
+  @apply bg-green-100 text-green-700 flex items-center;
 }
 
 .config-badge {

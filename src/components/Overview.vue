@@ -90,13 +90,13 @@ function stopService() {
           </div>
           <div class="config-content">
             <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
-            <p class="config-description">
-              <span class="status-indicator"></span>
-              In use
+            <p class="config-description" :class="{ subscription: isSubscription }">
+              {{ isSubscription ? 'SUBSCRIPTION' : 'LOCAL' }}
             </p>
           </div>
-          <div class="config-badge" :class="{ subscription: isSubscription }">
-            {{ isSubscription ? 'SUBSCRIPTION' : 'LOCAL' }}
+          <div class="config-status-badge">
+            <span class="status-indicator"></span>
+            In use
           </div>
         </div>
 
