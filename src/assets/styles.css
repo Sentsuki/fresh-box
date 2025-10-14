@@ -627,31 +627,6 @@ body,
   @apply flex flex-col h-full;
 }
 
-.config-list {
-  @apply mt-6 bg-gray-50 rounded-lg p-2 flex-grow overflow-y-auto;
-  max-height: 500px;
-}
-
-.config-item {
-  @apply px-4 py-3 cursor-pointer rounded-md mb-1 transition-all duration-200 font-medium;
-}
-
-.config-item:hover:not(.disabled) {
-  @apply bg-gray-100;
-}
-
-.config-item.selected {
-  @apply bg-blue-50 text-blue-700;
-}
-
-.config-item.disabled {
-  @apply cursor-not-allowed opacity-60;
-}
-
-.config-item-content {
-  @apply flex justify-between items-center w-full;
-}
-
 .settings-section {
   @apply mb-6 bg-white rounded-lg p-5 shadow-sm;
 }

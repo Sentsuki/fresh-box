@@ -211,3 +211,45 @@ pub async fn load_subscriptions() -> Result<String, CommandError> {
 
     Ok(content)
 }
+
+#[tauri::command]
+pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    if !full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            full_path.display()
+        )));
+    }
+
+    #[cfg(target_os = "windows")]
+    {
+        Command::new("cmd")
+            .args(["/C", "start", "", &full_path.to_string_lossy()])
+            .spawn()
+            .map_err(|e| {
+                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
+            })?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open").arg(&full_path).spawn().map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
+        })?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&full_path)
+            .spawn()
+            .map_err(|e| {
+                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
+            })?;
+    }
+
+    Ok(())
+}
