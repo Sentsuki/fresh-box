@@ -57,25 +57,4 @@ defineExpose({
 });
 </script>
 
-<style scoped>
-.toast-enter-active,
-.toast-leave-active {
-  @apply transition-all duration-300 ease-in-out;
-}
 
-.toast-enter-from,
-.toast-leave-to {
-  @apply opacity-0 translate-x-full;
-}
-
-@keyframes slideIn {
-  from {
-    transform: translateX(100%);
-    opacity: 0;
-  }
-  to {
-    transform: translateX(0);
-    opacity: 1;
-  }
-}
-</style>

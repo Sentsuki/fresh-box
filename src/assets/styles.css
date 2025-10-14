@@ -403,6 +403,17 @@ body,
   animation: fadeIn 0.3s ease-in-out;
 }
 
+/* ===== Toast Transitions ===== */
+.toast-enter-active,
+.toast-leave-active {
+  @apply transition-all duration-300 ease-in-out;
+}
+
+.toast-enter-from,
+.toast-leave-to {
+  @apply opacity-0 translate-x-full;
+}
+
 /* ===== Custom Animations ===== */
 @keyframes fadeIn {
   from {
@@ -412,5 +423,16 @@ body,
   to {
     opacity: 1;
     transform: translateY(0);
+  }
+}
+
+@keyframes slideIn {
+  from {
+    transform: translateX(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateX(0);
+    opacity: 1;
   }
 }
