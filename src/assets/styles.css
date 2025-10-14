@@ -222,7 +222,7 @@ body,
 }
 
 .config-description {
-  @apply text-sm text-gray-600;
+  @apply flex items-center text-sm font-medium text-green-600;
 }
 
 .config-badge {

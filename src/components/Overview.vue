@@ -91,7 +91,8 @@ function stopService() {
           <div class="config-content">
             <h3 class="config-title">{{ selectedConfigDisplay }}</h3>
             <p class="config-description">
-              {{ isSubscription ? 'Remote subscription configuration' : 'Local configuration file' }}
+              <span class="status-indicator"></span>
+              In use
             </p>
           </div>
           <div class="config-badge" :class="{ subscription: isSubscription }">
@@ -99,13 +100,7 @@ function stopService() {
           </div>
         </div>
 
-        <!-- 配置状态 -->
-        <div class="config-status-simple">
-          <span class="detail-value status-active">
-            <span class="status-indicator"></span>
-            Ready to use
-          </span>
-        </div>
+
       </div>
 
       <!-- 操作按钮 -->
