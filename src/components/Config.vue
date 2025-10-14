@@ -123,17 +123,22 @@ function handleKeydown(event: KeyboardEvent) {
 
     <div class="card-content">
       <div class="config-container">
-
-
         <!-- 订阅输入区域 -->
         <div class="flex gap-3 mb-4">
           <input
-v-model="subscriptionUrl" type="text"
+            v-model="subscriptionUrl"
+            type="text"
             class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-            placeholder="Enter subscription URL" :disabled="isLoading" @keyup.enter="addSubscription" />
+            placeholder="Enter subscription URL"
+            :disabled="isLoading"
+            @keyup.enter="addSubscription"
+          />
           <button
-class="control-button subscribe-button" :disabled="!canAddSubscription"
-            :class="{ disabled: !canAddSubscription }" @click="addSubscription">
+            class="control-button subscribe-button"
+            :disabled="!canAddSubscription"
+            :class="{ disabled: !canAddSubscription }"
+            @click="addSubscription"
+          >
             <span class="mr-3 text-lg">📥</span>
             {{ isLoading ? "Subscribing..." : "Subscribe" }}
           </button>
@@ -141,8 +146,11 @@ class="control-button subscribe-button" :disabled="!canAddSubscription"
 
         <!-- 添加配置按钮 -->
         <button
-class="control-button select-button" :disabled="isLoading" :class="{ disabled: isLoading }"
-          @click="selectConfigFile">
+          class="control-button select-button"
+          :disabled="isLoading"
+          :class="{ disabled: isLoading }"
+          @click="selectConfigFile"
+        >
           <span class="mr-3 text-lg">📁</span>
           Add Config
         </button>
@@ -150,50 +158,84 @@ class="control-button select-button" :disabled="isLoading" :class="{ disabled: i
         <!-- 配置列表区域 -->
         <div class="config-list">
           <!-- 无配置文件时的提示 -->
-          <div v-if="!hasConfigFiles" class="p-6 text-center text-gray-600 italic">
+          <div
+            v-if="!hasConfigFiles"
+            class="p-6 text-center text-gray-600 italic"
+          >
             No configuration files found
           </div>
 
           <!-- 配置文件列表 -->
           <div
-v-for="(file, index) in configFilesDisplay" v-else :key="configFiles[index]" class="config-item" :class="{
-            selected: configFiles[index] === selectedConfig,
-            managing: isManaging && managingFile === file,
-          }" @click="switchConfig(index)">
+            v-for="(file, index) in configFilesDisplay"
+            v-else
+            :key="configFiles[index]"
+            class="config-item"
+            :class="{
+              selected: configFiles[index] === selectedConfig,
+              managing: isManaging && managingFile === file,
+            }"
+            @click="switchConfig(index)"
+          >
             <div class="config-item-content">
               <!-- 管理窗口 -->
               <div
-v-if="isManaging && managingFile === file"
-                class="flex flex-col gap-4 w-full p-4 bg-white rounded-lg shadow-md" @click.stop>
+                v-if="isManaging && managingFile === file"
+                class="flex flex-col gap-4 w-full p-4 bg-white rounded-lg shadow-md"
+                @click.stop
+              >
                 <div class="flex flex-col gap-1">
-                  <label class="text-sm text-gray-700 font-medium">Rename:</label>
+                  <label class="text-sm text-gray-700 font-medium"
+                    >Rename:</label
+                  >
                   <input
-ref="renameInput" v-model="newFileName"
+                    ref="renameInput"
+                    v-model="newFileName"
                     class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    :disabled="isLoading" autofocus @keydown="handleKeydown" />
+                    :disabled="isLoading"
+                    autofocus
+                    @keydown="handleKeydown"
+                  />
                 </div>
                 <div class="flex flex-col gap-1">
-                  <label class="text-sm text-gray-700 font-medium">Subscription URL:</label>
+                  <label class="text-sm text-gray-700 font-medium"
+                    >Subscription URL:</label
+                  >
                   <input
-v-model="editingSubscriptionUrl"
+                    v-model="editingSubscriptionUrl"
                     class="flex-1 px-4 py-2.5 border border-gray-300 rounded-lg text-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                    placeholder="Enter subscription URL" :disabled="isLoading" @keydown="handleKeydown" />
+                    placeholder="Enter subscription URL"
+                    :disabled="isLoading"
+                    @keydown="handleKeydown"
+                  />
                 </div>
-                <div class="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200">
+                <div
+                  class="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200"
+                >
                   <button
                     class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-25"
-                    :class="isLoading
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:shadow-sm hover:bg-green-700 hover:-translate-y-0.5'
-                      " :disabled="isLoading" title="Save" @click="saveManage(file)">
+                    :class="
+                      isLoading
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:shadow-sm hover:bg-green-700 hover:-translate-y-0.5'
+                    "
+                    :disabled="isLoading"
+                    title="Save"
+                    @click="saveManage(file)"
+                  >
                     Save
                   </button>
                   <button
                     class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-25"
-                    :class="isLoading
-                      ? 'opacity-50 cursor-not-allowed'
-                      : 'hover:shadow-sm hover:bg-red-700 hover:-translate-y-0.5'
-                      " :disabled="isLoading" title="Cancel" @click="cancelManage">
+                    :class="
+                      isLoading
+                        ? 'opacity-50 cursor-not-allowed'
+                        : 'hover:shadow-sm hover:bg-red-700 hover:-translate-y-0.5'
+                    "
+                    :disabled="isLoading"
+                    title="Cancel"
+                    @click="cancelManage"
+                  >
                     Cancel
                   </button>
                 </div>
@@ -202,7 +244,10 @@ v-model="editingSubscriptionUrl"
               <!-- 普通显示状态 -->
               <div v-else class="flex flex-col gap-1">
                 <span class="font-medium text-gray-700">{{ file }}</span>
-                <span v-if="subscriptions[file]" class="text-xs text-gray-500 italic">
+                <span
+                  v-if="subscriptions[file]"
+                  class="text-xs text-gray-500 italic"
+                >
                   {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
                 </span>
               </div>
@@ -210,29 +255,43 @@ v-model="editingSubscriptionUrl"
               <!-- 操作按钮组 -->
               <div v-if="!isManaging" class="flex gap-2 ml-auto">
                 <button
-v-if="subscriptions[file]"
+                  v-if="subscriptions[file]"
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-20"
-                  :class="isLoading
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:shadow-sm hover:bg-green-700 hover:-translate-y-0.5'
-                    " :disabled="isLoading" title="Update from subscription source"
-                  @click.stop="updateSubscription(file)">
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:shadow-sm hover:bg-green-700 hover:-translate-y-0.5'
+                  "
+                  :disabled="isLoading"
+                  title="Update from subscription source"
+                  @click.stop="updateSubscription(file)"
+                >
                   Update
                 </button>
                 <button
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-blue-600 text-white min-w-20"
-                  :class="isLoading
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:shadow-sm hover:bg-blue-700 hover:-translate-y-0.5'
-                    " :disabled="isLoading" title="Manage configuration" @click.stop="startManage(file, $event)">
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:shadow-sm hover:bg-blue-700 hover:-translate-y-0.5'
+                  "
+                  :disabled="isLoading"
+                  title="Manage configuration"
+                  @click.stop="startManage(file, $event)"
+                >
                   Manage
                 </button>
                 <button
                   class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-20"
-                  :class="isLoading
-                    ? 'opacity-50 cursor-not-allowed'
-                    : 'hover:shadow-sm hover:bg-red-700 hover:-translate-y-0.5'
-                    " :disabled="isLoading" title="Delete this configuration" @click.stop="deleteConfig(file, $event)">
+                  :class="
+                    isLoading
+                      ? 'opacity-50 cursor-not-allowed'
+                      : 'hover:shadow-sm hover:bg-red-700 hover:-translate-y-0.5'
+                  "
+                  :disabled="isLoading"
+                  title="Delete this configuration"
+                  @click.stop="deleteConfig(file, $event)"
+                >
                   Delete
                 </button>
               </div>

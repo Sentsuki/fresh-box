@@ -179,7 +179,10 @@ async function deleteConfig(fileName: string) {
     (file) => getCleanFileName(file) === fileName,
   );
   if (fullFileName === selectedConfig.value && isRunning.value) {
-    showToast("Cannot delete active configuration. Stop the service first.", "error");
+    showToast(
+      "Cannot delete active configuration. Stop the service first.",
+      "error",
+    );
     return;
   }
 
@@ -288,7 +291,10 @@ function switchConfig(index: number) {
     );
     showToast(`Selected config: ${selectedConfigDisplay.value}`);
   } else {
-    showToast("Cannot change config while service is running. Stop the service first.", "error");
+    showToast(
+      "Cannot change config while service is running. Stop the service first.",
+      "error",
+    );
   }
 }
 
@@ -405,7 +411,6 @@ onUnmounted(() => {
         :selected-config="selectedConfig"
         :is-loading="isLoading"
         :subscriptions="subscriptions"
-
         @select-config-file="selectConfigFile"
         @switch-config="switchConfig"
         @add-subscription="addSubscription"
