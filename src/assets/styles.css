@@ -28,7 +28,7 @@ body,
 
 /* ===== Layout Components ===== */
 .app-container {
-  @apply flex w-full h-screen bg-gray-100;
+  @apply flex w-full h-screen bg-white;
   min-width: var(--min-window-width);
   min-height: var(--min-window-height);
 }
@@ -36,11 +36,11 @@ body,
 /* --- Sidebar --- */
 .sidebar {
   width: var(--sidebar-width);
-  @apply h-full bg-white shadow-lg flex flex-col z-10 border-r border-gray-200;
+  @apply h-full bg-white flex flex-col border-r border-gray-200;
 }
 
 .logo-container {
-  @apply p-6 text-center border-b border-gray-200;
+  @apply p-6 text-center border-b border-gray-200 bg-white;
 }
 
 .logo {
@@ -81,7 +81,7 @@ body,
 }
 
 .card-header {
-  @apply px-6 py-5 border-b border-gray-200 bg-gray-50;
+  @apply px-6 py-5 border-b border-gray-200 bg-white;
 }
 
 .card-header h2 {
