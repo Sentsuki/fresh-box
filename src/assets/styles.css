@@ -185,7 +185,7 @@ body,
 
 .overview-config-card {
   @apply mb-6 rounded-xl border border-gray-200 transition-all duration-300;
-  padding: 1.5rem 1.5rem 1rem 1rem;
+  padding: 1rem 1.5rem;
   background: linear-gradient(135deg, #f8fafc 0%, #f1f5f9 100%);
   box-shadow: 0 1px 2px rgba(0, 0, 0, 0.05);
 }
@@ -201,7 +201,7 @@ body,
 }
 
 .config-icon-wrapper {
-  @apply mr-4;
+  @apply mr-3;
 }
 
 .config-icon {
@@ -223,7 +223,7 @@ body,
 }
 
 .config-title {
-  @apply text-lg font-semibold text-gray-800 mb-2;
+  @apply text-lg font-semibold text-gray-800 mb-1;
 }
 
 .config-type-label {
