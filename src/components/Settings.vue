@@ -23,17 +23,17 @@
         <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
           <div class="mb-4">
             <textarea v-model="overrideConfig" placeholder="Enter your configuration override here (JSON format)"
-              rows="10" class="config-textarea" :class="!isValidJson ? 'border-red-500 bg-red-50' : ''" />
+              rows="10" class="w-full p-3 border border-gray-300 rounded-md bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200" :class="!isValidJson ? 'border-red-500 bg-red-50' : ''" style="font-family: 'Consolas', 'Monaco', monospace; min-height: 200px;" />
             <div v-if="!isValidJson"
               class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500">
               {{ jsonError }}
             </div>
           </div>
-          <div class="button-group">
-            <button :disabled="!isValidJson" class="control-button save-button" @click="saveOverride">
+          <div class="flex gap-3 justify-end">
+            <button :disabled="!isValidJson" class="control-button bg-blue-600 text-white hover:bg-blue-700" @click="saveOverride">
               Save Override
             </button>
-            <button class="control-button clear-button" @click="clearOverride">
+            <button class="control-button bg-gray-300 text-gray-700 hover:bg-gray-400" @click="clearOverride">
               Clear Override
             </button>
           </div>
