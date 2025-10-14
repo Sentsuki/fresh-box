@@ -44,7 +44,8 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button class="control-button" @click="openAppDirectory">
+          <button class="control-button bg-purple-500 text-white hover:bg-purple-600 flex items-center gap-2" @click="openAppDirectory">
+            <span class="text-base">📁</span>
             Open App Directory
           </button>
         </div>
@@ -56,7 +57,7 @@
           <div class="flex gap-3 flex-wrap">
             <button
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
-              :class="isRefreshing ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none' : 'bg-gradient-to-br from-green-500 to-green-700 hover:-translate-y-0.5 hover:shadow-md'"
+              :class="isRefreshing ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none' : 'bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-md'"
               :disabled="isRefreshing"
               @click="refreshSingboxDetection"
             >
@@ -68,7 +69,7 @@
             </button>
             <button
               class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
-              :class="isGettingStatus ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none' : 'bg-gradient-to-br from-blue-500 to-blue-700 hover:-translate-y-0.5 hover:shadow-md'"
+              :class="isGettingStatus ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none' : 'bg-blue-500 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-md'"
               :disabled="isGettingStatus"
               @click="getSingboxStatus"
             >
