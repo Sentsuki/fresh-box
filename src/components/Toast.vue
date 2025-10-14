@@ -3,8 +3,9 @@
     <div
       v-for="toast in toasts"
       :key="toast.id"
-      class="toast"
-      :class="[toast.type, toast.subtype]"
+      class="fixed bottom-5 right-5 px-6 py-3 rounded text-white z-50"
+      :class="getToastClass(toast)"
+      :style="{ animation: 'slideIn 0.3s ease-out' }"
     >
       {{ toast.message }}
     </div>
@@ -36,33 +37,27 @@ const showToast = (
   }, 3000);
 };
 
+const getToastClass = (toast: Toast) => {
+  if (toast.type === 'success') {
+    if (toast.subtype === 'save') {
+      return 'bg-blue-500';
+    } else if (toast.subtype === 'clear') {
+      return 'bg-orange-500';
+    } else {
+      return 'bg-green-500';
+    }
+  } else if (toast.type === 'error') {
+    return 'bg-red-500';
+  }
+  return 'bg-green-500';
+};
+
 defineExpose({
   showToast,
 });
 </script>
 
 <style scoped>
-.toast {
-  @apply fixed bottom-5 right-5 px-6 py-3 rounded text-white z-50;
-  animation: slideIn 0.3s ease-out;
-}
-
-.toast.success {
-  @apply bg-green-500;
-}
-
-.toast.success.save {
-  @apply bg-blue-500;
-}
-
-.toast.success.clear {
-  @apply bg-orange-500;
-}
-
-.toast.error {
-  @apply bg-red-500;
-}
-
 .toast-enter-active,
 .toast-leave-active {
   @apply transition-all duration-300 ease-in-out;

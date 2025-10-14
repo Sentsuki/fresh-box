@@ -194,11 +194,11 @@ function handleKeydown(event: KeyboardEvent) {
               <!-- 管理窗口 -->
               <div
                 v-if="isManaging && managingFile === file"
-                class="manage-container"
+                class="flex flex-col gap-4 w-full p-4 bg-white rounded-lg shadow-md"
                 @click.stop
               >
-                <div class="manage-section">
-                  <label>Rename:</label>
+                <div class="flex flex-col gap-1">
+                  <label class="text-sm text-gray-700 font-medium">Rename:</label>
                   <input
                     ref="renameInput"
                     v-model="newFileName"
@@ -208,8 +208,8 @@ function handleKeydown(event: KeyboardEvent) {
                     @keydown="handleKeydown"
                   />
                 </div>
-                <div class="manage-section">
-                  <label>Subscription URL:</label>
+                <div class="flex flex-col gap-1">
+                  <label class="text-sm text-gray-700 font-medium">Subscription URL:</label>
                   <input
                     v-model="editingSubscriptionUrl"
                     class="subscription-input"
@@ -218,20 +218,20 @@ function handleKeydown(event: KeyboardEvent) {
                     @keydown="handleKeydown"
                   />
                 </div>
-                <div class="manage-actions">
+                <div class="flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200">
                   <button
-                    class="action-button update-button"
+                    class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-25"
+                    :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'"
                     :disabled="isLoading"
-                    :class="{ disabled: isLoading }"
                     title="Save"
                     @click="saveManage(file)"
                   >
                     Save
                   </button>
                   <button
-                    class="action-button delete-button"
+                    class="flex items-center justify-center gap-1 px-4 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-25"
+                    :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'"
                     :disabled="isLoading"
-                    :class="{ disabled: isLoading }"
                     title="Cancel"
                     @click="cancelManage"
                   >
@@ -241,38 +241,38 @@ function handleKeydown(event: KeyboardEvent) {
               </div>
 
               <!-- 普通显示状态 -->
-              <div v-else class="config-info">
-                <span class="config-name">{{ file }}</span>
-                <span v-if="subscriptions[file]" class="last-updated">
+              <div v-else class="flex flex-col gap-1">
+                <span class="font-medium text-gray-700">{{ file }}</span>
+                <span v-if="subscriptions[file]" class="text-xs text-gray-500 italic">
                   {{ formatLastUpdated(subscriptions[file].lastUpdated) }}
                 </span>
               </div>
 
               <!-- 操作按钮组 -->
-              <div v-if="!isManaging" class="config-actions">
+              <div v-if="!isManaging" class="flex gap-2 ml-auto">
                 <button
                   v-if="subscriptions[file]"
-                  class="action-button update-button"
+                  class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-green-600 text-white min-w-20"
+                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-green-700'"
                   :disabled="isLoading"
-                  :class="{ disabled: isLoading }"
                   title="Update from subscription source"
                   @click.stop="updateSubscription(file)"
                 >
                   Update
                 </button>
                 <button
-                  class="action-button manage-button"
+                  class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-blue-600 text-white min-w-20"
+                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-blue-700'"
                   :disabled="isLoading"
-                  :class="{ disabled: isLoading }"
                   title="Manage configuration"
                   @click.stop="startManage(file, $event)"
                 >
                   Manage
                 </button>
                 <button
-                  class="action-button delete-button"
+                  class="flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-red-600 text-white min-w-20"
+                  :class="isLoading ? 'opacity-50 cursor-not-allowed' : 'hover:-translate-y-0.5 hover:shadow-sm hover:bg-red-700'"
                   :disabled="isLoading"
-                  :class="{ disabled: isLoading }"
                   title="Delete this configuration"
                   @click.stop="deleteConfig(file, $event)"
                 >
@@ -287,86 +287,4 @@ function handleKeydown(event: KeyboardEvent) {
   </div>
 </template>
 
-<style scoped>
-.config-actions {
-  @apply flex gap-2 ml-auto;
-}
 
-.action-button {
-  @apply flex items-center justify-center gap-1 px-3 py-2 border-0 rounded text-sm font-medium cursor-pointer transition-all duration-200 bg-gray-100 text-gray-700;
-  min-width: 80px;
-}
-
-.action-button:hover:not(.disabled) {
-  @apply -translate-y-0.5 shadow-sm;
-}
-
-.action-button:active:not(.disabled) {
-  @apply translate-y-0 shadow-none;
-}
-
-.action-button.disabled {
-  @apply opacity-50 cursor-not-allowed;
-}
-
-.manage-button {
-  @apply bg-blue-600 text-white;
-}
-
-.manage-button:hover:not(.disabled) {
-  @apply bg-blue-700;
-}
-
-.update-button {
-  @apply bg-green-600 text-white;
-}
-
-.update-button:hover:not(.disabled) {
-  @apply bg-green-700;
-}
-
-.delete-button {
-  @apply bg-red-600 text-white;
-}
-
-.delete-button:hover:not(.disabled) {
-  @apply bg-red-700;
-}
-
-.manage-container {
-  @apply flex flex-col gap-4 w-full p-4 bg-white rounded-lg shadow-md;
-}
-
-.manage-section {
-  @apply flex flex-col gap-1;
-}
-
-.manage-section label {
-  @apply text-sm text-gray-700 font-medium;
-}
-
-.manage-actions {
-  @apply flex gap-3 justify-end mt-4 pt-3 border-t border-gray-200;
-}
-
-.manage-actions .action-button {
-  @apply px-4 py-2;
-  min-width: 100px;
-}
-
-.config-item.managing {
-  @apply bg-white border border-gray-200 rounded-lg my-1 shadow-sm;
-}
-
-.config-info {
-  @apply flex flex-col gap-1;
-}
-
-.config-name {
-  @apply font-medium text-gray-700;
-}
-
-.last-updated {
-  @apply text-xs text-gray-500 italic;
-}
-</style>
