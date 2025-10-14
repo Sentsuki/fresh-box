@@ -86,7 +86,7 @@ function stopService() {
             <span class="config-info-text">{{ selectedConfigDisplay }}</span>
           </div>
           <span class="config-info-label" :class="{ subscription: isSubscription }">
-            {{ isSubscription ? 'SUB' : 'LOCAL' }}
+            {{ isSubscription ? 'Subscription' : 'Local' }}
           </span>
         </div>
       </div>

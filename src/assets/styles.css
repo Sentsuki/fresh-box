@@ -175,40 +175,48 @@ body,
 }
 
 .config-info-icon {
-  @apply w-4 h-4 text-gray-400 flex-shrink-0;
+  @apply w-5 h-5 text-slate-500 flex-shrink-0;
 }
 
 .overview-status-card.running .config-info-icon {
-  @apply text-green-600;
+  @apply text-slate-600;
 }
 
 .config-info-icon.subscription {
-  @apply text-blue-500;
+  @apply text-indigo-500;
+}
+
+.overview-status-card.running .config-info-icon.subscription {
+  @apply text-indigo-600;
 }
 
 .config-info-text {
-  @apply text-sm text-gray-600 font-medium;
+  @apply text-base text-slate-700 font-semibold;
 }
 
 .overview-status-card.running .config-info-text {
-  @apply text-green-700;
+  @apply text-slate-800;
 }
 
 .config-info-label {
-  @apply px-2 py-0.5 rounded text-xs font-medium;
-  background: #f3f4f6;
-  color: #6b7280;
-  font-size: 10px;
+  @apply px-3 py-1.5 rounded-lg text-sm font-semibold;
+  background: #f1f5f9;
+  color: #475569;
 }
 
 .overview-status-card.running .config-info-label {
-  background: rgba(34, 197, 94, 0.1);
-  color: #15803d;
+  background: #f0f9ff;
+  color: #0f172a;
 }
 
 .config-info-label.subscription {
-  background: #dbeafe;
-  color: #2563eb;
+  background: #eef2ff;
+  color: #4338ca;
+}
+
+.overview-status-card.running .config-info-label.subscription {
+  background: #e0e7ff;
+  color: #3730a3;
 }
 
 
