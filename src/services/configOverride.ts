@@ -1,7 +1,7 @@
 import { ref } from "vue";
 import { invoke } from "@tauri-apps/api/core";
 
-type ConfigOverride = Record<string, any>;
+type ConfigOverride = Record<string, unknown>;
 
 const isEnabled = ref(false);
 const config = ref({} as ConfigOverride);

@@ -9,20 +9,39 @@
       <div class="settings-section">
         <h3>Configuration</h3>
         <div class="setting-item">
-          <label>Enable Config Override</label>
-          <input v-model="isOverrideEnabled" type="checkbox" class="checkbox" />
+          <span class="text-sm text-gray-700 font-medium"
+            >Enable Config Override</span
+          >
+          <label class="relative cursor-pointer">
+            <input
+              v-model="isOverrideEnabled"
+              type="checkbox"
+              class="sr-only"
+            />
+            <div
+              class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+              :class="isOverrideEnabled ? 'bg-blue-500' : 'bg-gray-200'"
+            />
+            <div
+              class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+              :class="isOverrideEnabled ? 'translate-x-5' : 'translate-x-0'"
+            />
+          </label>
         </div>
 
-        <div v-if="isOverrideEnabled" class="override-section">
-          <div class="config-editor">
+        <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
+          <div class="mb-4">
             <textarea
               v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
               rows="10"
               class="config-textarea"
-              :class="{ error: !isValidJson }"
-            ></textarea>
-            <div v-if="!isValidJson" class="error-message">
+              :class="!isValidJson ? 'border-red-500 bg-red-50' : ''"
+            />
+            <div
+              v-if="!isValidJson"
+              class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500"
+            >
               {{ jsonError }}
             </div>
           </div>
@@ -44,7 +63,11 @@
       <div class="settings-section">
         <h3>Application</h3>
         <div class="setting-item">
-          <button class="control-button" @click="openAppDirectory">
+          <button
+            class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
+            @click="openAppDirectory"
+          >
+            <span class="text-base">📁</span>
             Open App Directory
           </button>
         </div>
@@ -52,45 +75,83 @@
 
       <div class="settings-section">
         <h3>Process Management</h3>
-        <div class="process-management-container">
-          <div class="button-row">
+        <div class="flex flex-col gap-4">
+          <div class="flex gap-3 flex-wrap">
             <button
-              class="control-button detect-button"
+              class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
+              :class="
+                isRefreshing
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                  : 'bg-green-500 hover:bg-green-600 hover:-translate-y-0.5 hover:shadow-md'
+              "
               :disabled="isRefreshing"
               @click="refreshSingboxDetection"
             >
-              <span v-if="isRefreshing" class="button-icon spinning">🔄</span>
-              <span v-else class="button-icon">🔍</span>
-              <span class="button-text">
+              <span
+                v-if="isRefreshing"
+                class="text-base flex items-center justify-center w-5 h-5 animate-spin"
+                >🔄</span
+              >
+              <span
+                v-else
+                class="text-base flex items-center justify-center w-5 h-5"
+                >🔍</span
+              >
+              <span class="font-medium">
                 {{ isRefreshing ? "Detecting..." : "Detect Process" }}
               </span>
             </button>
             <button
-              class="control-button status-button"
+              class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
+              :class="
+                isGettingStatus
+                  ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                  : 'bg-blue-500 hover:bg-blue-600 hover:-translate-y-0.5 hover:shadow-md'
+              "
               :disabled="isGettingStatus"
               @click="getSingboxStatus"
             >
-              <span v-if="isGettingStatus" class="button-icon pulsing">⏳</span>
-              <span v-else class="button-icon">📊</span>
-              <span class="button-text">
+              <span
+                v-if="isGettingStatus"
+                class="text-base flex items-center justify-center w-5 h-5 animate-pulse"
+                >⏳</span
+              >
+              <span
+                v-else
+                class="text-base flex items-center justify-center w-5 h-5"
+                >📊</span
+              >
+              <span class="font-medium">
                 {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
               </span>
             </button>
           </div>
 
-          <div v-if="processStatus" class="process-status-card">
-            <div class="status-header">
-              <span class="status-icon" :class="processStatusClass">
+          <div
+            v-if="processStatus"
+            class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm transition-all duration-200 hover:shadow-md"
+          >
+            <div
+              class="flex items-center gap-2 px-4 py-3 bg-gray-50 border-b border-gray-200"
+            >
+              <span
+                class="text-base flex items-center justify-center w-6 h-6 rounded-full"
+              >
                 <span v-if="processStatusClass === 'status-success'">✅</span>
                 <span v-else-if="processStatusClass === 'status-error'"
                   >❌</span
                 >
                 <span v-else>ℹ️</span>
               </span>
-              <span class="status-title">Process Status</span>
+              <span class="font-semibold text-gray-800 text-sm"
+                >Process Status</span
+              >
             </div>
-            <div class="status-content">
-              <p class="status-text" :class="processStatusClass">
+            <div class="p-4">
+              <p
+                class="m-0 text-sm font-medium leading-relaxed p-3 rounded-md border-l-4"
+                :class="getStatusTextClass()"
+              >
                 {{ processStatus }}
               </p>
             </div>
@@ -107,7 +168,7 @@ import { useConfigOverride } from "../services/configOverride";
 import { invoke } from "@tauri-apps/api/core";
 import Toast from "./Toast.vue";
 
-type ConfigOverride = Record<string, any>;
+type ConfigOverride = Record<string, unknown>;
 
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
@@ -277,210 +338,16 @@ const processStatusClass = computed(() => {
     return "status-info";
   }
 });
+
+// 获取状态文本的Tailwind类
+const getStatusTextClass = () => {
+  const statusClass = processStatusClass.value;
+  if (statusClass === "status-success") {
+    return "text-green-800 bg-green-50 border-green-500";
+  } else if (statusClass === "status-error") {
+    return "text-red-800 bg-red-50 border-red-500";
+  } else {
+    return "text-blue-800 bg-blue-50 border-blue-500";
+  }
+};
 </script>
-
-<style scoped>
-.config-textarea.error {
-  border-color: #f44336;
-  background-color: #fff5f5;
-}
-
-.error-message {
-  color: #d32f2f;
-  margin-top: 8px;
-  font-size: 14px;
-  font-weight: 500;
-  padding: 8px 12px;
-  background-color: #ffebee;
-  border-radius: 4px;
-  border-left: 4px solid #f44336;
-}
-
-.process-management-container {
-  display: flex;
-  flex-direction: column;
-  gap: var(--space-lg);
-}
-
-.button-row {
-  display: flex;
-  gap: var(--space-md);
-  flex-wrap: wrap;
-}
-
-.detect-button {
-  background: linear-gradient(135deg, #38a169, #2f855a);
-  color: white;
-  border: none;
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--border-radius-lg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  transition: var(--transition);
-  flex: 1;
-  min-width: 160px;
-  box-shadow: var(--shadow-sm);
-}
-
-.detect-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2f855a, #276749);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.detect-button:disabled {
-  background: var(--color-gray-lighter);
-  color: var(--color-gray);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.status-button {
-  background: linear-gradient(135deg, #3182ce, #2b6cb0);
-  color: white;
-  border: none;
-  padding: var(--space-md) var(--space-lg);
-  border-radius: var(--border-radius-lg);
-  cursor: pointer;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  transition: var(--transition);
-  flex: 1;
-  min-width: 160px;
-  box-shadow: var(--shadow-sm);
-}
-
-.status-button:hover:not(:disabled) {
-  background: linear-gradient(135deg, #2b6cb0, #2c5282);
-  transform: translateY(-2px);
-  box-shadow: var(--shadow-md);
-}
-
-.status-button:disabled {
-  background: var(--color-gray-lighter);
-  color: var(--color-gray);
-  cursor: not-allowed;
-  transform: none;
-  box-shadow: none;
-}
-
-.process-status-card {
-  background: var(--color-white);
-  border: 1px solid var(--color-gray-lightest);
-  border-radius: var(--border-radius-xl);
-  overflow: hidden;
-  box-shadow: var(--shadow-sm);
-  transition: var(--transition);
-}
-
-.process-status-card:hover {
-  box-shadow: var(--shadow-md);
-}
-
-.status-header {
-  display: flex;
-  align-items: center;
-  gap: var(--space-sm);
-  padding: var(--space-md) var(--space-lg);
-  background: var(--color-bg-light);
-  border-bottom: 1px solid var(--color-gray-lightest);
-}
-
-.status-icon {
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 24px;
-  height: 24px;
-  border-radius: 50%;
-}
-
-.status-title {
-  font-weight: 600;
-  color: var(--color-gray-darker);
-  font-size: var(--font-size-sm);
-}
-
-.status-content {
-  padding: var(--space-lg);
-}
-
-.status-text {
-  margin: 0;
-  font-size: var(--font-size-sm);
-  font-weight: 500;
-  line-height: 1.5;
-  padding: var(--space-md);
-  border-radius: var(--border-radius-md);
-  border-left: 4px solid;
-}
-
-.status-success {
-  color: var(--color-success-dark);
-  background-color: #f0fff4;
-  border-left-color: var(--color-success);
-}
-
-.status-error {
-  color: var(--color-danger-dark);
-  background-color: #fff5f5;
-  border-left-color: var(--color-danger);
-}
-
-.status-info {
-  color: var(--color-primary-dark);
-  background-color: var(--color-primary-bg-light);
-  border-left-color: var(--color-primary);
-}
-
-.button-icon {
-  font-size: var(--font-size-md);
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  width: 20px;
-  height: 20px;
-}
-
-.button-text {
-  font-weight: 500;
-}
-
-.spinning {
-  animation: spin 1s linear infinite;
-}
-
-.pulsing {
-  animation: pulse 1.5s ease-in-out infinite;
-}
-
-@keyframes spin {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
-}
-
-@keyframes pulse {
-  0%,
-  100% {
-    opacity: 1;
-    transform: scale(1);
-  }
-  50% {
-    opacity: 0.7;
-    transform: scale(0.95);
-  }
-}
-</style>
