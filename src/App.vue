@@ -392,6 +392,7 @@ onUnmounted(() => {
         :is-loading="isLoading"
         :selected-config-display="selectedConfigDisplay"
         :selected-config="selectedConfig"
+        :subscriptions="subscriptions"
         @start-service="startService"
         @stop-service="stopService"
       />

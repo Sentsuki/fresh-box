@@ -197,11 +197,15 @@ body,
 }
 
 .config-card {
-  @apply flex items-center p-4 bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-200;
+  @apply flex items-center justify-between p-4 bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-200;
 }
 
 .config-card:hover {
   @apply shadow-md border-blue-200;
+}
+
+.config-left {
+  @apply flex items-center flex-1;
 }
 
 .config-icon {
@@ -212,12 +216,32 @@ body,
   @apply flex flex-col;
 }
 
-.config-label {
-  @apply text-xs text-gray-500 uppercase tracking-wide font-semibold mb-1;
+.config-name {
+  @apply text-base font-semibold text-gray-800 mb-1;
 }
 
-.config-name {
-  @apply text-sm font-medium text-gray-800;
+.config-type {
+  @apply text-xs text-gray-500 uppercase tracking-wide font-medium;
+}
+
+.config-right {
+  @apply flex items-center;
+}
+
+.config-status {
+  @apply flex items-center px-3 py-1.5 bg-gray-50 rounded-full;
+}
+
+.config-status-dot {
+  @apply w-2 h-2 bg-gray-400 rounded-full mr-2 transition-colors duration-300;
+}
+
+.config-status-dot.active {
+  @apply bg-green-500;
+}
+
+.config-status-text {
+  @apply text-xs font-medium text-gray-600;
 }
 
 /* ===== Action Controls ===== */
@@ -226,7 +250,7 @@ body,
 }
 
 .action-button {
-  @apply flex items-center justify-center px-6 py-3 rounded-xl text-sm font-semibold border-0 cursor-pointer transition-all duration-200 shadow-lg;
+  @apply flex items-center justify-center px-8 py-4 rounded-xl text-base font-semibold border-0 cursor-pointer transition-all duration-200 shadow-lg;
   min-width: 160px;
 }
 
@@ -257,11 +281,11 @@ body,
 }
 
 .action-button.start-button {
-  @apply bg-gradient-to-r from-green-500 to-emerald-500 text-white;
+  @apply bg-gradient-to-r from-blue-500 to-blue-600 text-white;
 }
 
 .action-button.start-button:hover:not(.disabled) {
-  @apply from-green-600 to-emerald-600;
+  @apply from-blue-600 to-blue-700;
 }
 
 .action-button.stop-button {
