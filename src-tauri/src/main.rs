@@ -127,7 +127,7 @@ fn main() {
                 argv, cwd
             );
             // 使用安全的窗口显示函数
-            if let Err(e) = window_utils::safe_show_window(&app, "main") {
+            if let Err(e) = window_utils::safe_show_window(app, "main") {
                 eprintln!("Failed to show window on second instance: {}", e);
             }
         }))

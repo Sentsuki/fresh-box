@@ -35,7 +35,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             {
                 let app = tray.app_handle();
                 // 使用安全的窗口切换函数
-                if let Err(e) = crate::window_utils::safe_toggle_window(&app, "main") {
+                if let Err(e) = crate::window_utils::safe_toggle_window(app, "main") {
                     eprintln!("Failed to toggle window: {}", e);
                 }
             }
