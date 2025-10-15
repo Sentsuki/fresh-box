@@ -6,6 +6,7 @@ mod config_override;
 mod errors;
 mod singbox;
 mod tray;
+mod window_utils;
 
 use singbox::{SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly};
 use tauri::Manager;
@@ -93,25 +94,29 @@ fn main() {
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
+                    // 阻止关闭并隐藏窗口
                     api.prevent_close();
                     let _ = window.hide();
                 }
                 tauri::WindowEvent::Focused(focused) => {
                     if *focused {
-                        // 窗口获得焦点时，检查sing-box进程状态
+                        // 检查窗口和应用状态是否有效
                         let app = window.app_handle();
-                        let state = app.state::<SingboxState>();
-                        
-                        // 异步刷新进程检测状态
-                        let state_clone = state.inner().clone();
-                        tauri::async_runtime::spawn(async move {
-                            if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
-                                if has_process {
-                                    println!("Window focused: Sing-box process detected and under management");
+                        if let Some(state) = app.try_state::<SingboxState>() {
+                            let state_clone = state.inner().clone();
+                            tauri::async_runtime::spawn(async move {
+                                if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
+                                    if has_process {
+                                        println!("Window focused: Sing-box process detected and under management");
+                                    }
                                 }
-                            }
-                        });
+                            });
+                        }
                     }
+                }
+                tauri::WindowEvent::Destroyed => {
+                    // 窗口被销毁时的清理逻辑
+                    println!("Window destroyed, performing cleanup");
                 }
                 _ => {}
             }
@@ -121,9 +126,9 @@ fn main() {
                 "Second instance launched with args: {:?} in {:?}",
                 argv, cwd
             );
-            if let Some(window) = app.get_webview_window("main") {
-                let _ = window.show();
-                let _ = window.set_focus();
+            // 使用安全的窗口显示函数
+            if let Err(e) = window_utils::safe_show_window(app, "main") {
+                eprintln!("Failed to show window on second instance: {}", e);
             }
         }))
         .run(tauri::generate_context!())

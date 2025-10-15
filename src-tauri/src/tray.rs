@@ -34,25 +34,33 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             } = event
             {
                 let app = tray.app_handle();
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                // 使用安全的窗口切换函数
+                if let Err(e) = crate::window_utils::safe_toggle_window(app, "main") {
+                    eprintln!("Failed to toggle window: {}", e);
                 }
             }
         })
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => {
-                let state = app.state::<SingboxState>();
-                crate::singbox::cleanup_process(&state);
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.hide();
+                // 安全地清理资源
+                if let Some(state) = app.try_state::<SingboxState>() {
+                    crate::singbox::cleanup_process(&state);
                 }
-                app.exit(0);
+                
+                // 安全地关闭窗口
+                if let Some(window) = app.get_webview_window("main") {
+                    let _ = window.close();
+                }
+                
+                // 延迟退出以确保清理完成
+                std::thread::spawn(|| {
+                    std::thread::sleep(std::time::Duration::from_millis(100));
+                    std::process::exit(0);
+                });
             }
             "show" => {
-                if let Some(window) = app.get_webview_window("main") {
-                    let _ = window.show();
-                    let _ = window.set_focus();
+                if let Err(e) = crate::window_utils::safe_show_window(app, "main") {
+                    eprintln!("Failed to show window: {}", e);
                 }
             }
             _ => {}
