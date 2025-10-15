@@ -5,6 +5,7 @@ pub mod config_override;
 pub mod errors;
 pub mod singbox;
 pub mod tray;
+pub mod window_utils;
 
 // 重新导出常用类型，让它们更容易访问
 pub use errors::CommandError;
