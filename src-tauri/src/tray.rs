@@ -43,7 +43,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .on_menu_event(|app, event| match event.id.as_ref() {
             "quit" => {
                 // 安全地清理资源
-                if let Ok(state) = app.try_state::<SingboxState>() {
+                if let Some(state) = app.try_state::<SingboxState>() {
                     crate::singbox::cleanup_process(&state);
                 }
                 

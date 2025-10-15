@@ -94,17 +94,16 @@ fn main() {
         .on_window_event(|window, event| {
             match event {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
-                    // 检查窗口是否仍然有效
-                    if window.is_closable().unwrap_or(false) {
-                        api.prevent_close();
-                        let _ = window.hide();
-                    }
+                    // 阻止关闭并隐藏窗口
+                    api.prevent_close();
+                    let _ = window.hide();
                 }
                 tauri::WindowEvent::Focused(focused) => {
                     if *focused {
                         // 检查窗口和应用状态是否有效
-                        if let Ok(app) = window.app_handle().try_state::<SingboxState>() {
-                            let state_clone = app.inner().clone();
+                        let app = window.app_handle();
+                        if let Some(state) = app.try_state::<SingboxState>() {
+                            let state_clone = state.inner().clone();
                             tauri::async_runtime::spawn(async move {
                                 if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
                                     if has_process {

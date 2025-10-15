@@ -1,6 +1,6 @@
 // window_utils.rs - 安全的窗口操作工具
 
-use tauri::{AppHandle, WebviewWindow};
+use tauri::{AppHandle, WebviewWindow, Manager};
 
 /// 安全地显示窗口
 pub fn safe_show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
