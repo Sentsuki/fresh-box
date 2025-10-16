@@ -26,9 +26,17 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
 
     #[cfg(target_os = "windows")]
     {
-        Command::new("explorer").arg(exe_dir).spawn().map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to open directory: {}", e))
-        })?;
+        // 使用 Windows API 直接打开目录，避免命令行窗口闪烁
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        
+        Command::new("explorer")
+            .arg(exe_dir)
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| {
+                CommandError::ResourceNotFound(format!("Failed to open directory: {}", e))
+            })?;
     }
 
     #[cfg(target_os = "macos")]
@@ -226,8 +234,13 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
 
     #[cfg(target_os = "windows")]
     {
+        // 使用 Windows API 直接打开文件，避免命令行窗口闪烁
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        
         Command::new("cmd")
             .args(["/C", "start", "", &full_path.to_string_lossy()])
+            .creation_flags(CREATE_NO_WINDOW)
             .spawn()
             .map_err(|e| {
                 CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
