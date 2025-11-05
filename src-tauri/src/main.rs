@@ -83,7 +83,7 @@ fn main() {
         .setup(|app| {
             // 设置系统托盘
             tray::setup_system_tray(app)?;
-            
+
             // 初始化时检测现有的sing-box进程
             let state = app.state::<SingboxState>();
             let state_clone = state.inner().clone();
@@ -97,7 +97,7 @@ fn main() {
                     }
                 }
             });
-            
+
             Ok(())
         })
         .on_window_event(|window, event| {
