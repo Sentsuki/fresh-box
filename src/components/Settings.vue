@@ -589,6 +589,24 @@ const isValidJson = computed(() => {
 });
 
 const saveOverride = async () => {
+  // 检查是否为空内容
+  if (!overrideConfig.value.trim()) {
+    // 空内容时关闭覆盖并清空配置
+    try {
+      await clearConfig();
+      await disableOverride();
+      toastRef.value?.showToast(
+        "Empty configuration - override disabled",
+        "success",
+        "save",
+      );
+    } catch (error) {
+      console.error("Failed to disable config override:", error);
+      toastRef.value?.showToast("Failed to disable configuration override", "error");
+    }
+    return;
+  }
+
   if (!isValidJson.value) {
     toastRef.value?.showToast(
       "Please fix JSON format errors before saving",
