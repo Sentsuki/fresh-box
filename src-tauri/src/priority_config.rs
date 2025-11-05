@@ -8,6 +8,7 @@ const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct PriorityConfig {
     pub stack: Option<StackConfig>,
+    pub log: Option<LogConfig>,
     // 未来可以添加其他高优先级配置选项
     // pub dns: Option<DnsConfig>,
     // pub routing: Option<RoutingConfig>,
@@ -19,10 +20,18 @@ pub struct StackConfig {
     pub stack_option: String, // "mixed", "gvisor", "system"
 }
 
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct LogConfig {
+    pub enabled: bool,
+    pub disabled: bool, // log.disabled
+    pub level: String,  // "trace", "debug", "info", "warn", "error", "fatal", "panic"
+}
+
 impl Default for PriorityConfig {
     fn default() -> Self {
         Self {
             stack: None,
+            log: None,
         }
     }
 }
@@ -32,6 +41,16 @@ impl Default for StackConfig {
         Self {
             enabled: false,
             stack_option: "mixed".to_string(),
+        }
+    }
+}
+
+impl Default for LogConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            disabled: false,
+            level: "info".to_string(),
         }
     }
 }
@@ -78,6 +97,11 @@ pub fn apply_priority_config(config: &mut Value, priority_config: &PriorityConfi
     // 应用 stack 配置
     if let Some(stack_config) = &priority_config.stack {
         apply_stack_config(config, stack_config)?;
+    }
+    
+    // 应用 log 配置
+    if let Some(log_config) = &priority_config.log {
+        apply_log_config(config, log_config)?;
     }
     
     // 未来可以在这里添加其他配置的应用逻辑
@@ -127,3 +151,29 @@ pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Res
     Ok(())
 }
 
+// 应用 log 配置到配置对象
+pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<(), CommandError> {
+    if !log_config.enabled {
+        return Ok(());
+    }
+
+    // 确保配置中有 log 对象
+    if config.get("log").is_none() {
+        config.as_object_mut()
+            .ok_or_else(|| CommandError::ResourceNotFound("Invalid config format".to_string()))?
+            .insert("log".to_string(), Value::Object(serde_json::Map::new()));
+    }
+
+    // 获取 log 对象的可变引用
+    let log_obj = config.get_mut("log")
+        .and_then(|v| v.as_object_mut())
+        .ok_or_else(|| CommandError::ResourceNotFound("Invalid log configuration format".to_string()))?;
+
+    // 应用 disabled 设置
+    log_obj.insert("disabled".to_string(), Value::Bool(log_config.disabled));
+    
+    // 应用 level 设置
+    log_obj.insert("level".to_string(), Value::String(log_config.level.clone()));
+
+    Ok(())
+}

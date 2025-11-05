@@ -49,6 +49,74 @@
           </div>
         </div>
 
+        <!-- Log Configuration Switch -->
+        <div class="setting-item">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-700 font-medium">Log Configuration</span>
+              <label class="relative cursor-pointer" :class="{ 'opacity-50 cursor-not-allowed': !hasLogField }">
+                <input
+                  v-model="isLogSwitchEnabled"
+                  type="checkbox"
+                  class="sr-only"
+                  :disabled="!hasLogField"
+                  @change="updateLogSwitchState"
+                />
+                <div
+                  class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                  :class="isLogSwitchEnabled && hasLogField ? 'bg-green-500' : 'bg-gray-200'"
+                />
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                  :class="isLogSwitchEnabled && hasLogField ? 'translate-x-5' : 'translate-x-0'"
+                />
+              </label>
+            </div>
+            <div v-if="!hasLogField" class="text-xs text-gray-500">
+              No log field found in current configuration
+            </div>
+            <div v-else-if="isLogSwitchEnabled" class="mt-2 space-y-3">
+              <!-- Log Disabled Setting -->
+              <div class="flex items-center justify-between">
+                <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+                <label class="relative cursor-pointer">
+                  <input
+                    v-model="logDisabled"
+                    type="checkbox"
+                    class="sr-only"
+                    @change="updateLogConfiguration"
+                  />
+                  <div
+                    class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                    :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
+                  />
+                  <div
+                    class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                    :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
+                  />
+                </label>
+              </div>
+              <!-- Log Level Setting -->
+              <div>
+                <label class="block text-xs text-gray-600 font-medium mb-1">Log Level</label>
+                <select
+                  v-model="selectedLogLevel"
+                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                  @change="updateLogConfiguration"
+                >
+                  <option value="trace">Trace</option>
+                  <option value="debug">Debug</option>
+                  <option value="info">Info</option>
+                  <option value="warn">Warn</option>
+                  <option value="error">Error</option>
+                  <option value="fatal">Fatal</option>
+                  <option value="panic">Panic</option>
+                </select>
+              </div>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-item">
           <span class="text-sm text-gray-700 font-medium"
             >Enable Config Override</span
@@ -219,6 +287,7 @@ import Toast from "./Toast.vue";
 
 type ConfigOverride = Record<string, unknown>;
 type StackOption = "mixed" | "gvisor" | "system";
+type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
@@ -233,6 +302,12 @@ const selectedStackOption = ref<StackOption>("mixed");
 const hasStackField = ref(false);
 const currentConfigContent = ref<any>(null);
 
+// Log configuration related refs
+const isLogSwitchEnabled = ref(false);
+const logDisabled = ref(false);
+const selectedLogLevel = ref<LogLevel>("info");
+const hasLogField = ref(false);
+
 const {
   isEnabled,
   config,
@@ -242,13 +317,15 @@ const {
   clearConfig,
 } = useConfigOverride();
 
-// 检查当前配置文件中是否有 stack 字段
+// 检查当前配置文件中是否有 stack 和 log 字段
 const checkStackField = async () => {
   try {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
     if (!selectedConfig) {
       hasStackField.value = false;
       isStackSwitchEnabled.value = false;
+      hasLogField.value = false;
+      isLogSwitchEnabled.value = false;
       return;
     }
 
@@ -293,10 +370,43 @@ const checkStackField = async () => {
       hasStackField.value = false;
       isStackSwitchEnabled.value = false;
     }
+
+    // 检查是否有 log 字段
+    if (configContent?.log && typeof configContent.log === 'object') {
+      hasLogField.value = true;
+      
+      // 加载 Priority Configuration 设置
+      const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
+      const logConfig = priorityConfig.log;
+      
+      if (logConfig) {
+        isLogSwitchEnabled.value = logConfig.enabled;
+        logDisabled.value = logConfig.disabled;
+        
+        if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
+          selectedLogLevel.value = logConfig.level as LogLevel;
+        }
+      } else {
+        // 如果没有保存的设置，从配置文件中读取当前值
+        if (typeof configContent.log.disabled === 'boolean') {
+          logDisabled.value = configContent.log.disabled;
+        }
+        if (typeof configContent.log.level === 'string' && 
+            ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(configContent.log.level)) {
+          selectedLogLevel.value = configContent.log.level as LogLevel;
+        }
+        isLogSwitchEnabled.value = false;
+      }
+    } else {
+      hasLogField.value = false;
+      isLogSwitchEnabled.value = false;
+    }
   } catch (error) {
-    console.error("Failed to check stack field:", error);
+    console.error("Failed to check stack and log fields:", error);
     hasStackField.value = false;
     isStackSwitchEnabled.value = false;
+    hasLogField.value = false;
+    isLogSwitchEnabled.value = false;
   }
 };
 
@@ -357,6 +467,68 @@ const updateStackConfiguration = async () => {
   } catch (error) {
     console.error("Failed to update stack configuration:", error);
     toastRef.value?.showToast("Failed to update stack configuration", "error");
+  }
+};
+
+// 更新 log 配置开关状态
+const updateLogSwitchState = async () => {
+  try {
+    // 先加载当前的 priority config
+    const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
+    
+    const updatedConfig = {
+      ...priorityConfig,
+      log: {
+        enabled: isLogSwitchEnabled.value,
+        disabled: logDisabled.value,
+        level: selectedLogLevel.value
+      }
+    };
+    
+    await invoke("save_priority_config", { config: updatedConfig });
+    
+    if (isLogSwitchEnabled.value) {
+      toastRef.value?.showToast(
+        `Log configuration enabled: level=${selectedLogLevel.value}, disabled=${logDisabled.value}`,
+        "success"
+      );
+    } else {
+      toastRef.value?.showToast("Log configuration disabled", "success");
+    }
+  } catch (error) {
+    console.error("Failed to update log switch state:", error);
+    toastRef.value?.showToast("Failed to update log configuration", "error");
+  }
+};
+
+// 更新 log 选项
+const updateLogConfiguration = async () => {
+  if (!hasLogField.value) {
+    return;
+  }
+
+  try {
+    // 先加载当前的 priority config
+    const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
+    
+    const updatedConfig = {
+      ...priorityConfig,
+      log: {
+        enabled: isLogSwitchEnabled.value,
+        disabled: logDisabled.value,
+        level: selectedLogLevel.value
+      }
+    };
+    
+    await invoke("save_priority_config", { config: updatedConfig });
+    
+    toastRef.value?.showToast(
+      `Log configuration updated: level=${selectedLogLevel.value}, disabled=${logDisabled.value}`,
+      "success"
+    );
+  } catch (error) {
+    console.error("Failed to update log configuration:", error);
+    toastRef.value?.showToast("Failed to update log configuration", "error");
   }
 };
 
