@@ -719,28 +719,6 @@ body,
   @apply border-b-0;
 }
 
-/* ===== Stack Configuration Styles ===== */
-.stack-options {
-  @apply flex gap-2 mt-3;
-}
-
-.stack-option {
-  @apply flex-1 cursor-pointer;
-}
-
-.stack-option-label {
-  @apply block w-full px-3 py-2 text-center text-sm font-medium border border-gray-300 rounded-md transition-all duration-200;
-  @apply bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400;
-}
-
-.stack-option.active .stack-option-label {
-  @apply bg-blue-500 text-white border-blue-500;
-}
-
-.stack-option:hover:not(.active) .stack-option-label {
-  @apply bg-gray-50 border-gray-400;
-}
-
 /* ===== Log Configuration Styles ===== */
 .log-toggle-row {
   @apply flex items-center justify-between mt-3;
@@ -750,38 +728,92 @@ body,
   @apply mt-3;
 }
 
-.log-level-options {
-  @apply grid grid-cols-4 gap-2;
+/* ===== Slider Components ===== */
+.slider-container {
+  @apply relative mt-3;
 }
 
-.log-level-option {
-  @apply cursor-pointer;
+.slider-track {
+  @apply relative w-full h-2 bg-gray-200 rounded-full cursor-pointer mb-4 transition-all duration-200;
 }
 
-.log-level-label {
-  @apply block w-full px-2 py-1.5 text-center text-xs font-medium border border-gray-300 rounded-md transition-all duration-200;
-  @apply bg-white text-gray-700 hover:bg-gray-50 hover:border-gray-400;
+.slider-track:hover {
+  @apply bg-gray-300;
 }
 
-.log-level-option.active .log-level-label {
-  @apply bg-blue-500 text-white border-blue-500;
+.slider-progress {
+  @apply absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300;
 }
 
-.log-level-option:hover:not(.active) .log-level-label {
-  @apply bg-gray-50 border-gray-400;
+.slider-thumb {
+  @apply absolute top-1/2 w-5 h-5 bg-white border-2 border-blue-500 rounded-full shadow-lg cursor-grab transition-all duration-200 transform -translate-y-1/2 -translate-x-1/2;
+}
+
+.slider-thumb:hover {
+  @apply scale-110 shadow-xl border-blue-600;
+}
+
+.slider-thumb:active {
+  @apply cursor-grabbing scale-105;
+}
+
+.slider-labels {
+  @apply flex justify-between;
+}
+
+.slider-label {
+  @apply text-xs font-medium text-gray-500 cursor-pointer px-2 py-1 rounded transition-all duration-200 text-center;
+}
+
+.slider-label:hover {
+  @apply text-gray-700 bg-gray-100;
+}
+
+.slider-label.active {
+  @apply text-blue-600 bg-blue-50 font-semibold;
+}
+
+.log-labels {
+  @apply grid grid-cols-7 gap-1;
+}
+
+.log-labels .slider-label {
+  @apply text-center text-xs px-1;
+}
+
+/* ===== Animation Enhancements ===== */
+@keyframes slider-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.slider-thumb:hover {
+  animation: slider-glow 2s infinite;
+}
+
+.setting-item-vertical:hover .slider-progress {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
 }
 
 /* ===== Responsive Adjustments ===== */
 @media (max-width: 768px) {
-  .stack-options {
-    @apply flex-col gap-1;
+  .slider-labels {
+    @apply text-xs;
   }
   
-  .log-level-options {
-    @apply grid-cols-2 gap-1;
+  .log-labels {
+    @apply grid-cols-4 gap-0.5;
   }
   
-  .log-level-label {
-    @apply px-1 py-1 text-xs;
+  .log-labels .slider-label {
+    @apply px-0.5 py-0.5 text-xs;
+  }
+  
+  .slider-thumb {
+    @apply w-4 h-4;
   }
 }
