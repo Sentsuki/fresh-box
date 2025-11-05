@@ -467,8 +467,7 @@ const setLogLevel = (level: LogLevel) => {
 // Stack segmented control positioning
 const getStackBackgroundPosition = () => {
   const index = stackOptions.indexOf(selectedStackOption.value);
-  const segmentWidth = 100 / stackOptions.length;
-  return `${index * segmentWidth}%`;
+  return `${(index / stackOptions.length) * 100}%`;
 };
 
 const getStackBackgroundWidth = () => {
@@ -478,8 +477,7 @@ const getStackBackgroundWidth = () => {
 // Log segmented control positioning
 const getLogBackgroundPosition = () => {
   const index = logLevels.indexOf(selectedLogLevel.value);
-  const segmentWidth = 100 / logLevels.length;
-  return `${index * segmentWidth}%`;
+  return `${(index / logLevels.length) * 100}%`;
 };
 
 const getLogBackgroundWidth = () => {
