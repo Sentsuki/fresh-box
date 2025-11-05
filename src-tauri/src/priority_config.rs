@@ -85,14 +85,9 @@ pub struct ConfigFieldsCheck {
 pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsCheck, CommandError> {
     use std::fs;
     
-    println!("Checking config fields for: {}", config_path);
-    
     // 读取原始配置文件
     let config_content = fs::read_to_string(&config_path)?;
-    println!("Config file content length: {}", config_content.len());
-    
     let config: Value = serde_json::from_str(&config_content)?;
-    println!("Parsed config successfully");
     
     let mut result = ConfigFieldsCheck {
         has_stack_field: false,
@@ -104,14 +99,10 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
     
     // 检查原始配置文件中的 stack 字段
     if let Some(inbounds) = config.get("inbounds") {
-        println!("Found inbounds in config");
         if let Some(inbounds_array) = inbounds.as_array() {
-            println!("Inbounds is array with {} items", inbounds_array.len());
-            for (i, inbound) in inbounds_array.iter().enumerate() {
+            for inbound in inbounds_array {
                 if let Some(inbound_obj) = inbound.as_object() {
-                    println!("Inbound {} keys: {:?}", i, inbound_obj.keys().collect::<Vec<_>>());
                     if let Some(stack_value) = inbound_obj.get("stack") {
-                        println!("Found stack field with value: {:?}", stack_value);
                         result.has_stack_field = true;
                         if let Some(stack_str) = stack_value.as_str() {
                             result.current_stack_value = Some(stack_str.to_string());
@@ -121,15 +112,11 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
                 }
             }
         }
-    } else {
-        println!("No inbounds found in config");
     }
     
     // 检查原始配置文件中的 log 字段
     if let Some(log_obj) = config.get("log") {
-        println!("Found log field in config: {:?}", log_obj);
         if log_obj.is_object() {
-            println!("Log field is object");
             result.has_log_field = true;
             
             // 获取当前的 disabled 值
@@ -194,11 +181,8 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
                 }
             }
         }
-    } else {
-        println!("No config override file found");
     }
     
-    println!("Final result: has_stack_field={}, has_log_field={}", result.has_stack_field, result.has_log_field);
     Ok(result)
 }
 

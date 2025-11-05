@@ -9,11 +9,6 @@
       <div class="settings-section">
         <h3>Configuration</h3>
         
-        <!-- Debug Info -->
-        <div class="text-xs text-gray-500 mb-2">
-          Debug: hasStackField={{ hasStackField }}, hasLogField={{ hasLogField }}
-        </div>
-        
         <!-- Stack Configuration -->
         <div v-if="hasStackField" class="setting-item">
           <div class="flex flex-col gap-2">
@@ -277,9 +272,7 @@ const {
 const checkConfigFields = async () => {
   try {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
-    console.log("Selected config:", selectedConfig);
     if (!selectedConfig) {
-      console.log("No config selected, hiding fields");
       hasStackField.value = false;
       hasLogField.value = false;
       return;
@@ -294,19 +287,13 @@ const checkConfigFields = async () => {
       current_log_level?: string;
     }>("check_config_fields", { configPath: selectedConfig });
     
-    console.log("Fields check result:", fieldsCheck);
-    console.log("fieldsCheck.has_stack_field:", fieldsCheck.has_stack_field);
-    console.log("fieldsCheck.has_log_field:", fieldsCheck.has_log_field);
-    
     // 设置 stack 字段检查结果
     hasStackField.value = fieldsCheck.has_stack_field;
-    console.log("hasStackField set to:", hasStackField.value);
     
     if (fieldsCheck.has_stack_field) {
       try {
         // 加载 Priority Configuration 设置
         const priorityConfig = await invoke<{stack?: string}>("load_priority_config");
-        console.log("Priority config loaded:", priorityConfig);
         
         if (priorityConfig.stack && ['mixed', 'gvisor', 'system'].includes(priorityConfig.stack)) {
           selectedStackOption.value = priorityConfig.stack as StackOption;
@@ -318,7 +305,6 @@ const checkConfigFields = async () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load priority config for stack:", error);
         // 如果加载失败，使用配置文件中的当前值
         if (fieldsCheck.current_stack_value && 
             ['mixed', 'gvisor', 'system'].includes(fieldsCheck.current_stack_value)) {
@@ -329,13 +315,11 @@ const checkConfigFields = async () => {
 
     // 设置 log 字段检查结果
     hasLogField.value = fieldsCheck.has_log_field;
-    console.log("hasLogField set to:", hasLogField.value);
     
     if (fieldsCheck.has_log_field) {
       try {
         // 加载 Priority Configuration 设置
         const priorityConfig = await invoke<{log?: {disabled: boolean, level: string}}>("load_priority_config");
-        console.log("Priority config loaded for log:", priorityConfig);
         
         if (priorityConfig.log) {
           logDisabled.value = priorityConfig.log.disabled;
@@ -353,7 +337,6 @@ const checkConfigFields = async () => {
           }
         }
       } catch (error) {
-        console.error("Failed to load priority config for log:", error);
         // 如果加载失败，使用配置文件中的当前值
         if (typeof fieldsCheck.current_log_disabled === 'boolean') {
           logDisabled.value = fieldsCheck.current_log_disabled;
@@ -447,18 +430,8 @@ onMounted(async () => {
     console.error("Failed to load config override:", error);
   }
 
-  // 清除可能损坏的 priority config（临时调试）
-  try {
-    await invoke("clear_priority_config");
-    console.log("Cleared priority config");
-  } catch (error) {
-    console.log("No priority config to clear or failed to clear:", error);
-  }
-
   // 检查配置字段
-  console.log("Starting config fields check...");
   await checkConfigFields();
-  console.log("Config fields check completed");
   
   // 添加窗口聚焦事件监听
   window.addEventListener('focus', handleWindowFocus);
