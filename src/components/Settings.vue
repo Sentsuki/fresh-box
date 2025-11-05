@@ -10,56 +10,56 @@
         <h3>Configuration</h3>
         
         <!-- Stack Configuration -->
-        <div v-if="hasStackField" class="setting-item">
-          <span class="text-sm text-gray-700 font-medium">Stack Configuration</span>
-          <div class="stack-slider-wrapper">
-            <div class="stack-options">
-              <label 
-                v-for="option in stackOptions" 
-                :key="option"
-                class="stack-option"
-                :class="{ active: selectedStackOption === option }"
-              >
-                <input
-                  type="radio"
-                  :value="option"
-                  v-model="selectedStackOption"
-                  @change="updateStackConfiguration"
-                  class="sr-only"
-                />
-                <span class="stack-option-label">{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
-              </label>
-            </div>
+        <div v-if="hasStackField" class="setting-item-vertical">
+          <span class="text-sm text-gray-700 font-medium">Stack</span>
+          <div class="stack-options">
+            <label 
+              v-for="option in stackOptions" 
+              :key="option"
+              class="stack-option"
+              :class="{ active: selectedStackOption === option }"
+            >
+              <input
+                type="radio"
+                :value="option"
+                v-model="selectedStackOption"
+                @change="updateStackConfiguration"
+                class="sr-only"
+              />
+              <span class="stack-option-label">{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
+            </label>
           </div>
         </div>
 
         <!-- Log Configuration -->
-        <div v-if="hasLogField" class="setting-item">
-          <span class="text-sm text-gray-700 font-medium">Log Configuration</span>
-          <div class="log-config-wrapper">
-            <!-- Log Disabled Toggle -->
-            <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
-              <label class="relative cursor-pointer">
-                <input
-                  v-model="logDisabled"
-                  type="checkbox"
-                  class="sr-only"
-                  @change="updateLogConfiguration"
-                />
-                <div
-                  class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-                  :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
-                />
-                <div
-                  class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-                  :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
-                />
-              </label>
-            </div>
-            
-            <!-- Log Level Options -->
-            <div v-if="!logDisabled" class="log-level-options">
+        <div v-if="hasLogField" class="setting-item-vertical">
+          <span class="text-sm text-gray-700 font-medium">Log</span>
+          
+          <!-- Disable Logging Toggle -->
+          <div class="log-toggle-row">
+            <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+            <label class="relative cursor-pointer">
+              <input
+                v-model="logDisabled"
+                type="checkbox"
+                class="sr-only"
+                @change="updateLogConfiguration"
+              />
+              <div
+                class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
+              />
+              <div
+                class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
+              />
+            </label>
+          </div>
+          
+          <!-- Log Level Options -->
+          <div v-if="!logDisabled" class="log-level-section">
+            <span class="text-xs text-gray-600 font-medium mb-2 block">Level</span>
+            <div class="log-level-options">
               <label 
                 v-for="level in logLevels" 
                 :key="level"

@@ -710,13 +710,18 @@ body,
     opacity: 1;
   }
 }
-/* ===== Stack Configuration Styles ===== */
-.stack-slider-wrapper {
-  @apply mt-3;
+/* ===== Vertical Setting Item ===== */
+.setting-item-vertical {
+  @apply flex flex-col py-3 border-b border-gray-200;
 }
 
+.setting-item-vertical:last-child {
+  @apply border-b-0;
+}
+
+/* ===== Stack Configuration Styles ===== */
 .stack-options {
-  @apply flex gap-2;
+  @apply flex gap-2 mt-3;
 }
 
 .stack-option {
@@ -737,12 +742,12 @@ body,
 }
 
 /* ===== Log Configuration Styles ===== */
-.log-config-wrapper {
-  @apply mt-3 space-y-3;
+.log-toggle-row {
+  @apply flex items-center justify-between mt-3;
 }
 
-.log-toggle-row {
-  @apply flex items-center justify-between;
+.log-level-section {
+  @apply mt-3;
 }
 
 .log-level-options {
