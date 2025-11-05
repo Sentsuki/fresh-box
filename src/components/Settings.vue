@@ -14,7 +14,7 @@
           <span class="text-sm text-gray-700 font-medium mb-3 block">Stack</span>
           <div v-if="isLoading" class="segmented-control stack-segmented-control">
             <div class="segmented-control-track">
-              <div class="animate-pulse bg-gray-300 rounded-md h-9"></div>
+              <div class="animate-pulse bg-gray-300 rounded-md h-9"/>
             </div>
           </div>
           <div v-else class="segmented-control stack-segmented-control">
@@ -26,7 +26,7 @@
                   left: `calc(3px + ${stackOptions.indexOf(selectedStackOption)} * (100% - 6px) / ${stackOptions.length})`,
                   width: `calc((100% - 6px) / ${stackOptions.length})`
                 }"
-              ></div>
+              />
               <button
                 v-for="option in stackOptions"
                 :key="option"
@@ -48,14 +48,14 @@
             <!-- Loading placeholder for toggle -->
             <div class="log-toggle-row">
               <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
-              <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5"></div>
+              <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5"/>
             </div>
             <!-- Loading placeholder for segmented control -->
             <div class="log-level-section">
               <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
               <div class="segmented-control log-segmented-control">
                 <div class="segmented-control-track">
-                  <div class="animate-pulse bg-gray-300 rounded-md h-8"></div>
+                  <div class="animate-pulse bg-gray-300 rounded-md h-8"/>
                 </div>
               </div>
             </div>
@@ -95,7 +95,7 @@
                       left: `calc(3px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 6px) / ${logLevels.length})`,
                       width: `calc((100% - 6px) / ${logLevels.length})`
                     }"
-                  ></div>
+                  />
                   <button
                     v-for="level in logLevels"
                     :key="level"
@@ -290,6 +290,16 @@ type ConfigOverride = Record<string, unknown>;
 type StackOption = "mixed" | "gvisor" | "system";
 type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
+interface LogConfig {
+  disabled: boolean;
+  level: string;
+}
+
+interface PriorityConfig {
+  stack?: string;
+  log?: LogConfig;
+}
+
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
 const rawConfig = ref("");
@@ -340,7 +350,7 @@ const loadConfiguration = async () => {
         current_log_disabled?: boolean;
         current_log_level?: string;
       }>("check_config_fields", { configPath: selectedConfig }),
-      invoke<{stack?: string; log?: {disabled: boolean, level: string}}>("load_priority_config").catch(() => ({}))
+      invoke<PriorityConfig>("load_priority_config").catch(() => ({} as PriorityConfig))
     ]);
     
     // 设置字段可用性
@@ -349,7 +359,7 @@ const loadConfiguration = async () => {
     
     // 设置 stack 配置
     if (fieldsCheck.has_stack_field) {
-      const stackValue = (priorityConfig as any)?.stack || fieldsCheck.current_stack_value;
+      const stackValue = priorityConfig.stack || fieldsCheck.current_stack_value;
       if (stackValue && ['mixed', 'gvisor', 'system'].includes(stackValue)) {
         selectedStackOption.value = stackValue as StackOption;
       }
@@ -357,7 +367,7 @@ const loadConfiguration = async () => {
     
     // 设置 log 配置
     if (fieldsCheck.has_log_field) {
-      const logConfig = (priorityConfig as any)?.log;
+      const logConfig = priorityConfig.log;
       if (logConfig) {
         logDisabled.value = logConfig.disabled;
         if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
@@ -394,9 +404,9 @@ const updateStackConfiguration = async () => {
 
   try {
     // 先加载当前的 priority config
-    const priorityConfig = await invoke<{stack?: string}>("load_priority_config");
+    const priorityConfig = await invoke<PriorityConfig>("load_priority_config");
     
-    const updatedConfig = {
+    const updatedConfig: PriorityConfig = {
       ...priorityConfig,
       stack: selectedStackOption.value
     };
@@ -421,9 +431,9 @@ const updateLogConfiguration = async () => {
 
   try {
     // 先加载当前的 priority config
-    const priorityConfig = await invoke<{log?: {disabled: boolean, level: string}}>("load_priority_config");
+    const priorityConfig = await invoke<PriorityConfig>("load_priority_config");
     
-    const updatedConfig = {
+    const updatedConfig: PriorityConfig = {
       ...priorityConfig,
       log: {
         disabled: logDisabled.value,
