@@ -76,9 +76,6 @@ fn main() {
             priority_config::save_priority_config,
             priority_config::load_priority_config,
             priority_config::clear_priority_config,
-            priority_config::save_stack_config,
-            priority_config::load_stack_config,
-            priority_config::clear_stack_config,
         ])
         .setup(|app| {
             // 设置系统托盘

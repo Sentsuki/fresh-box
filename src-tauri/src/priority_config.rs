@@ -70,26 +70,7 @@ pub async fn clear_priority_config() -> Result<(), CommandError> {
     Ok(())
 }
 
-// 兼容性函数 - 保持旧的 API 接口
-#[tauri::command]
-pub async fn save_stack_config(config: StackConfig) -> Result<(), CommandError> {
-    let mut priority_config = load_priority_config().await?;
-    priority_config.stack = Some(config);
-    save_priority_config(priority_config).await
-}
 
-#[tauri::command]
-pub async fn load_stack_config() -> Result<StackConfig, CommandError> {
-    let priority_config = load_priority_config().await?;
-    Ok(priority_config.stack.unwrap_or_default())
-}
-
-#[tauri::command]
-pub async fn clear_stack_config() -> Result<(), CommandError> {
-    let mut priority_config = load_priority_config().await?;
-    priority_config.stack = None;
-    save_priority_config(priority_config).await
-}
 
 // 应用优先级配置到配置对象
 // 这个函数会在 Config Override 之后调用，确保优先级更高
@@ -147,6 +128,7 @@ pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Res
 }
 
 // 检查配置中是否存在 stack 字段
+#[allow(dead_code)]
 pub fn has_stack_field(config: &Value) -> bool {
     if let Some(inbounds) = config.get("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array() {
@@ -163,6 +145,7 @@ pub fn has_stack_field(config: &Value) -> bool {
 }
 
 // 获取当前配置中的 stack 值
+#[allow(dead_code)]
 pub fn get_current_stack_value(config: &Value) -> Option<String> {
     if let Some(inbounds) = config.get("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array() {

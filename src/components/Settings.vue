@@ -266,12 +266,16 @@ const checkStackField = async () => {
       hasStackField.value = hasStack;
       
       if (hasStack) {
-        // 加载 Stack Configuration 设置
-        const stackConfig = await invoke<{enabled: boolean, stack_option: string}>("load_stack_config");
-        isStackSwitchEnabled.value = stackConfig.enabled;
+        // 加载 Priority Configuration 设置
+        const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
+        const stackConfig = priorityConfig.stack;
         
-        if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
-          selectedStackOption.value = stackConfig.stack_option as StackOption;
+        if (stackConfig) {
+          isStackSwitchEnabled.value = stackConfig.enabled;
+          
+          if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
+            selectedStackOption.value = stackConfig.stack_option as StackOption;
+          }
         } else {
           // 如果没有保存的设置，从配置文件中读取当前值
           const stackInbound = configContent.inbounds.find((inbound: any) => 
@@ -280,6 +284,7 @@ const checkStackField = async () => {
           if (stackInbound && ['mixed', 'gvisor', 'system'].includes(stackInbound.stack)) {
             selectedStackOption.value = stackInbound.stack as StackOption;
           }
+          isStackSwitchEnabled.value = false;
         }
       } else {
         isStackSwitchEnabled.value = false;
@@ -298,12 +303,18 @@ const checkStackField = async () => {
 // 更新 stack 配置开关状态
 const updateStackSwitchState = async () => {
   try {
-    const stackConfig = {
-      enabled: isStackSwitchEnabled.value,
-      stack_option: selectedStackOption.value
+    // 先加载当前的 priority config
+    const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
+    
+    const updatedConfig = {
+      ...priorityConfig,
+      stack: {
+        enabled: isStackSwitchEnabled.value,
+        stack_option: selectedStackOption.value
+      }
     };
     
-    await invoke("save_stack_config", { config: stackConfig });
+    await invoke("save_priority_config", { config: updatedConfig });
     
     if (isStackSwitchEnabled.value) {
       toastRef.value?.showToast(
@@ -326,12 +337,18 @@ const updateStackConfiguration = async () => {
   }
 
   try {
-    const stackConfig = {
-      enabled: isStackSwitchEnabled.value,
-      stack_option: selectedStackOption.value
+    // 先加载当前的 priority config
+    const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
+    
+    const updatedConfig = {
+      ...priorityConfig,
+      stack: {
+        enabled: isStackSwitchEnabled.value,
+        stack_option: selectedStackOption.value
+      }
     };
     
-    await invoke("save_stack_config", { config: stackConfig });
+    await invoke("save_priority_config", { config: updatedConfig });
     
     toastRef.value?.showToast(
       `Stack option updated to: ${selectedStackOption.value}`,
