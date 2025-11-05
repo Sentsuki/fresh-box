@@ -710,3 +710,171 @@ body,
     opacity: 1;
   }
 }
+/* ===== Modern Settings Components ===== */
+.setting-item-modern {
+  @apply mb-8 p-6 bg-white rounded-xl border border-gray-200 shadow-sm transition-all duration-300;
+}
+
+.setting-item-modern:hover {
+  @apply shadow-md border-gray-300;
+  transform: translateY(-1px);
+}
+
+.setting-header {
+  @apply flex items-center justify-between mb-6;
+}
+
+.setting-title-group {
+  @apply flex items-center gap-3;
+}
+
+.setting-icon {
+  @apply text-xl;
+}
+
+.setting-title {
+  @apply text-lg font-semibold text-gray-800;
+}
+
+.setting-value-display {
+  @apply px-4 py-2 bg-blue-50 text-blue-700 rounded-lg text-sm font-medium border border-blue-200;
+}
+
+/* ===== Modern Toggle Switch ===== */
+.log-toggle-container {
+  @apply flex items-center justify-between mb-6 p-4 bg-gray-50 rounded-lg;
+}
+
+.toggle-label {
+  @apply text-sm font-medium text-gray-700;
+}
+
+.modern-toggle {
+  @apply cursor-pointer;
+}
+
+.toggle-track {
+  @apply w-12 h-6 bg-gray-300 rounded-full shadow-inner transition-all duration-300 relative;
+}
+
+.toggle-track.active {
+  @apply bg-blue-500;
+}
+
+.toggle-thumb {
+  @apply absolute top-0.5 left-0.5 w-5 h-5 bg-white rounded-full shadow-md transition-all duration-300 transform;
+}
+
+.toggle-thumb.active {
+  @apply translate-x-6;
+}
+
+/* ===== Modern Slider Components ===== */
+.slider-container {
+  @apply relative;
+}
+
+.slider-track {
+  @apply relative w-full h-2 bg-gray-200 rounded-full cursor-pointer mb-4;
+}
+
+.slider-progress {
+  @apply absolute top-0 left-0 h-full bg-gradient-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300;
+}
+
+.slider-thumb {
+  @apply absolute top-1/2 w-5 h-5 bg-white border-2 border-blue-500 rounded-full shadow-lg cursor-grab transition-all duration-200 transform -translate-y-1/2 -translate-x-1/2;
+}
+
+.slider-thumb:hover {
+  @apply scale-110 shadow-xl;
+}
+
+.slider-thumb:active {
+  @apply cursor-grabbing scale-105;
+}
+
+.slider-labels {
+  @apply flex justify-between;
+}
+
+.slider-label {
+  @apply text-xs font-medium text-gray-500 cursor-pointer px-2 py-1 rounded transition-all duration-200;
+}
+
+.slider-label:hover {
+  @apply text-gray-700 bg-gray-100;
+}
+
+.slider-label.active {
+  @apply text-blue-600 bg-blue-50 font-semibold;
+}
+
+.log-labels {
+  @apply grid grid-cols-7 gap-1;
+}
+
+.log-labels .slider-label {
+  @apply text-center text-xs;
+}
+
+/* ===== Responsive Adjustments for Modern Components ===== */
+@media (max-width: 768px) {
+  .setting-item-modern {
+    @apply p-4 mb-6;
+  }
+  
+  .setting-header {
+    @apply flex-col items-start gap-3 mb-4;
+  }
+  
+  .setting-title-group {
+    @apply gap-2;
+  }
+  
+  .setting-title {
+    @apply text-base;
+  }
+  
+  .setting-value-display {
+    @apply px-3 py-1.5 text-xs;
+  }
+  
+  .log-toggle-container {
+    @apply p-3 mb-4;
+  }
+  
+  .slider-labels {
+    @apply text-xs;
+  }
+  
+  .log-labels {
+    @apply grid-cols-4 gap-0.5;
+  }
+  
+  .log-labels .slider-label {
+    @apply px-1 py-0.5 text-xs;
+  }
+}
+
+/* ===== Animation Enhancements ===== */
+@keyframes slider-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.slider-thumb:hover {
+  animation: slider-glow 2s infinite;
+}
+
+.setting-item-modern:hover .slider-progress {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
+}
+
+.setting-item-modern:hover .toggle-track.active {
+  @apply bg-blue-600;
+}
