@@ -2,6 +2,7 @@
 
 use crate::errors::CommandError;
 use std::process::Command;
+use serde_json::Value;
 
 // 获取 bin 目录路径的公共函数
 pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
@@ -263,6 +264,45 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
                 CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
             })?;
     }
+
+    Ok(())
+}
+#[tauri::command]
+pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    if !full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            full_path.display()
+        )));
+    }
+
+    let content = std::fs::read_to_string(&full_path).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
+    })?;
+
+    let json_value: Value = serde_json::from_str(&content).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e))
+    })?;
+
+    Ok(json_value)
+}
+
+#[tauri::command]
+pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    // 验证 JSON 格式
+    let _: Value = serde_json::from_str(&content).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Invalid JSON format: {}", e))
+    })?;
+
+    std::fs::write(&full_path, content).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))
+    })?;
 
     Ok(())
 }

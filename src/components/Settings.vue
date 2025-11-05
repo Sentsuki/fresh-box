@@ -8,6 +8,46 @@
     <div class="card-content">
       <div class="settings-section">
         <h3>Configuration</h3>
+        
+        <!-- Stack Configuration Switch -->
+        <div class="setting-item">
+          <div class="flex flex-col gap-2">
+            <div class="flex items-center justify-between">
+              <span class="text-sm text-gray-700 font-medium">Stack Configuration</span>
+              <label class="relative cursor-pointer" :class="{ 'opacity-50 cursor-not-allowed': !hasStackField }">
+                <input
+                  v-model="isStackSwitchEnabled"
+                  type="checkbox"
+                  class="sr-only"
+                  :disabled="!hasStackField"
+                />
+                <div
+                  class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                  :class="isStackSwitchEnabled && hasStackField ? 'bg-green-500' : 'bg-gray-200'"
+                />
+                <div
+                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                  :class="isStackSwitchEnabled && hasStackField ? 'translate-x-5' : 'translate-x-0'"
+                />
+              </label>
+            </div>
+            <div v-if="!hasStackField" class="text-xs text-gray-500">
+              No stack field found in current configuration
+            </div>
+            <div v-else-if="isStackSwitchEnabled" class="mt-2">
+              <select
+                v-model="selectedStackOption"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                @change="updateStackConfiguration"
+              >
+                <option value="mixed">Mixed</option>
+                <option value="gvisor">GVisor</option>
+                <option value="system">System</option>
+              </select>
+            </div>
+          </div>
+        </div>
+
         <div class="setting-item">
           <span class="text-sm text-gray-700 font-medium"
             >Enable Config Override</span
@@ -177,6 +217,7 @@ import { invoke } from "@tauri-apps/api/core";
 import Toast from "./Toast.vue";
 
 type ConfigOverride = Record<string, unknown>;
+type StackOption = "mixed" | "gvisor" | "system";
 
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
@@ -184,6 +225,12 @@ const rawConfig = ref("");
 const isRefreshing = ref(false);
 const isGettingStatus = ref(false);
 const processStatus = ref("");
+
+// Stack configuration related refs
+const isStackSwitchEnabled = ref(false);
+const selectedStackOption = ref<StackOption>("mixed");
+const hasStackField = ref(false);
+const currentConfigContent = ref<any>(null);
 
 const {
   isEnabled,
@@ -193,6 +240,87 @@ const {
   saveConfig,
   clearConfig,
 } = useConfigOverride();
+
+// 检查当前配置文件中是否有 stack 字段
+const checkStackField = async () => {
+  try {
+    const selectedConfig = localStorage.getItem("lastSelectedConfig");
+    if (!selectedConfig) {
+      hasStackField.value = false;
+      return;
+    }
+
+    const configContent = await invoke<any>("load_config_content", { 
+      configPath: selectedConfig 
+    });
+    
+    currentConfigContent.value = configContent;
+    
+    // 检查 inbounds 数组中是否有 stack 字段
+    if (configContent?.inbounds && Array.isArray(configContent.inbounds)) {
+      const hasStack = configContent.inbounds.some((inbound: any) => 
+        inbound && typeof inbound === 'object' && 'stack' in inbound
+      );
+      hasStackField.value = hasStack;
+      
+      if (hasStack) {
+        // 获取当前的 stack 值
+        const stackInbound = configContent.inbounds.find((inbound: any) => 
+          inbound && typeof inbound === 'object' && 'stack' in inbound
+        );
+        if (stackInbound && ['mixed', 'gvisor', 'system'].includes(stackInbound.stack)) {
+          selectedStackOption.value = stackInbound.stack as StackOption;
+        }
+      }
+    } else {
+      hasStackField.value = false;
+    }
+  } catch (error) {
+    console.error("Failed to check stack field:", error);
+    hasStackField.value = false;
+  }
+};
+
+// 更新 stack 配置
+const updateStackConfiguration = async () => {
+  if (!hasStackField.value || !currentConfigContent.value) {
+    return;
+  }
+
+  try {
+    const selectedConfig = localStorage.getItem("lastSelectedConfig");
+    if (!selectedConfig) {
+      toastRef.value?.showToast("No configuration selected", "error");
+      return;
+    }
+
+    // 更新配置内容中的 stack 字段
+    const updatedConfig = { ...currentConfigContent.value };
+    if (updatedConfig.inbounds && Array.isArray(updatedConfig.inbounds)) {
+      updatedConfig.inbounds = updatedConfig.inbounds.map((inbound: any) => {
+        if (inbound && typeof inbound === 'object' && 'stack' in inbound) {
+          return { ...inbound, stack: selectedStackOption.value };
+        }
+        return inbound;
+      });
+    }
+
+    // 保存更新后的配置
+    await invoke("save_config_content", {
+      configPath: selectedConfig,
+      content: JSON.stringify(updatedConfig, null, 2)
+    });
+
+    currentConfigContent.value = updatedConfig;
+    toastRef.value?.showToast(
+      `Stack configuration updated to: ${selectedStackOption.value}`,
+      "success"
+    );
+  } catch (error) {
+    console.error("Failed to update stack configuration:", error);
+    toastRef.value?.showToast("Failed to update stack configuration", "error");
+  }
+};
 
 // 加载已有配置
 onMounted(async () => {
@@ -205,6 +333,22 @@ onMounted(async () => {
   } catch (error) {
     console.error("Failed to load config override:", error);
   }
+
+  // 检查 stack 字段
+  await checkStackField();
+
+  // 监听配置文件变化
+  let lastSelectedConfig = localStorage.getItem("lastSelectedConfig");
+  const checkConfigChange = () => {
+    const currentSelectedConfig = localStorage.getItem("lastSelectedConfig");
+    if (currentSelectedConfig !== lastSelectedConfig) {
+      lastSelectedConfig = currentSelectedConfig;
+      checkStackField();
+    }
+  };
+
+  // 每隔2秒检查一次配置文件是否变化
+  setInterval(checkConfigChange, 2000);
 });
 
 const isOverrideEnabled = computed({
