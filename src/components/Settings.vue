@@ -138,7 +138,7 @@
       <div class="settings-section">
         <h3>Config Override</h3>
         
-        <div class="setting-item">
+        <div class="setting-item border-b-0!">
           <span class="text-base text-gray-700 font-medium"
             >Enable Override</span
           >
