@@ -17,8 +17,8 @@
               <div 
                 class="segmented-control-indicator"
                 :style="{ 
-                  left: `${(stackOptions.indexOf(selectedStackOption) / stackOptions.length) * 100}%`,
-                  width: `${100 / stackOptions.length}%`
+                  left: `calc(2px + ${stackOptions.indexOf(selectedStackOption)} * (100% - 4px) / ${stackOptions.length})`,
+                  width: `calc((100% - 4px) / ${stackOptions.length})`
                 }"
               ></div>
               <button
@@ -67,8 +67,8 @@
                 <div 
                   class="segmented-control-indicator"
                   :style="{ 
-                    left: `${(logLevels.indexOf(selectedLogLevel) / logLevels.length) * 100}%`,
-                    width: `${100 / logLevels.length}%`
+                    left: `calc(2px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 4px) / ${logLevels.length})`,
+                    width: `calc((100% - 4px) / ${logLevels.length})`
                   }"
                 ></div>
                 <button
