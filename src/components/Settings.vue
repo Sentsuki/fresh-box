@@ -10,76 +10,71 @@
         <h3>Configuration</h3>
         
         <!-- Stack Configuration -->
-        <div v-if="hasStackField" class="setting-item-modern">
-          <div class="setting-header">
-            <div class="setting-title-group">
-              <span class="setting-icon">⚙️</span>
-              <span class="setting-title">Stack Configuration</span>
-            </div>
-            <div class="setting-value-display">{{ selectedStackOption.charAt(0).toUpperCase() + selectedStackOption.slice(1) }}</div>
-          </div>
-          
-          <div class="slider-container">
-            <div class="slider-track">
-              <div class="slider-progress" :style="{ width: getStackProgressWidth() }"></div>
-              <div class="slider-thumb" :style="{ left: getStackThumbPosition() }" @mousedown="startStackDrag"></div>
-            </div>
-            <div class="slider-labels">
-              <span 
-                class="slider-label" 
-                :class="{ active: selectedStackOption === 'mixed' }"
-                @click="setStackOption('mixed')"
-              >Mixed</span>
-              <span 
-                class="slider-label" 
-                :class="{ active: selectedStackOption === 'gvisor' }"
-                @click="setStackOption('gvisor')"
-              >GVisor</span>
-              <span 
-                class="slider-label" 
-                :class="{ active: selectedStackOption === 'system' }"
-                @click="setStackOption('system')"
-              >System</span>
+        <div v-if="hasStackField" class="setting-item">
+          <span class="text-sm text-gray-700 font-medium">Stack Configuration</span>
+          <div class="stack-slider-wrapper">
+            <div class="stack-options">
+              <label 
+                v-for="option in stackOptions" 
+                :key="option"
+                class="stack-option"
+                :class="{ active: selectedStackOption === option }"
+              >
+                <input
+                  type="radio"
+                  :value="option"
+                  v-model="selectedStackOption"
+                  @change="updateStackConfiguration"
+                  class="sr-only"
+                />
+                <span class="stack-option-label">{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
+              </label>
             </div>
           </div>
         </div>
 
         <!-- Log Configuration -->
-        <div v-if="hasLogField" class="setting-item-modern">
-          <div class="setting-header">
-            <div class="setting-title-group">
-              <span class="setting-icon">📝</span>
-              <span class="setting-title">Log Configuration</span>
+        <div v-if="hasLogField" class="setting-item">
+          <span class="text-sm text-gray-700 font-medium">Log Configuration</span>
+          <div class="log-config-wrapper">
+            <!-- Log Disabled Toggle -->
+            <div class="log-toggle-row">
+              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+              <label class="relative cursor-pointer">
+                <input
+                  v-model="logDisabled"
+                  type="checkbox"
+                  class="sr-only"
+                  @change="updateLogConfiguration"
+                />
+                <div
+                  class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                  :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
+                />
+                <div
+                  class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                  :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </label>
             </div>
-            <div class="setting-value-display">
-              {{ logDisabled ? 'Disabled' : selectedLogLevel.charAt(0).toUpperCase() + selectedLogLevel.slice(1) }}
-            </div>
-          </div>
-          
-          <!-- Log Disabled Toggle -->
-          <div class="log-toggle-container">
-            <span class="toggle-label">Enable Logging</span>
-            <div class="modern-toggle" @click="toggleLogging">
-              <div class="toggle-track" :class="{ active: !logDisabled }">
-                <div class="toggle-thumb" :class="{ active: !logDisabled }"></div>
-              </div>
-            </div>
-          </div>
-          
-          <!-- Log Level Slider -->
-          <div v-if="!logDisabled" class="slider-container">
-            <div class="slider-track">
-              <div class="slider-progress" :style="{ width: getLogProgressWidth() }"></div>
-              <div class="slider-thumb" :style="{ left: getLogThumbPosition() }" @mousedown="startLogDrag"></div>
-            </div>
-            <div class="slider-labels log-labels">
-              <span 
+            
+            <!-- Log Level Options -->
+            <div v-if="!logDisabled" class="log-level-options">
+              <label 
                 v-for="level in logLevels" 
                 :key="level"
-                class="slider-label" 
+                class="log-level-option"
                 :class="{ active: selectedLogLevel === level }"
-                @click="setLogLevel(level)"
-              >{{ level.charAt(0).toUpperCase() + level.slice(1) }}</span>
+              >
+                <input
+                  type="radio"
+                  :value="level"
+                  v-model="selectedLogLevel"
+                  @change="updateLogConfiguration"
+                  class="sr-only"
+                />
+                <span class="log-level-label">{{ level.charAt(0).toUpperCase() + level.slice(1) }}</span>
+              </label>
             </div>
           </div>
         </div>
@@ -273,9 +268,7 @@ const selectedLogLevel = ref<LogLevel>("info");
 const hasLogField = ref(false);
 const logLevels: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal", "panic"];
 
-// Drag state
-const isDragging = ref(false);
-const dragType = ref<'stack' | 'log' | null>(null);
+
 
 const {
   isEnabled,
@@ -455,108 +448,8 @@ onMounted(async () => {
   window.addEventListener('focus', handleWindowFocus);
 });
 
-// Stack slider methods
+// Stack and Log options
 const stackOptions: StackOption[] = ["mixed", "gvisor", "system"];
-
-const getStackProgressWidth = () => {
-  const index = stackOptions.indexOf(selectedStackOption.value);
-  return `${(index / (stackOptions.length - 1)) * 100}%`;
-};
-
-const getStackThumbPosition = () => {
-  const index = stackOptions.indexOf(selectedStackOption.value);
-  return `${(index / (stackOptions.length - 1)) * 100}%`;
-};
-
-const setStackOption = (option: StackOption) => {
-  selectedStackOption.value = option;
-  updateStackConfiguration();
-};
-
-const startStackDrag = (event: MouseEvent) => {
-  if (!hasStackField.value) return;
-  isDragging.value = true;
-  dragType.value = 'stack';
-  handleStackDrag(event);
-  
-  const handleMouseMove = (e: MouseEvent) => handleStackDrag(e);
-  const handleMouseUp = () => {
-    isDragging.value = false;
-    dragType.value = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-  
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-};
-
-const handleStackDrag = (event: MouseEvent) => {
-  const container = (event.target as HTMLElement).closest('.slider-container');
-  if (!container) return;
-  
-  const track = container.querySelector('.slider-track') as HTMLElement;
-  const rect = track.getBoundingClientRect();
-  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-  const index = Math.round(percentage * (stackOptions.length - 1));
-  
-  if (stackOptions[index] !== selectedStackOption.value) {
-    setStackOption(stackOptions[index]);
-  }
-};
-
-// Log slider methods
-const getLogProgressWidth = () => {
-  const index = logLevels.indexOf(selectedLogLevel.value);
-  return `${(index / (logLevels.length - 1)) * 100}%`;
-};
-
-const getLogThumbPosition = () => {
-  const index = logLevels.indexOf(selectedLogLevel.value);
-  return `${(index / (logLevels.length - 1)) * 100}%`;
-};
-
-const setLogLevel = (level: LogLevel) => {
-  selectedLogLevel.value = level;
-  updateLogConfiguration();
-};
-
-const toggleLogging = () => {
-  logDisabled.value = !logDisabled.value;
-  updateLogConfiguration();
-};
-
-const startLogDrag = (event: MouseEvent) => {
-  if (!hasLogField.value || logDisabled.value) return;
-  isDragging.value = true;
-  dragType.value = 'log';
-  handleLogDrag(event);
-  
-  const handleMouseMove = (e: MouseEvent) => handleLogDrag(e);
-  const handleMouseUp = () => {
-    isDragging.value = false;
-    dragType.value = null;
-    document.removeEventListener('mousemove', handleMouseMove);
-    document.removeEventListener('mouseup', handleMouseUp);
-  };
-  
-  document.addEventListener('mousemove', handleMouseMove);
-  document.addEventListener('mouseup', handleMouseUp);
-};
-
-const handleLogDrag = (event: MouseEvent) => {
-  const container = (event.target as HTMLElement).closest('.slider-container');
-  if (!container) return;
-  
-  const track = container.querySelector('.slider-track') as HTMLElement;
-  const rect = track.getBoundingClientRect();
-  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
-  const index = Math.round(percentage * (logLevels.length - 1));
-  
-  if (logLevels[index] !== selectedLogLevel.value) {
-    setLogLevel(logLevels[index]);
-  }
-};
 
 // 清理事件监听
 onUnmounted(() => {
