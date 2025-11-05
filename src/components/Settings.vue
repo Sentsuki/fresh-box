@@ -564,6 +564,12 @@ const overrideConfig = computed({
   get: () => rawConfig.value,
   set: (value) => {
     rawConfig.value = value;
+    // 如果输入为空或只有空白字符，则清除错误
+    if (!value.trim()) {
+      jsonError.value = "";
+      config.value = {};
+      return;
+    }
     try {
       const parsed = JSON.parse(value);
       config.value = parsed;
@@ -613,7 +619,7 @@ const clearOverride = async () => {
     } catch (error) {
       console.error("Failed to delete temp config:", error);
     }
-    rawConfig.value = "{}";
+    rawConfig.value = "";
     jsonError.value = "";
     toastRef.value?.showToast(
       "Configuration override cleared successfully",
