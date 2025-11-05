@@ -716,8 +716,6 @@ body,
   @apply mt-3;
 }
 
-
-
 /* ===== Segmented Control Components ===== */
 .segmented-control {
   @apply relative mt-3;
@@ -836,12 +834,12 @@ body,
     @apply px-2 py-1.5 text-xs;
     min-height: 32px;
   }
-  
+
   .log-segmented-control .segmented-control-option {
     @apply px-1 py-1 text-xs;
     min-height: 28px;
   }
-  
+
   .segmented-control-track {
     @apply p-0.5;
   }
@@ -852,15 +850,15 @@ body,
   .slider-labels {
     @apply text-xs;
   }
-  
+
   .log-labels {
     @apply grid-cols-4 gap-0.5;
   }
-  
+
   .log-labels .slider-label {
     @apply px-0.5 py-0.5 text-xs;
   }
-  
+
   .slider-thumb {
     @apply w-4 h-4;
   }

@@ -8,23 +8,28 @@
     <div class="card-content">
       <div class="settings-section">
         <h3>Configuration</h3>
-        
+
         <!-- Stack Configuration -->
         <div v-if="hasStackField || isLoading" class="setting-item-vertical">
-          <span class="text-sm text-gray-700 font-medium mb-3 block">Stack</span>
-          <div v-if="isLoading" class="segmented-control stack-segmented-control">
+          <span class="text-sm text-gray-700 font-medium mb-3 block"
+            >Stack</span
+          >
+          <div
+            v-if="isLoading"
+            class="segmented-control stack-segmented-control"
+          >
             <div class="segmented-control-track">
-              <div class="animate-pulse bg-gray-300 rounded-md h-9"/>
+              <div class="animate-pulse bg-gray-300 rounded-md h-9" />
             </div>
           </div>
           <div v-else class="segmented-control stack-segmented-control">
             <div class="segmented-control-track">
-              <div 
+              <div
                 class="segmented-control-indicator"
                 :class="{ 'no-transition': !enableTransitions }"
-                :style="{ 
+                :style="{
                   left: `calc(3px + ${stackOptions.indexOf(selectedStackOption)} * (100% - 6px) / ${stackOptions.length})`,
-                  width: `calc((100% - 6px) / ${stackOptions.length})`
+                  width: `calc((100% - 6px) / ${stackOptions.length})`,
                 }"
               />
               <button
@@ -43,28 +48,34 @@
         <!-- Log Configuration -->
         <div v-if="hasLogField || isLoading" class="setting-item-vertical">
           <span class="text-sm text-gray-700 font-medium">Log</span>
-          
+
           <div v-if="isLoading" class="mt-3">
             <!-- Loading placeholder for toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
-              <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5"/>
+              <span class="text-xs text-gray-600 font-medium"
+                >Disable Logging</span
+              >
+              <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5" />
             </div>
             <!-- Loading placeholder for segmented control -->
             <div class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
+              <span class="text-xs text-gray-600 font-medium mb-3 block"
+                >Level</span
+              >
               <div class="segmented-control log-segmented-control">
                 <div class="segmented-control-track">
-                  <div class="animate-pulse bg-gray-300 rounded-md h-8"/>
+                  <div class="animate-pulse bg-gray-300 rounded-md h-8" />
                 </div>
               </div>
             </div>
           </div>
-          
+
           <div v-else class="mt-3">
             <!-- Disable Logging Toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+              <span class="text-xs text-gray-600 font-medium"
+                >Disable Logging</span
+              >
               <label class="relative cursor-pointer">
                 <input
                   v-model="logDisabled"
@@ -82,18 +93,20 @@
                 />
               </label>
             </div>
-            
+
             <!-- Log Level Options -->
             <div v-if="!logDisabled" class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
+              <span class="text-xs text-gray-600 font-medium mb-3 block"
+                >Level</span
+              >
               <div class="segmented-control log-segmented-control">
                 <div class="segmented-control-track">
-                  <div 
+                  <div
                     class="segmented-control-indicator"
                     :class="{ 'no-transition': !enableTransitions }"
-                    :style="{ 
+                    :style="{
                       left: `calc(3px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 6px) / ${logLevels.length})`,
-                      width: `calc((100% - 6px) / ${logLevels.length})`
+                      width: `calc((100% - 6px) / ${logLevels.length})`,
                     }"
                   />
                   <button
@@ -110,9 +123,12 @@
             </div>
           </div>
         </div>
-        
+
         <!-- Show message when no configuration fields are available -->
-        <div v-if="!hasStackField && !hasLogField && !isLoading" class="setting-item-vertical">
+        <div
+          v-if="!hasStackField && !hasLogField && !isLoading"
+          class="setting-item-vertical"
+        >
           <div class="text-sm text-gray-500 italic text-center py-4">
             No configuration options available for the current config file.
           </div>
@@ -288,7 +304,14 @@ import Toast from "./Toast.vue";
 
 type ConfigOverride = Record<string, unknown>;
 type StackOption = "mixed" | "gvisor" | "system";
-type LogLevel = "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
+type LogLevel =
+  | "trace"
+  | "debug"
+  | "info"
+  | "warn"
+  | "error"
+  | "fatal"
+  | "panic";
 
 interface LogConfig {
   disabled: boolean;
@@ -315,9 +338,15 @@ const hasStackField = ref(false);
 const logDisabled = ref(false);
 const selectedLogLevel = ref<LogLevel>("info");
 const hasLogField = ref(false);
-const logLevels: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal", "panic"];
-
-
+const logLevels: LogLevel[] = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+  "panic",
+];
 
 const {
   isEnabled,
@@ -332,7 +361,7 @@ const {
 const loadConfiguration = async () => {
   isLoading.value = true;
   enableTransitions.value = false;
-  
+
   try {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
     if (!selectedConfig) {
@@ -350,35 +379,58 @@ const loadConfiguration = async () => {
         current_log_disabled?: boolean;
         current_log_level?: string;
       }>("check_config_fields", { configPath: selectedConfig }),
-      invoke<PriorityConfig>("load_priority_config").catch(() => ({} as PriorityConfig))
+      invoke<PriorityConfig>("load_priority_config").catch(
+        () => ({}) as PriorityConfig,
+      ),
     ]);
-    
+
     // 设置字段可用性
     hasStackField.value = fieldsCheck.has_stack_field;
     hasLogField.value = fieldsCheck.has_log_field;
-    
+
     // 设置 stack 配置
     if (fieldsCheck.has_stack_field) {
-      const stackValue = priorityConfig.stack || fieldsCheck.current_stack_value;
-      if (stackValue && ['mixed', 'gvisor', 'system'].includes(stackValue)) {
+      const stackValue =
+        priorityConfig.stack || fieldsCheck.current_stack_value;
+      if (stackValue && ["mixed", "gvisor", "system"].includes(stackValue)) {
         selectedStackOption.value = stackValue as StackOption;
       }
     }
-    
+
     // 设置 log 配置
     if (fieldsCheck.has_log_field) {
       const logConfig = priorityConfig.log;
       if (logConfig) {
         logDisabled.value = logConfig.disabled;
-        if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
+        if (
+          [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "fatal",
+            "panic",
+          ].includes(logConfig.level)
+        ) {
           selectedLogLevel.value = logConfig.level as LogLevel;
         }
       } else {
-        if (typeof fieldsCheck.current_log_disabled === 'boolean') {
+        if (typeof fieldsCheck.current_log_disabled === "boolean") {
           logDisabled.value = fieldsCheck.current_log_disabled;
         }
-        if (fieldsCheck.current_log_level && 
-            ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(fieldsCheck.current_log_level)) {
+        if (
+          fieldsCheck.current_log_level &&
+          [
+            "trace",
+            "debug",
+            "info",
+            "warn",
+            "error",
+            "fatal",
+            "panic",
+          ].includes(fieldsCheck.current_log_level)
+        ) {
           selectedLogLevel.value = fieldsCheck.current_log_level as LogLevel;
         }
       }
@@ -405,17 +457,17 @@ const updateStackConfiguration = async () => {
   try {
     // 先加载当前的 priority config
     const priorityConfig = await invoke<PriorityConfig>("load_priority_config");
-    
+
     const updatedConfig: PriorityConfig = {
       ...priorityConfig,
-      stack: selectedStackOption.value
+      stack: selectedStackOption.value,
     };
-    
+
     await invoke("save_priority_config", { config: updatedConfig });
-    
+
     toastRef.value?.showToast(
       `Stack option updated to: ${selectedStackOption.value}`,
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Failed to update stack configuration:", error);
@@ -432,28 +484,26 @@ const updateLogConfiguration = async () => {
   try {
     // 先加载当前的 priority config
     const priorityConfig = await invoke<PriorityConfig>("load_priority_config");
-    
+
     const updatedConfig: PriorityConfig = {
       ...priorityConfig,
       log: {
         disabled: logDisabled.value,
-        level: selectedLogLevel.value
-      }
+        level: selectedLogLevel.value,
+      },
     };
-    
+
     await invoke("save_priority_config", { config: updatedConfig });
-    
+
     toastRef.value?.showToast(
       `Log configuration updated: level=${selectedLogLevel.value}, disabled=${logDisabled.value}`,
-      "success"
+      "success",
     );
   } catch (error) {
     console.error("Failed to update log configuration:", error);
     toastRef.value?.showToast("Failed to update log configuration", "error");
   }
 };
-
-
 
 // 窗口聚焦事件处理
 const handleWindowFocus = async () => {
@@ -463,22 +513,24 @@ const handleWindowFocus = async () => {
 // 组件挂载时初始化
 onMounted(async () => {
   // 并行加载配置覆盖和配置字段
-  const [, ] = await Promise.all([
+  const [,] = await Promise.all([
     // 加载配置覆盖
     invoke<ConfigOverride>("load_config_override")
-      .then(loadedConfig => {
+      .then((loadedConfig) => {
         if (Object.keys(loadedConfig).length > 0) {
           rawConfig.value = JSON.stringify(loadedConfig, null, 2);
           config.value = loadedConfig;
         }
       })
-      .catch(error => console.error("Failed to load config override:", error)),
+      .catch((error) =>
+        console.error("Failed to load config override:", error),
+      ),
     // 加载配置字段
-    loadConfiguration()
+    loadConfiguration(),
   ]);
-  
+
   // 添加窗口聚焦事件监听
-  window.addEventListener('focus', handleWindowFocus);
+  window.addEventListener("focus", handleWindowFocus);
 });
 
 // Stack and Log options
@@ -497,7 +549,7 @@ const setLogLevel = (level: LogLevel) => {
 
 // 清理事件监听
 onUnmounted(() => {
-  window.removeEventListener('focus', handleWindowFocus);
+  window.removeEventListener("focus", handleWindowFocus);
 });
 
 const isOverrideEnabled = computed({
