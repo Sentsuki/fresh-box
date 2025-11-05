@@ -165,7 +165,7 @@
               v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
               rows="12"
-              class="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 shadow-sm"
+              class="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               :class="!isValidJson ? 'border-red-400 bg-red-50' : ''"
               style="
                 font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
