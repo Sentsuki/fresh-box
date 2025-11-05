@@ -7,7 +7,7 @@ const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct PriorityConfig {
-    pub stack: Option<StackConfig>,
+    pub stack: Option<String>, // 直接存储 stack 值: "mixed", "gvisor", "system"
     pub log: Option<LogConfig>,
     // 未来可以添加其他高优先级配置选项
     // pub dns: Option<DnsConfig>,
@@ -15,14 +15,7 @@ pub struct PriorityConfig {
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct StackConfig {
-    pub enabled: bool,
-    pub stack_option: String, // "mixed", "gvisor", "system"
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct LogConfig {
-    pub enabled: bool,
     pub disabled: bool, // log.disabled
     pub level: String,  // "trace", "debug", "info", "warn", "error", "fatal", "panic"
 }
@@ -36,19 +29,9 @@ impl Default for PriorityConfig {
     }
 }
 
-impl Default for StackConfig {
-    fn default() -> Self {
-        Self {
-            enabled: false,
-            stack_option: "mixed".to_string(),
-        }
-    }
-}
-
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            enabled: false,
             disabled: false,
             level: "info".to_string(),
         }
@@ -159,8 +142,8 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
 // 这个函数会在 Config Override 之后调用，确保优先级更高
 pub fn apply_priority_config(config: &mut Value, priority_config: &PriorityConfig) -> Result<(), CommandError> {
     // 应用 stack 配置
-    if let Some(stack_config) = &priority_config.stack {
-        apply_stack_config(config, stack_config)?;
+    if let Some(stack_value) = &priority_config.stack {
+        apply_stack_config(config, stack_value)?;
     }
     
     // 应用 log 配置
@@ -177,11 +160,7 @@ pub fn apply_priority_config(config: &mut Value, priority_config: &PriorityConfi
 }
 
 // 应用 stack 配置到配置对象
-pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Result<(), CommandError> {
-    if !stack_config.enabled {
-        return Ok(());
-    }
-
+pub fn apply_stack_config(config: &mut Value, stack_value: &str) -> Result<(), CommandError> {
     // 检查配置中是否有 inbounds 数组
     if let Some(inbounds) = config.get_mut("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array_mut() {
@@ -193,7 +172,7 @@ pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Res
                     if inbound_obj.contains_key("stack") {
                         inbound_obj.insert(
                             "stack".to_string(), 
-                            Value::String(stack_config.stack_option.clone())
+                            Value::String(stack_value.to_string())
                         );
                         found_stack = true;
                     }
@@ -217,10 +196,6 @@ pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Res
 
 // 应用 log 配置到配置对象
 pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<(), CommandError> {
-    if !log_config.enabled {
-        return Ok(());
-    }
-
     // 确保配置中有 log 对象
     if config.get("log").is_none() {
         config.as_object_mut()

@@ -292,13 +292,10 @@ const checkConfigFields = async () => {
     
     if (fieldsCheck.has_stack_field) {
       // 加载 Priority Configuration 设置
-      const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
-      const stackConfig = priorityConfig.stack;
+      const priorityConfig = await invoke<{stack?: string}>("load_priority_config");
       
-      if (stackConfig && stackConfig.enabled) {
-        if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
-          selectedStackOption.value = stackConfig.stack_option as StackOption;
-        }
+      if (priorityConfig.stack && ['mixed', 'gvisor', 'system'].includes(priorityConfig.stack)) {
+        selectedStackOption.value = priorityConfig.stack as StackOption;
       } else {
         // 如果没有保存的设置，从配置文件中读取当前值
         if (fieldsCheck.current_stack_value && 
@@ -313,13 +310,12 @@ const checkConfigFields = async () => {
     
     if (fieldsCheck.has_log_field) {
       // 加载 Priority Configuration 设置
-      const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
-      const logConfig = priorityConfig.log;
+      const priorityConfig = await invoke<{log?: {disabled: boolean, level: string}}>("load_priority_config");
       
-      if (logConfig && logConfig.enabled) {
-        logDisabled.value = logConfig.disabled;
-        if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
-          selectedLogLevel.value = logConfig.level as LogLevel;
+      if (priorityConfig.log) {
+        logDisabled.value = priorityConfig.log.disabled;
+        if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(priorityConfig.log.level)) {
+          selectedLogLevel.value = priorityConfig.log.level as LogLevel;
         }
       } else {
         // 如果没有保存的设置，从配置文件中读取当前值
@@ -347,14 +343,11 @@ const updateStackConfiguration = async () => {
 
   try {
     // 先加载当前的 priority config
-    const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
+    const priorityConfig = await invoke<{stack?: string}>("load_priority_config");
     
     const updatedConfig = {
       ...priorityConfig,
-      stack: {
-        enabled: true, // 有字段就启用
-        stack_option: selectedStackOption.value
-      }
+      stack: selectedStackOption.value
     };
     
     await invoke("save_priority_config", { config: updatedConfig });
@@ -377,12 +370,11 @@ const updateLogConfiguration = async () => {
 
   try {
     // 先加载当前的 priority config
-    const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
+    const priorityConfig = await invoke<{log?: {disabled: boolean, level: string}}>("load_priority_config");
     
     const updatedConfig = {
       ...priorityConfig,
       log: {
-        enabled: true, // 有字段就启用
         disabled: logDisabled.value,
         level: selectedLogLevel.value
       }
