@@ -127,38 +127,3 @@ pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Res
     Ok(())
 }
 
-// 检查配置中是否存在 stack 字段
-#[allow(dead_code)]
-pub fn has_stack_field(config: &Value) -> bool {
-    if let Some(inbounds) = config.get("inbounds") {
-        if let Some(inbounds_array) = inbounds.as_array() {
-            return inbounds_array.iter().any(|inbound| {
-                if let Some(inbound_obj) = inbound.as_object() {
-                    inbound_obj.contains_key("stack")
-                } else {
-                    false
-                }
-            });
-        }
-    }
-    false
-}
-
-// 获取当前配置中的 stack 值
-#[allow(dead_code)]
-pub fn get_current_stack_value(config: &Value) -> Option<String> {
-    if let Some(inbounds) = config.get("inbounds") {
-        if let Some(inbounds_array) = inbounds.as_array() {
-            for inbound in inbounds_array {
-                if let Some(inbound_obj) = inbound.as_object() {
-                    if let Some(stack_value) = inbound_obj.get("stack") {
-                        if let Some(stack_str) = stack_value.as_str() {
-                            return Some(stack_str.to_string());
-                        }
-                    }
-                }
-            }
-        }
-    }
-    None
-}
