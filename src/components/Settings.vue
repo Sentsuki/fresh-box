@@ -20,7 +20,8 @@
           <div v-else class="segmented-control stack-segmented-control">
             <div class="segmented-control-track">
               <div 
-                class="segmented-control-indicator no-transition"
+                class="segmented-control-indicator"
+                :class="{ 'no-transition': !enableTransitions }"
                 :style="{ 
                   left: `calc(3px + ${stackOptions.indexOf(selectedStackOption)} * (100% - 6px) / ${stackOptions.length})`,
                   width: `calc((100% - 6px) / ${stackOptions.length})`
@@ -88,7 +89,8 @@
               <div class="segmented-control log-segmented-control">
                 <div class="segmented-control-track">
                   <div 
-                    class="segmented-control-indicator no-transition"
+                    class="segmented-control-indicator"
+                    :class="{ 'no-transition': !enableTransitions }"
                     :style="{ 
                       left: `calc(3px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 6px) / ${logLevels.length})`,
                       width: `calc((100% - 6px) / ${logLevels.length})`
@@ -297,6 +299,7 @@ const processStatus = ref("");
 
 // Configuration state - unified approach
 const isLoading = ref(false);
+const enableTransitions = ref(false);
 const selectedStackOption = ref<StackOption>("mixed");
 const hasStackField = ref(false);
 const logDisabled = ref(false);
@@ -318,6 +321,7 @@ const {
 // 统一的配置加载函数
 const loadConfiguration = async () => {
   isLoading.value = true;
+  enableTransitions.value = false;
   
   try {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
@@ -375,6 +379,10 @@ const loadConfiguration = async () => {
     hasLogField.value = false;
   } finally {
     isLoading.value = false;
+    // 延迟启用过渡动画，确保DOM更新完成
+    setTimeout(() => {
+      enableTransitions.value = true;
+    }, 50);
   }
 };
 
