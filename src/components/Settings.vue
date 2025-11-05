@@ -11,7 +11,7 @@
 
         <!-- Stack Configuration -->
         <div v-if="hasStackField || isLoading" class="setting-item-vertical">
-          <span class="text-sm text-gray-700 font-medium mb-3 block"
+          <span class="text-base text-gray-700 font-medium mb-3 block"
             >Stack</span
           >
           <div
@@ -47,19 +47,19 @@
 
         <!-- Log Configuration -->
         <div v-if="hasLogField || isLoading" class="setting-item-vertical">
-          <span class="text-sm text-gray-700 font-medium">Log</span>
+          <span class="text-base text-gray-700 font-medium">Log</span>
 
           <div v-if="isLoading" class="mt-3">
             <!-- Loading placeholder for toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium"
+              <span class="text-sm text-gray-600 font-medium"
                 >Disable Logging</span
               >
               <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5" />
             </div>
             <!-- Loading placeholder for segmented control -->
             <div class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block"
+              <span class="text-sm text-gray-600 font-medium mb-3 block"
                 >Level</span
               >
               <div class="segmented-control log-segmented-control">
@@ -73,7 +73,7 @@
           <div v-else class="mt-3">
             <!-- Disable Logging Toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium"
+              <span class="text-sm text-gray-600 font-medium"
                 >Disable Logging</span
               >
               <label class="relative cursor-pointer">
@@ -96,7 +96,7 @@
 
             <!-- Log Level Options -->
             <div v-if="!logDisabled" class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block"
+              <span class="text-sm text-gray-600 font-medium mb-3 block"
                 >Level</span
               >
               <div class="segmented-control log-segmented-control">
@@ -133,10 +133,14 @@
             No configuration options available for the current config file.
           </div>
         </div>
+      </div>
 
-        <div class="setting-item">
-          <span class="text-sm text-gray-700 font-medium"
-            >Enable Config Override</span
+      <div class="settings-section">
+        <h3>Config Override</h3>
+        
+        <div class="setting-item border-b-0!">
+          <span class="text-base text-gray-700 font-medium"
+            >Enable Override</span
           >
           <label class="relative cursor-pointer">
             <input
@@ -155,37 +159,36 @@
           </label>
         </div>
 
-        <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
+        <div v-if="isOverrideEnabled" class="mt-4">
           <div class="mb-4">
             <textarea
               v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
-              rows="10"
-              class="w-full p-3 border border-gray-300 rounded-md bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
-              :class="!isValidJson ? 'border-red-500 bg-red-50' : ''"
+              rows="12"
+              class="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
+              :class="!isValidJson ? 'border-red-400 bg-red-50' : ''"
               style="
-                font-family:
-                  &quot;Consolas&quot;, &quot;Monaco&quot;, monospace;
-                min-height: 200px;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                min-height: 280px;
               "
             />
             <div
               v-if="!isValidJson"
-              class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500"
+              class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
             >
-              {{ jsonError }}
+              <strong>JSON Error:</strong> {{ jsonError }}
             </div>
           </div>
           <div class="flex gap-3 justify-end">
             <button
               :disabled="!isValidJson"
-              class="control-button bg-blue-600 text-white hover:bg-blue-700"
+              class="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               @click="saveOverride"
             >
               Save Override
             </button>
             <button
-              class="control-button bg-gray-300 text-gray-700 hover:bg-gray-400"
+              class="px-5 py-2.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors duration-200"
               @click="clearOverride"
             >
               Clear Override
@@ -561,6 +564,12 @@ const overrideConfig = computed({
   get: () => rawConfig.value,
   set: (value) => {
     rawConfig.value = value;
+    // 如果输入为空或只有空白字符，则清除错误
+    if (!value.trim()) {
+      jsonError.value = "";
+      config.value = {};
+      return;
+    }
     try {
       const parsed = JSON.parse(value);
       config.value = parsed;
@@ -580,6 +589,24 @@ const isValidJson = computed(() => {
 });
 
 const saveOverride = async () => {
+  // 检查是否为空内容
+  if (!overrideConfig.value.trim()) {
+    // 空内容时关闭覆盖并清空配置
+    try {
+      await clearConfig();
+      await disableOverride();
+      toastRef.value?.showToast(
+        "Empty configuration - override disabled",
+        "success",
+        "save",
+      );
+    } catch (error) {
+      console.error("Failed to disable config override:", error);
+      toastRef.value?.showToast("Failed to disable configuration override", "error");
+    }
+    return;
+  }
+
   if (!isValidJson.value) {
     toastRef.value?.showToast(
       "Please fix JSON format errors before saving",
@@ -610,7 +637,7 @@ const clearOverride = async () => {
     } catch (error) {
       console.error("Failed to delete temp config:", error);
     }
-    rawConfig.value = "{}";
+    rawConfig.value = "";
     jsonError.value = "";
     toastRef.value?.showToast(
       "Configuration override cleared successfully",

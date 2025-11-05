@@ -75,6 +75,7 @@ fn main() {
             config_override::save_config_override,
             config_override::clear_config_override,
             config_override::load_config_override,
+            config_override::is_config_override_enabled,
             priority_config::save_priority_config,
             priority_config::load_priority_config,
             priority_config::clear_priority_config,

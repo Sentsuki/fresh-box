@@ -29,9 +29,12 @@ export function useConfigOverride() {
 
   const loadConfig = async () => {
     try {
-      const loadedConfig = await invoke<ConfigOverride>("load_config_override");
+      const [loadedConfig, enabled] = await Promise.all([
+        invoke<ConfigOverride>("load_config_override"),
+        invoke<boolean>("is_config_override_enabled")
+      ]);
       config.value = loadedConfig;
-      isEnabled.value = Object.keys(loadedConfig).length > 0;
+      isEnabled.value = enabled;
     } catch (error) {
       console.error("Failed to load config override:", error);
     }
