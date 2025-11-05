@@ -96,20 +96,28 @@ fn main() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // 阻止关闭并隐藏窗口
                     api.prevent_close();
-                    let _ = window.hide();
+                    // 使用延迟隐藏避免事件循环冲突
+                    let window_clone = window.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        let _ = window_clone.hide();
+                    });
                 }
                 tauri::WindowEvent::Focused(focused) => {
                     if *focused {
-                        // 检查窗口和应用状态是否有效
+                        // 延迟执行异步操作，避免在事件处理中直接执行
                         let app = window.app_handle();
                         if let Some(state) = app.try_state::<SingboxState>() {
                             let state_clone = state.inner().clone();
-                            tauri::async_runtime::spawn(async move {
-                                if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
-                                    if has_process {
-                                        println!("Window focused: Sing-box process detected and under management");
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_millis(50));
+                                tauri::async_runtime::spawn(async move {
+                                    if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
+                                        if has_process {
+                                            println!("Window focused: Sing-box process detected and under management");
+                                        }
                                     }
-                                }
+                                });
                             });
                         }
                     }
@@ -126,10 +134,14 @@ fn main() {
                 "Second instance launched with args: {:?} in {:?}",
                 argv, cwd
             );
-            // 使用安全的窗口显示函数
-            if let Err(e) = window_utils::safe_show_window(app, "main") {
-                eprintln!("Failed to show window on second instance: {}", e);
-            }
+            // 延迟执行窗口显示，避免在插件回调中直接操作
+            let app_clone = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                if let Err(e) = window_utils::safe_show_window(&app_clone, "main") {
+                    eprintln!("Failed to show window on second instance: {}", e);
+                }
+            });
         }))
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| {
