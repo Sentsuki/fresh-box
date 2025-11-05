@@ -137,7 +137,7 @@
 
       <div class="settings-section">
         <h3>Config Override</h3>
-        
+
         <div class="setting-item border-b-0!">
           <span class="text-base text-gray-700 font-medium"
             >Enable Override</span
@@ -168,7 +168,9 @@
               class="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100"
               :class="!isValidJson ? 'border-red-400 bg-red-50' : ''"
               style="
-                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                font-family:
+                  &quot;Consolas&quot;, &quot;Monaco&quot;,
+                  &quot;Courier New&quot;, monospace;
                 min-height: 280px;
               "
             />
@@ -602,7 +604,10 @@ const saveOverride = async () => {
       );
     } catch (error) {
       console.error("Failed to disable config override:", error);
-      toastRef.value?.showToast("Failed to disable configuration override", "error");
+      toastRef.value?.showToast(
+        "Failed to disable configuration override",
+        "error",
+      );
     }
     return;
   }

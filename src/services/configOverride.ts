@@ -31,7 +31,7 @@ export function useConfigOverride() {
     try {
       const [loadedConfig, enabled] = await Promise.all([
         invoke<ConfigOverride>("load_config_override"),
-        invoke<boolean>("is_config_override_enabled")
+        invoke<boolean>("is_config_override_enabled"),
       ]);
       config.value = loadedConfig;
       isEnabled.value = enabled;
