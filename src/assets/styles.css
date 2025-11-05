@@ -52,7 +52,7 @@ body,
 }
 
 .nav-items {
-  @apply p-4 flex-grow;
+  @apply p-4 grow;
 }
 
 .sidebar-item {
@@ -77,7 +77,7 @@ body,
 }
 
 .content-card {
-  @apply bg-white w-full h-full overflow-hidden flex flex-col flex-grow;
+  @apply bg-white w-full h-full overflow-hidden flex flex-col grow;
 }
 
 .card-header {
@@ -89,7 +89,7 @@ body,
 }
 
 .card-content {
-  @apply p-6 flex-grow overflow-y-auto bg-white;
+  @apply p-6 grow overflow-y-auto bg-white;
 }
 
 /* ===== Overview Components ===== */
@@ -345,7 +345,7 @@ body,
 }
 
 .config-info-icon {
-  @apply w-5 h-5 text-slate-500 flex-shrink-0;
+  @apply w-5 h-5 text-slate-500 shrink-0;
 }
 
 .overview-status-card.running .config-info-icon {
@@ -438,21 +438,21 @@ body,
 }
 
 .status-card.running {
-  @apply border-green-400 bg-gradient-to-br from-green-50 to-emerald-50;
+  @apply border-green-400 bg-linear-to-br from-green-50 to-emerald-50;
   box-shadow:
     0 10px 25px -5px rgba(34, 197, 94, 0.2),
     0 8px 10px -6px rgba(34, 197, 94, 0.1);
 }
 
 .status-card.stopped {
-  @apply border-gray-300 bg-gradient-to-br from-gray-50 to-slate-50;
+  @apply border-gray-300 bg-linear-to-br from-gray-50 to-slate-50;
   box-shadow:
     0 10px 25px -5px rgba(107, 114, 128, 0.15),
     0 8px 10px -6px rgba(107, 114, 128, 0.1);
 }
 
 .status-icon-container {
-  @apply flex-shrink-0 mr-6;
+  @apply shrink-0 mr-6;
 }
 
 .status-icon {
@@ -487,7 +487,7 @@ body,
 }
 
 .status-content {
-  @apply flex-grow;
+  @apply grow;
 }
 
 .status-title {
@@ -687,18 +687,6 @@ body,
 }
 
 /* ===== Custom Animations ===== */
-@keyframes fadeIn {
-  from {
-    opacity: 0;
-    transform: translateY(-10px);
-  }
-
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
 @keyframes slideIn {
   from {
     transform: translateX(100%);
@@ -708,5 +696,172 @@ body,
   to {
     transform: translateX(0);
     opacity: 1;
+  }
+}
+/* ===== Vertical Setting Item ===== */
+.setting-item-vertical {
+  @apply flex flex-col py-3 border-b border-gray-200;
+}
+
+.setting-item-vertical:last-child {
+  @apply border-b-0;
+}
+
+/* ===== Log Configuration Styles ===== */
+.log-toggle-row {
+  @apply flex items-center justify-between mt-3;
+}
+
+.log-level-section {
+  @apply mt-3;
+}
+
+
+
+/* ===== Segmented Control Components ===== */
+.segmented-control {
+  @apply relative mt-3;
+}
+
+.segmented-control-track {
+  @apply relative flex bg-gray-100 rounded-lg transition-all duration-200;
+  padding: 3px;
+}
+
+.segmented-control-indicator {
+  @apply absolute bg-white rounded-md transition-all duration-200 ease-out;
+  top: 3px;
+  bottom: 3px;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
+}
+
+.segmented-control-indicator.no-transition {
+  transition: none !important;
+}
+
+.segmented-control-option {
+  @apply relative flex-1 px-3 py-2 text-sm font-medium text-gray-600 text-center rounded-md transition-all duration-200 cursor-pointer border-0 bg-transparent z-10;
+  min-height: 36px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.segmented-control-option:hover {
+  @apply text-gray-800;
+}
+
+.segmented-control-option.active {
+  @apply text-gray-900 font-semibold;
+}
+
+/* Stack Segmented Control - Blue theme */
+.stack-segmented-control .segmented-control-track {
+  @apply bg-blue-50;
+}
+
+.stack-segmented-control .segmented-control-indicator {
+  @apply bg-blue-500;
+  box-shadow: 0 1px 3px rgba(59, 130, 246, 0.3);
+}
+
+.stack-segmented-control .segmented-control-option {
+  @apply text-blue-700;
+}
+
+.stack-segmented-control .segmented-control-option:hover {
+  @apply text-blue-800;
+}
+
+.stack-segmented-control .segmented-control-option.active {
+  @apply text-white font-semibold;
+}
+
+/* Log Level Segmented Control - Emerald theme */
+.log-segmented-control .segmented-control-track {
+  @apply bg-emerald-50;
+}
+
+.log-segmented-control .segmented-control-indicator {
+  @apply bg-emerald-600;
+  box-shadow: 0 1px 3px rgba(5, 150, 105, 0.3);
+}
+
+.log-segmented-control .segmented-control-option {
+  @apply px-2 py-1.5 text-xs text-emerald-700;
+  min-height: 32px;
+}
+
+.log-segmented-control .segmented-control-option:hover {
+  @apply text-emerald-800;
+}
+
+.log-segmented-control .segmented-control-option.active {
+  @apply text-white font-semibold;
+}
+
+.log-segmented-control .log-option {
+  @apply text-xs font-medium;
+}
+
+/* Hover effects */
+.segmented-control-track:hover {
+  @apply bg-gray-200;
+}
+
+.stack-segmented-control .segmented-control-track:hover {
+  @apply bg-blue-100;
+}
+
+.log-segmented-control .segmented-control-track:hover {
+  @apply bg-emerald-100;
+}
+
+/* Focus states for accessibility */
+.segmented-control-option:focus {
+  @apply outline-none;
+}
+
+.segmented-control-option:focus-visible {
+  @apply ring-2 ring-blue-500 ring-offset-2;
+}
+
+.log-segmented-control .segmented-control-option:focus-visible {
+  @apply ring-2 ring-emerald-600 ring-offset-2;
+}
+
+/* Responsive Adjustments */
+@media (max-width: 768px) {
+  .segmented-control-option {
+    @apply px-2 py-1.5 text-xs;
+    min-height: 32px;
+  }
+  
+  .log-segmented-control .segmented-control-option {
+    @apply px-1 py-1 text-xs;
+    min-height: 28px;
+  }
+  
+  .segmented-control-track {
+    @apply p-0.5;
+  }
+}
+
+/* ===== Original Slider Responsive Adjustments ===== */
+@media (max-width: 768px) {
+  .slider-labels {
+    @apply text-xs;
+  }
+  
+  .log-labels {
+    @apply grid-cols-4 gap-0.5;
+  }
+  
+  .log-labels .slider-label {
+    @apply px-0.5 py-0.5 text-xs;
+  }
+  
+  .slider-thumb {
+    @apply w-4 h-4;
   }
 }

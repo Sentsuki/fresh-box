@@ -170,7 +170,7 @@ async function openConfigFile(fileName: string, event: Event) {
         </button>
 
         <!-- 配置列表区域 -->
-        <div class="mt-6 flex-grow overflow-y-auto" style="max-height: 600px">
+        <div class="mt-6 grow overflow-y-auto" style="max-height: 600px">
           <!-- 无配置文件时的提示 -->
           <div
             v-if="!hasConfigFiles"
@@ -269,25 +269,25 @@ async function openConfigFile(fileName: string, event: Event) {
               <!-- 普通显示模式 -->
               <div v-else class="flex items-center justify-between">
                 <!-- 左侧信息区域 -->
-                <div class="flex items-center gap-3 flex-grow min-w-0">
-                  <div class="text-lg flex-shrink-0">
+                <div class="flex items-center gap-3 grow min-w-0">
+                  <div class="text-lg shrink-0">
                     <span v-if="subscriptions[file]">🔗</span>
                     <span v-else>📄</span>
                   </div>
-                  <div class="flex-grow min-w-0">
+                  <div class="grow min-w-0">
                     <div class="flex items-center gap-2 mb-1">
                       <h4 class="text-sm font-semibold text-gray-800 truncate">
                         {{ file }}
                       </h4>
                       <div
                         v-if="subscriptions[file]"
-                        class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full flex-shrink-0"
+                        class="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs font-medium rounded-full shrink-0"
                       >
                         Subscription
                       </div>
                       <div
                         v-if="configFiles[index] === selectedConfig"
-                        class="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full flex-shrink-0"
+                        class="px-2 py-0.5 bg-green-100 text-green-700 text-xs font-medium rounded-full shrink-0"
                       >
                         Active
                       </div>
@@ -302,7 +302,7 @@ async function openConfigFile(fileName: string, event: Event) {
                 </div>
 
                 <!-- 右侧操作按钮区域 -->
-                <div class="flex gap-1.5 flex-shrink-0 ml-4">
+                <div class="flex gap-1.5 shrink-0 ml-4">
                   <button
                     class="flex items-center justify-center w-8 h-8 rounded-md text-xs font-medium transition-all duration-200 border-0 cursor-pointer bg-slate-200 text-slate-700 hover:bg-slate-300 hover:text-slate-900 disabled:opacity-50 disabled:cursor-not-allowed"
                     :disabled="isLoading"

@@ -1,6 +1,7 @@
 // config.rs - 管理配置文件
 
 use crate::errors::CommandError;
+use serde_json::Value;
 use std::process::Command;
 
 // 获取 bin 目录路径的公共函数
@@ -29,7 +30,7 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
         // 使用 Windows API 直接打开目录，避免命令行窗口闪烁
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        
+
         Command::new("explorer")
             .arg(exe_dir)
             .creation_flags(CREATE_NO_WINDOW)
@@ -126,6 +127,7 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
             && file_name != "temp_config.json"
             && file_name != "config_override.json"
             && file_name != "subscriptions.json"
+            && file_name != "priority_config.json"
             && file_name != "singbox.log"
         {
             config_files.push(path.to_string_lossy().into_owned());
@@ -237,7 +239,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
         // 使用 Windows API 直接打开文件，避免命令行窗口闪烁
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        
+
         Command::new("cmd")
             .args(["/C", "start", "", &full_path.to_string_lossy()])
             .creation_flags(CREATE_NO_WINDOW)
@@ -263,6 +265,43 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
                 CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
             })?;
     }
+
+    Ok(())
+}
+#[tauri::command]
+pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    if !full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            full_path.display()
+        )));
+    }
+
+    let content = std::fs::read_to_string(&full_path).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
+    })?;
+
+    let json_value: Value = serde_json::from_str(&content)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
+
+    Ok(json_value)
+}
+
+#[tauri::command]
+pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    // 验证 JSON 格式
+    let _: Value = serde_json::from_str(&content)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Invalid JSON format: {}", e)))?;
+
+    std::fs::write(&full_path, content).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))
+    })?;
 
     Ok(())
 }

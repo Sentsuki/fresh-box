@@ -4,27 +4,30 @@
 mod config;
 mod config_override;
 mod errors;
+mod priority_config;
 mod singbox;
 mod tray;
 mod window_utils;
 
-use singbox::{SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly};
-use tauri::Manager;
+use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::panic;
+use tauri::Manager;
 
 fn main() {
     // 设置panic hook来记录崩溃信息
     panic::set_hook(Box::new(|panic_info| {
         let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let exe_dir = exe_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let log_path = exe_dir.join("crash.log");
-        
+
         let crash_msg = format!(
             "Application crashed at {}: {}\n",
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
             panic_info
         );
-        
+
         // 尝试写入崩溃日志
         if std::fs::write(&log_path, &crash_msg).is_err() {
             // 如果写入失败，尝试追加到现有文件
@@ -37,7 +40,7 @@ fn main() {
                     file.write_all(crash_msg.as_bytes())
                 });
         }
-        
+
         eprintln!("{}", crash_msg);
     }));
 
@@ -65,16 +68,22 @@ fn main() {
             config::open_app_directory,
             config::save_subscriptions,
             config::load_subscriptions,
+            config::load_config_content,
+            config::save_config_content,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,
             config_override::clear_config_override,
             config_override::load_config_override,
+            priority_config::save_priority_config,
+            priority_config::load_priority_config,
+            priority_config::clear_priority_config,
+            priority_config::check_config_fields,
         ])
         .setup(|app| {
             // 设置系统托盘
             tray::setup_system_tray(app)?;
-            
+
             // 初始化时检测现有的sing-box进程
             let state = app.state::<SingboxState>();
             let state_clone = state.inner().clone();
@@ -88,7 +97,7 @@ fn main() {
                     }
                 }
             });
-            
+
             Ok(())
         })
         .on_window_event(|window, event| {
@@ -96,20 +105,28 @@ fn main() {
                 tauri::WindowEvent::CloseRequested { api, .. } => {
                     // 阻止关闭并隐藏窗口
                     api.prevent_close();
-                    let _ = window.hide();
+                    // 使用延迟隐藏避免事件循环冲突
+                    let window_clone = window.clone();
+                    std::thread::spawn(move || {
+                        std::thread::sleep(std::time::Duration::from_millis(10));
+                        let _ = window_clone.hide();
+                    });
                 }
                 tauri::WindowEvent::Focused(focused) => {
                     if *focused {
-                        // 检查窗口和应用状态是否有效
+                        // 延迟执行异步操作，避免在事件处理中直接执行
                         let app = window.app_handle();
                         if let Some(state) = app.try_state::<SingboxState>() {
                             let state_clone = state.inner().clone();
-                            tauri::async_runtime::spawn(async move {
-                                if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
-                                    if has_process {
-                                        println!("Window focused: Sing-box process detected and under management");
+                            std::thread::spawn(move || {
+                                std::thread::sleep(std::time::Duration::from_millis(50));
+                                tauri::async_runtime::spawn(async move {
+                                    if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
+                                        if has_process {
+                                            println!("Window focused: Sing-box process detected and under management");
+                                        }
                                     }
-                                }
+                                });
                             });
                         }
                     }
@@ -126,10 +143,14 @@ fn main() {
                 "Second instance launched with args: {:?} in {:?}",
                 argv, cwd
             );
-            // 使用安全的窗口显示函数
-            if let Err(e) = window_utils::safe_show_window(app, "main") {
-                eprintln!("Failed to show window on second instance: {}", e);
-            }
+            // 延迟执行窗口显示，避免在插件回调中直接操作
+            let app_clone = app.clone();
+            std::thread::spawn(move || {
+                std::thread::sleep(std::time::Duration::from_millis(50));
+                if let Err(e) = window_utils::safe_show_window(&app_clone, "main") {
+                    eprintln!("Failed to show window on second instance: {}", e);
+                }
+            });
         }))
         .run(tauri::generate_context!())
         .unwrap_or_else(|err| {
