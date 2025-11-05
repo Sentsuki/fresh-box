@@ -735,6 +735,10 @@ body,
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
+.segmented-control-indicator.no-transition {
+  transition: none !important;
+}
+
 .segmented-control-option {
   @apply relative flex-1 px-3 py-2 text-sm font-medium text-gray-600 text-center rounded-md transition-all duration-200 cursor-pointer border-0 bg-transparent z-10;
   min-height: 36px;
