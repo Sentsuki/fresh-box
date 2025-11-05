@@ -852,23 +852,23 @@ body,
   @apply text-white font-semibold;
 }
 
-/* Log Level Segmented Control - Orange theme */
+/* Log Level Segmented Control - Purple theme */
 .log-segmented-control .segmented-control-track {
-  @apply bg-orange-50;
+  @apply bg-purple-50;
 }
 
 .log-segmented-control .segmented-control-indicator {
-  @apply bg-orange-500;
-  box-shadow: 0 1px 3px rgba(249, 115, 22, 0.3);
+  @apply bg-purple-500;
+  box-shadow: 0 1px 3px rgba(168, 85, 247, 0.3);
 }
 
 .log-segmented-control .segmented-control-option {
-  @apply px-2 py-1.5 text-xs text-orange-700;
+  @apply px-2 py-1.5 text-xs text-purple-700;
   min-height: 32px;
 }
 
 .log-segmented-control .segmented-control-option:hover {
-  @apply text-orange-800;
+  @apply text-purple-800;
 }
 
 .log-segmented-control .segmented-control-option.active {
@@ -889,7 +889,7 @@ body,
 }
 
 .log-segmented-control .segmented-control-track:hover {
-  @apply bg-orange-100;
+  @apply bg-purple-100;
 }
 
 /* Focus states for accessibility */
@@ -902,7 +902,7 @@ body,
 }
 
 .log-segmented-control .segmented-control-option:focus-visible {
-  @apply ring-2 ring-orange-500 ring-offset-2;
+  @apply ring-2 ring-purple-500 ring-offset-2;
 }
 
 /* Responsive Adjustments */
