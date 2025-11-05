@@ -7,7 +7,16 @@
 
     <div class="card-content">
       <div class="settings-section">
-        <h3>Configuration</h3>
+        <div class="flex items-center justify-between mb-4">
+          <h3>Configuration</h3>
+          <button
+            class="control-button bg-blue-500 text-white hover:bg-blue-600 text-xs px-3 py-1 rounded flex items-center gap-1"
+            @click="refreshConfigFields"
+          >
+            <span>🔄</span>
+            Refresh
+          </button>
+        </div>
         
         <!-- Stack Configuration Switch -->
         <div class="setting-item">
@@ -300,7 +309,6 @@ const processStatus = ref("");
 const isStackSwitchEnabled = ref(false);
 const selectedStackOption = ref<StackOption>("mixed");
 const hasStackField = ref(false);
-const currentConfigContent = ref<any>(null);
 
 // Log configuration related refs
 const isLogSwitchEnabled = ref(false);
@@ -317,8 +325,8 @@ const {
   clearConfig,
 } = useConfigOverride();
 
-// 检查当前配置文件中是否有 stack 和 log 字段
-const checkStackField = async () => {
+// 检查当前配置文件中是否有相关字段
+const checkConfigFields = async () => {
   try {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
     if (!selectedConfig) {
@@ -329,52 +337,44 @@ const checkStackField = async () => {
       return;
     }
 
-    const configContent = await invoke<any>("load_config_content", { 
-      configPath: selectedConfig 
-    });
+    // 调用后端检查配置字段
+    const fieldsCheck = await invoke<{
+      has_stack_field: boolean;
+      has_log_field: boolean;
+      current_stack_value?: string;
+      current_log_disabled?: boolean;
+      current_log_level?: string;
+    }>("check_config_fields", { configPath: selectedConfig });
     
-    currentConfigContent.value = configContent;
+    // 设置 stack 字段检查结果
+    hasStackField.value = fieldsCheck.has_stack_field;
     
-    // 检查 inbounds 数组中是否有 stack 字段
-    if (configContent?.inbounds && Array.isArray(configContent.inbounds)) {
-      const hasStack = configContent.inbounds.some((inbound: any) => 
-        inbound && typeof inbound === 'object' && 'stack' in inbound
-      );
-      hasStackField.value = hasStack;
+    if (fieldsCheck.has_stack_field) {
+      // 加载 Priority Configuration 设置
+      const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
+      const stackConfig = priorityConfig.stack;
       
-      if (hasStack) {
-        // 加载 Priority Configuration 设置
-        const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
-        const stackConfig = priorityConfig.stack;
-        
-        if (stackConfig) {
-          isStackSwitchEnabled.value = stackConfig.enabled;
-          
-          if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
-            selectedStackOption.value = stackConfig.stack_option as StackOption;
-          }
-        } else {
-          // 如果没有保存的设置，从配置文件中读取当前值
-          const stackInbound = configContent.inbounds.find((inbound: any) => 
-            inbound && typeof inbound === 'object' && 'stack' in inbound
-          );
-          if (stackInbound && ['mixed', 'gvisor', 'system'].includes(stackInbound.stack)) {
-            selectedStackOption.value = stackInbound.stack as StackOption;
-          }
-          isStackSwitchEnabled.value = false;
+      if (stackConfig) {
+        isStackSwitchEnabled.value = stackConfig.enabled;
+        if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
+          selectedStackOption.value = stackConfig.stack_option as StackOption;
         }
       } else {
+        // 如果没有保存的设置，从配置文件中读取当前值
+        if (fieldsCheck.current_stack_value && 
+            ['mixed', 'gvisor', 'system'].includes(fieldsCheck.current_stack_value)) {
+          selectedStackOption.value = fieldsCheck.current_stack_value as StackOption;
+        }
         isStackSwitchEnabled.value = false;
       }
     } else {
-      hasStackField.value = false;
       isStackSwitchEnabled.value = false;
     }
 
-    // 检查是否有 log 字段
-    if (configContent?.log && typeof configContent.log === 'object') {
-      hasLogField.value = true;
-      
+    // 设置 log 字段检查结果
+    hasLogField.value = fieldsCheck.has_log_field;
+    
+    if (fieldsCheck.has_log_field) {
       // 加载 Priority Configuration 设置
       const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
       const logConfig = priorityConfig.log;
@@ -382,27 +382,25 @@ const checkStackField = async () => {
       if (logConfig) {
         isLogSwitchEnabled.value = logConfig.enabled;
         logDisabled.value = logConfig.disabled;
-        
         if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
           selectedLogLevel.value = logConfig.level as LogLevel;
         }
       } else {
         // 如果没有保存的设置，从配置文件中读取当前值
-        if (typeof configContent.log.disabled === 'boolean') {
-          logDisabled.value = configContent.log.disabled;
+        if (typeof fieldsCheck.current_log_disabled === 'boolean') {
+          logDisabled.value = fieldsCheck.current_log_disabled;
         }
-        if (typeof configContent.log.level === 'string' && 
-            ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(configContent.log.level)) {
-          selectedLogLevel.value = configContent.log.level as LogLevel;
+        if (fieldsCheck.current_log_level && 
+            ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(fieldsCheck.current_log_level)) {
+          selectedLogLevel.value = fieldsCheck.current_log_level as LogLevel;
         }
         isLogSwitchEnabled.value = false;
       }
     } else {
-      hasLogField.value = false;
       isLogSwitchEnabled.value = false;
     }
   } catch (error) {
-    console.error("Failed to check stack and log fields:", error);
+    console.error("Failed to check config fields:", error);
     hasStackField.value = false;
     isStackSwitchEnabled.value = false;
     hasLogField.value = false;
@@ -532,6 +530,12 @@ const updateLogConfiguration = async () => {
   }
 };
 
+// 刷新配置字段检查
+const refreshConfigFields = async () => {
+  await checkConfigFields();
+  toastRef.value?.showToast("Configuration fields refreshed", "success");
+};
+
 // 加载已有配置
 onMounted(async () => {
   try {
@@ -544,21 +548,8 @@ onMounted(async () => {
     console.error("Failed to load config override:", error);
   }
 
-  // 检查 stack 字段
-  await checkStackField();
-
-  // 监听配置文件变化
-  let lastSelectedConfig = localStorage.getItem("lastSelectedConfig");
-  const checkConfigChange = () => {
-    const currentSelectedConfig = localStorage.getItem("lastSelectedConfig");
-    if (currentSelectedConfig !== lastSelectedConfig) {
-      lastSelectedConfig = currentSelectedConfig;
-      checkStackField();
-    }
-  };
-
-  // 每隔2秒检查一次配置文件是否变化
-  setInterval(checkConfigChange, 2000);
+  // 检查配置字段
+  await checkConfigFields();
 });
 
 const isOverrideEnabled = computed({

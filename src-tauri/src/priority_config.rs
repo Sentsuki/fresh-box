@@ -89,6 +89,70 @@ pub async fn clear_priority_config() -> Result<(), CommandError> {
     Ok(())
 }
 
+#[derive(serde::Serialize, serde::Deserialize)]
+pub struct ConfigFieldsCheck {
+    pub has_stack_field: bool,
+    pub has_log_field: bool,
+    pub current_stack_value: Option<String>,
+    pub current_log_disabled: Option<bool>,
+    pub current_log_level: Option<String>,
+}
+
+#[tauri::command]
+pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsCheck, CommandError> {
+    use std::fs;
+    
+    // 读取配置文件
+    let config_content = fs::read_to_string(&config_path)?;
+    let config: Value = serde_json::from_str(&config_content)?;
+    
+    let mut result = ConfigFieldsCheck {
+        has_stack_field: false,
+        has_log_field: false,
+        current_stack_value: None,
+        current_log_disabled: None,
+        current_log_level: None,
+    };
+    
+    // 检查 stack 字段
+    if let Some(inbounds) = config.get("inbounds") {
+        if let Some(inbounds_array) = inbounds.as_array() {
+            for inbound in inbounds_array {
+                if let Some(inbound_obj) = inbound.as_object() {
+                    if let Some(stack_value) = inbound_obj.get("stack") {
+                        result.has_stack_field = true;
+                        if let Some(stack_str) = stack_value.as_str() {
+                            result.current_stack_value = Some(stack_str.to_string());
+                        }
+                        break;
+                    }
+                }
+            }
+        }
+    }
+    
+    // 检查 log 字段
+    if let Some(log_obj) = config.get("log") {
+        if log_obj.is_object() {
+            result.has_log_field = true;
+            
+            // 获取当前的 disabled 值
+            if let Some(disabled_value) = log_obj.get("disabled") {
+                result.current_log_disabled = disabled_value.as_bool();
+            }
+            
+            // 获取当前的 level 值
+            if let Some(level_value) = log_obj.get("level") {
+                if let Some(level_str) = level_value.as_str() {
+                    result.current_log_level = Some(level_str.to_string());
+                }
+            }
+        }
+    }
+    
+    Ok(result)
+}
+
 
 
 // 应用优先级配置到配置对象
