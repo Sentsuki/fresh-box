@@ -159,13 +159,8 @@ pub async fn start_singbox(
     // 创建命令
     let mut command = Command::new(&*singbox_path.to_string_lossy());
 
-    // 检查是否存在覆盖配置
-    let override_path = bin_dir.join("config_override.json");
-    if override_path.exists() {
-        let override_content = fs::read_to_string(&override_path)?;
-        let override_config: Value = serde_json::from_str(&override_content)?;
-
-        // 应用覆盖配置
+    // 检查并应用覆盖配置（仅在启用时）
+    if let Some(override_config) = crate::config_override::get_override_config_if_enabled().await? {
         crate::config_override::apply_config_override(&mut base_config, &override_config);
     }
 
