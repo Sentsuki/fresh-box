@@ -12,7 +12,7 @@
         <!-- Stack Configuration -->
         <div v-if="hasStackField" class="setting-item-vertical">
           <span class="text-sm text-gray-700 font-medium mb-3 block">Stack</span>
-          <div class="segmented-control stack-segmented-control">
+          <div v-if="stackConfigLoaded" class="segmented-control stack-segmented-control">
             <div class="segmented-control-track">
               <div 
                 class="segmented-control-indicator"
@@ -32,54 +32,78 @@
               </button>
             </div>
           </div>
+          <div v-else class="segmented-control stack-segmented-control">
+            <div class="segmented-control-track">
+              <div class="animate-pulse bg-gray-300 rounded-md h-9"></div>
+            </div>
+          </div>
         </div>
 
         <!-- Log Configuration -->
         <div v-if="hasLogField" class="setting-item-vertical">
           <span class="text-sm text-gray-700 font-medium">Log</span>
           
-          <!-- Disable Logging Toggle -->
-          <div class="log-toggle-row">
-            <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
-            <label class="relative cursor-pointer">
-              <input
-                v-model="logDisabled"
-                type="checkbox"
-                class="sr-only"
-                @change="updateLogConfiguration"
-              />
-              <div
-                class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-                :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
-              />
-              <div
-                class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-                :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
-              />
-            </label>
+          <div v-if="logConfigLoaded">
+            <!-- Disable Logging Toggle -->
+            <div class="log-toggle-row">
+              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+              <label class="relative cursor-pointer">
+                <input
+                  v-model="logDisabled"
+                  type="checkbox"
+                  class="sr-only"
+                  @change="updateLogConfiguration"
+                />
+                <div
+                  class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                  :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
+                />
+                <div
+                  class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                  :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
+                />
+              </label>
+            </div>
+            
+            <!-- Log Level Options -->
+            <div v-if="!logDisabled" class="log-level-section">
+              <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
+              <div class="segmented-control log-segmented-control">
+                <div class="segmented-control-track">
+                  <div 
+                    class="segmented-control-indicator"
+                    :style="{ 
+                      left: `calc(3px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 6px) / ${logLevels.length})`,
+                      width: `calc((100% - 6px) / ${logLevels.length})`
+                    }"
+                  ></div>
+                  <button
+                    v-for="level in logLevels"
+                    :key="level"
+                    class="segmented-control-option log-option"
+                    :class="{ active: selectedLogLevel === level }"
+                    @click="setLogLevel(level)"
+                  >
+                    {{ level.charAt(0).toUpperCase() + level.slice(1) }}
+                  </button>
+                </div>
+              </div>
+            </div>
           </div>
           
-          <!-- Log Level Options -->
-          <div v-if="!logDisabled" class="log-level-section">
-            <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
-            <div class="segmented-control log-segmented-control">
-              <div class="segmented-control-track">
-                <div 
-                  class="segmented-control-indicator"
-                  :style="{ 
-                    left: `calc(3px + ${logLevels.indexOf(selectedLogLevel)} * (100% - 6px) / ${logLevels.length})`,
-                    width: `calc((100% - 6px) / ${logLevels.length})`
-                  }"
-                ></div>
-                <button
-                  v-for="level in logLevels"
-                  :key="level"
-                  class="segmented-control-option log-option"
-                  :class="{ active: selectedLogLevel === level }"
-                  @click="setLogLevel(level)"
-                >
-                  {{ level.charAt(0).toUpperCase() + level.slice(1) }}
-                </button>
+          <div v-else class="mt-3">
+            <!-- Loading placeholder for toggle -->
+            <div class="log-toggle-row">
+              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+              <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5"></div>
+            </div>
+            <!-- Loading placeholder for segmented control -->
+            <div class="log-level-section">
+              <span class="text-xs text-gray-600 font-medium mb-3 block">Level</span>
+              <div class="segmented-control log-segmented-control">
+                <div class="segmented-control-track">
+                  <div class="animate-pulse bg-gray-300 rounded-md h-8"></div>
+                </div>
               </div>
             </div>
           </div>
@@ -267,11 +291,13 @@ const processStatus = ref("");
 // Stack configuration related refs
 const selectedStackOption = ref<StackOption>("mixed");
 const hasStackField = ref(false);
+const stackConfigLoaded = ref(false);
 
 // Log configuration related refs
 const logDisabled = ref(false);
 const selectedLogLevel = ref<LogLevel>("info");
 const hasLogField = ref(false);
+const logConfigLoaded = ref(false);
 const logLevels: LogLevel[] = ["trace", "debug", "info", "warn", "error", "fatal", "panic"];
 
 
@@ -292,6 +318,8 @@ const checkConfigFields = async () => {
     if (!selectedConfig) {
       hasStackField.value = false;
       hasLogField.value = false;
+      stackConfigLoaded.value = true;
+      logConfigLoaded.value = true;
       return;
     }
 
@@ -329,6 +357,7 @@ const checkConfigFields = async () => {
         }
       }
     }
+    stackConfigLoaded.value = true;
 
     // 设置 log 字段检查结果
     hasLogField.value = fieldsCheck.has_log_field;
@@ -364,10 +393,13 @@ const checkConfigFields = async () => {
         }
       }
     }
+    logConfigLoaded.value = true;
   } catch (error) {
     console.error("Failed to check config fields:", error);
     hasStackField.value = false;
     hasLogField.value = false;
+    stackConfigLoaded.value = true;
+    logConfigLoaded.value = true;
   }
 };
 
@@ -432,6 +464,9 @@ const updateLogConfiguration = async () => {
 
 // 窗口聚焦事件处理
 const handleWindowFocus = async () => {
+  // 重置加载状态
+  stackConfigLoaded.value = false;
+  logConfigLoaded.value = false;
   await checkConfigFields();
 };
 
