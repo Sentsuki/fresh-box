@@ -11,7 +11,7 @@
 
         <!-- Stack Configuration -->
         <div v-if="hasStackField || isLoading" class="setting-item-vertical">
-          <span class="text-sm text-gray-700 font-medium mb-3 block"
+          <span class="text-base text-gray-700 font-medium mb-3 block"
             >Stack</span
           >
           <div
@@ -47,19 +47,19 @@
 
         <!-- Log Configuration -->
         <div v-if="hasLogField || isLoading" class="setting-item-vertical">
-          <span class="text-sm text-gray-700 font-medium">Log</span>
+          <span class="text-base text-gray-700 font-medium">Log</span>
 
           <div v-if="isLoading" class="mt-3">
             <!-- Loading placeholder for toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium"
+              <span class="text-sm text-gray-600 font-medium"
                 >Disable Logging</span
               >
               <div class="animate-pulse bg-gray-300 rounded-full w-9 h-5" />
             </div>
             <!-- Loading placeholder for segmented control -->
             <div class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block"
+              <span class="text-sm text-gray-600 font-medium mb-3 block"
                 >Level</span
               >
               <div class="segmented-control log-segmented-control">
@@ -73,7 +73,7 @@
           <div v-else class="mt-3">
             <!-- Disable Logging Toggle -->
             <div class="log-toggle-row">
-              <span class="text-xs text-gray-600 font-medium"
+              <span class="text-sm text-gray-600 font-medium"
                 >Disable Logging</span
               >
               <label class="relative cursor-pointer">
@@ -96,7 +96,7 @@
 
             <!-- Log Level Options -->
             <div v-if="!logDisabled" class="log-level-section">
-              <span class="text-xs text-gray-600 font-medium mb-3 block"
+              <span class="text-sm text-gray-600 font-medium mb-3 block"
                 >Level</span
               >
               <div class="segmented-control log-segmented-control">
@@ -133,10 +133,14 @@
             No configuration options available for the current config file.
           </div>
         </div>
+      </div>
 
+      <div class="settings-section">
+        <h3>Config Override</h3>
+        
         <div class="setting-item">
-          <span class="text-sm text-gray-700 font-medium"
-            >Enable Config Override</span
+          <span class="text-base text-gray-700 font-medium"
+            >Enable Override</span
           >
           <label class="relative cursor-pointer">
             <input
