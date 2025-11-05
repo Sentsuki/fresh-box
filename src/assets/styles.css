@@ -806,13 +806,13 @@ body,
 
 .segmented-control-track {
   @apply relative flex bg-gray-100 rounded-lg transition-all duration-200;
-  padding: 2px;
+  padding: 3px;
 }
 
 .segmented-control-indicator {
   @apply absolute bg-white rounded-md transition-all duration-200 ease-out;
-  top: 2px;
-  bottom: 2px;
+  top: 3px;
+  bottom: 3px;
   box-shadow: 0 1px 3px rgba(0, 0, 0, 0.1);
 }
 
