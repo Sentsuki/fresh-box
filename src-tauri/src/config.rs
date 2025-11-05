@@ -127,6 +127,7 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
             && file_name != "temp_config.json"
             && file_name != "config_override.json"
             && file_name != "subscriptions.json"
+            && file_name != "priority_config.json"
             && file_name != "singbox.log"
         {
             config_files.push(path.to_string_lossy().into_owned());
