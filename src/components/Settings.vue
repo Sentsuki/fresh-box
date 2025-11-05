@@ -12,7 +12,7 @@
         <!-- Stack Configuration -->
         <div v-if="hasStackField" class="setting-item-vertical">
           <span class="text-sm text-gray-700 font-medium mb-3 block">Stack</span>
-          <div class="segmented-control">
+          <div class="segmented-control stack-segmented-control">
             <div class="segmented-control-track">
               <div 
                 class="segmented-control-indicator"
