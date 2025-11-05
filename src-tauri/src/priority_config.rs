@@ -6,6 +6,7 @@ use std::path::PathBuf;
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(Default)]
 pub struct PriorityConfig {
     pub stack: Option<String>, // 直接存储 stack 值: "mixed", "gvisor", "system"
     pub log: Option<LogConfig>,
@@ -20,14 +21,6 @@ pub struct LogConfig {
     pub level: String,  // "trace", "debug", "info", "warn", "error", "fatal", "panic"
 }
 
-impl Default for PriorityConfig {
-    fn default() -> Self {
-        Self {
-            stack: None,
-            log: None,
-        }
-    }
-}
 
 impl Default for LogConfig {
     fn default() -> Self {
