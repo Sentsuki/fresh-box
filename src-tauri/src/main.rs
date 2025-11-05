@@ -5,6 +5,7 @@ mod config;
 mod config_override;
 mod errors;
 mod singbox;
+mod stack_config;
 mod tray;
 mod window_utils;
 
@@ -72,6 +73,9 @@ fn main() {
             config_override::save_config_override,
             config_override::clear_config_override,
             config_override::load_config_override,
+            stack_config::save_stack_config,
+            stack_config::load_stack_config,
+            stack_config::clear_stack_config,
         ])
         .setup(|app| {
             // 设置系统托盘

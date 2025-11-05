@@ -4,6 +4,7 @@ pub mod config;
 pub mod config_override;
 pub mod errors;
 pub mod singbox;
+pub mod stack_config;
 pub mod tray;
 pub mod window_utils;
 

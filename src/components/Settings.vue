@@ -20,6 +20,7 @@
                   type="checkbox"
                   class="sr-only"
                   :disabled="!hasStackField"
+                  @change="updateStackSwitchState"
                 />
                 <div
                   class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
@@ -247,6 +248,7 @@ const checkStackField = async () => {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
     if (!selectedConfig) {
       hasStackField.value = false;
+      isStackSwitchEnabled.value = false;
       return;
     }
 
@@ -264,56 +266,75 @@ const checkStackField = async () => {
       hasStackField.value = hasStack;
       
       if (hasStack) {
-        // 获取当前的 stack 值
-        const stackInbound = configContent.inbounds.find((inbound: any) => 
-          inbound && typeof inbound === 'object' && 'stack' in inbound
-        );
-        if (stackInbound && ['mixed', 'gvisor', 'system'].includes(stackInbound.stack)) {
-          selectedStackOption.value = stackInbound.stack as StackOption;
+        // 加载 Stack Configuration 设置
+        const stackConfig = await invoke<{enabled: boolean, stack_option: string}>("load_stack_config");
+        isStackSwitchEnabled.value = stackConfig.enabled;
+        
+        if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
+          selectedStackOption.value = stackConfig.stack_option as StackOption;
+        } else {
+          // 如果没有保存的设置，从配置文件中读取当前值
+          const stackInbound = configContent.inbounds.find((inbound: any) => 
+            inbound && typeof inbound === 'object' && 'stack' in inbound
+          );
+          if (stackInbound && ['mixed', 'gvisor', 'system'].includes(stackInbound.stack)) {
+            selectedStackOption.value = stackInbound.stack as StackOption;
+          }
         }
+      } else {
+        isStackSwitchEnabled.value = false;
       }
     } else {
       hasStackField.value = false;
+      isStackSwitchEnabled.value = false;
     }
   } catch (error) {
     console.error("Failed to check stack field:", error);
     hasStackField.value = false;
+    isStackSwitchEnabled.value = false;
   }
 };
 
-// 更新 stack 配置
+// 更新 stack 配置开关状态
+const updateStackSwitchState = async () => {
+  try {
+    const stackConfig = {
+      enabled: isStackSwitchEnabled.value,
+      stack_option: selectedStackOption.value
+    };
+    
+    await invoke("save_stack_config", { config: stackConfig });
+    
+    if (isStackSwitchEnabled.value) {
+      toastRef.value?.showToast(
+        `Stack configuration enabled: ${selectedStackOption.value}`,
+        "success"
+      );
+    } else {
+      toastRef.value?.showToast("Stack configuration disabled", "success");
+    }
+  } catch (error) {
+    console.error("Failed to update stack switch state:", error);
+    toastRef.value?.showToast("Failed to update stack configuration", "error");
+  }
+};
+
+// 更新 stack 选项
 const updateStackConfiguration = async () => {
-  if (!hasStackField.value || !currentConfigContent.value) {
+  if (!hasStackField.value) {
     return;
   }
 
   try {
-    const selectedConfig = localStorage.getItem("lastSelectedConfig");
-    if (!selectedConfig) {
-      toastRef.value?.showToast("No configuration selected", "error");
-      return;
-    }
-
-    // 更新配置内容中的 stack 字段
-    const updatedConfig = { ...currentConfigContent.value };
-    if (updatedConfig.inbounds && Array.isArray(updatedConfig.inbounds)) {
-      updatedConfig.inbounds = updatedConfig.inbounds.map((inbound: any) => {
-        if (inbound && typeof inbound === 'object' && 'stack' in inbound) {
-          return { ...inbound, stack: selectedStackOption.value };
-        }
-        return inbound;
-      });
-    }
-
-    // 保存更新后的配置
-    await invoke("save_config_content", {
-      configPath: selectedConfig,
-      content: JSON.stringify(updatedConfig, null, 2)
-    });
-
-    currentConfigContent.value = updatedConfig;
+    const stackConfig = {
+      enabled: isStackSwitchEnabled.value,
+      stack_option: selectedStackOption.value
+    };
+    
+    await invoke("save_stack_config", { config: stackConfig });
+    
     toastRef.value?.showToast(
-      `Stack configuration updated to: ${selectedStackOption.value}`,
+      `Stack option updated to: ${selectedStackOption.value}`,
       "success"
     );
   } catch (error) {

@@ -103,17 +103,20 @@ pub async fn start_singbox(
     state: State<'_, SingboxState>,
     config_path: String,
 ) -> Result<(), CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in start_singbox, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    // 先检查进程状态，不持有锁
+    {
+        let process_guard = match state.singbox_process.lock() {
+            Ok(guard) => guard,
+            Err(poisoned) => {
+                eprintln!("Mutex was poisoned in start_singbox, recovering...");
+                poisoned.into_inner()
+            }
+        };
 
-    if process_guard.is_some() {
-        return Err(CommandError::ProcessAlreadyRunning);
-    }
+        if process_guard.is_some() {
+            return Err(CommandError::ProcessAlreadyRunning);
+        }
+    } // 释放锁
 
     let exe_path = std::env::current_exe().map_err(|e| {
         CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
@@ -157,28 +160,30 @@ pub async fn start_singbox(
 
         // 应用覆盖配置
         crate::config_override::apply_config_override(&mut base_config, &override_config);
-
-        // 将合并后的配置写入临时文件
-        let temp_config_path = bin_dir.join("temp_config.json");
-        fs::write(
-            &temp_config_path,
-            serde_json::to_string_pretty(&base_config)?,
-        )?;
-
-        // 使用临时配置文件启动 sing-box
-        command
-            .args(["run", "-c", &*temp_config_path.to_string_lossy()])
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(log_file.try_clone()?))
-            .stderr(Stdio::from(log_file));
-    } else {
-        // 没有覆盖配置，直接使用原始配置文件
-        command
-            .args(["run", "-c", &config_path])
-            .stdin(Stdio::null())
-            .stdout(Stdio::from(log_file.try_clone()?))
-            .stderr(Stdio::from(log_file));
     }
+
+    // 检查并应用 Stack Configuration（优先级高于 Config Override）
+    let stack_config = crate::stack_config::load_stack_config().await?;
+    if stack_config.enabled {
+        if let Err(e) = crate::stack_config::apply_stack_config(&mut base_config, &stack_config) {
+            eprintln!("Warning: Failed to apply stack configuration: {:?}", e);
+            // 不返回错误，继续启动，但记录警告
+        }
+    }
+
+    // 将最终配置写入临时文件
+    let temp_config_path = bin_dir.join("temp_config.json");
+    fs::write(
+        &temp_config_path,
+        serde_json::to_string_pretty(&base_config)?,
+    )?;
+
+    // 使用临时配置文件启动 sing-box
+    command
+        .args(["run", "-c", &*temp_config_path.to_string_lossy()])
+        .stdin(Stdio::null())
+        .stdout(Stdio::from(log_file.try_clone()?))
+        .stderr(Stdio::from(log_file));
 
     #[cfg(windows)]
     {
@@ -192,6 +197,14 @@ pub async fn start_singbox(
             let pid = child.id();
             println!("Sing-box process started successfully (PID: {}).", pid);
             
+            // 重新获取锁来存储进程
+            let mut process_guard = match state.singbox_process.lock() {
+                Ok(guard) => guard,
+                Err(poisoned) => {
+                    eprintln!("Mutex was poisoned when storing process, recovering...");
+                    poisoned.into_inner()
+                }
+            };
             *process_guard = Some(child);
             
             // 记录启动时间和PID
