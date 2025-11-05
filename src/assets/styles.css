@@ -730,27 +730,31 @@ body,
 
 /* ===== Segmented Control ===== */
 .segmented-control {
-  @apply relative flex bg-gray-200 rounded-lg p-1 mt-3;
-  min-height: 40px;
+  @apply relative flex bg-gray-100 rounded-lg mt-3 border border-gray-200;
+  padding: 3px;
+  min-height: 44px;
 }
 
 .segmented-background {
-  @apply absolute top-1 bottom-1 bg-white rounded-md shadow-sm transition-all duration-300 ease-out;
+  @apply absolute bg-white rounded-md shadow-sm transition-all duration-300 ease-out;
+  top: 3px;
+  bottom: 3px;
   z-index: 1;
+  border: 1px solid rgba(229, 231, 235, 0.8);
 }
 
 .segmented-option {
-  @apply relative flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md transition-all duration-200 cursor-pointer border-0 bg-transparent;
+  @apply relative flex-1 flex items-center justify-center px-4 py-2.5 text-sm font-medium text-gray-600 transition-all duration-200 cursor-pointer border-0 bg-transparent rounded-md;
   z-index: 2;
-  min-height: 32px;
+  min-height: 36px;
 }
 
 .segmented-option:hover {
-  @apply text-gray-800;
+  @apply text-gray-700;
 }
 
 .segmented-option.active {
-  @apply text-gray-900 font-semibold;
+  @apply text-gray-800 font-semibold;
 }
 
 .segmented-option:focus {
@@ -759,12 +763,17 @@ body,
 
 /* ===== Log Segmented Control ===== */
 .log-segmented {
-  @apply bg-gray-100;
+  @apply bg-gray-50 border-gray-100;
+  min-height: 40px;
+}
+
+.log-segmented .segmented-background {
+  border: 1px solid rgba(209, 213, 219, 0.6);
 }
 
 .log-segmented .segmented-option {
-  @apply text-xs px-2 py-1.5;
-  min-height: 28px;
+  @apply text-xs px-2 py-2;
+  min-height: 32px;
 }
 
 .log-option {
@@ -772,16 +781,21 @@ body,
 }
 
 /* ===== Hover Effects ===== */
+.segmented-control:hover {
+  @apply bg-gray-200 border-gray-300;
+}
+
 .segmented-control:hover .segmented-background {
   @apply shadow-md;
+  border-color: rgba(156, 163, 175, 0.8);
 }
 
-.setting-item-vertical:hover .segmented-control {
-  @apply bg-gray-300;
+.log-segmented:hover {
+  @apply bg-gray-100 border-gray-200;
 }
 
-.setting-item-vertical:hover .log-segmented {
-  @apply bg-gray-200;
+.log-segmented:hover .segmented-background {
+  border-color: rgba(156, 163, 175, 0.6);
 }
 
 /* ===== Responsive Adjustments ===== */
