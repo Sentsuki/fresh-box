@@ -12,23 +12,24 @@
         <!-- Stack Configuration -->
         <div v-if="hasStackField" class="setting-item-vertical">
           <span class="text-sm text-gray-700 font-medium">Stack</span>
-          <div class="segmented-control">
-            <div 
-              class="segmented-background"
-              :style="{ 
-                left: getStackBackgroundPosition(),
-                width: getStackBackgroundWidth()
-              }"
-            ></div>
-            <button
-              v-for="option in stackOptions"
-              :key="option"
-              class="segmented-option"
-              :class="{ active: selectedStackOption === option }"
-              @click="setStackOption(option)"
-            >
-              {{ option.charAt(0).toUpperCase() + option.slice(1) }}
-            </button>
+          <div class="slider-container">
+            <div class="slider-track" @click="handleStackTrackClick">
+              <div class="slider-progress" :style="{ width: getStackProgressWidth() }"></div>
+              <div 
+                class="slider-thumb" 
+                :style="{ left: getStackThumbPosition() }" 
+                @mousedown="startStackDrag"
+              ></div>
+            </div>
+            <div class="slider-labels">
+              <span 
+                v-for="option in stackOptions" 
+                :key="option"
+                class="slider-label" 
+                :class="{ active: selectedStackOption === option }"
+                @click="setStackOption(option)"
+              >{{ option.charAt(0).toUpperCase() + option.slice(1) }}</span>
+            </div>
           </div>
         </div>
 
@@ -60,23 +61,24 @@
           <!-- Log Level Options -->
           <div v-if="!logDisabled" class="log-level-section">
             <span class="text-xs text-gray-600 font-medium mb-2 block">Level</span>
-            <div class="segmented-control log-segmented">
-              <div 
-                class="segmented-background"
-                :style="{ 
-                  left: getLogBackgroundPosition(),
-                  width: getLogBackgroundWidth()
-                }"
-              ></div>
-              <button
-                v-for="level in logLevels"
-                :key="level"
-                class="segmented-option log-option"
-                :class="{ active: selectedLogLevel === level }"
-                @click="setLogLevel(level)"
-              >
-                {{ level.charAt(0).toUpperCase() + level.slice(1) }}
-              </button>
+            <div class="slider-container">
+              <div class="slider-track" @click="handleLogTrackClick">
+                <div class="slider-progress" :style="{ width: getLogProgressWidth() }"></div>
+                <div 
+                  class="slider-thumb" 
+                  :style="{ left: getLogThumbPosition() }" 
+                  @mousedown="startLogDrag"
+                ></div>
+              </div>
+              <div class="slider-labels log-labels">
+                <span 
+                  v-for="level in logLevels" 
+                  :key="level"
+                  class="slider-label" 
+                  :class="{ active: selectedLogLevel === level }"
+                  @click="setLogLevel(level)"
+                >{{ level.charAt(0).toUpperCase() + level.slice(1) }}</span>
+              </div>
             </div>
           </div>
         </div>
@@ -453,10 +455,80 @@ onMounted(async () => {
 // Stack and Log options
 const stackOptions: StackOption[] = ["mixed", "gvisor", "system"];
 
-// Segmented control methods
+// Drag state
+const isDragging = ref(false);
+const dragType = ref<'stack' | 'log' | null>(null);
+
+// Stack slider methods
+const getStackProgressWidth = () => {
+  const index = stackOptions.indexOf(selectedStackOption.value);
+  return `${(index / (stackOptions.length - 1)) * 100}%`;
+};
+
+const getStackThumbPosition = () => {
+  const index = stackOptions.indexOf(selectedStackOption.value);
+  return `${(index / (stackOptions.length - 1)) * 100}%`;
+};
+
 const setStackOption = (option: StackOption) => {
   selectedStackOption.value = option;
   updateStackConfiguration();
+};
+
+const handleStackTrackClick = (event: MouseEvent) => {
+  if (!hasStackField.value) return;
+  
+  const track = event.currentTarget as HTMLElement;
+  const rect = track.getBoundingClientRect();
+  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const index = Math.round(percentage * (stackOptions.length - 1));
+  
+  if (stackOptions[index] !== selectedStackOption.value) {
+    setStackOption(stackOptions[index]);
+  }
+};
+
+const startStackDrag = (event: MouseEvent) => {
+  if (!hasStackField.value) return;
+  event.preventDefault();
+  isDragging.value = true;
+  dragType.value = 'stack';
+  
+  const handleMouseMove = (e: MouseEvent) => handleStackDrag(e);
+  const handleMouseUp = () => {
+    isDragging.value = false;
+    dragType.value = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+  
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
+};
+
+const handleStackDrag = (event: MouseEvent) => {
+  const container = document.querySelector('.setting-item-vertical .slider-container');
+  if (!container) return;
+  
+  const track = container.querySelector('.slider-track') as HTMLElement;
+  const rect = track.getBoundingClientRect();
+  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const index = Math.round(percentage * (stackOptions.length - 1));
+  
+  if (stackOptions[index] !== selectedStackOption.value) {
+    setStackOption(stackOptions[index]);
+  }
+};
+
+// Log slider methods
+const getLogProgressWidth = () => {
+  const index = logLevels.indexOf(selectedLogLevel.value);
+  return `${(index / (logLevels.length - 1)) * 100}%`;
+};
+
+const getLogThumbPosition = () => {
+  const index = logLevels.indexOf(selectedLogLevel.value);
+  return `${(index / (logLevels.length - 1)) * 100}%`;
 };
 
 const setLogLevel = (level: LogLevel) => {
@@ -464,24 +536,50 @@ const setLogLevel = (level: LogLevel) => {
   updateLogConfiguration();
 };
 
-// Stack segmented control positioning
-const getStackBackgroundPosition = () => {
-  const index = stackOptions.indexOf(selectedStackOption.value);
-  return `${(index / stackOptions.length) * 100}%`;
+const handleLogTrackClick = (event: MouseEvent) => {
+  if (!hasLogField.value || logDisabled.value) return;
+  
+  const track = event.currentTarget as HTMLElement;
+  const rect = track.getBoundingClientRect();
+  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const index = Math.round(percentage * (logLevels.length - 1));
+  
+  if (logLevels[index] !== selectedLogLevel.value) {
+    setLogLevel(logLevels[index]);
+  }
 };
 
-const getStackBackgroundWidth = () => {
-  return `${100 / stackOptions.length}%`;
+const startLogDrag = (event: MouseEvent) => {
+  if (!hasLogField.value || logDisabled.value) return;
+  event.preventDefault();
+  isDragging.value = true;
+  dragType.value = 'log';
+  
+  const handleMouseMove = (e: MouseEvent) => handleLogDrag(e);
+  const handleMouseUp = () => {
+    isDragging.value = false;
+    dragType.value = null;
+    document.removeEventListener('mousemove', handleMouseMove);
+    document.removeEventListener('mouseup', handleMouseUp);
+  };
+  
+  document.addEventListener('mousemove', handleMouseMove);
+  document.addEventListener('mouseup', handleMouseUp);
 };
 
-// Log segmented control positioning
-const getLogBackgroundPosition = () => {
-  const index = logLevels.indexOf(selectedLogLevel.value);
-  return `${(index / logLevels.length) * 100}%`;
-};
-
-const getLogBackgroundWidth = () => {
-  return `${100 / logLevels.length}%`;
+const handleLogDrag = (event: MouseEvent) => {
+  const containers = document.querySelectorAll('.setting-item-vertical .slider-container');
+  const logContainer = containers[1]; // 第二个滑块容器是log的
+  if (!logContainer) return;
+  
+  const track = logContainer.querySelector('.slider-track') as HTMLElement;
+  const rect = track.getBoundingClientRect();
+  const percentage = Math.max(0, Math.min(1, (event.clientX - rect.left) / rect.width));
+  const index = Math.round(percentage * (logLevels.length - 1));
+  
+  if (logLevels[index] !== selectedLogLevel.value) {
+    setLogLevel(logLevels[index]);
+  }
 };
 
 // 清理事件监听

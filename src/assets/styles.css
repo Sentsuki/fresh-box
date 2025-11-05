@@ -728,80 +728,92 @@ body,
   @apply mt-3;
 }
 
-/* ===== Segmented Control ===== */
-.segmented-control {
-  @apply relative flex bg-gray-200 rounded-lg p-1 mt-3;
-  min-height: 40px;
+/* ===== Slider Components ===== */
+.slider-container {
+  @apply relative mt-3;
 }
 
-.segmented-background {
-  @apply absolute top-1 bottom-1 bg-white rounded-md shadow-sm transition-all duration-300 ease-out;
-  z-index: 1;
+.slider-track {
+  @apply relative w-full h-2 bg-gray-200 rounded-full cursor-pointer mb-4 transition-all duration-200;
 }
 
-.segmented-option {
-  @apply relative flex-1 flex items-center justify-center px-3 py-2 text-sm font-medium text-gray-600 rounded-md transition-all duration-200 cursor-pointer border-0 bg-transparent;
-  z-index: 2;
-  min-height: 32px;
-}
-
-.segmented-option:hover {
-  @apply text-gray-800;
-}
-
-.segmented-option.active {
-  @apply text-gray-900 font-semibold;
-}
-
-.segmented-option:focus {
-  @apply outline-none;
-}
-
-/* ===== Log Segmented Control ===== */
-.log-segmented {
-  @apply bg-gray-100;
-}
-
-.log-segmented .segmented-option {
-  @apply text-xs px-2 py-1.5;
-  min-height: 28px;
-}
-
-.log-option {
-  @apply shrink-0;
-}
-
-/* ===== Hover Effects ===== */
-.segmented-control:hover .segmented-background {
-  @apply shadow-md;
-}
-
-.setting-item-vertical:hover .segmented-control {
+.slider-track:hover {
   @apply bg-gray-300;
 }
 
-.setting-item-vertical:hover .log-segmented {
-  @apply bg-gray-200;
+.slider-progress {
+  @apply absolute top-0 left-0 h-full bg-linear-to-r from-blue-400 to-blue-600 rounded-full transition-all duration-300;
+}
+
+.slider-thumb {
+  @apply absolute top-1/2 w-5 h-5 bg-white border-2 border-blue-500 rounded-full shadow-lg cursor-grab transition-all duration-200 transform -translate-y-1/2 -translate-x-1/2;
+}
+
+.slider-thumb:hover {
+  @apply scale-110 shadow-xl border-blue-600;
+}
+
+.slider-thumb:active {
+  @apply cursor-grabbing scale-105;
+}
+
+.slider-labels {
+  @apply flex justify-between;
+}
+
+.slider-label {
+  @apply text-xs font-medium text-gray-500 cursor-pointer px-2 py-1 rounded transition-all duration-200 text-center;
+}
+
+.slider-label:hover {
+  @apply text-gray-700 bg-gray-100;
+}
+
+.slider-label.active {
+  @apply text-blue-600 bg-blue-50 font-semibold;
+}
+
+.log-labels {
+  @apply grid grid-cols-7 gap-1;
+}
+
+.log-labels .slider-label {
+  @apply text-center text-xs px-1;
+}
+
+/* ===== Animation Enhancements ===== */
+@keyframes slider-glow {
+  0%, 100% {
+    box-shadow: 0 0 0 0 rgba(59, 130, 246, 0.4);
+  }
+  50% {
+    box-shadow: 0 0 0 8px rgba(59, 130, 246, 0.1);
+  }
+}
+
+.slider-thumb:hover {
+  animation: slider-glow 2s infinite;
+}
+
+.setting-item-vertical:hover .slider-progress {
+  background: linear-gradient(to right, #3b82f6, #1d4ed8);
 }
 
 /* ===== Responsive Adjustments ===== */
 @media (max-width: 768px) {
-  .segmented-control {
-    @apply p-0.5;
-    min-height: 36px;
+  .slider-labels {
+    @apply text-xs;
   }
   
-  .segmented-option {
-    @apply px-2 py-1.5 text-xs;
-    min-height: 28px;
+  .log-labels {
+    @apply grid-cols-4 gap-0.5;
   }
   
-  .log-segmented .segmented-option {
-    @apply px-1 py-1 text-xs;
-    min-height: 24px;
+  .log-labels .slider-label {
+    @apply px-0.5 py-0.5 text-xs;
   }
   
-  .segmented-background {
-    @apply top-0.5 bottom-0.5;
+  .slider-thumb {
+    @apply w-4 h-4;
   }
 }
