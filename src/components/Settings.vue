@@ -7,121 +7,66 @@
 
     <div class="card-content">
       <div class="settings-section">
-        <div class="flex items-center justify-between mb-4">
-          <h3>Configuration</h3>
-          <button
-            class="control-button bg-blue-500 text-white hover:bg-blue-600 text-xs px-3 py-1 rounded flex items-center gap-1"
-            @click="refreshConfigFields"
-          >
-            <span>🔄</span>
-            Refresh
-          </button>
-        </div>
+        <h3>Configuration</h3>
         
-        <!-- Stack Configuration Switch -->
-        <div class="setting-item">
+        <!-- Stack Configuration -->
+        <div v-if="hasStackField" class="setting-item">
           <div class="flex flex-col gap-2">
-            <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-700 font-medium">Stack Configuration</span>
-              <label class="relative cursor-pointer" :class="{ 'opacity-50 cursor-not-allowed': !hasStackField }">
-                <input
-                  v-model="isStackSwitchEnabled"
-                  type="checkbox"
-                  class="sr-only"
-                  :disabled="!hasStackField"
-                  @change="updateStackSwitchState"
-                />
-                <div
-                  class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-                  :class="isStackSwitchEnabled && hasStackField ? 'bg-green-500' : 'bg-gray-200'"
-                />
-                <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-                  :class="isStackSwitchEnabled && hasStackField ? 'translate-x-5' : 'translate-x-0'"
-                />
-              </label>
-            </div>
-            <div v-if="!hasStackField" class="text-xs text-gray-500">
-              No stack field found in current configuration
-            </div>
-            <div v-else-if="isStackSwitchEnabled" class="mt-2">
-              <select
-                v-model="selectedStackOption"
-                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                @change="updateStackConfiguration"
-              >
-                <option value="mixed">Mixed</option>
-                <option value="gvisor">GVisor</option>
-                <option value="system">System</option>
-              </select>
-            </div>
+            <span class="text-sm text-gray-700 font-medium">Stack Configuration</span>
+            <select
+              v-model="selectedStackOption"
+              class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+              @change="updateStackConfiguration"
+            >
+              <option value="mixed">Mixed</option>
+              <option value="gvisor">GVisor</option>
+              <option value="system">System</option>
+            </select>
           </div>
         </div>
 
-        <!-- Log Configuration Switch -->
-        <div class="setting-item">
-          <div class="flex flex-col gap-2">
+        <!-- Log Configuration -->
+        <div v-if="hasLogField" class="setting-item">
+          <div class="flex flex-col gap-3">
+            <span class="text-sm text-gray-700 font-medium">Log Configuration</span>
+            
+            <!-- Log Disabled Setting -->
             <div class="flex items-center justify-between">
-              <span class="text-sm text-gray-700 font-medium">Log Configuration</span>
-              <label class="relative cursor-pointer" :class="{ 'opacity-50 cursor-not-allowed': !hasLogField }">
+              <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
+              <label class="relative cursor-pointer">
                 <input
-                  v-model="isLogSwitchEnabled"
+                  v-model="logDisabled"
                   type="checkbox"
                   class="sr-only"
-                  :disabled="!hasLogField"
-                  @change="updateLogSwitchState"
+                  @change="updateLogConfiguration"
                 />
                 <div
-                  class="w-11 h-6 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-                  :class="isLogSwitchEnabled && hasLogField ? 'bg-green-500' : 'bg-gray-200'"
+                  class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
+                  :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
                 />
                 <div
-                  class="absolute left-1 top-1 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-                  :class="isLogSwitchEnabled && hasLogField ? 'translate-x-5' : 'translate-x-0'"
+                  class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
+                  :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
                 />
               </label>
             </div>
-            <div v-if="!hasLogField" class="text-xs text-gray-500">
-              No log field found in current configuration
-            </div>
-            <div v-else-if="isLogSwitchEnabled" class="mt-2 space-y-3">
-              <!-- Log Disabled Setting -->
-              <div class="flex items-center justify-between">
-                <span class="text-xs text-gray-600 font-medium">Disable Logging</span>
-                <label class="relative cursor-pointer">
-                  <input
-                    v-model="logDisabled"
-                    type="checkbox"
-                    class="sr-only"
-                    @change="updateLogConfiguration"
-                  />
-                  <div
-                    class="w-9 h-5 rounded-full shadow-inner transition-colors duration-200 ease-in-out"
-                    :class="logDisabled ? 'bg-red-500' : 'bg-gray-200'"
-                  />
-                  <div
-                    class="absolute left-0.5 top-0.5 w-4 h-4 bg-white rounded-full shadow transform transition-transform duration-200 ease-in-out"
-                    :class="logDisabled ? 'translate-x-4' : 'translate-x-0'"
-                  />
-                </label>
-              </div>
-              <!-- Log Level Setting -->
-              <div>
-                <label class="block text-xs text-gray-600 font-medium mb-1">Log Level</label>
-                <select
-                  v-model="selectedLogLevel"
-                  class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-                  @change="updateLogConfiguration"
-                >
-                  <option value="trace">Trace</option>
-                  <option value="debug">Debug</option>
-                  <option value="info">Info</option>
-                  <option value="warn">Warn</option>
-                  <option value="error">Error</option>
-                  <option value="fatal">Fatal</option>
-                  <option value="panic">Panic</option>
-                </select>
-              </div>
+            
+            <!-- Log Level Setting -->
+            <div>
+              <label class="block text-xs text-gray-600 font-medium mb-1">Log Level</label>
+              <select
+                v-model="selectedLogLevel"
+                class="w-full px-3 py-2 border border-gray-300 rounded-md text-sm focus:outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+                @change="updateLogConfiguration"
+              >
+                <option value="trace">Trace</option>
+                <option value="debug">Debug</option>
+                <option value="info">Info</option>
+                <option value="warn">Warn</option>
+                <option value="error">Error</option>
+                <option value="fatal">Fatal</option>
+                <option value="panic">Panic</option>
+              </select>
             </div>
           </div>
         </div>
@@ -306,12 +251,10 @@ const isGettingStatus = ref(false);
 const processStatus = ref("");
 
 // Stack configuration related refs
-const isStackSwitchEnabled = ref(false);
 const selectedStackOption = ref<StackOption>("mixed");
 const hasStackField = ref(false);
 
 // Log configuration related refs
-const isLogSwitchEnabled = ref(false);
 const logDisabled = ref(false);
 const selectedLogLevel = ref<LogLevel>("info");
 const hasLogField = ref(false);
@@ -331,9 +274,7 @@ const checkConfigFields = async () => {
     const selectedConfig = localStorage.getItem("lastSelectedConfig");
     if (!selectedConfig) {
       hasStackField.value = false;
-      isStackSwitchEnabled.value = false;
       hasLogField.value = false;
-      isLogSwitchEnabled.value = false;
       return;
     }
 
@@ -354,8 +295,7 @@ const checkConfigFields = async () => {
       const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
       const stackConfig = priorityConfig.stack;
       
-      if (stackConfig) {
-        isStackSwitchEnabled.value = stackConfig.enabled;
+      if (stackConfig && stackConfig.enabled) {
         if (['mixed', 'gvisor', 'system'].includes(stackConfig.stack_option)) {
           selectedStackOption.value = stackConfig.stack_option as StackOption;
         }
@@ -365,10 +305,7 @@ const checkConfigFields = async () => {
             ['mixed', 'gvisor', 'system'].includes(fieldsCheck.current_stack_value)) {
           selectedStackOption.value = fieldsCheck.current_stack_value as StackOption;
         }
-        isStackSwitchEnabled.value = false;
       }
-    } else {
-      isStackSwitchEnabled.value = false;
     }
 
     // 设置 log 字段检查结果
@@ -379,8 +316,7 @@ const checkConfigFields = async () => {
       const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
       const logConfig = priorityConfig.log;
       
-      if (logConfig) {
-        isLogSwitchEnabled.value = logConfig.enabled;
+      if (logConfig && logConfig.enabled) {
         logDisabled.value = logConfig.disabled;
         if (['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(logConfig.level)) {
           selectedLogLevel.value = logConfig.level as LogLevel;
@@ -394,47 +330,12 @@ const checkConfigFields = async () => {
             ['trace', 'debug', 'info', 'warn', 'error', 'fatal', 'panic'].includes(fieldsCheck.current_log_level)) {
           selectedLogLevel.value = fieldsCheck.current_log_level as LogLevel;
         }
-        isLogSwitchEnabled.value = false;
       }
-    } else {
-      isLogSwitchEnabled.value = false;
     }
   } catch (error) {
     console.error("Failed to check config fields:", error);
     hasStackField.value = false;
-    isStackSwitchEnabled.value = false;
     hasLogField.value = false;
-    isLogSwitchEnabled.value = false;
-  }
-};
-
-// 更新 stack 配置开关状态
-const updateStackSwitchState = async () => {
-  try {
-    // 先加载当前的 priority config
-    const priorityConfig = await invoke<{stack?: {enabled: boolean, stack_option: string}}>("load_priority_config");
-    
-    const updatedConfig = {
-      ...priorityConfig,
-      stack: {
-        enabled: isStackSwitchEnabled.value,
-        stack_option: selectedStackOption.value
-      }
-    };
-    
-    await invoke("save_priority_config", { config: updatedConfig });
-    
-    if (isStackSwitchEnabled.value) {
-      toastRef.value?.showToast(
-        `Stack configuration enabled: ${selectedStackOption.value}`,
-        "success"
-      );
-    } else {
-      toastRef.value?.showToast("Stack configuration disabled", "success");
-    }
-  } catch (error) {
-    console.error("Failed to update stack switch state:", error);
-    toastRef.value?.showToast("Failed to update stack configuration", "error");
   }
 };
 
@@ -451,7 +352,7 @@ const updateStackConfiguration = async () => {
     const updatedConfig = {
       ...priorityConfig,
       stack: {
-        enabled: isStackSwitchEnabled.value,
+        enabled: true, // 有字段就启用
         stack_option: selectedStackOption.value
       }
     };
@@ -468,37 +369,6 @@ const updateStackConfiguration = async () => {
   }
 };
 
-// 更新 log 配置开关状态
-const updateLogSwitchState = async () => {
-  try {
-    // 先加载当前的 priority config
-    const priorityConfig = await invoke<{log?: {enabled: boolean, disabled: boolean, level: string}}>("load_priority_config");
-    
-    const updatedConfig = {
-      ...priorityConfig,
-      log: {
-        enabled: isLogSwitchEnabled.value,
-        disabled: logDisabled.value,
-        level: selectedLogLevel.value
-      }
-    };
-    
-    await invoke("save_priority_config", { config: updatedConfig });
-    
-    if (isLogSwitchEnabled.value) {
-      toastRef.value?.showToast(
-        `Log configuration enabled: level=${selectedLogLevel.value}, disabled=${logDisabled.value}`,
-        "success"
-      );
-    } else {
-      toastRef.value?.showToast("Log configuration disabled", "success");
-    }
-  } catch (error) {
-    console.error("Failed to update log switch state:", error);
-    toastRef.value?.showToast("Failed to update log configuration", "error");
-  }
-};
-
 // 更新 log 选项
 const updateLogConfiguration = async () => {
   if (!hasLogField.value) {
@@ -512,7 +382,7 @@ const updateLogConfiguration = async () => {
     const updatedConfig = {
       ...priorityConfig,
       log: {
-        enabled: isLogSwitchEnabled.value,
+        enabled: true, // 有字段就启用
         disabled: logDisabled.value,
         level: selectedLogLevel.value
       }
@@ -530,11 +400,7 @@ const updateLogConfiguration = async () => {
   }
 };
 
-// 刷新配置字段检查
-const refreshConfigFields = async () => {
-  await checkConfigFields();
-  toastRef.value?.showToast("Configuration fields refreshed", "success");
-};
+
 
 // 加载已有配置
 onMounted(async () => {
