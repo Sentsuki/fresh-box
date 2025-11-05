@@ -85,7 +85,7 @@ pub struct ConfigFieldsCheck {
 pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsCheck, CommandError> {
     use std::fs;
     
-    // 读取配置文件
+    // 读取原始配置文件
     let config_content = fs::read_to_string(&config_path)?;
     let config: Value = serde_json::from_str(&config_content)?;
     
@@ -97,7 +97,7 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
         current_log_level: None,
     };
     
-    // 检查 stack 字段
+    // 检查原始配置文件中的 stack 字段
     if let Some(inbounds) = config.get("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array() {
             for inbound in inbounds_array {
@@ -114,7 +114,7 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
         }
     }
     
-    // 检查 log 字段
+    // 检查原始配置文件中的 log 字段
     if let Some(log_obj) = config.get("log") {
         if log_obj.is_object() {
             result.has_log_field = true;
@@ -128,6 +128,56 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
             if let Some(level_value) = log_obj.get("level") {
                 if let Some(level_str) = level_value.as_str() {
                     result.current_log_level = Some(level_str.to_string());
+                }
+            }
+        }
+    }
+    
+    // 检查 Config Override 中的字段
+    let bin_dir = super::config::get_bin_dir()?;
+    let override_path = bin_dir.join("config_override.json");
+    
+    if override_path.exists() {
+        if let Ok(override_content) = fs::read_to_string(&override_path) {
+            if let Ok(override_config) = serde_json::from_str::<Value>(&override_content) {
+                // 检查 Config Override 中的 stack 字段
+                if !result.has_stack_field {
+                    if let Some(override_inbounds) = override_config.get("inbounds") {
+                        if let Some(override_inbounds_array) = override_inbounds.as_array() {
+                            for inbound in override_inbounds_array {
+                                if let Some(inbound_obj) = inbound.as_object() {
+                                    if let Some(stack_value) = inbound_obj.get("stack") {
+                                        result.has_stack_field = true;
+                                        if let Some(stack_str) = stack_value.as_str() {
+                                            result.current_stack_value = Some(stack_str.to_string());
+                                        }
+                                        break;
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+                
+                // 检查 Config Override 中的 log 字段
+                if !result.has_log_field {
+                    if let Some(override_log_obj) = override_config.get("log") {
+                        if override_log_obj.is_object() {
+                            result.has_log_field = true;
+                            
+                            // 获取当前的 disabled 值
+                            if let Some(disabled_value) = override_log_obj.get("disabled") {
+                                result.current_log_disabled = disabled_value.as_bool();
+                            }
+                            
+                            // 获取当前的 level 值
+                            if let Some(level_value) = override_log_obj.get("level") {
+                                if let Some(level_str) = level_value.as_str() {
+                                    result.current_log_level = Some(level_str.to_string());
+                                }
+                            }
+                        }
+                    }
                 }
             }
         }
