@@ -159,37 +159,36 @@
           </label>
         </div>
 
-        <div v-if="isOverrideEnabled" class="mt-4 p-4 bg-gray-50 rounded-md">
+        <div v-if="isOverrideEnabled" class="mt-4">
           <div class="mb-4">
             <textarea
               v-model="overrideConfig"
               placeholder="Enter your configuration override here (JSON format)"
-              rows="10"
-              class="w-full p-3 border border-gray-300 rounded-md bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-600 focus:ring-2 focus:ring-blue-200"
-              :class="!isValidJson ? 'border-red-500 bg-red-50' : ''"
+              rows="12"
+              class="w-full p-4 border border-gray-300 rounded-lg bg-white text-gray-800 text-sm leading-relaxed resize-y transition-all duration-200 focus:outline-none focus:border-blue-500 focus:ring-4 focus:ring-blue-100 shadow-sm"
+              :class="!isValidJson ? 'border-red-400 bg-red-50' : ''"
               style="
-                font-family:
-                  &quot;Consolas&quot;, &quot;Monaco&quot;, monospace;
-                min-height: 200px;
+                font-family: 'Consolas', 'Monaco', 'Courier New', monospace;
+                min-height: 280px;
               "
             />
             <div
               v-if="!isValidJson"
-              class="text-red-700 mt-2 text-sm font-medium p-3 bg-red-100 rounded border-l-4 border-red-500"
+              class="mt-3 p-3 bg-red-50 border border-red-200 rounded-lg text-red-700 text-sm"
             >
-              {{ jsonError }}
+              <strong>JSON Error:</strong> {{ jsonError }}
             </div>
           </div>
           <div class="flex gap-3 justify-end">
             <button
               :disabled="!isValidJson"
-              class="control-button bg-blue-600 text-white hover:bg-blue-700"
+              class="px-5 py-2.5 bg-blue-600 text-white text-sm font-medium rounded-lg hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               @click="saveOverride"
             >
               Save Override
             </button>
             <button
-              class="control-button bg-gray-300 text-gray-700 hover:bg-gray-400"
+              class="px-5 py-2.5 bg-gray-200 text-gray-700 text-sm font-medium rounded-lg hover:bg-gray-300 transition-colors duration-200"
               @click="clearOverride"
             >
               Clear Override
