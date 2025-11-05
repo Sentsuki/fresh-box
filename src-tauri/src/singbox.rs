@@ -162,13 +162,11 @@ pub async fn start_singbox(
         crate::config_override::apply_config_override(&mut base_config, &override_config);
     }
 
-    // 检查并应用 Stack Configuration（优先级高于 Config Override）
-    let stack_config = crate::stack_config::load_stack_config().await?;
-    if stack_config.enabled {
-        if let Err(e) = crate::stack_config::apply_stack_config(&mut base_config, &stack_config) {
-            eprintln!("Warning: Failed to apply stack configuration: {:?}", e);
-            // 不返回错误，继续启动，但记录警告
-        }
+    // 检查并应用 Priority Configuration（优先级高于 Config Override）
+    let priority_config = crate::priority_config::load_priority_config().await?;
+    if let Err(e) = crate::priority_config::apply_priority_config(&mut base_config, &priority_config) {
+        eprintln!("Warning: Failed to apply priority configuration: {:?}", e);
+        // 不返回错误，继续启动，但记录警告
     }
 
     // 将最终配置写入临时文件

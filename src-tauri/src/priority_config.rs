@@ -3,12 +3,28 @@ use serde_json::Value;
 use std::fs;
 use std::path::PathBuf;
 
-const STACK_CONFIG_FILE: &str = "stack_config.json";
+const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct PriorityConfig {
+    pub stack: Option<StackConfig>,
+    // 未来可以添加其他高优先级配置选项
+    // pub dns: Option<DnsConfig>,
+    // pub routing: Option<RoutingConfig>,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct StackConfig {
     pub enabled: bool,
     pub stack_option: String, // "mixed", "gvisor", "system"
+}
+
+impl Default for PriorityConfig {
+    fn default() -> Self {
+        Self {
+            stack: None,
+        }
+    }
 }
 
 impl Default for StackConfig {
@@ -20,42 +36,78 @@ impl Default for StackConfig {
     }
 }
 
-fn get_stack_config_path() -> Result<PathBuf, CommandError> {
+fn get_priority_config_path() -> Result<PathBuf, CommandError> {
     let bin_dir = super::config::get_bin_dir()?;
-    Ok(bin_dir.join(STACK_CONFIG_FILE))
+    Ok(bin_dir.join(PRIORITY_CONFIG_FILE))
 }
 
 #[tauri::command]
-pub async fn save_stack_config(config: StackConfig) -> Result<(), CommandError> {
-    let config_path = get_stack_config_path()?;
+pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandError> {
+    let config_path = get_priority_config_path()?;
     let config_str = serde_json::to_string_pretty(&config)?;
     fs::write(&config_path, config_str)?;
     Ok(())
 }
 
 #[tauri::command]
-pub async fn load_stack_config() -> Result<StackConfig, CommandError> {
-    let config_path = get_stack_config_path()?;
+pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
+    let config_path = get_priority_config_path()?;
     if !config_path.exists() {
-        return Ok(StackConfig::default());
+        return Ok(PriorityConfig::default());
     }
 
     let config_str = fs::read_to_string(&config_path)?;
-    let config: StackConfig = serde_json::from_str(&config_str)?;
+    let config: PriorityConfig = serde_json::from_str(&config_str)?;
     Ok(config)
 }
 
 #[tauri::command]
-pub async fn clear_stack_config() -> Result<(), CommandError> {
-    let config_path = get_stack_config_path()?;
+pub async fn clear_priority_config() -> Result<(), CommandError> {
+    let config_path = get_priority_config_path()?;
     if config_path.exists() {
         fs::remove_file(&config_path)?;
     }
     Ok(())
 }
 
-// 应用 stack 配置到配置对象
+// 兼容性函数 - 保持旧的 API 接口
+#[tauri::command]
+pub async fn save_stack_config(config: StackConfig) -> Result<(), CommandError> {
+    let mut priority_config = load_priority_config().await?;
+    priority_config.stack = Some(config);
+    save_priority_config(priority_config).await
+}
+
+#[tauri::command]
+pub async fn load_stack_config() -> Result<StackConfig, CommandError> {
+    let priority_config = load_priority_config().await?;
+    Ok(priority_config.stack.unwrap_or_default())
+}
+
+#[tauri::command]
+pub async fn clear_stack_config() -> Result<(), CommandError> {
+    let mut priority_config = load_priority_config().await?;
+    priority_config.stack = None;
+    save_priority_config(priority_config).await
+}
+
+// 应用优先级配置到配置对象
 // 这个函数会在 Config Override 之后调用，确保优先级更高
+pub fn apply_priority_config(config: &mut Value, priority_config: &PriorityConfig) -> Result<(), CommandError> {
+    // 应用 stack 配置
+    if let Some(stack_config) = &priority_config.stack {
+        apply_stack_config(config, stack_config)?;
+    }
+    
+    // 未来可以在这里添加其他配置的应用逻辑
+    // if let Some(dns_config) = &priority_config.dns {
+    //     apply_dns_config(config, dns_config)?;
+    // }
+    
+    Ok(())
+}
+
+// 应用 stack 配置到配置对象
 pub fn apply_stack_config(config: &mut Value, stack_config: &StackConfig) -> Result<(), CommandError> {
     if !stack_config.enabled {
         return Ok(());

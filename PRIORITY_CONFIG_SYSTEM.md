@@ -1,4 +1,4 @@
-# Stack Configuration 优先级说明
+# Priority Configuration 系统说明
 
 ## 配置应用顺序
 
@@ -6,9 +6,9 @@
 
 1. **原始配置文件** - 用户选择的基础配置文件
 2. **Config Override** - 通过 Settings 页面的 "Enable Config Override" 功能设置的覆盖配置
-3. **Stack Configuration** - 通过 Settings 页面的 "Stack Configuration" 开关设置的 stack 选项
+3. **Priority Configuration** - 通过 Settings 页面的各种高优先级开关设置的选项
 
-## Stack Configuration 功能
+## Priority Configuration 系统
 
 ### 功能描述
 - 允许用户快速切换配置文件中 `inbounds` 数组中的 `stack` 字段值
@@ -40,11 +40,13 @@
 }
 ```
 
-### Stack Configuration 存储文件 (stack_config.json)
+### Priority Configuration 存储文件 (priority_config.json)
 ```json
 {
-  "enabled": true,
-  "stack_option": "gvisor"
+  "stack": {
+    "enabled": true,
+    "stack_option": "gvisor"
+  }
 }
 ```
 
@@ -53,7 +55,7 @@
 ### 后端处理流程
 1. 读取原始配置文件
 2. 应用 Config Override（如果启用）
-3. 应用 Stack Configuration（如果启用且配置文件包含 stack 字段）
+3. 应用 Priority Configuration（包括 Stack Configuration 等高优先级选项）
 4. 将最终配置写入 `temp_config.json`
 5. 使用临时配置文件启动 sing-box
 
@@ -68,4 +70,24 @@
 1. **配置文件要求**：只有当前选择的配置文件中包含 `stack` 字段时，Stack Configuration 功能才可用
 2. **实时生效**：配置更改会在下次启动 sing-box 时生效
 3. **不修改原文件**：所有配置覆盖都是临时的，不会修改原始配置文件
-4. **优先级明确**：Stack Configuration > Config Override > 原始配置文件
+4. **优先级明确**：Priority Configuration > Config Override > 原始配置文件
+
+## 扩展性设计
+
+Priority Configuration 系统采用模块化设计，便于后续添加新的高优先级配置选项：
+
+### 当前支持的选项
+- **Stack Configuration**: 控制网络栈选项 (mixed/gvisor/system)
+
+### 未来可扩展的选项
+- **DNS Configuration**: DNS 服务器和解析策略的快速切换
+- **Routing Configuration**: 路由规则的优先级覆盖
+- **Log Configuration**: 日志级别和输出的动态控制
+- **Performance Configuration**: 性能相关参数的快速调整
+
+### 添加新选项的步骤
+1. 在 `PriorityConfig` 结构体中添加新的配置字段
+2. 实现对应的应用逻辑函数
+3. 在 `apply_priority_config` 函数中调用新的应用逻辑
+4. 在前端添加相应的 UI 控件
+5. 添加相应的 Tauri 命令（如需要）
