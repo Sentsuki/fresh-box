@@ -1,8 +1,8 @@
 // config.rs - 管理配置文件
 
 use crate::errors::CommandError;
-use std::process::Command;
 use serde_json::Value;
+use std::process::Command;
 
 // 获取 bin 目录路径的公共函数
 pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
@@ -30,7 +30,7 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
         // 使用 Windows API 直接打开目录，避免命令行窗口闪烁
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        
+
         Command::new("explorer")
             .arg(exe_dir)
             .creation_flags(CREATE_NO_WINDOW)
@@ -239,7 +239,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
         // 使用 Windows API 直接打开文件，避免命令行窗口闪烁
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
-        
+
         Command::new("cmd")
             .args(["/C", "start", "", &full_path.to_string_lossy()])
             .creation_flags(CREATE_NO_WINDOW)
@@ -284,9 +284,8 @@ pub async fn load_config_content(config_path: String) -> Result<Value, CommandEr
         CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
     })?;
 
-    let json_value: Value = serde_json::from_str(&content).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e))
-    })?;
+    let json_value: Value = serde_json::from_str(&content)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
 
     Ok(json_value)
 }
@@ -297,9 +296,8 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
     let full_path = bin_dir.join(&config_path);
 
     // 验证 JSON 格式
-    let _: Value = serde_json::from_str(&content).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Invalid JSON format: {}", e))
-    })?;
+    let _: Value = serde_json::from_str(&content)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Invalid JSON format: {}", e)))?;
 
     std::fs::write(&full_path, content).map_err(|e| {
         CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))

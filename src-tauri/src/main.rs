@@ -9,23 +9,25 @@ mod singbox;
 mod tray;
 mod window_utils;
 
-use singbox::{SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly};
-use tauri::Manager;
+use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::panic;
+use tauri::Manager;
 
 fn main() {
     // 设置panic hook来记录崩溃信息
     panic::set_hook(Box::new(|panic_info| {
         let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path.parent().unwrap_or_else(|| std::path::Path::new("."));
+        let exe_dir = exe_path
+            .parent()
+            .unwrap_or_else(|| std::path::Path::new("."));
         let log_path = exe_dir.join("crash.log");
-        
+
         let crash_msg = format!(
             "Application crashed at {}: {}\n",
             chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
             panic_info
         );
-        
+
         // 尝试写入崩溃日志
         if std::fs::write(&log_path, &crash_msg).is_err() {
             // 如果写入失败，尝试追加到现有文件
@@ -38,7 +40,7 @@ fn main() {
                     file.write_all(crash_msg.as_bytes())
                 });
         }
-        
+
         eprintln!("{}", crash_msg);
     }));
 
