@@ -305,3 +305,93 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), CommandError> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+    }
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let full_path = bin_dir.join(&config_path);
+
+    if !full_path.exists() {
+        return Err(CommandError::ResourceNotFound(format!(
+            "Config file not found at: {}",
+            full_path.display()
+        )));
+    }
+
+    // 读取原始配置文件
+    let content = std::fs::read_to_string(&full_path).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
+    })?;
+
+    let mut config: Value = serde_json::from_str(&content)
+        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
+
+    // 检查是否有 override 配置并应用
+    if let Ok(Some(override_config)) =
+        crate::config_override::get_override_config_if_enabled().await
+    {
+        crate::config_override::apply_config_override(&mut config, &override_config);
+    }
+
+    // 从配置中提取 clash_api 信息
+    let external_controller = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_controller"))
+        .and_then(|ctrl| ctrl.as_str());
+
+    let external_ui = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_ui"))
+        .and_then(|ui| ui.as_str());
+
+    // 如果两者都存在，构建 URL
+    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
+        // 确保 UI 路径以 / 开头
+        let ui_path = if ui.starts_with('/') {
+            ui.to_string()
+        } else {
+            format!("/{}", ui)
+        };
+
+        // 构建完整的 URL
+        let url = format!("http://{}{}/", controller, ui_path);
+        Ok(Some(url))
+    } else {
+        Ok(None)
+    }
+}

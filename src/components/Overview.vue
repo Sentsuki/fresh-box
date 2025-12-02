@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+
 const props = defineProps({
   isRunning: {
     type: Boolean,
@@ -31,7 +33,7 @@ const isSubscription = computed(() => {
   );
 });
 
-const emit = defineEmits(["start-service", "stop-service"]);
+const emit = defineEmits(["start-service", "stop-service", "show-toast"]);
 
 function startService() {
   emit("start-service");
@@ -39,6 +41,33 @@ function startService() {
 
 function stopService() {
   emit("stop-service");
+}
+
+// 点击徽章打开网址
+async function openWebsite() {
+  if (!props.selectedConfig) {
+    emit("show-toast", "No config selected", "error");
+    return;
+  }
+
+  try {
+    // 获取 Clash API URL
+    const url = await invoke<string | null>("get_clash_api_url", {
+      configPath: props.selectedConfig,
+    });
+
+    if (url) {
+      await invoke("open_url", { url });
+    } else {
+      emit(
+        "show-toast",
+        "Clash API not configured in this config file",
+        "error",
+      );
+    }
+  } catch (error) {
+    emit("show-toast", `Failed to open Clash API: ${error}`, "error");
+  }
 }
 </script>
 
@@ -91,8 +120,12 @@ function stopService() {
               }}
             </p>
           </div>
-          <div class="status-badge" :class="{ active: isRunning }">
-            {{ isRunning ? "ACTIVE" : "INACTIVE" }}
+          <div
+            class="status-badge"
+            :class="{ active: isRunning, clickable: isRunning }"
+            @click="isRunning ? openWebsite() : null"
+          >
+            {{ isRunning ? "PANEL" : "INACTIVE" }}
           </div>
         </div>
 

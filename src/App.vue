@@ -401,6 +401,7 @@ onUnmounted(() => {
         :subscriptions="subscriptions"
         @start-service="startService"
         @stop-service="stopService"
+        @show-toast="showToast"
       />
 
       <!-- Config 页面 -->
