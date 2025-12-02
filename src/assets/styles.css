@@ -226,46 +226,7 @@ body,
     );
 }
 
-.overview-status-card.running:hover {
-  background:
-    linear-gradient(
-      135deg,
-      rgba(191, 219, 254, 1) 20%,
-      rgba(187, 247, 208, 0.9) 80%
-    ),
-    linear-gradient(
-      to right,
-      transparent 0%,
-      rgba(255, 255, 255, 0.5) 15%,
-      rgba(255, 255, 255, 0.5) 85%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      rgba(255, 255, 255, 0.4) 15%,
-      rgba(255, 255, 255, 0.4) 85%,
-      transparent 100%
-    );
-}
 
-.overview-status-card.running:hover::before {
-  background:
-    linear-gradient(
-      to right,
-      transparent 0%,
-      rgba(191, 219, 254, 0.4) 20%,
-      rgba(187, 247, 208, 0.4) 80%,
-      transparent 100%
-    ),
-    linear-gradient(
-      to bottom,
-      transparent 0%,
-      rgba(191, 219, 254, 0.3) 20%,
-      rgba(187, 247, 208, 0.3) 80%,
-      transparent 100%
-    );
-}
 
 .status-header {
   @apply flex items-center;
@@ -305,7 +266,7 @@ body,
 }
 
 .status-badge {
-  @apply px-6 py-2.5 rounded-md text-xs font-medium uppercase tracking-wide transition-all duration-200;
+  @apply px-6 py-3 rounded-md text-xs font-medium uppercase tracking-wide transition-all duration-200;
   @apply bg-gray-200 text-gray-600;
   min-width: 100px;
   text-align: center;
@@ -527,7 +488,6 @@ body,
 
 .status-badge.active {
   @apply bg-green-500 text-white shadow-md;
-  animation: badge-pulse 2s infinite;
 }
 
 .status-badge:not(.active) {
