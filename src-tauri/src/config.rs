@@ -317,23 +317,23 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
             .args(["/C", "start", "", &url])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
-            })?;
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
     }
 
     #[cfg(target_os = "macos")]
     {
-        Command::new("open").arg(&url).spawn().map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
-        })?;
+        Command::new("open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
     }
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open").arg(&url).spawn().map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
-        })?;
+        Command::new("xdg-open")
+            .arg(&url)
+            .spawn()
+            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
     }
 
     Ok(())
@@ -360,7 +360,9 @@ pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, Co
         .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
 
     // 检查是否有 override 配置并应用
-    if let Ok(Some(override_config)) = crate::config_override::get_override_config_if_enabled().await {
+    if let Ok(Some(override_config)) =
+        crate::config_override::get_override_config_if_enabled().await
+    {
         crate::config_override::apply_config_override(&mut config, &override_config);
     }
 
