@@ -125,7 +125,7 @@ async function openWebsite() {
             :class="{ active: isRunning, clickable: isRunning }"
             @click="isRunning ? openWebsite() : null"
           >
-            {{ isRunning ? "ACTIVE" : "INACTIVE" }}
+            {{ isRunning ? "PANEL" : "INACTIVE" }}
           </div>
         </div>
 
