@@ -482,18 +482,6 @@ body,
   @apply text-green-700;
 }
 
-.status-badge {
-  @apply px-4 py-2 rounded-full text-xs font-bold uppercase tracking-wider transition-all duration-300;
-}
-
-.status-badge.active {
-  @apply bg-green-500 text-white shadow-md;
-}
-
-.status-badge:not(.active) {
-  @apply bg-gray-300 text-gray-700;
-}
-
 @keyframes badge-pulse {
   0%,
   100% {
