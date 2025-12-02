@@ -226,8 +226,6 @@ body,
     );
 }
 
-
-
 .status-header {
   @apply flex items-center;
 }
