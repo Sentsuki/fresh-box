@@ -45,10 +45,24 @@ function stopService() {
 
 // 点击徽章打开网址
 async function openWebsite() {
+  if (!props.selectedConfig) {
+    console.error("No config selected");
+    return;
+  }
+
   try {
-    await invoke("open_url", { url: "https://wxample.com" });
+    // 获取 Clash API URL
+    const url = await invoke<string | null>("get_clash_api_url", {
+      configPath: props.selectedConfig,
+    });
+
+    if (url) {
+      await invoke("open_url", { url });
+    } else {
+      console.warn("Clash API configuration not found in config file");
+    }
   } catch (error) {
-    console.error("Failed to open URL:", error);
+    console.error("Failed to open Clash API URL:", error);
   }
 }
 </script>
