@@ -313,6 +313,15 @@ body,
   @apply bg-green-500 text-white;
 }
 
+.status-badge.clickable {
+  @apply cursor-pointer;
+}
+
+.status-badge.clickable:hover {
+  @apply bg-green-600 transform scale-105;
+  box-shadow: 0 2px 8px rgba(34, 197, 94, 0.3);
+}
+
 /* ===== Status Card Config Info ===== */
 .status-config-info {
   @apply mt-3 pt-3 flex items-center justify-between relative;

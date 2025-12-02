@@ -305,3 +305,36 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
 
     Ok(())
 }
+
+#[tauri::command]
+pub async fn open_url(url: String) -> Result<(), CommandError> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+
+        Command::new("cmd")
+            .args(["/C", "start", "", &url])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| {
+                CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
+            })?;
+    }
+
+    #[cfg(target_os = "macos")]
+    {
+        Command::new("open").arg(&url).spawn().map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
+        })?;
+    }
+
+    #[cfg(target_os = "linux")]
+    {
+        Command::new("xdg-open").arg(&url).spawn().map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to open URL: {}", e))
+        })?;
+    }
+
+    Ok(())
+}

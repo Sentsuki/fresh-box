@@ -1,5 +1,7 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import { invoke } from "@tauri-apps/api/core";
+
 const props = defineProps({
   isRunning: {
     type: Boolean,
@@ -39,6 +41,15 @@ function startService() {
 
 function stopService() {
   emit("stop-service");
+}
+
+// 点击徽章打开网址
+async function openWebsite() {
+  try {
+    await invoke("open_url", { url: "https://wxample.com" });
+  } catch (error) {
+    console.error("Failed to open URL:", error);
+  }
 }
 </script>
 
@@ -91,7 +102,11 @@ function stopService() {
               }}
             </p>
           </div>
-          <div class="status-badge" :class="{ active: isRunning }">
+          <div
+            class="status-badge"
+            :class="{ active: isRunning, clickable: isRunning }"
+            @click="isRunning ? openWebsite() : null"
+          >
             {{ isRunning ? "ACTIVE" : "INACTIVE" }}
           </div>
         </div>
