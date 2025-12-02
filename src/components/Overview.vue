@@ -33,7 +33,7 @@ const isSubscription = computed(() => {
   );
 });
 
-const emit = defineEmits(["start-service", "stop-service"]);
+const emit = defineEmits(["start-service", "stop-service", "show-toast"]);
 
 function startService() {
   emit("start-service");
@@ -46,7 +46,7 @@ function stopService() {
 // 点击徽章打开网址
 async function openWebsite() {
   if (!props.selectedConfig) {
-    console.error("No config selected");
+    emit("show-toast", "No config selected", "error");
     return;
   }
 
@@ -59,10 +59,14 @@ async function openWebsite() {
     if (url) {
       await invoke("open_url", { url });
     } else {
-      console.warn("Clash API configuration not found in config file");
+      emit(
+        "show-toast",
+        "Clash API not configured in this config file",
+        "error",
+      );
     }
   } catch (error) {
-    console.error("Failed to open Clash API URL:", error);
+    emit("show-toast", `Failed to open Clash API: ${error}`, "error");
   }
 }
 </script>
