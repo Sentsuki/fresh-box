@@ -20,7 +20,7 @@ async fn open_panel_url() -> Result<(), String> {
     let override_config = config_override::get_override_config_if_enabled()
         .await
         .map_err(|e| format!("Failed to get override config: {:?}", e))?;
-    
+
     let config = match override_config {
         Some(cfg) => cfg,
         None => {
@@ -52,8 +52,9 @@ async fn open_panel_url() -> Result<(), String> {
 
         // 构建完整的 URL
         let url = format!("http://{}{}/", controller, ui_path);
-        
-        config::open_url(url).await
+
+        config::open_url(url)
+            .await
             .map_err(|e| format!("Failed to open URL: {:?}", e))?;
         Ok(())
     } else {
