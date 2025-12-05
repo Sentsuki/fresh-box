@@ -7,11 +7,59 @@ use tauri::{
     Manager,
 };
 
+// 从托盘打开 Panel
+async fn open_panel_from_tray() -> Result<(), String> {
+    // 获取 override 配置
+    let override_config = crate::config_override::get_override_config_if_enabled()
+        .await
+        .map_err(|e| format!("Failed to get override config: {:?}", e))?;
+    
+    let config = match override_config {
+        Some(cfg) => cfg,
+        None => {
+            return Err("Config override is not enabled".to_string());
+        }
+    };
+
+    // 从 override 配置中提取 clash_api 信息
+    let external_controller = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_controller"))
+        .and_then(|ctrl| ctrl.as_str());
+
+    let external_ui = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_ui"))
+        .and_then(|ui| ui.as_str());
+
+    // 如果两者都存在，构建 URL
+    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
+        // 确保 UI 路径以 / 开头
+        let ui_path = if ui.starts_with('/') {
+            ui.to_string()
+        } else {
+            format!("/{}", ui)
+        };
+
+        // 构建完整的 URL
+        let url = format!("http://{}{}/", controller, ui_path);
+        
+        crate::config::open_url(url).await
+            .map_err(|e| format!("Failed to open URL: {:?}", e))?;
+        Ok(())
+    } else {
+        Err("Clash API not configured in override config".to_string())
+    }
+}
+
 // 创建系统托盘
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let panel_i = MenuItem::with_id(app, "panel", "Open Panel", true, None::<&str>)?;
     let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&panel_i, &show_i, &quit_i])?;
 
     let tray_builder = TrayIconBuilder::new().menu(&menu).tooltip("fresh-box");
 
@@ -67,6 +115,16 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     if let Err(e) = crate::window_utils::safe_show_window(&app_clone, "main") {
                         eprintln!("Failed to show window: {}", e);
                     }
+                });
+            }
+            "panel" => {
+                std::thread::spawn(move || {
+                    std::thread::sleep(std::time::Duration::from_millis(10));
+                    tauri::async_runtime::spawn(async move {
+                        if let Err(e) = open_panel_from_tray().await {
+                            eprintln!("Failed to open panel: {}", e);
+                        }
+                    });
                 });
             }
             _ => {}
