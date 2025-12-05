@@ -56,10 +56,10 @@ async fn open_panel_from_tray() -> Result<(), String> {
 
 // 创建系统托盘
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let panel_i = MenuItem::with_id(app, "panel", "Open Panel", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&show_i, &panel_i, &quit_i])?;
+    let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
+    let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
+    let menu = Menu::with_items(app, &[&panel_i, &show_i, &quit_i])?;
 
     let tray_builder = TrayIconBuilder::new().menu(&menu).tooltip("fresh-box");
 
