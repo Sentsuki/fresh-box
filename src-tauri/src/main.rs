@@ -13,6 +13,54 @@ use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, S
 use std::panic;
 use tauri::Manager;
 
+// 从 override 配置打开 Panel URL
+#[tauri::command]
+async fn open_panel_url() -> Result<(), String> {
+    // 获取 override 配置
+    let override_config = config_override::get_override_config_if_enabled()
+        .await
+        .map_err(|e| format!("Failed to get override config: {:?}", e))?;
+    
+    let config = match override_config {
+        Some(cfg) => cfg,
+        None => {
+            return Err("Config override is not enabled".to_string());
+        }
+    };
+
+    // 从 override 配置中提取 clash_api 信息
+    let external_controller = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_controller"))
+        .and_then(|ctrl| ctrl.as_str());
+
+    let external_ui = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_ui"))
+        .and_then(|ui| ui.as_str());
+
+    // 如果两者都存在，构建 URL
+    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
+        // 确保 UI 路径以 / 开头
+        let ui_path = if ui.starts_with('/') {
+            ui.to_string()
+        } else {
+            format!("/{}", ui)
+        };
+
+        // 构建完整的 URL
+        let url = format!("http://{}{}/", controller, ui_path);
+        
+        config::open_url(url).await
+            .map_err(|e| format!("Failed to open URL: {:?}", e))?;
+        Ok(())
+    } else {
+        Err("Clash API not configured in override config".to_string())
+    }
+}
+
 fn main() {
     // 设置panic hook来记录崩溃信息
     panic::set_hook(Box::new(|panic_info| {
@@ -72,6 +120,7 @@ fn main() {
             config::save_config_content,
             config::open_url,
             config::get_clash_api_url,
+            open_panel_url,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,
