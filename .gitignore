@@ -27,4 +27,8 @@ test-results/
 coverage/
 
 src-tauri/bin
+src-tauri/sub
+src-tauri/log
+src-tauri/config
+src-tauri/data
 *.db

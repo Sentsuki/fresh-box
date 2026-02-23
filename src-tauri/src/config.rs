@@ -4,16 +4,65 @@ use crate::errors::CommandError;
 use serde_json::Value;
 use std::process::Command;
 
-// 获取 bin 目录路径的公共函数
-pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
+// 获取可执行文件所在目录
+pub fn get_exe_dir() -> Result<std::path::PathBuf, CommandError> {
     let exe_path = std::env::current_exe().map_err(|e| {
         CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
     })?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
         CommandError::ResourceNotFound("Failed to get executable directory".to_string())
     })?;
+    Ok(exe_dir.to_path_buf())
+}
 
-    Ok(exe_dir.join("bin"))
+// 获取 bin 目录路径（放 sing-box 核心）
+pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
+    let dir = get_exe_dir()?.join("bin");
+    Ok(dir)
+}
+
+// 获取 sub 目录路径（放订阅得到的配置文件）
+pub fn get_sub_dir() -> Result<std::path::PathBuf, CommandError> {
+    let dir = get_exe_dir()?.join("sub");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to create sub directory: {}", e))
+        })?;
+    }
+    Ok(dir)
+}
+
+// 获取 log 目录路径（放核心生成的日志和崩溃日志）
+pub fn get_log_dir() -> Result<std::path::PathBuf, CommandError> {
+    let dir = get_exe_dir()?.join("log");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to create log directory: {}", e))
+        })?;
+    }
+    Ok(dir)
+}
+
+// 获取 config 目录路径（放 config_override.json、priority_config.json、subscriptions.json）
+pub fn get_config_dir() -> Result<std::path::PathBuf, CommandError> {
+    let dir = get_exe_dir()?.join("config");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to create config directory: {}", e))
+        })?;
+    }
+    Ok(dir)
+}
+
+// 获取 data 目录路径（放 singbox 运行目录和 temp_config.json）
+pub fn get_data_dir() -> Result<std::path::PathBuf, CommandError> {
+    let dir = get_exe_dir()?.join("data");
+    if !dir.exists() {
+        std::fs::create_dir_all(&dir).map_err(|e| {
+            CommandError::ResourceNotFound(format!("Failed to create data directory: {}", e))
+        })?;
+    }
+    Ok(dir)
 }
 
 #[tauri::command]
@@ -62,8 +111,8 @@ pub async fn save_subscription_config(
     file_name: String,
     content: String,
 ) -> Result<String, CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let target_path = bin_dir.join(&file_name);
+    let sub_dir = get_sub_dir()?;
+    let target_path = sub_dir.join(&file_name);
 
     std::fs::write(&target_path, content).map_err(|e| {
         CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))
@@ -74,7 +123,7 @@ pub async fn save_subscription_config(
 
 #[tauri::command]
 pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandError> {
-    let bin_dir = get_bin_dir()?;
+    let sub_dir = get_sub_dir()?;
     let source_config_path = std::path::Path::new(&config_path);
 
     if !source_config_path.exists() {
@@ -87,7 +136,7 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
     let config_file = source_config_path
         .file_name()
         .ok_or_else(|| CommandError::ResourceNotFound("Invalid config file path".to_string()))?;
-    let target_config_path = bin_dir.join(config_file);
+    let target_config_path = sub_dir.join(config_file);
 
     // 如果文件已存在且内容相同，则无需复制
     if target_config_path.exists() {
@@ -111,25 +160,18 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
 
 #[tauri::command]
 pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
-    let bin_dir = get_bin_dir()?;
+    let sub_dir = get_sub_dir()?;
 
     let mut config_files = Vec::new();
-    for entry in std::fs::read_dir(bin_dir).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to read bin directory: {}", e))
+    for entry in std::fs::read_dir(sub_dir).map_err(|e| {
+        CommandError::ResourceNotFound(format!("Failed to read sub directory: {}", e))
     })? {
         let entry = entry
             .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read entry: {}", e)))?;
         let path = entry.path();
-        let file_name = path.file_name().and_then(|s| s.to_str()).unwrap_or("");
 
-        // 过滤掉临时文件和覆盖配置文件
-        if path.extension().and_then(|s| s.to_str()) == Some("json")
-            && file_name != "temp_config.json"
-            && file_name != "config_override.json"
-            && file_name != "subscriptions.json"
-            && file_name != "priority_config.json"
-            && file_name != "singbox.log"
-        {
+        // sub 目录下只放订阅配置，列出所有 .json 文件
+        if path.extension().and_then(|s| s.to_str()) == Some("json") {
             config_files.push(path.to_string_lossy().into_owned());
         }
     }
@@ -138,8 +180,8 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
 
 #[tauri::command]
 pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
-    let rm_dir = get_bin_dir()?;
-    let rm_full_path = rm_dir.join(&config_path);
+    let sub_dir = get_sub_dir()?;
+    let rm_full_path = sub_dir.join(&config_path);
 
     if !rm_full_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
@@ -157,11 +199,11 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn rename_config(old_path: String, new_path: String) -> Result<(), CommandError> {
-    let bin_dir = get_bin_dir()?;
+    let sub_dir = get_sub_dir()?;
 
     // 构建完整的旧文件和新文件路径
-    let old_full_path = bin_dir.join(&old_path);
-    let new_full_path = bin_dir.join(&new_path);
+    let old_full_path = sub_dir.join(&old_path);
+    let new_full_path = sub_dir.join(&new_path);
 
     // 检查旧文件是否存在
     if !old_full_path.exists() {
@@ -196,8 +238,8 @@ pub async fn rename_config(old_path: String, new_path: String) -> Result<(), Com
 
 #[tauri::command]
 pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let subscriptions_path = bin_dir.join("subscriptions.json");
+    let config_dir = get_config_dir()?;
+    let subscriptions_path = config_dir.join("subscriptions.json");
 
     std::fs::write(&subscriptions_path, subscriptions).map_err(|e| {
         CommandError::ResourceNotFound(format!("Failed to write subscriptions file: {}", e))
@@ -208,8 +250,8 @@ pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandErro
 
 #[tauri::command]
 pub async fn load_subscriptions() -> Result<String, CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let subscriptions_path = bin_dir.join("subscriptions.json");
+    let config_dir = get_config_dir()?;
+    let subscriptions_path = config_dir.join("subscriptions.json");
 
     if !subscriptions_path.exists() {
         return Ok("{}".to_string());
@@ -224,8 +266,8 @@ pub async fn load_subscriptions() -> Result<String, CommandError> {
 
 #[tauri::command]
 pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let full_path = bin_dir.join(&config_path);
+    let sub_dir = get_sub_dir()?;
+    let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
@@ -270,8 +312,8 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
 }
 #[tauri::command]
 pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let full_path = bin_dir.join(&config_path);
+    let sub_dir = get_sub_dir()?;
+    let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(
@@ -292,8 +334,8 @@ pub async fn load_config_content(config_path: String) -> Result<Value, CommandEr
 
 #[tauri::command]
 pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let full_path = bin_dir.join(&config_path);
+    let sub_dir = get_sub_dir()?;
+    let full_path = sub_dir.join(&config_path);
 
     // 验证 JSON 格式
     let _: Value = serde_json::from_str(&content)
@@ -341,8 +383,8 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, CommandError> {
-    let bin_dir = get_bin_dir()?;
-    let full_path = bin_dir.join(&config_path);
+    let sub_dir = get_sub_dir()?;
+    let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
         return Err(CommandError::ResourceNotFound(format!(

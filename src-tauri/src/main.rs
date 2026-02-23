@@ -69,7 +69,15 @@ fn main() {
         let exe_dir = exe_path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
-        let log_path = exe_dir.join("crash.log");
+        
+        // 尝试将崩溃日志写入 log 目录，如果失败则回退到 exe 目录
+        let log_dir = exe_dir.join("log");
+        let _ = std::fs::create_dir_all(&log_dir);
+        let log_path = if log_dir.exists() {
+            log_dir.join("crash.log")
+        } else {
+            exe_dir.join("crash.log")
+        };
 
         let crash_msg = format!(
             "Application crashed at {}: {}\n",

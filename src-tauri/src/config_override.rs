@@ -12,8 +12,8 @@ struct OverrideConfig {
 }
 
 fn get_override_config_path() -> Result<PathBuf, CommandError> {
-    let bin_dir = super::config::get_bin_dir()?;
-    Ok(bin_dir.join(OVERRIDE_CONFIG_FILE))
+    let config_dir = super::config::get_config_dir()?;
+    Ok(config_dir.join(OVERRIDE_CONFIG_FILE))
 }
 
 fn load_override_file() -> Result<OverrideConfig, CommandError> {

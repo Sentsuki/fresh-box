@@ -30,8 +30,8 @@ impl Default for LogConfig {
 }
 
 fn get_priority_config_path() -> Result<PathBuf, CommandError> {
-    let bin_dir = super::config::get_bin_dir()?;
-    Ok(bin_dir.join(PRIORITY_CONFIG_FILE))
+    let config_dir = super::config::get_config_dir()?;
+    Ok(config_dir.join(PRIORITY_CONFIG_FILE))
 }
 
 #[tauri::command]
@@ -125,8 +125,8 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
     }
 
     // 检查 Config Override 中的字段
-    let bin_dir = super::config::get_bin_dir()?;
-    let override_path = bin_dir.join("config_override.json");
+    let config_dir = super::config::get_config_dir()?;
+    let override_path = config_dir.join("config_override.json");
 
     if override_path.exists() {
         if let Ok(override_content) = fs::read_to_string(&override_path) {

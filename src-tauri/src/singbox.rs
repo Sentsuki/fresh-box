@@ -125,18 +125,16 @@ pub async fn start_singbox(
         }
     } // 释放锁
 
-    let exe_path = std::env::current_exe().map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
-    })?;
-    let exe_dir = exe_path.parent().ok_or_else(|| {
-        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
-    })?;
-    let bin_dir = exe_dir.join("bin");
+    let bin_dir = crate::config::get_bin_dir()?;
     let singbox_path = bin_dir.join("sing-box.exe");
 
-    // 创建日志文件
-    let log_file = bin_dir.join("singbox.log");
-    let log_file = std::fs::File::create(&log_file)
+    // 获取各个目录
+    let log_dir = crate::config::get_log_dir()?;
+    let data_dir = crate::config::get_data_dir()?;
+
+    // 创建日志文件（放到 log 目录）
+    let log_file_path = log_dir.join("singbox.log");
+    let log_file = std::fs::File::create(&log_file_path)
         .map_err(|e| CommandError::ResourceNotFound(format!("Failed to create log file: {}", e)))?;
 
     if !singbox_path.exists() {
@@ -173,16 +171,17 @@ pub async fn start_singbox(
         // 不返回错误，继续启动，但记录警告
     }
 
-    // 将最终配置写入临时文件
-    let temp_config_path = bin_dir.join("temp_config.json");
+    // 将最终配置写入临时文件（放到 data 目录）
+    let temp_config_path = data_dir.join("temp_config.json");
     fs::write(
         &temp_config_path,
         serde_json::to_string_pretty(&base_config)?,
     )?;
 
-    // 使用临时配置文件启动 sing-box
+    // 使用临时配置文件启动 sing-box，工作目录设为 data
     command
         .args(["run", "-c", &*temp_config_path.to_string_lossy()])
+        .current_dir(&data_dir)
         .stdin(Stdio::null())
         .stdout(Stdio::from(log_file.try_clone()?))
         .stderr(Stdio::from(log_file));
