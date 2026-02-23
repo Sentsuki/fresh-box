@@ -69,7 +69,7 @@ fn main() {
         let exe_dir = exe_path
             .parent()
             .unwrap_or_else(|| std::path::Path::new("."));
-        
+
         // 尝试将崩溃日志写入 log 目录，如果失败则回退到 exe 目录
         let log_dir = exe_dir.join("log");
         let _ = std::fs::create_dir_all(&log_dir);
