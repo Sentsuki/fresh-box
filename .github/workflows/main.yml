@@ -13,12 +13,12 @@ jobs:
     runs-on: windows-latest
     steps:
       - name: Checkout code
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
         with:
           fetch-depth: 0
 
       - name: Setup Node.js
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v6
         with:
           node-version: 'lts/*' 
           check-latest: true
@@ -29,7 +29,7 @@ jobs:
           toolchain: stable
 
       - name: Cache Rust dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: |
             ~/.cargo/registry
@@ -40,12 +40,12 @@ jobs:
             ${{ runner.os }}-cargo-
 
       - name: Install pnpm
-        uses: pnpm/action-setup@v2
+        uses: pnpm/action-setup@v5
         with:
           version: 'latest'
 
       - name: Cache pnpm dependencies
-        uses: actions/cache@v4
+        uses: actions/cache@v5
         with:
           path: ~/.pnpm-store
           key: ${{ runner.os }}-pnpm-${{ hashFiles('**/pnpm-lock.yaml') }}
@@ -67,8 +67,8 @@ jobs:
           Write-Output "Downloading from: $url"
           # Download the zip file
           curl -L -o sing-box.zip $url
-          # Extract sing-box.exe to src-tauri/bin
-          7z e sing-box.zip -osrc-tauri/bin sing-box.exe -r
+          # Extract all files to src-tauri/bin
+          7z e sing-box.zip -osrc-tauri/bin -r
           # Verify the file exists
           if (Test-Path src-tauri/bin/sing-box.exe) { Write-Output "sing-box.exe extracted successfully" }
           else { Write-Output "Failed to extract sing-box.exe"; exit 1 }
@@ -83,7 +83,7 @@ jobs:
         run: pnpm tauri build
 
       - name: Upload artifacts
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: tauri-dist-windows
           path: |
