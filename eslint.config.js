@@ -1,7 +1,7 @@
 import js from '@eslint/js';
 import vue from 'eslint-plugin-vue';
 import globals from 'globals';
-import prettier from 'eslint-config-prettier';
+import prettier from 'eslint-config-prettier/flat';
 import tseslint from 'typescript-eslint';
 
 export default [
@@ -78,6 +78,7 @@ export default [
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
       'no-unsafe-finally': 'error',
       'no-unused-vars': 'off', // 使用 TypeScript 的规则
+      'no-useless-assignment': 'off', // 在 Vue script setup 中会误报被模板使用的变量
       'prefer-const': 'warn',
       'no-var': 'error',
     },

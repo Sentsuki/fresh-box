@@ -8,32 +8,32 @@
     "build": "vue-tsc --noEmit && vite build",
     "preview": "vite preview",
     "tauri": "tauri",
-    "lint": "eslint src --ext .vue,.js,.ts --fix",
-    "lint:check": "eslint src --ext .vue,.js,.ts",
+    "lint": "eslint src --fix",
+    "lint:check": "eslint src",
     "format": "prettier --write src/**/*.{vue,js,ts,json,css,scss}",
     "format:check": "prettier --check src/**/*.{vue,js,ts,json,css,scss}"
   },
   "dependencies": {
-    "@tailwindcss/vite": "^4.2.1",
+    "@tailwindcss/vite": "^4.2.2",
     "@tauri-apps/api": "^2.10.1",
     "@tauri-apps/plugin-dialog": "~2.6.0",
     "@tauri-apps/plugin-http": "~2.5.7",
     "@tauri-apps/plugin-opener": "^2.5.3",
     "eslint-config-prettier": "^10.1.8",
-    "tailwindcss": "^4.2.1",
-    "vue": "^3.5.28"
+    "tailwindcss": "^4.2.2",
+    "vue": "^3.5.30"
   },
   "devDependencies": {
-    "@eslint/js": "^9.39.3",
-    "@tauri-apps/cli": "^2.10.0",
-    "@vitejs/plugin-vue": "^6.0.4",
-    "eslint": "^9.39.3",
+    "@eslint/js": "^10.0.1",
+    "@tauri-apps/cli": "^2.10.1",
+    "@vitejs/plugin-vue": "^6.0.5",
+    "eslint": "^10.1.0",
     "eslint-plugin-vue": "^10.8.0",
-    "globals": "^17.3.0",
+    "globals": "^17.4.0",
     "prettier": "^3.8.1",
     "typescript": "~5.9.3",
-    "typescript-eslint": "^8.56.0",
-    "vite": "^7.3.1",
-    "vue-tsc": "^3.2.5"
+    "typescript-eslint": "^8.57.1",
+    "vite": "^8.0.1",
+    "vue-tsc": "^3.2.6"
   }
 }
