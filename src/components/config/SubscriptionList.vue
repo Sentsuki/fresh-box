@@ -22,7 +22,7 @@ function submitSubscription() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3">
+  <div class="flex w-full max-w-4xl flex-col gap-3">
     <div class="flex flex-col gap-3 md:flex-row">
       <input
         v-model="subscriptionUrl"
@@ -42,9 +42,9 @@ function submitSubscription() {
         {{ appStore.isLoading.value ? "Subscribing..." : "Subscribe" }}
       </button>
     </div>
-    <div class="flex">
+    <div class="flex w-full">
       <button
-        class="control-button select-button"
+        class="control-button select-button w-full justify-center"
         :disabled="appStore.isLoading.value"
         :class="{ disabled: appStore.isLoading.value }"
         @click="configs.selectConfigFile"

@@ -1,4 +1,4 @@
-export type AppPage = "overview" | "config" | "settings";
+export type AppPage = "overview" | "config" | "customer" | "settings";
 
 export interface SubscriptionInfo {
   url: string;

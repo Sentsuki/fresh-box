@@ -3,6 +3,7 @@ import { onMounted } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import Overview from "./components/Overview.vue";
 import Config from "./components/Config.vue";
+import Customer from "./components/Customer.vue";
 import Settings from "./components/Settings.vue";
 import Toast from "./components/Toast.vue";
 import { useConfigs } from "./composables/useConfigs";
@@ -32,6 +33,7 @@ onMounted(async () => {
     <div class="main-content">
       <Overview v-if="appStore.currentPage.value === 'overview'" />
       <Config v-else-if="appStore.currentPage.value === 'config'" />
+      <Customer v-else-if="appStore.currentPage.value === 'customer'" />
       <Settings v-else />
     </div>
 
