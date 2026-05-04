@@ -11,7 +11,7 @@ const hasConfigFiles = computed(() => appStore.configFiles.value.length > 0);
   <div class="mt-6 min-h-0 grow overflow-y-auto">
     <div
       v-if="!hasConfigFiles"
-      class="flex flex-col items-center justify-center py-16 text-center"
+      class="flex w-full flex-col items-center justify-center py-16 text-center"
     >
       <div class="mb-4 text-6xl opacity-50">📄</div>
       <h3 class="mb-2 text-xl font-semibold text-gray-700">
@@ -25,8 +25,8 @@ const hasConfigFiles = computed(() => appStore.configFiles.value.length > 0);
 
     <div
       v-else
-      class="grid gap-4"
-      style="grid-template-columns: repeat(auto-fill, minmax(320px, 1fr))"
+      class="grid w-full gap-4"
+      style="grid-template-columns: repeat(auto-fit, minmax(320px, 1fr))"
     >
       <ConfigFileCard
         v-for="config in appStore.configFiles.value"

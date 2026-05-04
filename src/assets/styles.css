@@ -581,7 +581,7 @@ body,
 
 /* ===== Config List ===== */
 .config-container {
-  @apply flex flex-col grow min-h-0;
+  @apply flex flex-col grow min-h-0 w-full;
 }
 
 .settings-section {

@@ -22,7 +22,7 @@ function submitSubscription() {
 </script>
 
 <template>
-  <div class="flex w-full max-w-4xl flex-col gap-3">
+  <div class="flex w-full flex-col gap-3">
     <div class="flex flex-col gap-3 md:flex-row">
       <input
         v-model="subscriptionUrl"

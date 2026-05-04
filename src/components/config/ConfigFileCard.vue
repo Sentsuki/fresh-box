@@ -140,7 +140,7 @@ function handleSelect() {
 
     <div v-else class="flex items-center justify-between">
       <div class="min-w-0 grow">
-        <div class="mb-1 flex items-center gap-2">
+        <div class="mb-1 flex flex-wrap items-center gap-2">
           <span class="shrink-0 text-lg">
             {{ subscription ? "🔗" : "📄" }}
           </span>
