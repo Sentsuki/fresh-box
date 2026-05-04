@@ -58,17 +58,21 @@ pub async fn get_singbox_core_status(
 pub async fn update_singbox_core(
     state: State<'_, SingboxState>,
 ) -> Result<SingboxCoreUpdateResult, CommandError> {
-    if crate::singbox::is_singbox_running(state).await? {
-        return Err(CommandError::InvalidState(
-            "Please stop sing-box before updating the core.".to_string(),
-        ));
-    }
-
     let previous_version = get_installed_singbox_version()?;
     let latest_release = fetch_latest_release_metadata()?;
     let latest_version = normalized_version(&latest_release.tag).unwrap_or(latest_release.tag.clone());
+    let update_paths = get_update_paths(&latest_release.name)?;
 
-    install_latest_core(&latest_release)?;
+    download_latest_core_archive(&latest_release, &update_paths.zip_path)?;
+
+    if crate::singbox::is_singbox_running(state).await? {
+        return Err(CommandError::InvalidState(format!(
+            "The latest core package has been downloaded to {}. Please stop sing-box and retry to apply it.",
+            update_paths.zip_path.display()
+        )));
+    }
+
+    install_downloaded_core(&update_paths)?;
 
     let current_version = get_installed_singbox_version()?.ok_or_else(|| {
         CommandError::IoError("sing-box.exe is missing after the update completed.".to_string())
@@ -87,26 +91,61 @@ pub async fn update_singbox_core(
     })
 }
 
-fn install_latest_core(release: &LatestReleaseMetadata) -> Result<(), CommandError> {
+struct CoreUpdatePaths {
+    zip_path: std::path::PathBuf,
+    extract_dir: std::path::PathBuf,
+    bin_dir: std::path::PathBuf,
+}
+
+fn get_update_paths(asset_name: &str) -> Result<CoreUpdatePaths, CommandError> {
     let bin_dir = get_bin_dir()?;
     let update_dir = get_data_dir()?.join("core-update");
-    let zip_path = update_dir.join(&release.name);
-    let extract_dir = update_dir.join("extract");
-
     std::fs::create_dir_all(&update_dir)?;
     std::fs::create_dir_all(&bin_dir)?;
 
+    Ok(CoreUpdatePaths {
+        zip_path: update_dir.join(asset_name),
+        extract_dir: update_dir.join("extract"),
+        bin_dir,
+    })
+}
+
+fn download_latest_core_archive(
+    release: &LatestReleaseMetadata,
+    zip_path: &std::path::Path,
+) -> Result<(), CommandError> {
     let script = format!(
         r#"
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $downloadUrl = '{download_url}'
 $zipPath = '{zip_path}'
-$extractDir = '{extract_dir}'
-$binDir = '{bin_dir}'
 
 if (Test-Path $zipPath) {{
   Remove-Item $zipPath -Force
+}}
+
+Invoke-WebRequest -Headers @{{ 'User-Agent' = 'fresh-box'; 'Accept' = 'application/octet-stream' }} -Uri $downloadUrl -OutFile $zipPath
+"#,
+        download_url = escape_powershell_literal(&release.url),
+        zip_path = escape_powershell_literal(&zip_path.to_string_lossy()),
+    );
+
+    run_powershell_script(&script)?;
+    Ok(())
+}
+
+fn install_downloaded_core(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
+    let script = format!(
+        r#"
+$ErrorActionPreference = 'Stop'
+$ProgressPreference = 'SilentlyContinue'
+$zipPath = '{zip_path}'
+$extractDir = '{extract_dir}'
+$binDir = '{bin_dir}'
+
+if (-not (Test-Path $zipPath)) {{
+  throw 'The downloaded sing-box archive could not be found.'
 }}
 
 if (Test-Path $extractDir) {{
@@ -116,7 +155,6 @@ if (Test-Path $extractDir) {{
 New-Item -Path $extractDir -ItemType Directory -Force | Out-Null
 New-Item -Path $binDir -ItemType Directory -Force | Out-Null
 
-Invoke-WebRequest -Headers @{{ 'User-Agent' = 'fresh-box'; 'Accept' = 'application/octet-stream' }} -Uri $downloadUrl -OutFile $zipPath
 Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
 
 $core = Get-ChildItem -Path $extractDir -Filter 'sing-box.exe' -Recurse | Select-Object -First 1
@@ -129,10 +167,9 @@ Copy-Item -Path $core.FullName -Destination (Join-Path $binDir 'sing-box.exe') -
 Remove-Item $zipPath -Force
 Remove-Item $extractDir -Recurse -Force
 "#,
-        download_url = escape_powershell_literal(&release.url),
-        zip_path = escape_powershell_literal(&zip_path.to_string_lossy()),
-        extract_dir = escape_powershell_literal(&extract_dir.to_string_lossy()),
-        bin_dir = escape_powershell_literal(&bin_dir.to_string_lossy()),
+        zip_path = escape_powershell_literal(&paths.zip_path.to_string_lossy()),
+        extract_dir = escape_powershell_literal(&paths.extract_dir.to_string_lossy()),
+        bin_dir = escape_powershell_literal(&paths.bin_dir.to_string_lossy()),
     );
 
     run_powershell_script(&script)?;

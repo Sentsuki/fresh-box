@@ -258,7 +258,8 @@
                 v-if="coreStatus?.is_running"
                 class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
               >
-                Stop sing-box before updating the core.
+                The latest core can still be downloaded now, but you need to stop
+                sing-box before it can be unpacked and applied.
               </div>
 
               <div
@@ -297,15 +298,14 @@
                 <button
                   class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
                   :class="
-                    isUpdatingCore || coreStatus?.is_running
+                    isUpdatingCore
                       ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
                       : 'bg-violet-600 hover:bg-violet-700 hover:shadow-sm config-button-hover'
                   "
                   :disabled="
                     isUpdatingCore ||
                     isRefreshingCoreStatus ||
-                    !coreStatus?.latest_version ||
-                    Boolean(coreStatus?.is_running)
+                    !coreStatus?.latest_version
                   "
                   @click="updateSingboxCore"
                 >
@@ -980,6 +980,10 @@ const coreStatusBadgeClass = computed(() => {
 const updateCoreButtonLabel = computed(() => {
   if (isUpdatingCore.value) {
     return "Updating...";
+  }
+
+  if (coreStatus.value?.is_running) {
+    return "Download Core";
   }
 
   if (!coreStatus.value?.installed) {
