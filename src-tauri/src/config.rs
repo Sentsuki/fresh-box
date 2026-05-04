@@ -55,6 +55,34 @@ where
     read_json_file(path)
 }
 
+pub fn get_named_config_path(file_name: &str) -> Result<PathBuf, CommandError> {
+    Ok(get_config_dir()?.join(file_name))
+}
+
+pub fn load_named_config_or_default<T>(file_name: &str) -> Result<T, CommandError>
+where
+    T: DeserializeOwned + Default,
+{
+    load_json_or_default(&get_named_config_path(file_name)?)
+}
+
+pub fn save_named_config<T>(file_name: &str, value: &T) -> Result<(), CommandError>
+where
+    T: Serialize,
+{
+    write_json_file(&get_named_config_path(file_name)?, value)
+}
+
+pub fn remove_named_config(file_name: &str) -> Result<(), CommandError> {
+    let path = get_named_config_path(file_name)?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|error| {
+            CommandError::io(format!("failed to remove {}", path.display()), error)
+        })?;
+    }
+    Ok(())
+}
+
 fn get_app_settings_path() -> Result<PathBuf, CommandError> {
     Ok(get_config_dir()?.join(APP_SETTINGS_FILE))
 }

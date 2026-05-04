@@ -12,12 +12,12 @@ mod tray;
 mod window_utils;
 
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
+use std::time::Duration;
 use tauri::Manager;
 
 fn main() {
     logger::install_panic_hook();
 
-    // 创建初始状态
     let singbox_state = SingboxState::new();
 
     tauri::Builder::default()
@@ -62,10 +62,8 @@ fn main() {
             priority_config::check_config_fields,
         ])
         .setup(|app| {
-            // 设置系统托盘
             tray::setup_system_tray(app)?;
 
-            // 初始化时检测现有的sing-box进程
             let state = app.state::<SingboxState>();
             let state_clone = state.inner().clone();
             tauri::async_runtime::spawn(async move {
@@ -81,53 +79,48 @@ fn main() {
 
             Ok(())
         })
-        .on_window_event(|window, event| {
-            match event {
-                tauri::WindowEvent::CloseRequested { api, .. } => {
-                    // 阻止关闭并隐藏窗口
-                    api.prevent_close();
-                    // 使用延迟隐藏避免事件循环冲突
-                    let window_clone = window.clone();
-                    std::thread::spawn(move || {
-                        std::thread::sleep(std::time::Duration::from_millis(10));
-                        let _ = window_clone.hide();
-                    });
-                }
-                tauri::WindowEvent::Focused(focused) => {
-                    if *focused {
-                        // 延迟执行异步操作，避免在事件处理中直接执行
-                        let app = window.app_handle();
-                        if let Some(state) = app.try_state::<SingboxState>() {
-                            let state_clone = state.inner().clone();
-                            std::thread::spawn(move || {
-                                std::thread::sleep(std::time::Duration::from_millis(50));
-                                tauri::async_runtime::spawn(async move {
-                                    if let Ok(has_process) = refresh_singbox_detection_directly(&state_clone).await {
-                                        if has_process {
-                                            println!("Window focused: Sing-box process detected and under management");
-                                        }
+        .on_window_event(|window, event| match event {
+            tauri::WindowEvent::CloseRequested { api, .. } => {
+                api.prevent_close();
+                let window_clone = window.clone();
+                window_utils::run_after_delay(Duration::from_millis(10), move || {
+                    let _ = window_clone.hide();
+                });
+            }
+            tauri::WindowEvent::Focused(focused) => {
+                if *focused {
+                    let app = window.app_handle();
+                    if let Some(state) = app.try_state::<SingboxState>() {
+                        let state_clone = state.inner().clone();
+                        window_utils::spawn_async_after_delay(
+                            Duration::from_millis(50),
+                            move || async move {
+                                if let Ok(has_process) =
+                                    refresh_singbox_detection_directly(&state_clone).await
+                                {
+                                    if has_process {
+                                        println!(
+                                            "Window focused: Sing-box process detected and under management"
+                                        );
                                     }
-                                });
-                            });
-                        }
+                                }
+                            },
+                        );
                     }
                 }
-                tauri::WindowEvent::Destroyed => {
-                    // 窗口被销毁时的清理逻辑
-                    println!("Window destroyed, performing cleanup");
-                }
-                _ => {}
             }
+            tauri::WindowEvent::Destroyed => {
+                println!("Window destroyed, performing cleanup");
+            }
+            _ => {}
         })
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
             println!(
                 "Second instance launched with args: {:?} in {:?}",
                 argv, cwd
             );
-            // 延迟执行窗口显示，避免在插件回调中直接操作
             let app_clone = app.clone();
-            std::thread::spawn(move || {
-                std::thread::sleep(std::time::Duration::from_millis(50));
+            window_utils::run_after_delay(Duration::from_millis(50), move || {
                 if let Err(e) = window_utils::safe_show_window(&app_clone, "main") {
                     eprintln!("Failed to show window on second instance: {}", e);
                 }

@@ -14,7 +14,11 @@ import { getErrorMessage } from "../services/tauri";
 import { getCleanFileName } from "../services/utils";
 import { useAppStore } from "../stores/appStore";
 import { toast } from "./useToast";
-import type { ConfigFileEntry, SubscriptionRecord } from "../types/app";
+import type {
+  ConfigFileEntry,
+  SubscriptionInfo,
+  SubscriptionRecord,
+} from "../types/app";
 
 const appStore = useAppStore();
 
@@ -33,8 +37,8 @@ function buildConfigEntries(files: string[]): ConfigFileEntry[] {
   }));
 }
 
-async function reconcileSelectedConfig(preferredDisplayName?: string | null) {
-  const target =
+function resolveSelectedConfig(preferredDisplayName?: string | null) {
+  return (
     (preferredDisplayName &&
       appStore.configFiles.value.find(
         (config) => config.displayName === preferredDisplayName,
@@ -44,7 +48,12 @@ async function reconcileSelectedConfig(preferredDisplayName?: string | null) {
         (config) => config.path === appStore.selectedConfigPath.value,
       )) ||
     appStore.configFiles.value[0] ||
-    null;
+    null
+  );
+}
+
+async function reconcileSelectedConfig(preferredDisplayName?: string | null) {
+  const target = resolveSelectedConfig(preferredDisplayName);
 
   await appStore.setSelectedConfig(
     target?.path ?? null,
@@ -53,15 +62,64 @@ async function reconcileSelectedConfig(preferredDisplayName?: string | null) {
 }
 
 async function persistSubscriptions(subscriptions: SubscriptionRecord) {
-  appStore.setSubscriptions(subscriptions);
   await saveSubscriptions(subscriptions);
+  appStore.setSubscriptions(subscriptions);
+}
+
+async function syncConfigFiles(preferredDisplayName?: string | null) {
+  const files = await listConfigs();
+  appStore.setConfigFiles(buildConfigEntries(files));
+  await reconcileSelectedConfig(preferredDisplayName);
+}
+
+async function fetchSubscriptionContent(url: string) {
+  const response = await fetch(url);
+  if (!response.ok) {
+    throw new Error(`HTTP error! status: ${response.status}`);
+  }
+
+  return response.text();
+}
+
+function buildSubscriptionRecord(
+  fileName: string,
+  update: Partial<SubscriptionInfo>,
+): SubscriptionRecord {
+  return {
+    ...appStore.subscriptions.value,
+    [fileName]: {
+      ...appStore.subscriptions.value[fileName],
+      ...update,
+    },
+  };
+}
+
+function removeSubscriptionRecord(fileName: string): SubscriptionRecord {
+  const nextSubscriptions = { ...appStore.subscriptions.value };
+  delete nextSubscriptions[fileName];
+  return nextSubscriptions;
+}
+
+function renameSubscriptionRecord(
+  oldFileName: string,
+  newFileName: string,
+): SubscriptionRecord {
+  const nextSubscriptions = { ...appStore.subscriptions.value };
+  nextSubscriptions[newFileName] = nextSubscriptions[oldFileName];
+  delete nextSubscriptions[oldFileName];
+  return nextSubscriptions;
+}
+
+function hasDuplicateConfigName(oldFileName: string, newFileName: string) {
+  return appStore.configFiles.value.some(
+    (config) =>
+      config.displayName === newFileName && config.displayName !== oldFileName,
+  );
 }
 
 export function useConfigs() {
   async function loadConfigFiles(preferredDisplayName?: string | null) {
-    const files = await listConfigs();
-    appStore.setConfigFiles(buildConfigEntries(files));
-    await reconcileSelectedConfig(preferredDisplayName);
+    await syncConfigFiles(preferredDisplayName);
   }
 
   async function initializeConfigs() {
@@ -104,7 +162,7 @@ export function useConfigs() {
 
       await appStore.withLoading(async () => {
         await copyConfigToBin(file as string);
-        await loadConfigFiles(getCleanFileName(file as string));
+        await syncConfigFiles(getCleanFileName(file as string));
       });
 
       toast.success("Added config file successfully");
@@ -120,25 +178,19 @@ export function useConfigs() {
 
     try {
       await appStore.withLoading(async () => {
-        const response = await fetch(url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const content = await response.text();
+        const content = await fetchSubscriptionContent(url);
         const fileName = extractFileNameFromUrl(url);
         const targetPath = await saveSubscriptionConfig(fileName, content);
         const cleanFileName = getCleanFileName(targetPath);
 
-        await persistSubscriptions({
-          ...appStore.subscriptions.value,
-          [cleanFileName]: {
+        await persistSubscriptions(
+          buildSubscriptionRecord(cleanFileName, {
             url,
             lastUpdated: new Date().toISOString(),
-          },
-        });
+          }),
+        );
 
-        await loadConfigFiles(cleanFileName);
+        await syncConfigFiles(cleanFileName);
         toast.success(`Subscribed to: ${cleanFileName}`);
       });
     } catch (error) {
@@ -154,23 +206,17 @@ export function useConfigs() {
 
     try {
       await appStore.withLoading(async () => {
-        const response = await fetch(subscription.url);
-        if (!response.ok) {
-          throw new Error(`HTTP error! status: ${response.status}`);
-        }
-
-        const content = await response.text();
+        const content = await fetchSubscriptionContent(subscription.url);
         await saveSubscriptionConfig(`${fileName}.json`, content);
 
-        await persistSubscriptions({
-          ...appStore.subscriptions.value,
-          [fileName]: {
+        await persistSubscriptions(
+          buildSubscriptionRecord(fileName, {
             ...subscription,
             lastUpdated: new Date().toISOString(),
-          },
-        });
+          }),
+        );
 
-        await loadConfigFiles(fileName);
+        await syncConfigFiles(fileName);
       });
 
       toast.success(`Updated subscription: ${fileName}`);
@@ -186,13 +232,7 @@ export function useConfigs() {
 
     try {
       await appStore.withLoading(async () => {
-        await persistSubscriptions({
-          ...appStore.subscriptions.value,
-          [fileName]: {
-            ...appStore.subscriptions.value[fileName],
-            url: newUrl,
-          },
-        });
+        await persistSubscriptions(buildSubscriptionRecord(fileName, { url: newUrl }));
       });
 
       toast.success(`Updated subscription URL for: ${fileName}`);
@@ -206,11 +246,7 @@ export function useConfigs() {
       return;
     }
 
-    if (
-      appStore.configFiles.value.some(
-        (config) => config.displayName === newFileName && config.displayName !== oldFileName,
-      )
-    ) {
+    if (hasDuplicateConfigName(oldFileName, newFileName)) {
       toast.error("A config with this name already exists");
       return;
     }
@@ -220,13 +256,12 @@ export function useConfigs() {
         await renameConfigFile(`${oldFileName}.json`, `${newFileName}.json`);
 
         if (appStore.subscriptions.value[oldFileName]) {
-          const nextSubscriptions = { ...appStore.subscriptions.value };
-          nextSubscriptions[newFileName] = nextSubscriptions[oldFileName];
-          delete nextSubscriptions[oldFileName];
-          await persistSubscriptions(nextSubscriptions);
+          await persistSubscriptions(
+            renameSubscriptionRecord(oldFileName, newFileName),
+          );
         }
 
-        await loadConfigFiles(newFileName);
+        await syncConfigFiles(newFileName);
       });
 
       toast.success(`Renamed ${oldFileName} to ${newFileName}`);
@@ -244,7 +279,10 @@ export function useConfigs() {
       (item) => item.displayName === fileName,
     );
 
-    if (config?.path === appStore.selectedConfigPath.value && appStore.isRunning.value) {
+    if (
+      config?.path === appStore.selectedConfigPath.value &&
+      appStore.isRunning.value
+    ) {
       toast.error(
         "Cannot delete active configuration. Stop the service first.",
       );
@@ -256,12 +294,10 @@ export function useConfigs() {
         await deleteConfigFile(`${fileName}.json`);
 
         if (appStore.subscriptions.value[fileName]) {
-          const nextSubscriptions = { ...appStore.subscriptions.value };
-          delete nextSubscriptions[fileName];
-          await persistSubscriptions(nextSubscriptions);
+          await persistSubscriptions(removeSubscriptionRecord(fileName));
         }
 
-        await loadConfigFiles();
+        await syncConfigFiles();
       });
 
       toast.success(`Deleted config: ${fileName}`);

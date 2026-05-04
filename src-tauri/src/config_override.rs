@@ -1,6 +1,5 @@
 use crate::errors::CommandError;
 use serde_json::{json, Value};
-use std::path::PathBuf;
 
 const OVERRIDE_CONFIG_FILE: &str = "config_override.json";
 
@@ -10,26 +9,21 @@ struct OverrideConfig {
     config: Value,
 }
 
-fn get_override_config_path() -> Result<PathBuf, CommandError> {
-    let config_dir = super::config::get_config_dir()?;
-    Ok(config_dir.join(OVERRIDE_CONFIG_FILE))
+impl Default for OverrideConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            config: json!({}),
+        }
+    }
 }
 
 fn load_override_file() -> Result<OverrideConfig, CommandError> {
-    let config_path = get_override_config_path()?;
-    if !config_path.exists() {
-        return Ok(OverrideConfig {
-            enabled: false,
-            config: json!({}),
-        });
-    }
-
-    super::config::read_json_file(&config_path)
+    super::config::load_named_config_or_default(OVERRIDE_CONFIG_FILE)
 }
 
 fn save_override_file(override_config: &OverrideConfig) -> Result<(), CommandError> {
-    let config_path = get_override_config_path()?;
-    super::config::write_json_file(&config_path, override_config)
+    super::config::save_named_config(OVERRIDE_CONFIG_FILE, override_config)
 }
 
 #[tauri::command]
