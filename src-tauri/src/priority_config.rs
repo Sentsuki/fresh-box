@@ -1,8 +1,5 @@
 use crate::errors::CommandError;
 use serde_json::Value;
-use std::fs;
-use std::path::PathBuf;
-
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
@@ -29,38 +26,19 @@ impl Default for LogConfig {
     }
 }
 
-fn get_priority_config_path() -> Result<PathBuf, CommandError> {
-    let config_dir = super::config::get_config_dir()?;
-    Ok(config_dir.join(PRIORITY_CONFIG_FILE))
-}
-
 #[tauri::command]
 pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandError> {
-    let config_path = get_priority_config_path()?;
-    let config_str = serde_json::to_string_pretty(&config)?;
-    fs::write(&config_path, config_str)?;
-    Ok(())
+    super::config::save_named_config(PRIORITY_CONFIG_FILE, &config)
 }
 
 #[tauri::command]
 pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
-    let config_path = get_priority_config_path()?;
-    if !config_path.exists() {
-        return Ok(PriorityConfig::default());
-    }
-
-    let config_str = fs::read_to_string(&config_path)?;
-    let config: PriorityConfig = serde_json::from_str(&config_str)?;
-    Ok(config)
+    super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
 }
 
 #[tauri::command]
 pub async fn clear_priority_config() -> Result<(), CommandError> {
-    let config_path = get_priority_config_path()?;
-    if config_path.exists() {
-        fs::remove_file(&config_path)?;
-    }
-    Ok(())
+    super::config::remove_named_config(PRIORITY_CONFIG_FILE)
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]

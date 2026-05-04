@@ -1,77 +1,181 @@
 // config.rs - 管理配置文件
 
 use crate::errors::CommandError;
+use serde::{de::DeserializeOwned, Deserialize, Serialize};
 use serde_json::Value;
+use std::fs;
+use std::path::{Path, PathBuf};
 use std::process::Command;
 
-// 获取可执行文件所在目录
-pub fn get_exe_dir() -> Result<std::path::PathBuf, CommandError> {
-    let exe_path = std::env::current_exe().map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
+const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
+const APP_SETTINGS_FILE: &str = "app_settings.json";
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct AppSettings {
+    pub selected_config: Option<String>,
+    pub selected_config_display: Option<String>,
+    pub current_page: Option<String>,
+}
+
+pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
+where
+    T: DeserializeOwned,
+{
+    let content = fs::read_to_string(path).map_err(|error| {
+        CommandError::io(
+            format!("failed to read JSON file {}", path.display()),
+            error,
+        )
     })?;
+
+    serde_json::from_str(&content)
+        .map_err(|error| CommandError::json(format!("failed to parse {}", path.display()), error))
+}
+
+pub fn write_json_file<T>(path: &Path, value: &T) -> Result<(), CommandError>
+where
+    T: Serialize,
+{
+    let content = serde_json::to_string_pretty(value).map_err(|error| {
+        CommandError::json(format!("failed to serialize {}", path.display()), error)
+    })?;
+
+    fs::write(path, content)
+        .map_err(|error| CommandError::io(format!("failed to write {}", path.display()), error))
+}
+
+fn load_json_or_default<T>(path: &Path) -> Result<T, CommandError>
+where
+    T: DeserializeOwned + Default,
+{
+    if !path.exists() {
+        return Ok(T::default());
+    }
+
+    read_json_file(path)
+}
+
+pub fn get_named_config_path(file_name: &str) -> Result<PathBuf, CommandError> {
+    Ok(get_config_dir()?.join(file_name))
+}
+
+pub fn load_named_config_or_default<T>(file_name: &str) -> Result<T, CommandError>
+where
+    T: DeserializeOwned + Default,
+{
+    load_json_or_default(&get_named_config_path(file_name)?)
+}
+
+pub fn save_named_config<T>(file_name: &str, value: &T) -> Result<(), CommandError>
+where
+    T: Serialize,
+{
+    write_json_file(&get_named_config_path(file_name)?, value)
+}
+
+pub fn remove_named_config(file_name: &str) -> Result<(), CommandError> {
+    let path = get_named_config_path(file_name)?;
+    if path.exists() {
+        fs::remove_file(&path).map_err(|error| {
+            CommandError::io(format!("failed to remove {}", path.display()), error)
+        })?;
+    }
+    Ok(())
+}
+
+fn get_app_settings_path() -> Result<PathBuf, CommandError> {
+    Ok(get_config_dir()?.join(APP_SETTINGS_FILE))
+}
+
+fn extract_clash_api_url(config: &Value) -> Option<String> {
+    let external_controller = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_controller"))
+        .and_then(|ctrl| ctrl.as_str());
+
+    let external_ui = config
+        .get("experimental")
+        .and_then(|exp| exp.get("clash_api"))
+        .and_then(|clash| clash.get("external_ui"))
+        .and_then(|ui| ui.as_str());
+
+    match (external_controller, external_ui) {
+        (Some(controller), Some(ui)) => {
+            let ui_path = if ui.starts_with('/') {
+                ui.to_string()
+            } else {
+                format!("/{}", ui)
+            };
+
+            Some(format!("http://{}{}/", controller, ui_path))
+        }
+        _ => None,
+    }
+}
+
+// 获取可执行文件所在目录
+pub fn get_exe_dir() -> Result<PathBuf, CommandError> {
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::resource_not_found("executable path", e))?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
-        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+        CommandError::resource_not_found("executable directory", "parent path missing")
     })?;
     Ok(exe_dir.to_path_buf())
 }
 
 // 获取 bin 目录路径（放 sing-box 核心）
-pub fn get_bin_dir() -> Result<std::path::PathBuf, CommandError> {
+pub fn get_bin_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("bin");
     Ok(dir)
 }
 
 // 获取 sub 目录路径（放订阅得到的配置文件）
-pub fn get_sub_dir() -> Result<std::path::PathBuf, CommandError> {
+pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("sub");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to create sub directory: {}", e))
-        })?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("sub directory", e))?;
     }
     Ok(dir)
 }
 
 // 获取 log 目录路径（放核心生成的日志和崩溃日志）
-pub fn get_log_dir() -> Result<std::path::PathBuf, CommandError> {
+pub fn get_log_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("log");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to create log directory: {}", e))
-        })?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("log directory", e))?;
     }
     Ok(dir)
 }
 
 // 获取 config 目录路径（放 config_override.json、priority_config.json、subscriptions.json）
-pub fn get_config_dir() -> Result<std::path::PathBuf, CommandError> {
+pub fn get_config_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("config");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to create config directory: {}", e))
-        })?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("config directory", e))?;
     }
     Ok(dir)
 }
 
 // 获取 data 目录路径（放 singbox 运行目录和 temp_config.json）
-pub fn get_data_dir() -> Result<std::path::PathBuf, CommandError> {
+pub fn get_data_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("data");
     if !dir.exists() {
-        std::fs::create_dir_all(&dir).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to create data directory: {}", e))
-        })?;
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("data directory", e))?;
     }
     Ok(dir)
 }
 
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
-    let exe_path = std::env::current_exe().map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to get executable path: {}", e))
-    })?;
+    let exe_path = std::env::current_exe()
+        .map_err(|e| CommandError::resource_not_found("executable path", e))?;
     let exe_dir = exe_path.parent().ok_or_else(|| {
-        CommandError::ResourceNotFound("Failed to get executable directory".to_string())
+        CommandError::resource_not_found("executable directory", "parent path missing")
     })?;
 
     #[cfg(target_os = "windows")]
@@ -84,26 +188,36 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
             .arg(exe_dir)
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open directory: {}", e))
-            })?;
+            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
     }
 
     #[cfg(target_os = "macos")]
     {
-        Command::new("open").arg(exe_dir).spawn().map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to open directory: {}", e))
-        })?;
+        Command::new("open")
+            .arg(exe_dir)
+            .spawn()
+            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
     }
 
     #[cfg(target_os = "linux")]
     {
-        Command::new("xdg-open").arg(exe_dir).spawn().map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to open directory: {}", e))
-        })?;
+        Command::new("xdg-open")
+            .arg(exe_dir)
+            .spawn()
+            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
+    load_json_or_default(&get_app_settings_path()?)
+}
+
+#[tauri::command]
+pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
+    write_json_file(&get_app_settings_path()?, &settings)
 }
 
 #[tauri::command]
@@ -114,9 +228,8 @@ pub async fn save_subscription_config(
     let sub_dir = get_sub_dir()?;
     let target_path = sub_dir.join(&file_name);
 
-    std::fs::write(&target_path, content).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))
-    })?;
+    fs::write(&target_path, content)
+        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
     Ok(target_path.to_string_lossy().into_owned())
 }
@@ -127,33 +240,30 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
     let source_config_path = std::path::Path::new(&config_path);
 
     if !source_config_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Source config file not found at: {}",
-            config_path
-        )));
+        return Err(CommandError::resource_not_found(
+            "source config file",
+            config_path,
+        ));
     }
 
     let config_file = source_config_path
         .file_name()
-        .ok_or_else(|| CommandError::ResourceNotFound("Invalid config file path".to_string()))?;
+        .ok_or_else(|| CommandError::invalid_state("copy config", "invalid config file path"))?;
     let target_config_path = sub_dir.join(config_file);
 
     // 如果文件已存在且内容相同，则无需复制
     if target_config_path.exists() {
-        let source_content = std::fs::read(&config_path).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to read source file: {}", e))
-        })?;
-        let target_content = std::fs::read(&target_config_path).map_err(|e| {
-            CommandError::ResourceNotFound(format!("Failed to read target file: {}", e))
-        })?;
+        let source_content = fs::read(&config_path)
+            .map_err(|e| CommandError::resource_not_found("source config file", e))?;
+        let target_content = fs::read(&target_config_path)
+            .map_err(|e| CommandError::resource_not_found("target config file", e))?;
         if source_content == target_content {
             return Ok(target_config_path.to_string_lossy().into_owned());
         }
     }
 
-    std::fs::copy(&config_path, &target_config_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to copy config file: {}", e))
-    })?;
+    fs::copy(&config_path, &target_config_path)
+        .map_err(|e| CommandError::resource_not_found("copied config file", e))?;
 
     Ok(target_config_path.to_string_lossy().into_owned())
 }
@@ -163,11 +273,10 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
     let sub_dir = get_sub_dir()?;
 
     let mut config_files = Vec::new();
-    for entry in std::fs::read_dir(sub_dir).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to read sub directory: {}", e))
-    })? {
-        let entry = entry
-            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to read entry: {}", e)))?;
+    for entry in
+        fs::read_dir(sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
+    {
+        let entry = entry.map_err(|e| CommandError::resource_not_found("directory entry", e))?;
         let path = entry.path();
 
         // sub 目录下只放订阅配置，列出所有 .json 文件
@@ -184,15 +293,14 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     let rm_full_path = sub_dir.join(&config_path);
 
     if !rm_full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Config file not found at: {}",
-            rm_full_path.to_string_lossy()
-        )));
+        return Err(CommandError::resource_not_found(
+            "config file",
+            rm_full_path.to_string_lossy(),
+        ));
     }
 
-    std::fs::remove_file(rm_full_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to delete config file: {}", e))
-    })?;
+    fs::remove_file(rm_full_path)
+        .map_err(|e| CommandError::resource_not_found("config file", e))?;
 
     Ok(())
 }
@@ -207,61 +315,52 @@ pub async fn rename_config(old_path: String, new_path: String) -> Result<(), Com
 
     // 检查旧文件是否存在
     if !old_full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Source config file not found at: {}",
-            old_full_path.display()
-        )));
+        return Err(CommandError::resource_not_found(
+            "source config file",
+            old_full_path.display(),
+        ));
     }
 
     // 检查新文件名是否已经存在
     if new_full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "A config file already exists at: {}",
-            new_full_path.display()
-        )));
+        return Err(CommandError::invalid_state(
+            "rename config",
+            format!(
+                "a config file already exists at {}",
+                new_full_path.display()
+            ),
+        ));
     }
 
     // 检查文件扩展名是否为 .json
     if new_full_path.extension().and_then(|s| s.to_str()) != Some("json") {
-        return Err(CommandError::ResourceNotFound(
-            "New filename must have .json extension".to_string(),
+        return Err(CommandError::invalid_state(
+            "rename config",
+            "new filename must have .json extension",
         ));
     }
 
     // 执行重命名操作
-    std::fs::rename(&old_full_path, &new_full_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to rename config file: {}", e))
-    })?;
+    fs::rename(&old_full_path, &new_full_path)
+        .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
 
     Ok(())
 }
 
 #[tauri::command]
 pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
-    let config_dir = get_config_dir()?;
-    let subscriptions_path = config_dir.join("subscriptions.json");
-
-    std::fs::write(&subscriptions_path, subscriptions).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to write subscriptions file: {}", e))
-    })?;
-
-    Ok(())
+    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
+    let parsed: Value = serde_json::from_str(&subscriptions)
+        .map_err(|e| CommandError::json("failed to parse subscriptions payload", e))?;
+    write_json_file(&subscriptions_path, &parsed)
 }
 
 #[tauri::command]
 pub async fn load_subscriptions() -> Result<String, CommandError> {
-    let config_dir = get_config_dir()?;
-    let subscriptions_path = config_dir.join("subscriptions.json");
-
-    if !subscriptions_path.exists() {
-        return Ok("{}".to_string());
-    }
-
-    let content = std::fs::read_to_string(&subscriptions_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to read subscriptions file: {}", e))
-    })?;
-
-    Ok(content)
+    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
+    let subscriptions: Value = load_json_or_default(&subscriptions_path)?;
+    serde_json::to_string(&subscriptions)
+        .map_err(|e| CommandError::json("failed to serialize subscriptions payload", e))
 }
 
 #[tauri::command]
@@ -270,10 +369,10 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
     let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Config file not found at: {}",
-            full_path.display()
-        )));
+        return Err(CommandError::resource_not_found(
+            "config file",
+            full_path.display(),
+        ));
     }
 
     #[cfg(target_os = "windows")]
@@ -286,9 +385,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
             .args(["/C", "start", "", &full_path.to_string_lossy()])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
-            })?;
+            .map_err(|e| CommandError::resource_not_found("config file", e))?;
     }
 
     #[cfg(target_os = "macos")]
@@ -303,9 +400,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
         Command::new("xdg-open")
             .arg(&full_path)
             .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
-            })?;
+            .map_err(|e| CommandError::resource_not_found("config file", e))?;
     }
 
     Ok(())
@@ -316,18 +411,17 @@ pub async fn load_config_content(config_path: String) -> Result<Value, CommandEr
     let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Config file not found at: {}",
-            full_path.display()
-        )));
+        return Err(CommandError::resource_not_found(
+            "config file",
+            full_path.display(),
+        ));
     }
 
-    let content = std::fs::read_to_string(&full_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
-    })?;
+    let content = fs::read_to_string(&full_path)
+        .map_err(|e| CommandError::resource_not_found("config file", e))?;
 
     let json_value: Value = serde_json::from_str(&content)
-        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
+        .map_err(|e| CommandError::json("failed to parse config JSON", e))?;
 
     Ok(json_value)
 }
@@ -338,12 +432,11 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
     let full_path = sub_dir.join(&config_path);
 
     // 验证 JSON 格式
-    let _: Value = serde_json::from_str(&content)
-        .map_err(|e| CommandError::ResourceNotFound(format!("Invalid JSON format: {}", e)))?;
+    let _: Value =
+        serde_json::from_str(&content).map_err(|e| CommandError::json("invalid config JSON", e))?;
 
-    std::fs::write(&full_path, content).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to write config file: {}", e))
-    })?;
+    fs::write(&full_path, content)
+        .map_err(|e| CommandError::resource_not_found("config file", e))?;
 
     Ok(())
 }
@@ -359,7 +452,7 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
             .args(["/C", "start", "", &url])
             .creation_flags(CREATE_NO_WINDOW)
             .spawn()
-            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+            .map_err(|e| CommandError::resource_not_found("URL", e))?;
     }
 
     #[cfg(target_os = "macos")]
@@ -367,7 +460,7 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
         Command::new("open")
             .arg(&url)
             .spawn()
-            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+            .map_err(|e| CommandError::resource_not_found("URL", e))?;
     }
 
     #[cfg(target_os = "linux")]
@@ -375,10 +468,24 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
         Command::new("xdg-open")
             .arg(&url)
             .spawn()
-            .map_err(|e| CommandError::ResourceNotFound(format!("Failed to open URL: {}", e)))?;
+            .map_err(|e| CommandError::resource_not_found("URL", e))?;
     }
 
     Ok(())
+}
+
+#[tauri::command]
+pub async fn open_panel_url() -> Result<(), CommandError> {
+    let override_config = crate::config_override::get_override_config_if_enabled().await?;
+    let config = override_config.ok_or_else(|| {
+        CommandError::invalid_state("open panel", "config override is not enabled")
+    })?;
+
+    let url = extract_clash_api_url(&config).ok_or_else(|| {
+        CommandError::invalid_state("open panel", "clash API not configured in override config")
+    })?;
+
+    open_url(url).await
 }
 
 #[tauri::command]
@@ -387,19 +494,18 @@ pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, Co
     let full_path = sub_dir.join(&config_path);
 
     if !full_path.exists() {
-        return Err(CommandError::ResourceNotFound(format!(
-            "Config file not found at: {}",
-            full_path.display()
-        )));
+        return Err(CommandError::resource_not_found(
+            "config file",
+            full_path.display(),
+        ));
     }
 
     // 读取原始配置文件
-    let content = std::fs::read_to_string(&full_path).map_err(|e| {
-        CommandError::ResourceNotFound(format!("Failed to read config file: {}", e))
-    })?;
+    let content = fs::read_to_string(&full_path)
+        .map_err(|e| CommandError::resource_not_found("config file", e))?;
 
     let mut config: Value = serde_json::from_str(&content)
-        .map_err(|e| CommandError::ResourceNotFound(format!("Failed to parse JSON: {}", e)))?;
+        .map_err(|e| CommandError::json("failed to parse config JSON", e))?;
 
     // 检查是否有 override 配置并应用
     if let Ok(Some(override_config)) =
@@ -408,32 +514,5 @@ pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, Co
         crate::config_override::apply_config_override(&mut config, &override_config);
     }
 
-    // 从配置中提取 clash_api 信息
-    let external_controller = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_controller"))
-        .and_then(|ctrl| ctrl.as_str());
-
-    let external_ui = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_ui"))
-        .and_then(|ui| ui.as_str());
-
-    // 如果两者都存在，构建 URL
-    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
-        // 确保 UI 路径以 / 开头
-        let ui_path = if ui.starts_with('/') {
-            ui.to_string()
-        } else {
-            format!("/{}", ui)
-        };
-
-        // 构建完整的 URL
-        let url = format!("http://{}{}/", controller, ui_path);
-        Ok(Some(url))
-    } else {
-        Ok(None)
-    }
+    Ok(extract_clash_api_url(&config))
 }

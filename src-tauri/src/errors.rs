@@ -1,24 +1,55 @@
-// errors.rs - 错误类型定义
+use thiserror::Error;
 
-#[derive(Debug, serde::Serialize)]
+#[derive(Debug, Error, serde::Serialize)]
+#[serde(tag = "kind", content = "message", rename_all = "snake_case")]
 pub enum CommandError {
+    #[error("Process is already running")]
     ProcessAlreadyRunning,
+    #[error("Process is not running")]
     ProcessNotRunning,
+    #[error("{0}")]
+    InvalidState(String),
+    #[error("{0}")]
     ResourceNotFound(String),
+    #[error("{0}")]
     FailedToStartProcess(String),
+    #[error("{0}")]
     FailedToStopProcess(String),
+    #[error("{0}")]
     IoError(String),
+    #[error("{0}")]
     JsonError(String),
+}
+
+impl CommandError {
+    pub fn invalid_state(context: impl Into<String>, details: impl std::fmt::Display) -> Self {
+        Self::InvalidState(format!("{}: {}", context.into(), details))
+    }
+
+    pub fn resource_not_found(
+        resource: impl Into<String>,
+        details: impl std::fmt::Display,
+    ) -> Self {
+        Self::ResourceNotFound(format!("{}: {}", resource.into(), details))
+    }
+
+    pub fn io(context: impl Into<String>, error: impl std::fmt::Display) -> Self {
+        Self::IoError(format!("{}: {}", context.into(), error))
+    }
+
+    pub fn json(context: impl Into<String>, error: impl std::fmt::Display) -> Self {
+        Self::JsonError(format!("{}: {}", context.into(), error))
+    }
 }
 
 impl From<std::io::Error> for CommandError {
     fn from(error: std::io::Error) -> Self {
-        CommandError::IoError(error.to_string())
+        CommandError::io("I/O operation failed", error)
     }
 }
 
 impl From<serde_json::Error> for CommandError {
     fn from(error: serde_json::Error) -> Self {
-        CommandError::JsonError(error.to_string())
+        CommandError::json("JSON operation failed", error)
     }
 }

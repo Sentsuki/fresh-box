@@ -4,6 +4,7 @@
 - Start and Stop
 - Import or Subscribe Configurations
 - Customize Configuration Fields and Override Original Settings
+- Update the sing-box Core from Settings
 - Minimize to Tray
 
 ## Notes

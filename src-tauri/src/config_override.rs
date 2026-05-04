@@ -1,7 +1,5 @@
 use crate::errors::CommandError;
 use serde_json::{json, Value};
-use std::fs;
-use std::path::PathBuf;
 
 const OVERRIDE_CONFIG_FILE: &str = "config_override.json";
 
@@ -11,30 +9,21 @@ struct OverrideConfig {
     config: Value,
 }
 
-fn get_override_config_path() -> Result<PathBuf, CommandError> {
-    let config_dir = super::config::get_config_dir()?;
-    Ok(config_dir.join(OVERRIDE_CONFIG_FILE))
+impl Default for OverrideConfig {
+    fn default() -> Self {
+        Self {
+            enabled: false,
+            config: json!({}),
+        }
+    }
 }
 
 fn load_override_file() -> Result<OverrideConfig, CommandError> {
-    let config_path = get_override_config_path()?;
-    if !config_path.exists() {
-        return Ok(OverrideConfig {
-            enabled: false,
-            config: json!({}),
-        });
-    }
-
-    let config_str = fs::read_to_string(&config_path)?;
-    let override_config: OverrideConfig = serde_json::from_str(&config_str)?;
-    Ok(override_config)
+    super::config::load_named_config_or_default(OVERRIDE_CONFIG_FILE)
 }
 
 fn save_override_file(override_config: &OverrideConfig) -> Result<(), CommandError> {
-    let config_path = get_override_config_path()?;
-    let config_str = serde_json::to_string_pretty(override_config)?;
-    fs::write(&config_path, config_str)?;
-    Ok(())
+    super::config::save_named_config(OVERRIDE_CONFIG_FILE, override_config)
 }
 
 #[tauri::command]

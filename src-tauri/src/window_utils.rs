@@ -1,6 +1,27 @@
 // window_utils.rs - 安全的窗口操作工具
 
+use std::{future::Future, time::Duration};
 use tauri::{AppHandle, Manager};
+
+pub fn run_after_delay<F>(delay: Duration, action: F)
+where
+    F: FnOnce() + Send + 'static,
+{
+    std::thread::spawn(move || {
+        std::thread::sleep(delay);
+        action();
+    });
+}
+
+pub fn spawn_async_after_delay<F, Fut>(delay: Duration, action: F)
+where
+    F: FnOnce() -> Fut + Send + 'static,
+    Fut: Future<Output = ()> + Send + 'static,
+{
+    run_after_delay(delay, move || {
+        tauri::async_runtime::spawn(action());
+    });
+}
 
 /// 安全地显示窗口
 pub fn safe_show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
