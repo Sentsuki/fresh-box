@@ -1,5 +1,6 @@
 import js from '@eslint/js';
 import vue from 'eslint-plugin-vue';
+import vueParser from 'vue-eslint-parser';
 import globals from 'globals';
 import prettier from 'eslint-config-prettier/flat';
 import tseslint from 'typescript-eslint';
@@ -24,7 +25,7 @@ export default [
 
   // JavaScript/TypeScript 文件配置
   {
-    files: ['**/*.{js,mjs,cjs,ts,vue}'],
+    files: ['**/*.{js,mjs,cjs,ts}'],
     languageOptions: {
       globals: {
         ...globals.browser,
@@ -88,12 +89,20 @@ export default [
   {
     files: ['**/*.vue'],
     languageOptions: {
+      parser: vueParser,
+      globals: {
+        ...globals.browser,
+        ...globals.node,
+      },
       parserOptions: {
         parser: tseslint.parser,
         extraFileExtensions: ['.vue'],
         ecmaVersion: 'latest',
         sourceType: 'module',
       },
+    },
+    rules: {
+      'vue/multi-word-component-names': 'off',
     },
   },
 

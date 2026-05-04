@@ -22,16 +22,16 @@ function submitSubscription() {
 </script>
 
 <template>
-  <div class="flex flex-col gap-3 md:flex-row">
-    <input
-      v-model="subscriptionUrl"
-      type="text"
-      class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
-      placeholder="Enter subscription URL"
-      :disabled="appStore.isLoading.value"
-      @keyup.enter="submitSubscription"
-    />
-    <div class="flex gap-3">
+  <div class="flex flex-col gap-3">
+    <div class="flex flex-col gap-3 md:flex-row">
+      <input
+        v-model="subscriptionUrl"
+        type="text"
+        class="flex-1 rounded-lg border border-gray-300 px-4 py-2.5 text-sm outline-none transition-all duration-200 focus:border-blue-500 focus:ring-2 focus:ring-blue-200"
+        placeholder="Enter subscription URL"
+        :disabled="appStore.isLoading.value"
+        @keyup.enter="submitSubscription"
+      />
       <button
         class="control-button subscribe-button"
         :disabled="!canAddSubscription"
@@ -41,7 +41,8 @@ function submitSubscription() {
         <span class="mr-3 text-lg">📥</span>
         {{ appStore.isLoading.value ? "Subscribing..." : "Subscribe" }}
       </button>
-
+    </div>
+    <div class="flex">
       <button
         class="control-button select-button"
         :disabled="appStore.isLoading.value"
