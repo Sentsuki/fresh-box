@@ -7,7 +7,7 @@
 ### 1. 状态管理优化 (State Management)
 - [ ] **引入全局状态管理**：使用 Pinia 或自定义 Reactive Store 接管 `App.vue` 中的全局状态（`isRunning`, `isLoading`, `configFiles`, `subscriptions`）。
 - [ ] **消除 Props Drilling**：通过 Store 共享状态，减少 `App.vue` 向 `Config.vue` 和 `Overview.vue` 传递过多 Props 的情况。
-- [ ] **统一持久化逻辑**：将 `localStorage` 的直接读写统一封装到 Store 或 Service 层，并考虑与后端配置同步。
+- [ ] **统一持久化逻辑 (Storage Consistency)**：废弃前端的 `localStorage`，将所有应用设置迁移到 Rust 后端管理的 JSON 文件中，确保状态的一致性和可靠性。
 
 ### 2. 组件拆分与解耦 (Component Refactoring)
 - [ ] **瘦身 `App.vue`**：将文件操作逻辑（重命名、删除、订阅更新）移动到 Composable 函数（如 `useConfigs.ts`）。
@@ -51,6 +51,3 @@
 
 ---
 
-## 📈 长期计划
-- [ ] 增加单元测试 (Frontend Vitest / Backend Rust Test)。
-- [ ] 增加日志回显功能，允许用户在界面上查看 `sing-box` 的实时日志输出。
