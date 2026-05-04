@@ -22,12 +22,15 @@ pub enum CommandError {
 }
 
 impl CommandError {
-    pub fn invalid_state(context: impl Into<String>, details: impl Into<String>) -> Self {
-        Self::InvalidState(format!("{}: {}", context.into(), details.into()))
+    pub fn invalid_state(context: impl Into<String>, details: impl std::fmt::Display) -> Self {
+        Self::InvalidState(format!("{}: {}", context.into(), details))
     }
 
-    pub fn resource_not_found(resource: impl Into<String>, details: impl Into<String>) -> Self {
-        Self::ResourceNotFound(format!("{}: {}", resource.into(), details.into()))
+    pub fn resource_not_found(
+        resource: impl Into<String>,
+        details: impl std::fmt::Display,
+    ) -> Self {
+        Self::ResourceNotFound(format!("{}: {}", resource.into(), details))
     }
 
     pub fn io(context: impl Into<String>, error: impl std::fmt::Display) -> Self {

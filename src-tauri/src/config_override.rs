@@ -1,6 +1,5 @@
 use crate::errors::CommandError;
 use serde_json::{json, Value};
-use std::fs;
 use std::path::PathBuf;
 
 const OVERRIDE_CONFIG_FILE: &str = "config_override.json";
