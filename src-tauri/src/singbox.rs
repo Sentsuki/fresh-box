@@ -41,6 +41,24 @@ enum ProcessOrigin {
     Detected(u32),
 }
 
+struct StartupFlagGuard {
+    state: SingboxState,
+}
+
+impl StartupFlagGuard {
+    fn new(state: SingboxState) -> Self {
+        Self { state }
+    }
+}
+
+impl Drop for StartupFlagGuard {
+    fn drop(&mut self) {
+        if let Ok(mut process_state) = self.state.lock("startup_flag_guard") {
+            process_state.is_starting = false;
+        }
+    }
+}
+
 impl SingboxState {
     pub fn new() -> Self {
         Self::default()
@@ -284,6 +302,7 @@ pub async fn start_singbox(
         }
         process_state.is_starting = true;
     }
+    let _startup_flag_guard = StartupFlagGuard::new(state.inner().clone());
 
     let startup_result = async {
         let bin_dir = crate::config::get_bin_dir()?;
@@ -354,7 +373,6 @@ pub async fn start_singbox(
     .await;
 
     let mut process_state = state.lock("start_singbox_finalize")?;
-    process_state.is_starting = false;
 
     match startup_result {
         Ok(child) => {
