@@ -33,7 +33,10 @@ export async function saveSubscriptionConfig(
   fileName: string,
   content: string,
 ): Promise<string> {
-  return invokeCommand<string>("save_subscription_config", { fileName, content });
+  return invokeCommand<string>("save_subscription_config", {
+    fileName,
+    content,
+  });
 }
 
 export async function renameConfigFile(
@@ -71,7 +74,8 @@ export async function saveSubscriptions(
 }
 
 export async function loadAppSettings(): Promise<AppSettings> {
-  const settings = await invokeCommand<Partial<AppSettings>>("load_app_settings");
+  const settings =
+    await invokeCommand<Partial<AppSettings>>("load_app_settings");
 
   return {
     selected_config: settings.selected_config ?? null,
@@ -126,7 +130,9 @@ export async function loadConfigOverride(): Promise<ConfigOverride> {
   return invokeCommand<ConfigOverride>("load_config_override");
 }
 
-export async function saveConfigOverride(config: ConfigOverride): Promise<void> {
+export async function saveConfigOverride(
+  config: ConfigOverride,
+): Promise<void> {
   return invokeCommand<void>("save_config_override", { config });
 }
 
@@ -142,14 +148,18 @@ export async function loadPriorityConfig(): Promise<PriorityConfig> {
   return invokeCommand<PriorityConfig>("load_priority_config");
 }
 
-export async function savePriorityConfig(config: PriorityConfig): Promise<void> {
+export async function savePriorityConfig(
+  config: PriorityConfig,
+): Promise<void> {
   return invokeCommand<void>("save_priority_config", { config });
 }
 
 export async function checkConfigFields(
   configPath: string,
 ): Promise<ConfigFieldsCheck> {
-  return invokeCommand<ConfigFieldsCheck>("check_config_fields", { configPath });
+  return invokeCommand<ConfigFieldsCheck>("check_config_fields", {
+    configPath,
+  });
 }
 
 export async function openAppDirectory(): Promise<void> {

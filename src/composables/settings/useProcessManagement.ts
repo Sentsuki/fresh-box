@@ -40,7 +40,9 @@ export function useProcessManagement() {
         : "No sing-box process found";
     } catch (error) {
       processStatus.value = "Failed to detect sing-box process";
-      toast.error(`Failed to detect sing-box process: ${getErrorMessage(error)}`);
+      toast.error(
+        `Failed to detect sing-box process: ${getErrorMessage(error)}`,
+      );
     } finally {
       isRefreshing.value = false;
     }

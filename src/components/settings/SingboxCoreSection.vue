@@ -43,9 +43,7 @@ defineEmits<{
             {{ coreStatus?.current_version || "Not installed" }}
           </p>
         </div>
-        <div
-          class="rounded-lg border border-gray-200 bg-gray-50 p-3"
-        >
+        <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p class="m-0 text-xs uppercase tracking-wide text-gray-500">
             Latest Version
           </p>
@@ -104,7 +102,9 @@ defineEmits<{
               : 'bg-violet-600 hover:bg-violet-700 hover:shadow-sm config-button-hover'
           "
           :disabled="
-            isUpdatingCore || isRefreshingCoreStatus || !coreStatus?.latest_version
+            isUpdatingCore ||
+            isRefreshingCoreStatus ||
+            !coreStatus?.latest_version
           "
           @click="$emit('update')"
         >

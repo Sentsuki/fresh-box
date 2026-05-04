@@ -69,7 +69,6 @@ impl SingboxState {
             .lock()
             .map_err(|_| CommandError::invalid_state(label, "process state mutex poisoned"))
     }
-
 }
 
 #[cfg(windows)]
@@ -81,7 +80,10 @@ fn refresh_process_table(process_state: &mut ProcessState) {
 
 #[cfg(windows)]
 fn is_singbox_process_name(process_name: &std::ffi::OsStr) -> bool {
-    process_name.to_string_lossy().to_lowercase().contains("sing-box")
+    process_name
+        .to_string_lossy()
+        .to_lowercase()
+        .contains("sing-box")
 }
 
 fn detect_existing_singbox(process_state: &mut ProcessState) -> Result<Option<u32>, CommandError> {
@@ -176,7 +178,9 @@ fn detect_and_track_existing_process(
     }
 }
 
-fn inspect_running_process(process_state: &mut ProcessState) -> Result<Option<ProcessOrigin>, CommandError> {
+fn inspect_running_process(
+    process_state: &mut ProcessState,
+) -> Result<Option<ProcessOrigin>, CommandError> {
     if let Some(child) = &mut process_state.child {
         match child.try_wait() {
             Ok(Some(_)) => {
@@ -323,7 +327,10 @@ pub async fn start_singbox(
         }
 
         if !std::path::Path::new(&config_path).exists() {
-            return Err(CommandError::resource_not_found("config file", &config_path));
+            return Err(CommandError::resource_not_found(
+                "config file",
+                &config_path,
+            ));
         }
 
         let config_content = fs::read_to_string(&config_path)?;

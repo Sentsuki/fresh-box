@@ -2,7 +2,10 @@ import { computed, ref } from "vue";
 import { getSingboxCoreStatus, updateSingboxCore } from "../../services/api";
 import { getErrorMessage } from "../../services/tauri";
 import { toast } from "../useToast";
-import type { SingboxCoreStatus, SingboxCoreUpdateResult } from "../../types/app";
+import type {
+  SingboxCoreStatus,
+  SingboxCoreUpdateResult,
+} from "../../types/app";
 
 export function useCoreUpdate() {
   const isRefreshingCoreStatus = ref(false);
@@ -35,7 +38,9 @@ export function useCoreUpdate() {
       return "Not Installed";
     }
 
-    return coreStatus.value.update_available ? "Update Available" : "Up to Date";
+    return coreStatus.value.update_available
+      ? "Update Available"
+      : "Up to Date";
   });
 
   const coreStatusBadgeClass = computed(() => {

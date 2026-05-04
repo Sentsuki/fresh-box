@@ -64,7 +64,9 @@ defineEmits<{
           <div class="h-5 w-9 animate-pulse rounded-full bg-gray-300" />
         </div>
         <div class="log-level-section">
-          <span class="mb-3 block text-sm font-medium text-gray-600">Level</span>
+          <span class="mb-3 block text-sm font-medium text-gray-600"
+            >Level</span
+          >
           <div class="segmented-control log-segmented-control">
             <div class="segmented-control-track">
               <div class="h-8 animate-pulse rounded-md bg-gray-300" />
@@ -101,7 +103,9 @@ defineEmits<{
         </div>
 
         <div v-if="!logDisabled" class="log-level-section">
-          <span class="mb-3 block text-sm font-medium text-gray-600">Level</span>
+          <span class="mb-3 block text-sm font-medium text-gray-600"
+            >Level</span
+          >
           <div class="segmented-control log-segmented-control">
             <div class="segmented-control-track">
               <div

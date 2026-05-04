@@ -55,10 +55,7 @@ async function saveManage() {
   }
 
   if (editingSubscriptionUrl.value !== (props.subscription?.url ?? "")) {
-    await configs.editSubscription(
-      nextFileName,
-      editingSubscriptionUrl.value,
-    );
+    await configs.editSubscription(nextFileName, editingSubscriptionUrl.value);
   }
 
   cancelManage();

@@ -18,10 +18,16 @@ const isSubscription = computed(() => {
       <h2>Overview</h2>
     </div>
     <div class="card-content">
-      <div class="overview-status-card" :class="{ running: appStore.isRunning.value }">
+      <div
+        class="overview-status-card"
+        :class="{ running: appStore.isRunning.value }"
+      >
         <div class="status-header">
           <div class="status-icon-wrapper">
-            <div class="status-icon" :class="{ active: appStore.isRunning.value }">
+            <div
+              class="status-icon"
+              :class="{ active: appStore.isRunning.value }"
+            >
               <svg
                 v-if="appStore.isRunning.value"
                 class="h-6 w-6"
@@ -105,7 +111,10 @@ const isSubscription = computed(() => {
               {{ appStore.selectedConfigDisplay.value }}
             </span>
           </div>
-          <span class="config-info-label" :class="{ subscription: isSubscription }">
+          <span
+            class="config-info-label"
+            :class="{ subscription: isSubscription }"
+          >
             {{ isSubscription ? "Subscription" : "Local" }}
           </span>
         </div>

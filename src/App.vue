@@ -21,7 +21,9 @@ onMounted(async () => {
     await singbox.initializeSingbox();
     appStore.markInitialized();
   } catch (error) {
-    toast.error(error instanceof Error ? error.message : "Failed to initialize app");
+    toast.error(
+      error instanceof Error ? error.message : "Failed to initialize app",
+    );
   }
 });
 </script>

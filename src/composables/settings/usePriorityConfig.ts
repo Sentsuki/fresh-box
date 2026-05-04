@@ -53,7 +53,8 @@ export function usePriorityConfig() {
     hasLogField.value = fieldsCheck.has_log_field;
 
     if (fieldsCheck.has_stack_field) {
-      const stackValue = priorityConfig.stack || fieldsCheck.current_stack_value;
+      const stackValue =
+        priorityConfig.stack || fieldsCheck.current_stack_value;
       if (stackValue && isStackOption(stackValue)) {
         selectedStackOption.value = stackValue;
       }
@@ -128,7 +129,9 @@ export function usePriorityConfig() {
       await updatePriorityConfig({ stack: option });
       toast.success(`Stack option updated to: ${option}`);
     } catch (error) {
-      toast.error(`Failed to update stack configuration: ${getErrorMessage(error)}`);
+      toast.error(
+        `Failed to update stack configuration: ${getErrorMessage(error)}`,
+      );
     }
   }
 
@@ -149,7 +152,9 @@ export function usePriorityConfig() {
         `Log configuration updated: level=${selectedLogLevel.value}, disabled=${logDisabled.value}`,
       );
     } catch (error) {
-      toast.error(`Failed to update log configuration: ${getErrorMessage(error)}`);
+      toast.error(
+        `Failed to update log configuration: ${getErrorMessage(error)}`,
+      );
     }
   }
 

@@ -1,6 +1,11 @@
 import { computed, reactive, toRefs } from "vue";
 import { loadAppSettings, saveAppSettings } from "../services/api";
-import type { AppPage, AppSettings, ConfigFileEntry, SubscriptionRecord } from "../types/app";
+import type {
+  AppPage,
+  AppSettings,
+  ConfigFileEntry,
+  SubscriptionRecord,
+} from "../types/app";
 
 const state = reactive({
   initialized: false,

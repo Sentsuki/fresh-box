@@ -592,7 +592,6 @@ body,
   @apply m-0 mb-4 text-base font-semibold text-gray-800 pb-2 border-b border-gray-200;
 }
 
-
 .setting-item {
   @apply flex items-center justify-between py-3 border-b border-gray-200;
 }

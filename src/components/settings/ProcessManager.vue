@@ -86,13 +86,19 @@ const statusTextClass = computed(() => {
         v-if="processStatus"
         class="overflow-hidden rounded-xl border border-gray-200 bg-white shadow-sm transition-all duration-200 hover:shadow-md"
       >
-        <div class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3">
-          <span class="flex h-6 w-6 items-center justify-center rounded-full text-base">
+        <div
+          class="flex items-center gap-2 border-b border-gray-200 bg-gray-50 px-4 py-3"
+        >
+          <span
+            class="flex h-6 w-6 items-center justify-center rounded-full text-base"
+          >
             <span v-if="processStatusClass === 'status-success'">✅</span>
             <span v-else-if="processStatusClass === 'status-error'">❌</span>
             <span v-else>ℹ️</span>
           </span>
-          <span class="text-sm font-semibold text-gray-800">Process Status</span>
+          <span class="text-sm font-semibold text-gray-800"
+            >Process Status</span
+          >
         </div>
         <div class="p-4">
           <p

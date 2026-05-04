@@ -232,7 +232,9 @@ export function useConfigs() {
 
     try {
       await appStore.withLoading(async () => {
-        await persistSubscriptions(buildSubscriptionRecord(fileName, { url: newUrl }));
+        await persistSubscriptions(
+          buildSubscriptionRecord(fileName, { url: newUrl }),
+        );
       });
 
       toast.success(`Updated subscription URL for: ${fileName}`);
