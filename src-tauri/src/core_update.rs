@@ -60,7 +60,8 @@ pub async fn update_singbox_core(
 ) -> Result<SingboxCoreUpdateResult, CommandError> {
     let previous_version = get_installed_singbox_version()?;
     let latest_release = fetch_latest_release_metadata()?;
-    let latest_version = normalized_version(&latest_release.tag).unwrap_or(latest_release.tag.clone());
+    let latest_version =
+        normalized_version(&latest_release.tag).unwrap_or(latest_release.tag.clone());
     let update_paths = get_update_paths(&latest_release.name)?;
 
     download_latest_core_archive(&latest_release, &update_paths.zip_path)?;
@@ -265,7 +266,9 @@ fn normalized_version(value: &str) -> Option<String> {
     let cleaned = candidate
         .trim()
         .trim_start_matches('v')
-        .trim_matches(|ch: char| !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '+');
+        .trim_matches(|ch: char| {
+            !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '+'
+        });
 
     if cleaned.is_empty() {
         None

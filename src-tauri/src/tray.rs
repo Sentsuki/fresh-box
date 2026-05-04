@@ -7,52 +7,10 @@ use tauri::{
     Manager,
 };
 
-// 从托盘打开 Panel
 async fn open_panel_from_tray() -> Result<(), String> {
-    // 获取 override 配置
-    let override_config = crate::config_override::get_override_config_if_enabled()
+    crate::config::open_panel_url()
         .await
-        .map_err(|e| format!("Failed to get override config: {:?}", e))?;
-
-    let config = match override_config {
-        Some(cfg) => cfg,
-        None => {
-            return Err("Config override is not enabled".to_string());
-        }
-    };
-
-    // 从 override 配置中提取 clash_api 信息
-    let external_controller = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_controller"))
-        .and_then(|ctrl| ctrl.as_str());
-
-    let external_ui = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_ui"))
-        .and_then(|ui| ui.as_str());
-
-    // 如果两者都存在，构建 URL
-    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
-        // 确保 UI 路径以 / 开头
-        let ui_path = if ui.starts_with('/') {
-            ui.to_string()
-        } else {
-            format!("/{}", ui)
-        };
-
-        // 构建完整的 URL
-        let url = format!("http://{}{}/", controller, ui_path);
-
-        crate::config::open_url(url)
-            .await
-            .map_err(|e| format!("Failed to open URL: {:?}", e))?;
-        Ok(())
-    } else {
-        Err("Clash API not configured in override config".to_string())
-    }
+        .map_err(|error| error.to_string())
 }
 
 // 创建系统托盘

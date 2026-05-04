@@ -5,102 +5,17 @@ mod config;
 mod config_override;
 mod core_update;
 mod errors;
+mod logger;
 mod priority_config;
 mod singbox;
 mod tray;
 mod window_utils;
 
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
-use std::panic;
 use tauri::Manager;
 
-// 从 override 配置打开 Panel URL
-#[tauri::command]
-async fn open_panel_url() -> Result<(), String> {
-    // 获取 override 配置
-    let override_config = config_override::get_override_config_if_enabled()
-        .await
-        .map_err(|e| format!("Failed to get override config: {:?}", e))?;
-
-    let config = match override_config {
-        Some(cfg) => cfg,
-        None => {
-            return Err("Config override is not enabled".to_string());
-        }
-    };
-
-    // 从 override 配置中提取 clash_api 信息
-    let external_controller = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_controller"))
-        .and_then(|ctrl| ctrl.as_str());
-
-    let external_ui = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_ui"))
-        .and_then(|ui| ui.as_str());
-
-    // 如果两者都存在，构建 URL
-    if let (Some(controller), Some(ui)) = (external_controller, external_ui) {
-        // 确保 UI 路径以 / 开头
-        let ui_path = if ui.starts_with('/') {
-            ui.to_string()
-        } else {
-            format!("/{}", ui)
-        };
-
-        // 构建完整的 URL
-        let url = format!("http://{}{}/", controller, ui_path);
-
-        config::open_url(url)
-            .await
-            .map_err(|e| format!("Failed to open URL: {:?}", e))?;
-        Ok(())
-    } else {
-        Err("Clash API not configured in override config".to_string())
-    }
-}
-
 fn main() {
-    // 设置panic hook来记录崩溃信息
-    panic::set_hook(Box::new(|panic_info| {
-        let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path
-            .parent()
-            .unwrap_or_else(|| std::path::Path::new("."));
-
-        // 尝试将崩溃日志写入 log 目录，如果失败则回退到 exe 目录
-        let log_dir = exe_dir.join("log");
-        let _ = std::fs::create_dir_all(&log_dir);
-        let log_path = if log_dir.exists() {
-            log_dir.join("crash.log")
-        } else {
-            exe_dir.join("crash.log")
-        };
-
-        let crash_msg = format!(
-            "Application crashed at {}: {}\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
-            panic_info
-        );
-
-        // 尝试写入崩溃日志
-        if std::fs::write(&log_path, &crash_msg).is_err() {
-            // 如果写入失败，尝试追加到现有文件
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-                .and_then(|mut file| {
-                    use std::io::Write;
-                    file.write_all(crash_msg.as_bytes())
-                });
-        }
-
-        eprintln!("{}", crash_msg);
-    }));
+    logger::install_panic_hook();
 
     // 创建初始状态
     let singbox_state = SingboxState::new();
@@ -128,11 +43,13 @@ fn main() {
             config::open_app_directory,
             config::save_subscriptions,
             config::load_subscriptions,
+            config::load_app_settings,
+            config::save_app_settings,
             config::load_config_content,
             config::save_config_content,
             config::open_url,
             config::get_clash_api_url,
-            open_panel_url,
+            config::open_panel_url,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,

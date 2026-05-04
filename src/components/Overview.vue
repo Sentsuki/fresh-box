@@ -1,74 +1,15 @@
 <script setup lang="ts">
 import { computed } from "vue";
-import { invoke } from "@tauri-apps/api/core";
+import { useSingbox } from "../composables/useSingbox";
+import { useAppStore } from "../stores/appStore";
 
-const props = defineProps({
-  isRunning: {
-    type: Boolean,
-    required: true,
-  },
-  isLoading: {
-    type: Boolean,
-    required: true,
-  },
-  selectedConfigDisplay: {
-    type: String as () => string | null,
-    default: null,
-  },
-  selectedConfig: {
-    type: String as () => string | null,
-    default: null,
-  },
-  subscriptions: {
-    type: Object as () => Record<string, unknown>,
-    default: () => ({}),
-  },
-});
+const appStore = useAppStore();
+const singbox = useSingbox();
 
-// 判断当前配置是否为订阅
 const isSubscription = computed(() => {
-  return (
-    props.selectedConfigDisplay &&
-    props.subscriptions[props.selectedConfigDisplay]
-  );
+  const displayName = appStore.selectedConfigDisplay.value;
+  return !!(displayName && appStore.subscriptions.value[displayName]);
 });
-
-const emit = defineEmits(["start-service", "stop-service", "show-toast"]);
-
-function startService() {
-  emit("start-service");
-}
-
-function stopService() {
-  emit("stop-service");
-}
-
-// 点击徽章打开网址
-async function openWebsite() {
-  if (!props.selectedConfig) {
-    emit("show-toast", "No config selected", "error");
-    return;
-  }
-
-  try {
-    // 获取 Clash API URL
-    const url = await invoke<string | null>("get_clash_api_url", {
-      configPath: props.selectedConfig,
-    });
-
-    if (url) {
-      await invoke("open_url", { url });
-    } else {
-      emit(
-        "show-toast",
-        "Clash API not configured in this config file",
-        "error",
-      );
-    }
-  } catch (error) {
-    emit("show-toast", `Failed to open Clash API: ${error}`, "error");
-  }
-}
 </script>
 
 <template>
@@ -77,14 +18,13 @@ async function openWebsite() {
       <h2>Overview</h2>
     </div>
     <div class="card-content">
-      <!-- 状态卡片 -->
-      <div class="overview-status-card" :class="{ running: isRunning }">
+      <div class="overview-status-card" :class="{ running: appStore.isRunning.value }">
         <div class="status-header">
           <div class="status-icon-wrapper">
-            <div class="status-icon" :class="{ active: isRunning }">
+            <div class="status-icon" :class="{ active: appStore.isRunning.value }">
               <svg
-                v-if="isRunning"
-                class="w-6 h-6"
+                v-if="appStore.isRunning.value"
+                class="h-6 w-6"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -96,7 +36,7 @@ async function openWebsite() {
               </svg>
               <svg
                 v-else
-                class="w-6 h-6"
+                class="h-6 w-6"
                 fill="currentColor"
                 viewBox="0 0 20 20"
               >
@@ -110,11 +50,13 @@ async function openWebsite() {
           </div>
           <div class="status-content">
             <h3 class="status-title">
-              {{ isRunning ? "Service Running" : "Service Stopped" }}
+              {{
+                appStore.isRunning.value ? "Service Running" : "Service Stopped"
+              }}
             </h3>
             <p class="status-subtitle">
               {{
-                isRunning
+                appStore.isRunning.value
                   ? "Sing-box is active and ready"
                   : "Click start to begin"
               }}
@@ -122,15 +64,20 @@ async function openWebsite() {
           </div>
           <div
             class="status-badge"
-            :class="{ active: isRunning, clickable: isRunning }"
-            @click="isRunning ? openWebsite() : null"
+            :class="{
+              active: appStore.isRunning.value,
+              clickable: appStore.isRunning.value,
+            }"
+            @click="appStore.isRunning.value ? singbox.openPanel() : null"
           >
-            {{ isRunning ? "PANEL" : "INACTIVE" }}
+            {{ appStore.isRunning.value ? "PANEL" : "INACTIVE" }}
           </div>
         </div>
 
-        <!-- 配置信息 -->
-        <div v-if="selectedConfigDisplay" class="status-config-info">
+        <div
+          v-if="appStore.selectedConfigDisplay.value"
+          class="status-config-info"
+        >
           <div class="config-info-left">
             <svg
               v-if="isSubscription"
@@ -154,46 +101,56 @@ async function openWebsite() {
                 clip-rule="evenodd"
               />
             </svg>
-            <span class="config-info-text">{{ selectedConfigDisplay }}</span>
+            <span class="config-info-text">
+              {{ appStore.selectedConfigDisplay.value }}
+            </span>
           </div>
-          <span
-            class="config-info-label"
-            :class="{ subscription: isSubscription }"
-          >
+          <span class="config-info-label" :class="{ subscription: isSubscription }">
             {{ isSubscription ? "Subscription" : "Local" }}
           </span>
         </div>
       </div>
 
-      <!-- 操作按钮 -->
       <div class="overview-actions">
         <button
           class="overview-btn start-btn"
-          :disabled="isRunning || isLoading || !selectedConfig"
-          @click="startService"
+          :disabled="
+            appStore.isRunning.value ||
+            appStore.isLoading.value ||
+            !appStore.selectedConfigPath.value
+          "
+          @click="singbox.startService"
         >
-          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
             <path
               fill-rule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zM9.555 7.168A1 1 0 008 8v4a1 1 0 001.555.832l3-2a1 1 0 000-1.664l-3-2z"
               clip-rule="evenodd"
             />
           </svg>
-          {{ isLoading && !isRunning ? "Starting..." : "Start" }}
+          {{
+            appStore.isLoading.value && !appStore.isRunning.value
+              ? "Starting..."
+              : "Start"
+          }}
         </button>
         <button
           class="overview-btn stop-btn"
-          :disabled="!isRunning || isLoading"
-          @click="stopService"
+          :disabled="!appStore.isRunning.value || appStore.isLoading.value"
+          @click="singbox.stopService"
         >
-          <svg class="w-4 h-4 mr-2" fill="currentColor" viewBox="0 0 20 20">
+          <svg class="mr-2 h-4 w-4" fill="currentColor" viewBox="0 0 20 20">
             <path
               fill-rule="evenodd"
               d="M10 18a8 8 0 100-16 8 8 0 000 16zM8 7a1 1 0 00-1 1v4a1 1 0 001 1h4a1 1 0 001-1V8a1 1 0 00-1-1H8z"
               clip-rule="evenodd"
             />
           </svg>
-          {{ isLoading && isRunning ? "Stopping..." : "Stop" }}
+          {{
+            appStore.isLoading.value && appStore.isRunning.value
+              ? "Stopping..."
+              : "Stop"
+          }}
         </button>
       </div>
     </div>

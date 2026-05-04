@@ -1,61 +1,44 @@
+<script setup lang="ts">
+import { computed } from "vue";
+import { useToastState } from "../composables/useToast";
+
+const { toasts } = useToastState();
+
+const toastClassMap = computed(() =>
+  Object.fromEntries(
+    toasts.value.map((toast) => {
+      if (toast.type === "success") {
+        if (toast.accent === "save") {
+          return [toast.id, "bg-blue-500"];
+        }
+
+        if (toast.accent === "clear") {
+          return [toast.id, "bg-orange-500"];
+        }
+
+        return [toast.id, "bg-green-500"];
+      }
+
+      if (toast.type === "info") {
+        return [toast.id, "bg-slate-500"];
+      }
+
+      return [toast.id, "bg-red-500"];
+    }),
+  ),
+);
+</script>
+
 <template>
   <TransitionGroup name="toast">
     <div
       v-for="toast in toasts"
       :key="toast.id"
-      class="fixed bottom-5 right-5 px-6 py-3 rounded text-white z-50"
-      :class="getToastClass(toast)"
+      class="fixed bottom-5 right-5 z-50 rounded px-6 py-3 text-white shadow-lg"
+      :class="toastClassMap[toast.id]"
       :style="{ animation: 'slideIn 0.3s ease-out' }"
     >
       {{ toast.message }}
     </div>
   </TransitionGroup>
 </template>
-
-<script setup lang="ts">
-import { ref } from "vue";
-
-type Toast = {
-  id: number;
-  message: string;
-  type: "success" | "error";
-  subtype?: "save" | "clear";
-};
-
-const toasts = ref([] as Toast[]);
-let toastId = 0;
-
-const showToast = (
-  message: string,
-  type: "success" | "error" = "success",
-  subtype?: "save" | "clear",
-) => {
-  // 清除所有现有的 toast
-  toasts.value = [];
-
-  const id = toastId++;
-  toasts.value.push({ id, message, type, subtype });
-  setTimeout(() => {
-    toasts.value = toasts.value.filter((toast) => toast.id !== id);
-  }, 3000);
-};
-
-const getToastClass = (toast: Toast) => {
-  if (toast.type === "success") {
-    if (toast.subtype === "save") {
-      return "bg-blue-500";
-    } else if (toast.subtype === "clear") {
-      return "bg-orange-500";
-    } else {
-      return "bg-green-500";
-    }
-  } else if (toast.type === "error") {
-    return "bg-red-500";
-  }
-  return "bg-green-500";
-};
-
-defineExpose({
-  showToast,
-});
-</script>

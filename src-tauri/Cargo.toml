@@ -27,6 +27,7 @@ tauri-plugin-http = "2"
 chrono = { version = "0.4", features = ["serde"] }
 sysinfo = "0.37"
 tokio = { version = "1", features = ["full"] }
+thiserror = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

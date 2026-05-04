@@ -1,15 +1,11 @@
 <script setup lang="ts">
-defineProps({
-  currentPage: {
-    type: String as () => "overview" | "config" | "settings",
-    required: true,
-  },
-});
+import { useAppStore } from "../stores/appStore";
+import type { AppPage } from "../types/app";
 
-const emit = defineEmits(["update:currentPage"]);
+const appStore = useAppStore();
 
-function changePage(page: "overview" | "config" | "settings") {
-  emit("update:currentPage", page);
+function changePage(page: AppPage) {
+  void appStore.setCurrentPage(page);
 }
 </script>
 
@@ -20,30 +16,30 @@ function changePage(page: "overview" | "config" | "settings") {
       <p class="subtitle">sing-box Client</p>
     </div>
     <div class="nav-items">
-      <div
+      <button
         class="sidebar-item"
-        :class="{ active: currentPage === 'overview' }"
+        :class="{ active: appStore.currentPage.value === 'overview' }"
         @click="changePage('overview')"
       >
         <span class="sidebar-icon">📊</span>
         Overview
-      </div>
-      <div
+      </button>
+      <button
         class="sidebar-item"
-        :class="{ active: currentPage === 'config' }"
+        :class="{ active: appStore.currentPage.value === 'config' }"
         @click="changePage('config')"
       >
         <span class="sidebar-icon">📝</span>
         Config
-      </div>
-      <div
+      </button>
+      <button
         class="sidebar-item"
-        :class="{ active: currentPage === 'settings' }"
+        :class="{ active: appStore.currentPage.value === 'settings' }"
         @click="changePage('settings')"
       >
         <span class="sidebar-icon">⚙️</span>
         Settings
-      </div>
+      </button>
     </div>
   </div>
 </template>

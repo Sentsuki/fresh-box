@@ -4,8 +4,8 @@
 :root {
   /* Custom sizing */
   --sidebar-width: 240px;
-  --min-window-width: 1200px;
-  --min-window-height: 800px;
+  --min-window-width: 720px;
+  --min-window-height: 560px;
   --content-max-width: 1000px;
 }
 
@@ -56,7 +56,7 @@ body,
 }
 
 .sidebar-item {
-  @apply flex items-center px-4 py-3 mb-2 rounded-lg cursor-pointer transition-all duration-200 font-medium;
+  @apply flex items-center px-4 py-3 mb-2 rounded-lg cursor-pointer transition-all duration-200 font-medium border-0 bg-transparent text-left w-full;
 }
 
 .sidebar-item:hover {
@@ -607,16 +607,16 @@ body,
 /* ===== Responsive Adjustments ===== */
 @media (max-width: 1400px) {
   :root {
-    --min-window-width: 1000px;
-    --min-window-height: 700px;
+    --min-window-width: 720px;
+    --min-window-height: 560px;
     --content-max-width: 800px;
   }
 }
 
 @media (max-width: 1200px) {
   :root {
-    --min-window-width: 800px;
-    --min-window-height: 600px;
+    --min-window-width: 640px;
+    --min-window-height: 520px;
     --content-max-width: 700px;
   }
 }
@@ -627,19 +627,19 @@ body,
   }
 
   .sidebar {
-    @apply w-full h-auto;
+    @apply w-full h-auto border-r-0 border-b;
   }
 
   .nav-items {
-    @apply flex p-2;
+    @apply flex gap-2 p-2 overflow-x-auto;
   }
 
   .sidebar-item {
-    @apply mr-2 mb-0;
+    @apply mb-0 whitespace-nowrap;
   }
 
   .main-content {
-    @apply p-4;
+    @apply p-0;
   }
 }
 

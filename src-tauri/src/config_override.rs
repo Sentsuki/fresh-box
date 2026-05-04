@@ -25,16 +25,12 @@ fn load_override_file() -> Result<OverrideConfig, CommandError> {
         });
     }
 
-    let config_str = fs::read_to_string(&config_path)?;
-    let override_config: OverrideConfig = serde_json::from_str(&config_str)?;
-    Ok(override_config)
+    super::config::read_json_file(&config_path)
 }
 
 fn save_override_file(override_config: &OverrideConfig) -> Result<(), CommandError> {
     let config_path = get_override_config_path()?;
-    let config_str = serde_json::to_string_pretty(override_config)?;
-    fs::write(&config_path, config_str)?;
-    Ok(())
+    super::config::write_json_file(&config_path, override_config)
 }
 
 #[tauri::command]

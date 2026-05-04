@@ -37,9 +37,7 @@ fn get_priority_config_path() -> Result<PathBuf, CommandError> {
 #[tauri::command]
 pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandError> {
     let config_path = get_priority_config_path()?;
-    let config_str = serde_json::to_string_pretty(&config)?;
-    fs::write(&config_path, config_str)?;
-    Ok(())
+    super::config::write_json_file(&config_path, &config)
 }
 
 #[tauri::command]
@@ -49,9 +47,7 @@ pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
         return Ok(PriorityConfig::default());
     }
 
-    let config_str = fs::read_to_string(&config_path)?;
-    let config: PriorityConfig = serde_json::from_str(&config_str)?;
-    Ok(config)
+    super::config::read_json_file(&config_path)
 }
 
 #[tauri::command]

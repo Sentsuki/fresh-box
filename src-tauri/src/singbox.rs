@@ -4,8 +4,8 @@ use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
 use std::process::{Child, Command, Stdio};
-use std::sync::{Arc, Mutex};
-use std::time::SystemTime;
+use std::sync::{Arc, Mutex, MutexGuard};
+use std::time::{Duration, Instant, SystemTime};
 use tauri::State;
 
 #[derive(Clone)]
@@ -104,6 +104,109 @@ impl SingboxState {
     }
 }
 
+fn lock_state<'a, T>(mutex: &'a Mutex<T>, label: &str) -> MutexGuard<'a, T> {
+    match mutex.lock() {
+        Ok(guard) => guard,
+        Err(poisoned) => {
+            eprintln!("Mutex was poisoned in {}, recovering...", label);
+            poisoned.into_inner()
+        }
+    }
+}
+
+fn set_managed_pid(state: &SingboxState, pid: Option<u32>) {
+    *lock_state(&state.process_pid, "set_managed_pid") = pid;
+}
+
+fn detect_and_track_existing_process(
+    state: &SingboxState,
+) -> Result<Option<(u32, String)>, CommandError> {
+    match state.detect_existing_singbox()? {
+        Some(pid) => {
+            set_managed_pid(state, Some(pid));
+            let process_info = get_singbox_process_info_by_pid(pid)?;
+            Ok(Some((pid, process_info)))
+        }
+        None => {
+            set_managed_pid(state, None);
+            Ok(None)
+        }
+    }
+}
+
+fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> {
+    println!("Initializing sing-box state...");
+
+    match detect_and_track_existing_process(state)? {
+        Some((pid, process_info)) => {
+            println!(
+                "Found existing sing-box process (PID: {}), taking over management",
+                pid
+            );
+            Ok(format!(
+                "Sing-box is running (PID: {}) - {}",
+                pid, process_info
+            ))
+        }
+        None => {
+            println!("No existing sing-box process found");
+            Ok("No sing-box process detected".to_string())
+        }
+    }
+}
+
+fn refresh_detection_inner(state: &SingboxState) -> Result<bool, CommandError> {
+    println!("Refreshing sing-box process detection...");
+    Ok(detect_and_track_existing_process(state)?.is_some())
+}
+
+fn terminate_child_process(
+    child: &mut Child,
+    wait_timeout: Option<Duration>,
+) -> Result<(), CommandError> {
+    let pid = child.id();
+    child
+        .kill()
+        .map_err(|error| CommandError::FailedToStopProcess(error.to_string()))?;
+
+    if let Some(timeout) = wait_timeout {
+        let start_time = Instant::now();
+        loop {
+            match child.try_wait() {
+                Ok(Some(status)) => {
+                    println!(
+                        "Sing-box process (PID: {}) terminated with status: {}",
+                        pid, status
+                    );
+                    break;
+                }
+                Ok(None) if start_time.elapsed() <= timeout => {
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+                Ok(None) => {
+                    println!(
+                        "Timeout waiting for sing-box process (PID: {}) to terminate",
+                        pid
+                    );
+                    break;
+                }
+                Err(error) => {
+                    return Err(CommandError::FailedToStopProcess(format!(
+                        "Failed to wait for process PID {}: {}",
+                        pid, error
+                    )));
+                }
+            }
+        }
+    } else {
+        child
+            .wait()
+            .map_err(|error| CommandError::FailedToStopProcess(error.to_string()))?;
+    }
+
+    Ok(())
+}
+
 #[tauri::command]
 pub async fn start_singbox(
     _app_handle: tauri::AppHandle,
@@ -112,13 +215,7 @@ pub async fn start_singbox(
 ) -> Result<(), CommandError> {
     // 先检查进程状态，不持有锁
     {
-        let process_guard = match state.singbox_process.lock() {
-            Ok(guard) => guard,
-            Err(poisoned) => {
-                eprintln!("Mutex was poisoned in start_singbox, recovering...");
-                poisoned.into_inner()
-            }
-        };
+        let process_guard = lock_state(&state.singbox_process, "start_singbox");
 
         if process_guard.is_some() {
             return Err(CommandError::ProcessAlreadyRunning);
@@ -199,22 +296,12 @@ pub async fn start_singbox(
             println!("Sing-box process started successfully (PID: {}).", pid);
 
             // 重新获取锁来存储进程
-            let mut process_guard = match state.singbox_process.lock() {
-                Ok(guard) => guard,
-                Err(poisoned) => {
-                    eprintln!("Mutex was poisoned when storing process, recovering...");
-                    poisoned.into_inner()
-                }
-            };
+            let mut process_guard = lock_state(&state.singbox_process, "start_singbox_store");
             *process_guard = Some(child);
 
             // 记录启动时间和PID
-            if let Ok(mut time_guard) = state.last_start_time.lock() {
-                *time_guard = Some(SystemTime::now());
-            }
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = Some(pid);
-            }
+            *lock_state(&state.last_start_time, "start_singbox_time") = Some(SystemTime::now());
+            set_managed_pid(&state, Some(pid));
 
             Ok(())
         }
@@ -224,21 +311,8 @@ pub async fn start_singbox(
 
 #[tauri::command]
 pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in stop_singbox, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in stop_singbox, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    let mut process_guard = lock_state(&state.singbox_process, "stop_singbox");
+    let mut pid_guard = lock_state(&state.process_pid, "stop_singbox_pid");
 
     // 首先尝试停止我们直接管理的进程
     if let Some(mut child) = process_guard.take() {
@@ -248,16 +322,8 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
             pid
         );
 
-        match child.kill() {
+        match terminate_child_process(&mut child, None) {
             Ok(_) => {
-                match child.wait() {
-                    Ok(status) => println!(
-                        "Sing-box process stopped successfully with status: {}",
-                        status
-                    ),
-                    Err(e) => eprintln!("Error waiting for process termination: {}", e),
-                }
-
                 // 清除状态
                 *pid_guard = None;
                 return Ok(());
@@ -310,21 +376,8 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 
 #[tauri::command]
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in is_singbox_running, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in is_singbox_running, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    let mut process_guard = lock_state(&state.singbox_process, "is_singbox_running");
+    let mut pid_guard = lock_state(&state.process_pid, "is_singbox_running_pid");
 
     // 首先检查我们直接管理的进程
     if let Some(child) = &mut *process_guard {
@@ -354,8 +407,8 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
     }
 
     // 最后检查系统中是否有任何sing-box进程
-    match state.detect_existing_singbox() {
-        Ok(Some(pid)) => {
+    match detect_and_track_existing_process(&state) {
+        Ok(Some((pid, _))) => {
             // 发现了进程，更新PID记录以便后续管理
             *pid_guard = Some(pid);
             println!(
@@ -377,40 +430,7 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
 pub async fn initialize_singbox_state(
     state: State<'_, SingboxState>,
 ) -> Result<String, CommandError> {
-    println!("Initializing sing-box state...");
-
-    // 检测系统中是否有sing-box进程
-    match state.detect_existing_singbox()? {
-        Some(pid) => {
-            println!(
-                "Found existing sing-box process (PID: {}), taking over management",
-                pid
-            );
-
-            // 记录PID以便后续管理
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = Some(pid);
-            }
-
-            // 获取进程详细信息
-            let process_info = get_singbox_process_info_by_pid(pid)?;
-
-            Ok(format!(
-                "Sing-box is running (PID: {}) - {}",
-                pid, process_info
-            ))
-        }
-        None => {
-            println!("No existing sing-box process found");
-
-            // 清除状态
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = None;
-            }
-
-            Ok("No sing-box process detected".to_string())
-        }
-    }
+    initialize_state_inner(&state)
 }
 
 // 通过PID停止指定的进程
@@ -541,52 +561,14 @@ fn get_singbox_process_info_by_pid(pid: u32) -> Result<String, CommandError> {
 pub async fn refresh_singbox_detection(
     state: State<'_, SingboxState>,
 ) -> Result<bool, CommandError> {
-    println!("Refreshing sing-box process detection...");
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in refresh_singbox_detection, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    // 检测系统中是否有sing-box进程
-    match state.detect_existing_singbox().unwrap_or(None) {
-        Some(pid) => {
-            *pid_guard = Some(pid);
-            println!(
-                "Sing-box process detected (PID: {}) and now under management",
-                pid
-            );
-            Ok(true)
-        }
-        None => {
-            *pid_guard = None;
-            println!("No sing-box process found");
-            Ok(false)
-        }
-    }
+    refresh_detection_inner(&state)
 }
 
 // 获取详细的sing-box运行状态
 #[tauri::command]
 pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in get_singbox_status, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in get_singbox_status, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    let mut process_guard = lock_state(&state.singbox_process, "get_singbox_status");
+    let mut pid_guard = lock_state(&state.process_pid, "get_singbox_status_pid");
 
     // 检查我们直接管理的进程
     if let Some(child) = &mut *process_guard {
@@ -626,11 +608,9 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
         }
     } else {
         // 最后检查系统中是否有任何sing-box进程
-        match state.detect_existing_singbox() {
-            Ok(Some(pid)) => {
+        match detect_and_track_existing_process(&state) {
+            Ok(Some((pid, process_info))) => {
                 *pid_guard = Some(pid);
-                let process_info =
-                    get_singbox_process_info_by_pid(pid).unwrap_or_else(|_| "Unknown".to_string());
                 Ok(format!(
                     "Sing-box is running (Detected, PID: {}) - {}",
                     pid, process_info
@@ -645,21 +625,8 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
 // 健康检查函数
 #[tauri::command]
 pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in health_check_singbox, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in health_check_singbox, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    let mut process_guard = lock_state(&state.singbox_process, "health_check_singbox");
+    let mut pid_guard = lock_state(&state.process_pid, "health_check_singbox_pid");
 
     // 检查直接管理的进程
     if let Some(child) = &mut *process_guard {
@@ -697,80 +664,20 @@ pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<Stri
 
 // 直接调用的初始化函数（不通过Tauri命令系统）
 pub async fn initialize_singbox_directly(state: &SingboxState) -> Result<String, CommandError> {
-    println!("Initializing sing-box state...");
-
-    // 检测系统中是否有sing-box进程
-    match state.detect_existing_singbox()? {
-        Some(pid) => {
-            println!(
-                "Found existing sing-box process (PID: {}), taking over management",
-                pid
-            );
-
-            // 记录PID以便后续管理
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = Some(pid);
-            }
-
-            // 获取进程详细信息
-            let process_info = get_singbox_process_info_by_pid(pid)?;
-
-            Ok(format!(
-                "Sing-box is running (PID: {}) - {}",
-                pid, process_info
-            ))
-        }
-        None => {
-            println!("No existing sing-box process found");
-
-            // 清除状态
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = None;
-            }
-
-            Ok("No sing-box process detected".to_string())
-        }
-    }
+    initialize_state_inner(state)
 }
 
 // 直接调用的刷新检测函数（不通过Tauri命令系统）
 pub async fn refresh_singbox_detection_directly(
     state: &SingboxState,
 ) -> Result<bool, CommandError> {
-    // 检测系统中是否有sing-box进程
-    match state.detect_existing_singbox().unwrap_or(None) {
-        Some(pid) => {
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = Some(pid);
-            }
-            Ok(true)
-        }
-        None => {
-            if let Ok(mut pid_guard) = state.process_pid.lock() {
-                *pid_guard = None;
-            }
-            Ok(false)
-        }
-    }
+    refresh_detection_inner(state)
 }
 
 // 清理系统资源的函数 - 使用异步和超时机制避免挂起
 pub fn cleanup_process(state: &SingboxState) {
-    let mut process_guard = match state.singbox_process.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("Mutex was poisoned in cleanup_process, recovering...");
-            poisoned.into_inner()
-        }
-    };
-
-    let mut pid_guard = match state.process_pid.lock() {
-        Ok(guard) => guard,
-        Err(poisoned) => {
-            eprintln!("PID mutex was poisoned in cleanup_process, recovering...");
-            poisoned.into_inner()
-        }
-    };
+    let mut process_guard = lock_state(&state.singbox_process, "cleanup_process");
+    let mut pid_guard = lock_state(&state.process_pid, "cleanup_process_pid");
 
     // 清理直接管理的进程
     if let Some(mut child) = process_guard.take() {
@@ -780,41 +687,9 @@ pub fn cleanup_process(state: &SingboxState) {
             pid
         );
 
-        match child.kill() {
+        match terminate_child_process(&mut child, Some(Duration::from_secs(3))) {
             Ok(_) => {
                 println!("Sent kill signal to sing-box process (PID: {})", pid);
-
-                let start_time = std::time::Instant::now();
-                let timeout = std::time::Duration::from_secs(3);
-
-                loop {
-                    match child.try_wait() {
-                        Ok(Some(status)) => {
-                            println!(
-                                "Sing-box process (PID: {}) terminated with status: {}",
-                                pid, status
-                            );
-                            break;
-                        }
-                        Ok(None) => {
-                            if start_time.elapsed() > timeout {
-                                println!(
-                                    "Timeout waiting for sing-box process (PID: {}) to terminate",
-                                    pid
-                                );
-                                break;
-                            }
-                            std::thread::sleep(std::time::Duration::from_millis(100));
-                        }
-                        Err(e) => {
-                            eprintln!(
-                                "Error checking sing-box process (PID: {}) status: {}",
-                                pid, e
-                            );
-                            break;
-                        }
-                    }
-                }
             }
             Err(e) => {
                 eprintln!("Failed to kill sing-box process (PID: {}): {}", pid, e);
@@ -828,6 +703,10 @@ pub fn cleanup_process(state: &SingboxState) {
         if let Err(e) = stop_process_by_pid(pid) {
             eprintln!("Failed to stop PID managed process: {:?}", e);
         }
+    }
+
+    if let Err(e) = stop_any_singbox_process() {
+        eprintln!("Failed final sing-box cleanup sweep: {:?}", e);
     }
 
     // 清理状态
