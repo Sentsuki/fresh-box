@@ -8,7 +8,7 @@ const hasConfigFiles = computed(() => appStore.configFiles.value.length > 0);
 </script>
 
 <template>
-  <div class="mt-6 grow overflow-y-auto" style="max-height: 600px">
+  <div class="mt-6 min-h-0 grow overflow-y-auto">
     <div
       v-if="!hasConfigFiles"
       class="flex flex-col items-center justify-center py-16 text-center"

@@ -9,7 +9,7 @@ import ConfigFileGrid from "./config/ConfigFileGrid.vue";
       <h2>Configuration Files</h2>
     </div>
 
-    <div class="card-content">
+    <div class="card-content flex flex-col min-h-0">
       <div class="config-container">
         <SubscriptionList />
         <ConfigFileGrid />
