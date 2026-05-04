@@ -13,6 +13,8 @@ struct ProcessState {
     pid: Option<u32>,
     last_start_time: Option<SystemTime>,
     is_starting: bool,
+    #[cfg(windows)]
+    system: sysinfo::System,
 }
 
 impl Default for ProcessState {
@@ -22,6 +24,8 @@ impl Default for ProcessState {
             pid: None,
             last_start_time: None,
             is_starting: false,
+            #[cfg(windows)]
+            system: sysinfo::System::new(),
         }
     }
 }
@@ -48,75 +52,86 @@ impl SingboxState {
             .map_err(|_| CommandError::invalid_state(label, "process state mutex poisoned"))
     }
 
-    pub fn detect_existing_singbox(&self) -> Result<Option<u32>, CommandError> {
-        #[cfg(windows)]
-        {
-            use sysinfo::System;
+}
 
-            let mut system = System::new_all();
-            system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+#[cfg(windows)]
+fn refresh_process_table(process_state: &mut ProcessState) {
+    process_state
+        .system
+        .refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+}
 
-            for (pid, process) in system.processes() {
-                let process_name = process.name().to_string_lossy().to_lowercase();
-                if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-                    println!(
-                        "Detected existing sing-box process (PID: {}, Name: {})",
-                        pid,
-                        process.name().to_string_lossy()
-                    );
-                    return Ok(Some(pid.as_u32()));
-                }
+#[cfg(windows)]
+fn is_singbox_process_name(process_name: &std::ffi::OsStr) -> bool {
+    process_name.to_string_lossy().to_lowercase().contains("sing-box")
+}
+
+fn detect_existing_singbox(process_state: &mut ProcessState) -> Result<Option<u32>, CommandError> {
+    #[cfg(windows)]
+    {
+        refresh_process_table(process_state);
+
+        for (pid, process) in process_state.system.processes() {
+            if is_singbox_process_name(process.name()) {
+                println!(
+                    "Detected existing sing-box process (PID: {}, Name: {})",
+                    pid,
+                    process.name().to_string_lossy()
+                );
+                return Ok(Some(pid.as_u32()));
             }
-
-            Ok(None)
         }
 
-        #[cfg(not(windows))]
-        {
-            use std::fs;
+        Ok(None)
+    }
 
-            let proc_dir = match fs::read_dir("/proc") {
-                Ok(dir) => dir,
-                Err(_) => return Ok(None),
-            };
+    #[cfg(not(windows))]
+    {
+        use std::fs;
 
-            for entry in proc_dir {
-                if let Ok(entry) = entry {
-                    if let Ok(file_name) = entry.file_name().into_string() {
-                        if file_name.chars().all(|c| c.is_ascii_digit()) {
-                            let cmdline_path = format!("/proc/{}/cmdline", file_name);
-                            if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
-                                if cmdline.contains("sing-box") {
-                                    if let Ok(pid) = file_name.parse::<u32>() {
-                                        println!(
-                                            "Detected existing sing-box process (PID: {})",
-                                            pid
-                                        );
-                                        return Ok(Some(pid));
-                                    }
+        let proc_dir = match fs::read_dir("/proc") {
+            Ok(dir) => dir,
+            Err(_) => return Ok(None),
+        };
+
+        for entry in proc_dir {
+            if let Ok(entry) = entry {
+                if let Ok(file_name) = entry.file_name().into_string() {
+                    if file_name.chars().all(|c| c.is_ascii_digit()) {
+                        let cmdline_path = format!("/proc/{}/cmdline", file_name);
+                        if let Ok(cmdline) = fs::read_to_string(&cmdline_path) {
+                            if cmdline.contains("sing-box") {
+                                if let Ok(pid) = file_name.parse::<u32>() {
+                                    println!("Detected existing sing-box process (PID: {})", pid);
+                                    return Ok(Some(pid));
                                 }
                             }
                         }
                     }
                 }
             }
-
-            Ok(None)
         }
+
+        Ok(None)
     }
+}
 
-    pub fn is_process_running(&self, pid: u32) -> bool {
-        use sysinfo::System;
+fn is_process_running(process_state: &mut ProcessState, pid: u32) -> bool {
+    #[cfg(windows)]
+    {
+        refresh_process_table(process_state);
 
-        let mut system = System::new_all();
-        system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-        if let Some(process) = system.process(sysinfo::Pid::from_u32(pid)) {
-            let process_name = process.name().to_string_lossy().to_lowercase();
-            process_name.contains("sing-box") || process_name.contains("sing-box.exe")
+        if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
+            is_singbox_process_name(process.name())
         } else {
             false
         }
+    }
+
+    #[cfg(not(windows))]
+    {
+        let proc_path = format!("/proc/{}", pid);
+        std::path::Path::new(&proc_path).exists()
     }
 }
 
@@ -127,14 +142,13 @@ fn clear_process_state(state: &mut ProcessState) {
 }
 
 fn detect_and_track_existing_process(
-    singbox_state: &SingboxState,
     process_state: &mut ProcessState,
 ) -> Result<Option<(u32, String)>, CommandError> {
-    match singbox_state.detect_existing_singbox()? {
+    match detect_existing_singbox(process_state)? {
         Some(pid) => {
             process_state.child = None;
             process_state.pid = Some(pid);
-            let process_info = get_singbox_process_info_by_pid(pid)?;
+            let process_info = get_singbox_process_info_by_pid(process_state, pid)?;
             Ok(Some((pid, process_info)))
         }
         None => {
@@ -144,10 +158,7 @@ fn detect_and_track_existing_process(
     }
 }
 
-fn inspect_running_process(
-    singbox_state: &SingboxState,
-    process_state: &mut ProcessState,
-) -> Result<Option<ProcessOrigin>, CommandError> {
+fn inspect_running_process(process_state: &mut ProcessState) -> Result<Option<ProcessOrigin>, CommandError> {
     if let Some(child) = &mut process_state.child {
         match child.try_wait() {
             Ok(Some(_)) => {
@@ -165,7 +176,7 @@ fn inspect_running_process(
     }
 
     if let Some(pid) = process_state.pid {
-        if singbox_state.is_process_running(pid) {
+        if is_process_running(process_state, pid) {
             return Ok(Some(ProcessOrigin::Tracked(pid)));
         }
 
@@ -173,7 +184,7 @@ fn inspect_running_process(
         process_state.last_start_time = None;
     }
 
-    match singbox_state.detect_existing_singbox()? {
+    match detect_existing_singbox(process_state)? {
         Some(pid) => {
             process_state.pid = Some(pid);
             Ok(Some(ProcessOrigin::Detected(pid)))
@@ -189,7 +200,7 @@ fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> 
     println!("Initializing sing-box state...");
     let mut process_state = state.lock("initialize_singbox_state")?;
 
-    match detect_and_track_existing_process(state, &mut process_state)? {
+    match detect_and_track_existing_process(&mut process_state)? {
         Some((pid, process_info)) => {
             println!(
                 "Found existing sing-box process (PID: {}), taking over management",
@@ -210,7 +221,7 @@ fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> 
 fn refresh_detection_inner(state: &SingboxState) -> Result<bool, CommandError> {
     println!("Refreshing sing-box process detection...");
     let mut process_state = state.lock("refresh_singbox_detection")?;
-    Ok(detect_and_track_existing_process(state, &mut process_state)?.is_some())
+    Ok(detect_and_track_existing_process(&mut process_state)?.is_some())
 }
 
 fn terminate_child_process(
@@ -268,9 +279,7 @@ pub async fn start_singbox(
 ) -> Result<(), CommandError> {
     {
         let mut process_state = state.lock("start_singbox")?;
-        if process_state.is_starting
-            || inspect_running_process(&state, &mut process_state)?.is_some()
-        {
+        if process_state.is_starting || inspect_running_process(&mut process_state)?.is_some() {
             return Err(CommandError::ProcessAlreadyRunning);
         }
         process_state.is_starting = true;
@@ -402,7 +411,7 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 #[tauri::command]
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
     let mut process_state = state.lock("is_singbox_running")?;
-    Ok(inspect_running_process(&state, &mut process_state)?.is_some())
+    Ok(inspect_running_process(&mut process_state)?.is_some())
 }
 
 #[tauri::command]
@@ -513,19 +522,28 @@ fn stop_any_singbox_process() -> Result<bool, CommandError> {
     Ok(killed_any)
 }
 
-fn get_singbox_process_info_by_pid(pid: u32) -> Result<String, CommandError> {
-    use sysinfo::System;
+fn get_singbox_process_info_by_pid(
+    process_state: &mut ProcessState,
+    pid: u32,
+) -> Result<String, CommandError> {
+    #[cfg(windows)]
+    {
+        refresh_process_table(process_state);
 
-    let mut system = System::new_all();
-    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
+        if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
+            if is_singbox_process_name(process.name()) {
+                let memory_kb = process.memory() / 1024;
+                let cpu_usage = process.cpu_usage();
 
-    if let Some(process) = system.process(sysinfo::Pid::from_u32(pid)) {
-        let process_name = process.name().to_string_lossy().to_lowercase();
-        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-            let memory_kb = process.memory() / 1024;
-            let cpu_usage = process.cpu_usage();
+                return Ok(format!("Memory: {} KB, CPU: {:.1}%", memory_kb, cpu_usage));
+            }
+        }
+    }
 
-            return Ok(format!("Memory: {} KB, CPU: {:.1}%", memory_kb, cpu_usage));
+    #[cfg(not(windows))]
+    {
+        if is_process_running(process_state, pid) {
+            return Ok("Process metrics unavailable on this platform".to_string());
         }
     }
 
@@ -542,26 +560,26 @@ pub async fn refresh_singbox_detection(
 #[tauri::command]
 pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
     let mut process_state = state.lock("get_singbox_status")?;
-    match inspect_running_process(&state, &mut process_state)? {
+    match inspect_running_process(&mut process_state)? {
         Some(ProcessOrigin::Direct(pid)) => {
-            let process_info =
-                get_singbox_process_info_by_pid(pid).unwrap_or_else(|_| "Unknown".to_string());
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+                .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (Direct Management, PID: {}) - {}",
                 pid, process_info
             ))
         }
         Some(ProcessOrigin::Tracked(pid)) => {
-            let process_info =
-                get_singbox_process_info_by_pid(pid).unwrap_or_else(|_| "Unknown".to_string());
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+                .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (PID Management, PID: {}) - {}",
                 pid, process_info
             ))
         }
         Some(ProcessOrigin::Detected(pid)) => {
-            let process_info =
-                get_singbox_process_info_by_pid(pid).unwrap_or_else(|_| "Unknown".to_string());
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+                .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (Detected, PID: {}) - {}",
                 pid, process_info
@@ -598,7 +616,7 @@ pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<Stri
     }
 
     if let Some(pid) = process_state.pid {
-        if state.is_process_running(pid) {
+        if is_process_running(&mut process_state, pid) {
             return Ok(format!("PID managed process running (PID: {})", pid));
         }
 
