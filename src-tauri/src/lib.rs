@@ -2,6 +2,7 @@
 
 pub mod config;
 pub mod config_override;
+pub mod core_update;
 pub mod errors;
 pub mod priority_config;
 pub mod singbox;

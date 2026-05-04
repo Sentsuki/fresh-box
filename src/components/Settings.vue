@@ -201,14 +201,131 @@
 
       <div class="settings-section">
         <h3>Application</h3>
-        <div class="setting-item">
-          <button
-            class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
-            @click="openAppDirectory"
+        <div class="flex flex-col gap-4">
+          <div class="setting-item">
+            <button
+              class="control-button bg-gray-500 text-white hover:bg-gray-600 flex items-center gap-2"
+              @click="openAppDirectory"
+            >
+              <span class="text-base">📁</span>
+              Open App Directory
+            </button>
+          </div>
+
+          <div
+            class="bg-white border border-gray-200 rounded-xl overflow-hidden shadow-sm"
           >
-            <span class="text-base">📁</span>
-            Open App Directory
-          </button>
+            <div
+              class="flex items-center justify-between gap-3 px-4 py-3 bg-gray-50 border-b border-gray-200 flex-wrap"
+            >
+              <div>
+                <p class="text-sm font-semibold text-gray-800 m-0">
+                  Sing-box Core
+                </p>
+                <p class="text-xs text-gray-500 m-0 mt-1">
+                  Syncs with the latest SagerNet/sing-box Windows amd64 release.
+                </p>
+              </div>
+              <span
+                class="text-xs font-semibold px-3 py-1 rounded-full"
+                :class="coreStatusBadgeClass"
+              >
+                {{ coreStatusText }}
+              </span>
+            </div>
+
+            <div class="p-4 flex flex-col gap-4">
+              <div class="grid grid-cols-1 md:grid-cols-2 gap-3">
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p class="text-xs uppercase tracking-wide text-gray-500 m-0">
+                    Current Version
+                  </p>
+                  <p class="text-sm font-semibold text-gray-800 m-0 mt-2">
+                    {{ coreStatus?.current_version || "Not installed" }}
+                  </p>
+                </div>
+                <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
+                  <p class="text-xs uppercase tracking-wide text-gray-500 m-0">
+                    Latest Version
+                  </p>
+                  <p class="text-sm font-semibold text-gray-800 m-0 mt-2">
+                    {{ coreStatus?.latest_version || "Unavailable" }}
+                  </p>
+                </div>
+              </div>
+
+              <div
+                v-if="coreStatus?.is_running"
+                class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
+              >
+                Stop sing-box before updating the core.
+              </div>
+
+              <div
+                v-if="coreStatusError"
+                class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
+              >
+                {{ coreStatusError }}
+              </div>
+
+              <div class="flex gap-3 flex-wrap">
+                <button
+                  class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
+                  :class="
+                    isRefreshingCoreStatus
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                      : 'bg-slate-500 hover:bg-slate-600 hover:shadow-sm config-button-hover'
+                  "
+                  :disabled="isRefreshingCoreStatus || isUpdatingCore"
+                  @click="refreshCoreStatus(true)"
+                >
+                  <span
+                    v-if="isRefreshingCoreStatus"
+                    class="text-base flex items-center justify-center w-5 h-5 animate-spin"
+                    >🔄</span
+                  >
+                  <span
+                    v-else
+                    class="text-base flex items-center justify-center w-5 h-5"
+                    >🧭</span
+                  >
+                  <span class="font-medium">
+                    {{ isRefreshingCoreStatus ? "Checking..." : "Check Latest" }}
+                  </span>
+                </button>
+
+                <button
+                  class="control-button text-white border-0 px-4 py-3 rounded-lg cursor-pointer text-sm font-medium flex items-center gap-2 transition-all duration-200 flex-1 shadow-sm min-w-40"
+                  :class="
+                    isUpdatingCore || coreStatus?.is_running
+                      ? 'bg-gray-300 text-gray-500 cursor-not-allowed transform-none shadow-none'
+                      : 'bg-violet-600 hover:bg-violet-700 hover:shadow-sm config-button-hover'
+                  "
+                  :disabled="
+                    isUpdatingCore ||
+                    isRefreshingCoreStatus ||
+                    !coreStatus?.latest_version ||
+                    Boolean(coreStatus?.is_running)
+                  "
+                  @click="updateSingboxCore"
+                >
+                  <span
+                    v-if="isUpdatingCore"
+                    class="text-base flex items-center justify-center w-5 h-5 animate-spin"
+                    >⬇️</span
+                  >
+                  <span
+                    v-else
+                    class="text-base flex items-center justify-center w-5 h-5"
+                    >⚙️</span
+                  >
+                  <span class="font-medium">
+                    {{ updateCoreButtonLabel }}
+                  </span>
+                </button>
+              </div>
+            </div>
+          </div>
         </div>
       </div>
 
@@ -328,12 +445,30 @@ interface PriorityConfig {
   log?: LogConfig;
 }
 
+interface SingboxCoreStatus {
+  installed: boolean;
+  current_version: string | null;
+  latest_version: string | null;
+  update_available: boolean;
+  is_running: boolean;
+}
+
+interface SingboxCoreUpdateResult {
+  previous_version: string | null;
+  current_version: string;
+  latest_version: string;
+}
+
 const toastRef = ref(null as InstanceType<typeof Toast> | null);
 const jsonError = ref("");
 const rawConfig = ref("");
 const isRefreshing = ref(false);
 const isGettingStatus = ref(false);
 const processStatus = ref("");
+const isRefreshingCoreStatus = ref(false);
+const isUpdatingCore = ref(false);
+const coreStatus = ref(null as SingboxCoreStatus | null);
+const coreStatusError = ref("");
 
 // Configuration state - unified approach
 const isLoading = ref(false);
@@ -510,6 +645,63 @@ const updateLogConfiguration = async () => {
   }
 };
 
+const formatCommandError = (error: unknown) => {
+  if (typeof error === "string" && error.trim()) {
+    return error;
+  }
+
+  if (error && typeof error === "object") {
+    const entries = Object.entries(error as Record<string, unknown>);
+    const [, message] = entries[0] || [];
+    if (typeof message === "string" && message.trim()) {
+      return message;
+    }
+  }
+
+  return "Unknown error";
+};
+
+const refreshCoreStatus = async (showErrorToast = false) => {
+  if (isRefreshingCoreStatus.value) return;
+
+  isRefreshingCoreStatus.value = true;
+  coreStatusError.value = "";
+
+  try {
+    coreStatus.value =
+      await invoke<SingboxCoreStatus>("get_singbox_core_status");
+  } catch (error) {
+    coreStatus.value = null;
+    const message = formatCommandError(error);
+    coreStatusError.value = message;
+    if (showErrorToast) {
+      toastRef.value?.showToast(message, "error");
+    }
+  } finally {
+    isRefreshingCoreStatus.value = false;
+  }
+};
+
+const updateSingboxCore = async () => {
+  if (isUpdatingCore.value) return;
+
+  isUpdatingCore.value = true;
+
+  try {
+    const result =
+      await invoke<SingboxCoreUpdateResult>("update_singbox_core");
+    toastRef.value?.showToast(
+      `Sing-box core updated to ${result.current_version}`,
+      "success",
+    );
+    await refreshCoreStatus();
+  } catch (error) {
+    toastRef.value?.showToast(formatCommandError(error), "error");
+  } finally {
+    isUpdatingCore.value = false;
+  }
+};
+
 // 窗口聚焦事件处理
 const handleWindowFocus = async () => {
   await loadConfiguration();
@@ -517,8 +709,8 @@ const handleWindowFocus = async () => {
 
 // 组件挂载时初始化
 onMounted(async () => {
-  // 并行加载配置覆盖和配置字段
-  const [,] = await Promise.all([
+  // 并行加载配置覆盖、配置字段和核心状态
+  await Promise.all([
     // 加载配置覆盖
     invoke<ConfigOverride>("load_config_override")
       .then((loadedConfig) => {
@@ -532,6 +724,7 @@ onMounted(async () => {
       ),
     // 加载配置字段
     loadConfiguration(),
+    refreshCoreStatus(),
   ]);
 
   // 添加窗口聚焦事件监听
@@ -735,4 +928,66 @@ const getStatusTextClass = () => {
     return "text-blue-800 bg-blue-50 border-blue-500";
   }
 };
+
+const coreStatusText = computed(() => {
+  if (isRefreshingCoreStatus.value && !coreStatus.value) {
+    return "Checking";
+  }
+
+  if (coreStatusError.value) {
+    return "Failed";
+  }
+
+  if (!coreStatus.value) {
+    return "Unknown";
+  }
+
+  if (coreStatus.value.is_running && coreStatus.value.update_available) {
+    return "Stop Required";
+  }
+
+  if (coreStatus.value.is_running) {
+    return "Running";
+  }
+
+  if (!coreStatus.value.installed) {
+    return "Not Installed";
+  }
+
+  return coreStatus.value.update_available ? "Update Available" : "Up to Date";
+});
+
+const coreStatusBadgeClass = computed(() => {
+  if (coreStatusError.value) {
+    return "bg-red-100 text-red-700";
+  }
+
+  if (!coreStatus.value) {
+    return "bg-gray-100 text-gray-600";
+  }
+
+  if (coreStatus.value.is_running && coreStatus.value.update_available) {
+    return "bg-amber-100 text-amber-800";
+  }
+
+  if (coreStatus.value.update_available) {
+    return "bg-violet-100 text-violet-700";
+  }
+
+  return "bg-green-100 text-green-700";
+});
+
+const updateCoreButtonLabel = computed(() => {
+  if (isUpdatingCore.value) {
+    return "Updating...";
+  }
+
+  if (!coreStatus.value?.installed) {
+    return "Install Latest Core";
+  }
+
+  return coreStatus.value.update_available
+    ? "Update Core"
+    : "Reinstall Latest Core";
+});
 </script>

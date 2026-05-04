@@ -3,6 +3,7 @@
 
 mod config;
 mod config_override;
+mod core_update;
 mod errors;
 mod priority_config;
 mod singbox;
@@ -116,6 +117,8 @@ fn main() {
             singbox::initialize_singbox_state,
             singbox::get_singbox_status,
             singbox::refresh_singbox_detection,
+            core_update::get_singbox_core_status,
+            core_update::update_singbox_core,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,

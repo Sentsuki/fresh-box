@@ -4,6 +4,7 @@
 pub enum CommandError {
     ProcessAlreadyRunning,
     ProcessNotRunning,
+    InvalidState(String),
     ResourceNotFound(String),
     FailedToStartProcess(String),
     FailedToStopProcess(String),
