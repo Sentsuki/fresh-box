@@ -34,7 +34,13 @@ export function useAppStore() {
 
   async function hydrateSettings() {
     const settings = await loadAppSettings();
-    state.currentPage = settings.current_page ?? "overview";
+    state.currentPage =
+      settings.current_page === "overview" ||
+      settings.current_page === "config" ||
+      settings.current_page === "custom" ||
+      settings.current_page === "settings"
+        ? settings.current_page
+        : "overview";
     state.selectedConfigPath = settings.selected_config;
     state.selectedConfigDisplay = settings.selected_config_display;
     settingsHydrated = true;

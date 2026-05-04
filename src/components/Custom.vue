@@ -3,13 +3,13 @@ import ConfigOverrideSection from "./settings/ConfigOverrideSection.vue";
 import LogSettingsSection from "./settings/LogSettingsSection.vue";
 import { useSettings } from "../composables/useSettings";
 
-const settings = useSettings();
+const settings = useSettings({ loadCustomerSettings: true });
 </script>
 
 <template>
   <div class="content-card">
     <div class="card-header">
-      <h2>Customer</h2>
+      <h2>Custom</h2>
     </div>
 
     <div class="card-content">

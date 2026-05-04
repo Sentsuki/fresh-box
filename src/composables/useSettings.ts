@@ -33,9 +33,14 @@ const logLevels: LogLevel[] = [
   "panic",
 ];
 
-export function useSettings() {
+interface UseSettingsOptions {
+  loadCustomerSettings?: boolean;
+}
+
+export function useSettings(options: UseSettingsOptions = {}) {
   const appStore = useAppStore();
   const configOverride = useConfigOverride();
+  const { loadCustomerSettings = true } = options;
 
   const jsonError = ref("");
   const rawConfig = ref("");
@@ -412,8 +417,7 @@ export function useSettings() {
   async function initialize() {
     const [loadedConfig] = await Promise.all([
       configOverride.loadConfig(),
-      loadConfiguration(),
-      refreshCoreStatus(),
+      loadCustomerSettings ? loadConfiguration() : Promise.resolve(),
     ]);
 
     if (Object.keys(loadedConfig).length > 0) {
@@ -423,15 +427,19 @@ export function useSettings() {
   }
 
   const handleWindowFocus = async () => {
-    await loadConfiguration();
+    if (loadCustomerSettings) {
+      await loadConfiguration();
+    }
   };
 
-  watch(
-    () => appStore.selectedConfigPath.value,
-    () => {
-      void loadConfiguration();
-    },
-  );
+  if (loadCustomerSettings) {
+    watch(
+      () => appStore.selectedConfigPath.value,
+      () => {
+        void loadConfiguration();
+      },
+    );
+  }
 
   onMounted(() => {
     void initialize();
