@@ -10,15 +10,19 @@ import { useProcessManagement } from "./settings/useProcessManagement";
 
 interface UseSettingsOptions {
   loadCustomerSettings?: boolean;
+  autoRefreshCoreStatus?: boolean;
 }
 
 export function useSettings(options: UseSettingsOptions = {}) {
   const appStore = useAppStore();
-  const { loadCustomerSettings = true } = options;
+  const { loadCustomerSettings = true, autoRefreshCoreStatus = false } =
+    options;
   const prioritySettings = usePriorityConfig();
   const overrideSettings = useConfigOverrideSettings();
   const processManagement = useProcessManagement();
-  const coreUpdate = useCoreUpdate();
+  const coreUpdate = useCoreUpdate({
+    autoRefreshOnFirstMount: autoRefreshCoreStatus,
+  });
 
   async function openApplicationDirectory() {
     try {

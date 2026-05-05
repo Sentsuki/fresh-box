@@ -11,6 +11,7 @@ mod singbox;
 mod tray;
 mod window_utils;
 
+use core_update::cleanup_staged_core_update_files_directly;
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
 use tauri::Manager;
@@ -33,6 +34,7 @@ fn main() {
             singbox::get_singbox_status,
             singbox::refresh_singbox_detection,
             core_update::get_singbox_core_status,
+            core_update::activate_singbox_core,
             core_update::update_singbox_core,
             config::list_configs,
             config::copy_config_to_bin,
@@ -63,6 +65,10 @@ fn main() {
         ])
         .setup(|app| {
             tray::setup_system_tray(app)?;
+
+            if let Err(error) = cleanup_staged_core_update_files_directly() {
+                eprintln!("Failed to clean staged sing-box core files: {}", error);
+            }
 
             let state = app.state::<SingboxState>();
             let state_clone = state.inner().clone();

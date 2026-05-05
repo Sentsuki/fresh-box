@@ -28,7 +28,35 @@ export function getErrorMessage(error: unknown): string {
     return error.message;
   }
 
+  if (
+    error instanceof Error &&
+    "cause" in error &&
+    error.cause !== undefined &&
+    error.cause !== error
+  ) {
+    return getErrorMessage(error.cause);
+  }
+
   return "Unknown error";
+}
+
+export function getCommandErrorPayload(
+  error: unknown,
+): CommandErrorPayload | undefined {
+  if (isCommandErrorPayload(error)) {
+    return error;
+  }
+
+  if (
+    error instanceof Error &&
+    "cause" in error &&
+    error.cause !== undefined &&
+    error.cause !== error
+  ) {
+    return getCommandErrorPayload(error.cause);
+  }
+
+  return undefined;
 }
 
 export async function invokeCommand<T>(

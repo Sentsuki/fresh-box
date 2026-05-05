@@ -25,9 +25,12 @@ serde_json = "1"
 tauri-plugin-dialog = "2"
 tauri-plugin-http = "2"
 chrono = { version = "0.4", features = ["serde"] }
+futures-util = "0.3"
+reqwest = { version = "0.12", default-features = false, features = ["json", "stream", "rustls-tls"] }
 sysinfo = "0.37"
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
+zip = "2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

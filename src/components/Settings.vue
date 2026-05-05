@@ -3,7 +3,10 @@ import ProcessManager from "./settings/ProcessManager.vue";
 import SingboxCoreSection from "./settings/SingboxCoreSection.vue";
 import { useSettings } from "../composables/useSettings";
 
-const settings = useSettings({ loadCustomerSettings: false });
+const settings = useSettings({
+  loadCustomerSettings: false,
+  autoRefreshCoreStatus: true,
+});
 </script>
 
 <template>
@@ -16,13 +19,21 @@ const settings = useSettings({ loadCustomerSettings: false });
       <SingboxCoreSection
         :core-status="settings.coreStatus.value"
         :core-status-error="settings.coreStatusError.value"
+        :core-update-progress="settings.coreUpdateProgress.value"
+        :current-core-label="settings.currentCoreLabel.value"
+        :selected-core-label="settings.selectedCoreLabel.value"
+        :selected-core-option-key="settings.selectedCoreOptionKey.value"
+        :available-options="settings.coreStatus.value?.available_options ?? []"
         :core-status-text="settings.coreStatusText.value"
         :core-status-badge-class="settings.coreStatusBadgeClass.value"
         :is-refreshing-core-status="settings.isRefreshingCoreStatus.value"
         :is-updating-core="settings.isUpdatingCore.value"
         :update-core-button-label="settings.updateCoreButtonLabel.value"
-        @refresh="settings.refreshCoreStatus(true)"
-        @update="settings.installCoreUpdate"
+        @refresh="settings.refreshCoreStatus(true, true)"
+        @apply="settings.applySelectedCore"
+        @update:selected-core-option-key="
+          settings.selectedCoreOptionKey.value = $event
+        "
       />
 
       <div class="settings-section">
@@ -39,12 +50,10 @@ const settings = useSettings({ loadCustomerSettings: false });
       </div>
 
       <ProcessManager
-        :is-refreshing="settings.isRefreshing.value"
-        :is-getting-status="settings.isGettingStatus.value"
+        :is-refreshing-status="settings.isRefreshingStatus.value"
         :process-status="settings.processStatus.value"
         :process-status-class="settings.processStatusClass.value"
-        @refresh="settings.detectManagedProcess"
-        @get-status="settings.loadManagedProcessStatus"
+        @refresh="settings.refreshManagedProcessStatus"
       />
     </div>
   </div>

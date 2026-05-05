@@ -4,6 +4,7 @@ import type {
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
+  SingboxCoreChannel,
   SingboxCoreStatus,
   SingboxCoreUpdateResult,
   SubscriptionInfo,
@@ -81,6 +82,8 @@ export async function loadAppSettings(): Promise<AppSettings> {
     selected_config: settings.selected_config ?? null,
     selected_config_display: settings.selected_config_display ?? null,
     current_page: settings.current_page ?? null,
+    active_singbox_core_channel: settings.active_singbox_core_channel ?? null,
+    active_singbox_core_version: settings.active_singbox_core_version ?? null,
   };
 }
 
@@ -166,10 +169,27 @@ export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
 }
 
-export async function getSingboxCoreStatus(): Promise<SingboxCoreStatus> {
-  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status");
+export async function getSingboxCoreStatus(
+  forceRefresh = false,
+): Promise<SingboxCoreStatus> {
+  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status", {
+    forceRefresh,
+  });
 }
 
-export async function updateSingboxCore(): Promise<SingboxCoreUpdateResult> {
-  return invokeCommand<SingboxCoreUpdateResult>("update_singbox_core");
+export async function activateSingboxCore(
+  channel: SingboxCoreChannel,
+  version: string,
+): Promise<void> {
+  return invokeCommand<void>("activate_singbox_core", { channel, version });
+}
+
+export async function updateSingboxCore(
+  channel: SingboxCoreChannel,
+  version: string,
+): Promise<SingboxCoreUpdateResult> {
+  return invokeCommand<SingboxCoreUpdateResult>("update_singbox_core", {
+    channel,
+    version,
+  });
 }

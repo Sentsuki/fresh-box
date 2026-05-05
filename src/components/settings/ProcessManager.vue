@@ -2,15 +2,13 @@
 import { computed } from "vue";
 
 const props = defineProps<{
-  isRefreshing: boolean;
-  isGettingStatus: boolean;
+  isRefreshingStatus: boolean;
   processStatus: string;
   processStatusClass: string;
 }>();
 
 defineEmits<{
   refresh: [];
-  "get-status": [];
 }>();
 
 const statusTextClass = computed(() => {
@@ -34,42 +32,17 @@ const statusTextClass = computed(() => {
         <button
           class="control-button min-w-40 flex-1 rounded-lg border-0 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200"
           :class="
-            isRefreshing
-              ? 'cursor-not-allowed bg-gray-300 text-gray-500 shadow-none'
-              : 'bg-green-500 hover:bg-green-600 hover:shadow-sm config-button-hover'
-          "
-          :disabled="isRefreshing"
-          @click="$emit('refresh')"
-        >
-          <span
-            v-if="isRefreshing"
-            class="flex h-5 w-5 items-center justify-center text-base animate-spin"
-            >🔄</span
-          >
-          <span
-            v-else
-            class="flex h-5 w-5 items-center justify-center text-base"
-            >🔍</span
-          >
-          <span class="font-medium">
-            {{ isRefreshing ? "Detecting..." : "Detect Process" }}
-          </span>
-        </button>
-
-        <button
-          class="control-button min-w-40 flex-1 rounded-lg border-0 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200"
-          :class="
-            isGettingStatus
+            isRefreshingStatus
               ? 'cursor-not-allowed bg-gray-300 text-gray-500 shadow-none'
               : 'bg-blue-500 hover:bg-blue-600 hover:shadow-sm config-button-hover'
           "
-          :disabled="isGettingStatus"
-          @click="$emit('get-status')"
+          :disabled="isRefreshingStatus"
+          @click="$emit('refresh')"
         >
           <span
-            v-if="isGettingStatus"
-            class="flex h-5 w-5 items-center justify-center text-base animate-pulse"
-            >⏳</span
+            v-if="isRefreshingStatus"
+            class="flex h-5 w-5 items-center justify-center text-base animate-spin"
+            >🔄</span
           >
           <span
             v-else
@@ -77,7 +50,7 @@ const statusTextClass = computed(() => {
             >📊</span
           >
           <span class="font-medium">
-            {{ isGettingStatus ? "Getting Status..." : "Get Status" }}
+            {{ isRefreshingStatus ? "Refreshing..." : "Refresh Status" }}
           </span>
         </button>
       </div>

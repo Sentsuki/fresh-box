@@ -9,12 +9,17 @@ use std::process::Command;
 
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
+pub const CORE_CHANNEL_STABLE: &str = "stable";
+pub const CORE_CHANNEL_TESTING: &str = "testing";
+const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppSettings {
     pub selected_config: Option<String>,
     pub selected_config_display: Option<String>,
     pub current_page: Option<String>,
+    pub active_singbox_core_channel: Option<String>,
+    pub active_singbox_core_version: Option<String>,
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
@@ -87,6 +92,14 @@ fn get_app_settings_path() -> Result<PathBuf, CommandError> {
     Ok(get_config_dir()?.join(APP_SETTINGS_FILE))
 }
 
+pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
+    load_json_or_default(&get_app_settings_path()?)
+}
+
+pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
+    write_json_file(&get_app_settings_path()?, settings)
+}
+
 fn extract_clash_api_url(config: &Value) -> Option<String> {
     let external_controller = config
         .get("experimental")
@@ -127,7 +140,90 @@ pub fn get_exe_dir() -> Result<PathBuf, CommandError> {
 // 获取 bin 目录路径（放 sing-box 核心）
 pub fn get_bin_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("bin");
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("bin directory", e))?;
+    }
     Ok(dir)
+}
+
+pub fn get_core_channel_dir(channel: &str) -> Result<PathBuf, CommandError> {
+    let normalized = normalize_core_channel(channel)?;
+    let dir = get_bin_dir()?.join(normalized);
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("core channel directory", e))?;
+    }
+    Ok(dir)
+}
+
+pub fn get_core_version_dir(channel: &str, version: &str) -> Result<PathBuf, CommandError> {
+    Ok(get_core_channel_dir(channel)?.join(version))
+}
+
+pub fn set_active_singbox_core_selection(
+    channel: Option<String>,
+    version: Option<String>,
+) -> Result<(), CommandError> {
+    if channel.is_some() != version.is_some() {
+        return Err(CommandError::invalid_state(
+            "set_active_singbox_core_selection",
+            "channel and version must either both be set or both be empty",
+        ));
+    }
+
+    if let Some(channel) = channel.as_deref() {
+        normalize_core_channel(channel)?;
+    }
+
+    let mut settings = load_app_settings_file()?;
+    settings.active_singbox_core_channel = channel;
+    settings.active_singbox_core_version = version;
+    save_app_settings_file(&settings)
+}
+
+pub fn get_active_singbox_core_selection() -> Result<Option<(String, String)>, CommandError> {
+    let settings = load_app_settings_file()?;
+    match (
+        settings.active_singbox_core_channel,
+        settings.active_singbox_core_version,
+    ) {
+        (Some(channel), Some(version)) => Ok(Some((normalize_core_channel(&channel)?.to_string(), version))),
+        (None, None) => Ok(None),
+        _ => Err(CommandError::invalid_state(
+            "get_active_singbox_core_selection",
+            "app_settings.json must store both active_singbox_core_channel and active_singbox_core_version together",
+        )),
+    }
+}
+
+pub fn get_active_singbox_core_executable() -> Result<PathBuf, CommandError> {
+    let (channel, version) = get_active_singbox_core_selection()?.ok_or_else(|| {
+        CommandError::resource_not_found(
+            "active sing-box core selection",
+            "app_settings.json does not point to an installed core version",
+        )
+    })?;
+    let executable_path = get_core_version_dir(&channel, &version)?.join(CORE_EXECUTABLE_NAME);
+    if !executable_path.exists() {
+        return Err(CommandError::resource_not_found(
+            "active sing-box core executable",
+            executable_path.display(),
+        ));
+    }
+
+    Ok(executable_path)
+}
+
+pub fn normalize_core_channel(channel: &str) -> Result<&'static str, CommandError> {
+    match channel {
+        CORE_CHANNEL_STABLE => Ok(CORE_CHANNEL_STABLE),
+        CORE_CHANNEL_TESTING => Ok(CORE_CHANNEL_TESTING),
+        _ => Err(CommandError::invalid_state(
+            "normalize_core_channel",
+            format!("unsupported sing-box core channel: {}", channel),
+        )),
+    }
 }
 
 // 获取 sub 目录路径（放订阅得到的配置文件）
@@ -212,12 +308,12 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
-    load_json_or_default(&get_app_settings_path()?)
+    load_app_settings_file()
 }
 
 #[tauri::command]
 pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
-    write_json_file(&get_app_settings_path()?, &settings)
+    save_app_settings_file(&settings)
 }
 
 #[tauri::command]

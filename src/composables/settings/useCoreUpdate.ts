@@ -1,17 +1,69 @@
-import { computed, ref } from "vue";
-import { getSingboxCoreStatus, updateSingboxCore } from "../../services/api";
-import { getErrorMessage } from "../../services/tauri";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { computed, onMounted, onUnmounted, ref, watch } from "vue";
+import {
+  activateSingboxCore,
+  getSingboxCoreStatus,
+  updateSingboxCore,
+} from "../../services/api";
+import { getCommandErrorPayload, getErrorMessage } from "../../services/tauri";
+import { useAppStore } from "../../stores/appStore";
 import { toast } from "../useToast";
 import type {
+  CoreUpdateProgressEvent,
+  SingboxCoreOption,
   SingboxCoreStatus,
   SingboxCoreUpdateResult,
 } from "../../types/app";
 
-export function useCoreUpdate() {
-  const isRefreshingCoreStatus = ref(false);
-  const isUpdatingCore = ref(false);
-  const coreStatus = ref<SingboxCoreStatus | null>(null);
-  const coreStatusError = ref("");
+function toOptionKey(option: Pick<SingboxCoreOption, "channel" | "version">) {
+  return `${option.channel}:${option.version}`;
+}
+
+interface UseCoreUpdateOptions {
+  autoRefreshOnFirstMount?: boolean;
+}
+
+const isRefreshingCoreStatusState = ref(false);
+const isUpdatingCoreState = ref(false);
+const coreStatusState = ref<SingboxCoreStatus | null>(null);
+const coreStatusErrorState = ref("");
+const coreUpdateProgressState = ref<CoreUpdateProgressEvent | null>(null);
+const selectedCoreOptionKeyState = ref("");
+let hasAutoRefreshedCoreStatus = false;
+
+export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
+  let unlistenProgress: UnlistenFn | null = null;
+  const appStore = useAppStore();
+  const { autoRefreshOnFirstMount = false } = options;
+
+  const isRefreshingCoreStatus = isRefreshingCoreStatusState;
+  const isUpdatingCore = isUpdatingCoreState;
+  const coreStatus = coreStatusState;
+  const coreStatusError = coreStatusErrorState;
+  const coreUpdateProgress = coreUpdateProgressState;
+  const selectedCoreOptionKey = selectedCoreOptionKeyState;
+
+  const selectedCoreOption = computed(() => {
+    return (
+      coreStatus.value?.available_options.find(
+        (option) => toOptionKey(option) === selectedCoreOptionKey.value,
+      ) ?? null
+    );
+  });
+
+  const currentCoreLabel = computed(() => {
+    if (!coreStatus.value?.current_version) {
+      return "Not installed";
+    }
+
+    const channelLabel =
+      coreStatus.value.current_channel === "testing" ? "Testing" : "Stable";
+    return `${channelLabel} · ${coreStatus.value.current_version}`;
+  });
+
+  const selectedCoreLabel = computed(() => {
+    return selectedCoreOption.value?.label ?? "No release selected";
+  });
 
   const coreStatusText = computed(() => {
     if (isRefreshingCoreStatus.value && !coreStatus.value) {
@@ -26,21 +78,15 @@ export function useCoreUpdate() {
       return "Unknown";
     }
 
-    if (coreStatus.value.is_running && coreStatus.value.update_available) {
-      return "Stop Required";
-    }
-
-    if (coreStatus.value.is_running) {
-      return "Running";
-    }
-
     if (!coreStatus.value.installed) {
       return "Not Installed";
     }
 
-    return coreStatus.value.update_available
-      ? "Update Available"
-      : "Up to Date";
+    if (coreStatus.value.is_running) {
+      return coreStatus.value.update_available ? "Update Available" : "Running";
+    }
+
+    return coreStatus.value.update_available ? "Update Available" : "Installed";
   });
 
   const coreStatusBadgeClass = computed(() => {
@@ -52,8 +98,8 @@ export function useCoreUpdate() {
       return "bg-gray-100 text-gray-600";
     }
 
-    if (coreStatus.value.is_running && coreStatus.value.update_available) {
-      return "bg-amber-100 text-amber-800";
+    if (!coreStatus.value.installed) {
+      return "bg-gray-100 text-gray-600";
     }
 
     if (coreStatus.value.update_available) {
@@ -65,23 +111,35 @@ export function useCoreUpdate() {
 
   const updateCoreButtonLabel = computed(() => {
     if (isUpdatingCore.value) {
-      return "Updating...";
+      return coreUpdateProgress.value?.stage === "downloading"
+        ? "Downloading..."
+        : "Applying...";
     }
 
-    if (coreStatus.value?.is_running) {
-      return "Download Core";
+    if (!selectedCoreOption.value) {
+      return "No Release Available";
     }
 
-    if (!coreStatus.value?.installed) {
-      return "Install Latest Core";
+    if (
+      selectedCoreOption.value.installed &&
+      selectedCoreOption.value.is_active
+    ) {
+      return selectedCoreOption.value.channel === "testing"
+        ? "Reinstall Testing"
+        : "Reinstall Stable";
     }
 
-    return coreStatus.value.update_available
-      ? "Update Core"
-      : "Reinstall Latest Core";
+    if (selectedCoreOption.value.installed) {
+      return "Switch Core";
+    }
+
+    return "Install & Switch";
   });
 
-  async function refreshCoreStatus(showErrorToast = false) {
+  async function refreshCoreStatus(
+    showErrorToast = false,
+    forceRefresh = false,
+  ) {
     if (isRefreshingCoreStatus.value) {
       return;
     }
@@ -90,7 +148,7 @@ export function useCoreUpdate() {
     coreStatusError.value = "";
 
     try {
-      coreStatus.value = await getSingboxCoreStatus();
+      coreStatus.value = await getSingboxCoreStatus(forceRefresh);
     } catch (error) {
       coreStatus.value = null;
       coreStatusError.value = getErrorMessage(error);
@@ -102,33 +160,150 @@ export function useCoreUpdate() {
     }
   }
 
-  async function installCoreUpdate() {
-    if (isUpdatingCore.value) {
+  function formatCoreUpdateError(error: unknown) {
+    const payload = getCommandErrorPayload(error);
+    const fallback = getErrorMessage(error);
+
+    switch (payload?.kind) {
+      case "network_error":
+        return (
+          fallback ||
+          "Unable to reach GitHub. Check your network connection and try again."
+        );
+      case "permission_denied":
+        return (
+          fallback ||
+          "Permission denied while updating sing-box. Close other programs using the file and make sure fresh-box can write to the app directory."
+        );
+      case "validation_error":
+        return (
+          fallback ||
+          "The requested sing-box release is unavailable or the downloaded package is invalid."
+        );
+      default:
+        return fallback;
+    }
+  }
+
+  async function applySelectedCore() {
+    if (!selectedCoreOption.value || isUpdatingCore.value) {
       return;
     }
 
     isUpdatingCore.value = true;
+    coreStatusError.value = "";
+    coreUpdateProgress.value = {
+      stage: "preparing",
+      percent: 0,
+      message: "Preparing the sing-box core action...",
+    };
 
     try {
-      const result: SingboxCoreUpdateResult = await updateSingboxCore();
-      toast.success(`Sing-box core updated to ${result.current_version}`);
+      if (selectedCoreOption.value.installed) {
+        await activateSingboxCore(
+          selectedCoreOption.value.channel,
+          selectedCoreOption.value.version,
+        );
+        await appStore.setActiveSingboxCoreSelection(
+          selectedCoreOption.value.channel,
+          selectedCoreOption.value.version,
+        );
+
+        if (!selectedCoreOption.value.is_active) {
+          toast.success(`Switched to ${selectedCoreOption.value.label}`);
+        } else {
+          const result: SingboxCoreUpdateResult = await updateSingboxCore(
+            selectedCoreOption.value.channel,
+            selectedCoreOption.value.version,
+          );
+          toast.success(
+            result.restart_required
+              ? `Sing-box core updated to ${result.current_version}. Restart sing-box to use the new core.`
+              : `Sing-box core updated to ${result.current_version}`,
+          );
+        }
+      } else {
+        const result: SingboxCoreUpdateResult = await updateSingboxCore(
+          selectedCoreOption.value.channel,
+          selectedCoreOption.value.version,
+        );
+        toast.success(
+          result.restart_required
+            ? `Sing-box core updated to ${result.current_version}. Restart sing-box to use the new core.`
+            : `Sing-box core updated to ${result.current_version}`,
+        );
+      }
+
+      await appStore.setActiveSingboxCoreSelection(
+        selectedCoreOption.value.channel,
+        selectedCoreOption.value.version,
+      );
       await refreshCoreStatus();
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      const message = formatCoreUpdateError(error);
+      coreStatusError.value = message;
+      toast.error(message);
     } finally {
       isUpdatingCore.value = false;
+      coreUpdateProgress.value = null;
     }
   }
+
+  watch(
+    () => coreStatus.value?.available_options,
+    (options) => {
+      if (!options?.length) {
+        selectedCoreOptionKey.value = "";
+        return;
+      }
+
+      const currentExists = options.some(
+        (option) => toOptionKey(option) === selectedCoreOptionKey.value,
+      );
+      if (currentExists) {
+        return;
+      }
+
+      const activeOption = options.find((option) => option.is_active);
+      selectedCoreOptionKey.value = toOptionKey(activeOption ?? options[0]);
+    },
+    { immediate: true },
+  );
+
+  onMounted(() => {
+    if (autoRefreshOnFirstMount && !hasAutoRefreshedCoreStatus) {
+      hasAutoRefreshedCoreStatus = true;
+      void refreshCoreStatus();
+    }
+
+    void listen<CoreUpdateProgressEvent>("core-update-progress", (event) => {
+      coreUpdateProgress.value = event.payload;
+    }).then((unlisten) => {
+      unlistenProgress = unlisten;
+    });
+  });
+
+  onUnmounted(() => {
+    if (unlistenProgress) {
+      unlistenProgress();
+      unlistenProgress = null;
+    }
+  });
 
   return {
     isRefreshingCoreStatus,
     isUpdatingCore,
     coreStatus,
     coreStatusError,
+    coreUpdateProgress,
+    selectedCoreOptionKey,
+    selectedCoreOption,
+    currentCoreLabel,
+    selectedCoreLabel,
     coreStatusText,
     coreStatusBadgeClass,
     updateCoreButtonLabel,
     refreshCoreStatus,
-    installCoreUpdate,
+    applySelectedCore,
   };
 }

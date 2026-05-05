@@ -1,4 +1,5 @@
 export type AppPage = "overview" | "config" | "custom" | "settings";
+export type SingboxCoreChannel = "stable" | "testing";
 
 export interface SubscriptionInfo {
   url: string;
@@ -16,6 +17,8 @@ export interface AppSettings {
   selected_config: string | null;
   selected_config_display: string | null;
   current_page: AppPage | null;
+  active_singbox_core_channel: SingboxCoreChannel | null;
+  active_singbox_core_version: string | null;
 }
 
 export interface ConfigOverride {
@@ -51,18 +54,35 @@ export interface ConfigFieldsCheck {
   current_log_level?: string;
 }
 
+export interface SingboxCoreOption {
+  channel: SingboxCoreChannel;
+  version: string;
+  label: string;
+  installed: boolean;
+  is_active: boolean;
+}
+
 export interface SingboxCoreStatus {
   installed: boolean;
+  current_channel: SingboxCoreChannel | null;
   current_version: string | null;
   latest_version: string | null;
   update_available: boolean;
   is_running: boolean;
+  available_options: SingboxCoreOption[];
 }
 
 export interface SingboxCoreUpdateResult {
   previous_version: string | null;
   current_version: string;
   latest_version: string;
+  restart_required: boolean;
+}
+
+export interface CoreUpdateProgressEvent {
+  stage: string;
+  percent: number;
+  message: string;
 }
 
 export interface CommandErrorPayload {
