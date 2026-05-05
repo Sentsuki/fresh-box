@@ -4,16 +4,14 @@ use crate::singbox::SingboxState;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
-use sha2::{Digest, Sha256};
 use std::fs::{self, File};
-use std::io::{self, Read, Write};
+use std::io::{self, Write};
 use std::path::{Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, State};
 
 const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/SagerNet/sing-box/releases/latest";
 const WINDOWS_AMD64_ASSET_SUFFIX: &str = "windows-amd64.zip";
-const CHECKSUM_ASSET_NAME: &str = "sha256sums.txt";
 const CORE_UPDATE_PROGRESS_EVENT: &str = "core-update-progress";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
@@ -33,7 +31,6 @@ struct LatestReleaseMetadata {
     tag: String,
     archive_name: String,
     archive_url: String,
-    checksums_url: String,
 }
 
 #[derive(Clone, Serialize)]
@@ -63,7 +60,6 @@ pub struct SingboxCoreUpdateResult {
 
 struct CoreUpdatePaths {
     zip_path: PathBuf,
-    checksum_path: PathBuf,
     executable_path: PathBuf,
     staged_path: PathBuf,
     backup_path: PathBuf,
@@ -123,26 +119,18 @@ pub async fn update_singbox_core(
         &update_paths.zip_path,
         "Downloading sing-box core...",
         8,
-        58,
+        68,
     )
     .await?;
 
-    emit_progress(&app, "verifying", 70, "Downloading release checksums...");
-    download_file(&latest_release.checksums_url, &update_paths.checksum_path).await?;
-    verify_downloaded_archive(
-        &update_paths.checksum_path,
-        &update_paths.zip_path,
-        &latest_release.archive_name,
-    )?;
-
-    emit_progress(&app, "extracting", 82, "Extracting sing-box.exe...");
+    emit_progress(&app, "extracting", 76, "Extracting sing-box.exe...");
     extract_core_executable(&update_paths.zip_path, &update_paths.staged_path)?;
 
     let restart_required = crate::singbox::is_singbox_running(state).await?;
     emit_progress(
         &app,
         "applying",
-        92,
+        90,
         if restart_required {
             "Replacing sing-box.exe. Restart sing-box after the update finishes."
         } else {
@@ -247,7 +235,6 @@ fn get_update_paths(asset_name: &str) -> Result<CoreUpdatePaths, CommandError> {
 
     Ok(CoreUpdatePaths {
         zip_path: update_dir.join(asset_name),
-        checksum_path: update_dir.join(CHECKSUM_ASSET_NAME),
         executable_path: executable_path.clone(),
         staged_path: executable_path.with_extension("exe.new"),
         backup_path: executable_path.with_extension("exe.old"),
@@ -282,21 +269,11 @@ async fn fetch_latest_release_metadata() -> Result<LatestReleaseMetadata, Comman
                 "No Windows amd64 sing-box core asset was found in the latest GitHub release.",
             )
         })?;
-    let checksums = response
-        .assets
-        .iter()
-        .find(|asset| asset.name == CHECKSUM_ASSET_NAME)
-        .ok_or_else(|| {
-            CommandError::validation(
-                "The latest GitHub release is missing sha256sums.txt, so the core download cannot be verified safely.",
-            )
-        })?;
 
     Ok(LatestReleaseMetadata {
         tag: response.tag_name,
         archive_name: archive.name.clone(),
         archive_url: archive.browser_download_url.clone(),
-        checksums_url: checksums.browser_download_url.clone(),
     })
 }
 
@@ -374,121 +351,6 @@ async fn download_file_with_progress(
     })?;
 
     Ok(())
-}
-
-async fn download_file(url: &str, destination: &Path) -> Result<(), CommandError> {
-    let response = github_client()?
-        .get(url)
-        .header("Accept", "application/octet-stream")
-        .send()
-        .await
-        .map_err(|error| map_network_error("Failed to download the release checksums", error))?
-        .error_for_status()
-        .map_err(|error| {
-            map_network_error("GitHub rejected the checksum download request", error)
-        })?;
-
-    let bytes = response
-        .bytes()
-        .await
-        .map_err(|error| map_network_error("Failed to read the downloaded checksums", error))?;
-
-    if let Some(parent) = destination.parent() {
-        fs::create_dir_all(parent).map_err(|error| {
-            map_io_error(
-                "Failed to prepare the checksum download directory",
-                parent,
-                error,
-            )
-        })?;
-    }
-
-    fs::write(destination, &bytes).map_err(|error| {
-        map_io_error(
-            "Failed to write the downloaded checksums to disk",
-            destination,
-            error,
-        )
-    })?;
-
-    Ok(())
-}
-
-fn verify_downloaded_archive(
-    checksum_path: &Path,
-    archive_path: &Path,
-    archive_name: &str,
-) -> Result<(), CommandError> {
-    let checksums = fs::read_to_string(checksum_path).map_err(|error| {
-        map_io_error(
-            "Failed to read sha256sums.txt for verification",
-            checksum_path,
-            error,
-        )
-    })?;
-    let expected_checksum = checksums
-        .lines()
-        .find_map(|line| parse_checksum_line(line, archive_name))
-        .ok_or_else(|| {
-            CommandError::validation(format!(
-                "sha256sums.txt does not contain a checksum for {}.",
-                archive_name
-            ))
-        })?;
-
-    let actual_checksum = compute_sha256(archive_path)?;
-    if !actual_checksum.eq_ignore_ascii_case(&expected_checksum) {
-        return Err(CommandError::validation(format!(
-            "Checksum verification failed for {}. Expected {}, got {}.",
-            archive_name, expected_checksum, actual_checksum
-        )));
-    }
-
-    Ok(())
-}
-
-fn parse_checksum_line(line: &str, archive_name: &str) -> Option<String> {
-    let trimmed = line.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    let mut parts = trimmed.split_whitespace();
-    let hash = parts.next()?;
-    let file_name = parts.next()?.trim_start_matches('*').replace('\\', "/");
-    if file_name == archive_name || file_name.ends_with(&format!("/{}", archive_name)) {
-        Some(hash.to_string())
-    } else {
-        None
-    }
-}
-
-fn compute_sha256(path: &Path) -> Result<String, CommandError> {
-    let mut file = File::open(path).map_err(|error| {
-        map_io_error(
-            "Failed to open the downloaded archive for verification",
-            path,
-            error,
-        )
-    })?;
-    let mut hasher = Sha256::new();
-    let mut buffer = [0_u8; 8192];
-
-    loop {
-        let read = file.read(&mut buffer).map_err(|error| {
-            map_io_error(
-                "Failed to read the downloaded archive during checksum verification",
-                path,
-                error,
-            )
-        })?;
-        if read == 0 {
-            break;
-        }
-        hasher.update(&buffer[..read]);
-    }
-
-    Ok(format!("{:x}", hasher.finalize()))
 }
 
 fn extract_core_executable(archive_path: &Path, staged_path: &Path) -> Result<(), CommandError> {
@@ -600,10 +462,6 @@ fn cleanup_download_artifacts(paths: &CoreUpdatePaths) -> Result<(), CommandErro
     remove_file_if_exists(
         &paths.zip_path,
         "Failed to clean the downloaded sing-box archive",
-    )?;
-    remove_file_if_exists(
-        &paths.checksum_path,
-        "Failed to clean the downloaded checksum file",
     )?;
     Ok(())
 }

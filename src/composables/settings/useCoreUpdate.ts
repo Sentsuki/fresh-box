@@ -119,7 +119,7 @@ export function useCoreUpdate() {
       case "validation_error":
         return (
           fallback ||
-          "The downloaded sing-box package could not be verified safely. Please try again later."
+          "The downloaded sing-box package looks incomplete or invalid. Please try again later."
         );
       default:
         return fallback;

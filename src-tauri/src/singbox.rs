@@ -438,10 +438,12 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 
     if let Some(pid) = tracked_pid {
         println!("Attempting to stop sing-box process by PID: {}", pid);
-        return stop_process_by_pid(pid);
+        let mut process_state = state.lock("stop_singbox_by_pid")?;
+        return stop_process_by_pid(&mut process_state, pid);
     }
 
-    match stop_any_singbox_process() {
+    let mut process_state = state.lock("stop_any_singbox_process")?;
+    match stop_any_singbox_process(&mut process_state) {
         Ok(true) => {
             println!("Stopped sing-box process");
             Ok(())
@@ -464,7 +466,41 @@ pub async fn initialize_singbox_state(
     initialize_state_inner(&state)
 }
 
-fn stop_process_by_pid(pid: u32) -> Result<(), CommandError> {
+#[cfg(windows)]
+fn stop_process_by_pid(process_state: &mut ProcessState, pid: u32) -> Result<(), CommandError> {
+    refresh_process_table(process_state);
+
+    if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
+        let process_name = process.name().to_string_lossy().to_lowercase();
+        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
+            println!(
+                "Attempting to kill sing-box process (PID: {}, Name: {})",
+                pid,
+                process.name().to_string_lossy()
+            );
+
+            if process.kill() {
+                println!("Successfully terminated sing-box process (PID: {})", pid);
+                Ok(())
+            } else {
+                Err(CommandError::FailedToStopProcess(format!(
+                    "Failed to terminate process PID: {}",
+                    pid
+                )))
+            }
+        } else {
+            Err(CommandError::FailedToStopProcess(format!(
+                "Process PID {} is not a sing-box process",
+                pid
+            )))
+        }
+    } else {
+        Err(CommandError::ProcessNotRunning)
+    }
+}
+
+#[cfg(not(windows))]
+fn stop_process_by_pid(_process_state: &mut ProcessState, pid: u32) -> Result<(), CommandError> {
     use sysinfo::System;
 
     let mut system = System::new_all();
@@ -479,34 +515,18 @@ fn stop_process_by_pid(pid: u32) -> Result<(), CommandError> {
                 process.name().to_string_lossy()
             );
 
-            #[cfg(windows)]
-            {
-                if process.kill() {
-                    println!("Successfully terminated sing-box process (PID: {})", pid);
-                    Ok(())
-                } else {
-                    Err(CommandError::FailedToStopProcess(format!(
-                        "Failed to terminate process PID: {}",
-                        pid
-                    )))
-                }
-            }
-
-            #[cfg(not(windows))]
-            {
-                use sysinfo::Signal;
-                if process.kill_with(Signal::Term).unwrap_or(false) {
-                    println!(
-                        "Successfully sent SIGTERM to sing-box process (PID: {})",
-                        pid
-                    );
-                    Ok(())
-                } else {
-                    Err(CommandError::FailedToStopProcess(format!(
-                        "Failed to send SIGTERM to process PID: {}",
-                        pid
-                    )))
-                }
+            use sysinfo::Signal;
+            if process.kill_with(Signal::Term).unwrap_or(false) {
+                println!(
+                    "Successfully sent SIGTERM to sing-box process (PID: {})",
+                    pid
+                );
+                Ok(())
+            } else {
+                Err(CommandError::FailedToStopProcess(format!(
+                    "Failed to send SIGTERM to process PID: {}",
+                    pid
+                )))
             }
         } else {
             Err(CommandError::FailedToStopProcess(format!(
@@ -519,7 +539,35 @@ fn stop_process_by_pid(pid: u32) -> Result<(), CommandError> {
     }
 }
 
-fn stop_any_singbox_process() -> Result<bool, CommandError> {
+#[cfg(windows)]
+fn stop_any_singbox_process(process_state: &mut ProcessState) -> Result<bool, CommandError> {
+    refresh_process_table(process_state);
+
+    let mut killed_any = false;
+
+    for (pid, process) in process_state.system.processes() {
+        let process_name = process.name().to_string_lossy().to_lowercase();
+        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
+            println!(
+                "Attempting to kill sing-box process (PID: {}, Name: {})",
+                pid,
+                process.name().to_string_lossy()
+            );
+
+            if process.kill() {
+                killed_any = true;
+                println!("Successfully terminated sing-box process (PID: {})", pid);
+            } else {
+                eprintln!("Failed to terminate sing-box process (PID: {})", pid);
+            }
+        }
+    }
+
+    Ok(killed_any)
+}
+
+#[cfg(not(windows))]
+fn stop_any_singbox_process(_process_state: &mut ProcessState) -> Result<bool, CommandError> {
     use sysinfo::System;
 
     let mut system = System::new_all();
@@ -536,28 +584,15 @@ fn stop_any_singbox_process() -> Result<bool, CommandError> {
                 process.name().to_string_lossy()
             );
 
-            #[cfg(windows)]
-            {
-                if process.kill() {
-                    killed_any = true;
-                    println!("Successfully terminated sing-box process (PID: {})", pid);
-                } else {
-                    eprintln!("Failed to terminate sing-box process (PID: {})", pid);
-                }
-            }
-
-            #[cfg(not(windows))]
-            {
-                use sysinfo::Signal;
-                if process.kill_with(Signal::Term).unwrap_or(false) {
-                    killed_any = true;
-                    println!(
-                        "Successfully sent SIGTERM to sing-box process (PID: {})",
-                        pid
-                    );
-                } else {
-                    eprintln!("Failed to send SIGTERM to sing-box process (PID: {})", pid);
-                }
+            use sysinfo::Signal;
+            if process.kill_with(Signal::Term).unwrap_or(false) {
+                killed_any = true;
+                println!(
+                    "Successfully sent SIGTERM to sing-box process (PID: {})",
+                    pid
+                );
+            } else {
+                eprintln!("Failed to send SIGTERM to sing-box process (PID: {})", pid);
             }
         }
     }
@@ -717,12 +752,32 @@ pub fn cleanup_process(state: &SingboxState) {
 
     if let Some(pid) = tracked_pid {
         println!("Cleaning up PID managed sing-box process (PID: {})...", pid);
-        if let Err(error) = stop_process_by_pid(pid) {
-            eprintln!("Failed to stop PID managed process: {:?}", error);
+        match state.lock("cleanup_process_by_pid") {
+            Ok(mut process_state) => {
+                if let Err(error) = stop_process_by_pid(&mut process_state, pid) {
+                    eprintln!("Failed to stop PID managed process: {:?}", error);
+                }
+            }
+            Err(error) => {
+                eprintln!(
+                    "Failed to lock sing-box state during PID cleanup: {}",
+                    error
+                );
+            }
         }
     }
 
-    if let Err(error) = stop_any_singbox_process() {
-        eprintln!("Failed final sing-box cleanup sweep: {:?}", error);
+    match state.lock("cleanup_process_sweep") {
+        Ok(mut process_state) => {
+            if let Err(error) = stop_any_singbox_process(&mut process_state) {
+                eprintln!("Failed final sing-box cleanup sweep: {:?}", error);
+            }
+        }
+        Err(error) => {
+            eprintln!(
+                "Failed to lock sing-box state during cleanup sweep: {}",
+                error
+            );
+        }
     }
 }
