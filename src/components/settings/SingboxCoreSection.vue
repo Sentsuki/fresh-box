@@ -1,9 +1,13 @@
 <script setup lang="ts">
-import type { SingboxCoreStatus } from "../../types/app";
+import type {
+  CoreUpdateProgressEvent,
+  SingboxCoreStatus,
+} from "../../types/app";
 
 defineProps<{
   coreStatus: SingboxCoreStatus | null;
   coreStatusError: string;
+  coreUpdateProgress: CoreUpdateProgressEvent | null;
   coreStatusText: string;
   coreStatusBadgeClass: string;
   isRefreshingCoreStatus: boolean;
@@ -57,8 +61,8 @@ defineEmits<{
         v-if="coreStatus?.is_running"
         class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
       >
-        The latest core can still be downloaded now, but you need to stop
-        sing-box before it can be unpacked and applied.
+        You can update while sing-box is running. Restart sing-box after the
+        update finishes to start using the new core version.
       </div>
 
       <div
@@ -66,6 +70,26 @@ defineEmits<{
         class="rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm text-red-700"
       >
         {{ coreStatusError }}
+      </div>
+
+      <div
+        v-if="coreUpdateProgress"
+        class="rounded-lg border border-blue-200 bg-blue-50 px-3 py-3"
+      >
+        <div
+          class="flex items-center justify-between gap-3 text-sm text-blue-900"
+        >
+          <span class="font-medium">{{ coreUpdateProgress.message }}</span>
+          <span class="text-xs font-semibold"
+            >{{ coreUpdateProgress.percent }}%</span
+          >
+        </div>
+        <div class="mt-3 h-2 overflow-hidden rounded-full bg-blue-100">
+          <div
+            class="h-full rounded-full bg-blue-600 transition-all duration-300"
+            :style="{ width: `${coreUpdateProgress.percent}%` }"
+          />
+        </div>
       </div>
 
       <div class="flex flex-wrap gap-3">

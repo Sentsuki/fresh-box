@@ -16,6 +16,7 @@ const settings = useSettings({ loadCustomerSettings: false });
       <SingboxCoreSection
         :core-status="settings.coreStatus.value"
         :core-status-error="settings.coreStatusError.value"
+        :core-update-progress="settings.coreUpdateProgress.value"
         :core-status-text="settings.coreStatusText.value"
         :core-status-badge-class="settings.coreStatusBadgeClass.value"
         :is-refreshing-core-status="settings.isRefreshingCoreStatus.value"

@@ -1,17 +1,22 @@
-import { computed, ref } from "vue";
+import { listen, type UnlistenFn } from "@tauri-apps/api/event";
+import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getSingboxCoreStatus, updateSingboxCore } from "../../services/api";
-import { getErrorMessage } from "../../services/tauri";
+import { getCommandErrorPayload, getErrorMessage } from "../../services/tauri";
 import { toast } from "../useToast";
 import type {
+  CoreUpdateProgressEvent,
   SingboxCoreStatus,
   SingboxCoreUpdateResult,
 } from "../../types/app";
 
 export function useCoreUpdate() {
+  let unlistenProgress: UnlistenFn | null = null;
+
   const isRefreshingCoreStatus = ref(false);
   const isUpdatingCore = ref(false);
   const coreStatus = ref<SingboxCoreStatus | null>(null);
   const coreStatusError = ref("");
+  const coreUpdateProgress = ref<CoreUpdateProgressEvent | null>(null);
 
   const coreStatusText = computed(() => {
     if (isRefreshingCoreStatus.value && !coreStatus.value) {
@@ -26,12 +31,8 @@ export function useCoreUpdate() {
       return "Unknown";
     }
 
-    if (coreStatus.value.is_running && coreStatus.value.update_available) {
-      return "Stop Required";
-    }
-
     if (coreStatus.value.is_running) {
-      return "Running";
+      return coreStatus.value.update_available ? "Update Available" : "Running";
     }
 
     if (!coreStatus.value.installed) {
@@ -52,10 +53,6 @@ export function useCoreUpdate() {
       return "bg-gray-100 text-gray-600";
     }
 
-    if (coreStatus.value.is_running && coreStatus.value.update_available) {
-      return "bg-amber-100 text-amber-800";
-    }
-
     if (coreStatus.value.update_available) {
       return "bg-violet-100 text-violet-700";
     }
@@ -65,11 +62,13 @@ export function useCoreUpdate() {
 
   const updateCoreButtonLabel = computed(() => {
     if (isUpdatingCore.value) {
-      return "Updating...";
+      return coreUpdateProgress.value?.stage === "downloading"
+        ? "Downloading..."
+        : "Updating...";
     }
 
     if (coreStatus.value?.is_running) {
-      return "Download Core";
+      return "Update Core";
     }
 
     if (!coreStatus.value?.installed) {
@@ -102,29 +101,84 @@ export function useCoreUpdate() {
     }
   }
 
+  function formatCoreUpdateError(error: unknown) {
+    const payload = getCommandErrorPayload(error);
+    const fallback = getErrorMessage(error);
+
+    switch (payload?.kind) {
+      case "network_error":
+        return (
+          fallback ||
+          "Unable to reach GitHub. Check your network connection and try again."
+        );
+      case "permission_denied":
+        return (
+          fallback ||
+          "Permission denied while updating sing-box. Close other programs using the file and make sure fresh-box can write to the app directory."
+        );
+      case "validation_error":
+        return (
+          fallback ||
+          "The downloaded sing-box package could not be verified safely. Please try again later."
+        );
+      default:
+        return fallback;
+    }
+  }
+
   async function installCoreUpdate() {
     if (isUpdatingCore.value) {
       return;
     }
 
     isUpdatingCore.value = true;
+    coreStatusError.value = "";
+    coreUpdateProgress.value = {
+      stage: "preparing",
+      percent: 0,
+      message: "Preparing the sing-box core update...",
+    };
 
     try {
       const result: SingboxCoreUpdateResult = await updateSingboxCore();
-      toast.success(`Sing-box core updated to ${result.current_version}`);
+      toast.success(
+        result.restart_required
+          ? `Sing-box core updated to ${result.current_version}. Restart sing-box to use the new core.`
+          : `Sing-box core updated to ${result.current_version}`,
+      );
       await refreshCoreStatus();
     } catch (error) {
-      toast.error(getErrorMessage(error));
+      const message = formatCoreUpdateError(error);
+      coreStatusError.value = message;
+      toast.error(message);
     } finally {
       isUpdatingCore.value = false;
+      coreUpdateProgress.value = null;
     }
   }
+
+  onMounted(() => {
+    void refreshCoreStatus();
+    void listen<CoreUpdateProgressEvent>("core-update-progress", (event) => {
+      coreUpdateProgress.value = event.payload;
+    }).then((unlisten) => {
+      unlistenProgress = unlisten;
+    });
+  });
+
+  onUnmounted(() => {
+    if (unlistenProgress) {
+      unlistenProgress();
+      unlistenProgress = null;
+    }
+  });
 
   return {
     isRefreshingCoreStatus,
     isUpdatingCore,
     coreStatus,
     coreStatusError,
+    coreUpdateProgress,
     coreStatusText,
     coreStatusBadgeClass,
     updateCoreButtonLabel,

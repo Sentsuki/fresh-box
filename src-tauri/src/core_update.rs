@@ -1,18 +1,47 @@
 use crate::config::{get_bin_dir, get_data_dir};
 use crate::errors::CommandError;
 use crate::singbox::SingboxState;
+use futures_util::StreamExt;
+use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use sha2::{Digest, Sha256};
+use std::fs::{self, File};
+use std::io::{self, Read, Write};
+use std::path::{Path, PathBuf};
 use std::process::Command;
-use tauri::State;
+use tauri::{AppHandle, Emitter, State};
 
 const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/SagerNet/sing-box/releases/latest";
 const WINDOWS_AMD64_ASSET_SUFFIX: &str = "windows-amd64.zip";
+const CHECKSUM_ASSET_NAME: &str = "sha256sums.txt";
+const CORE_UPDATE_PROGRESS_EVENT: &str = "core-update-progress";
+const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
 #[derive(Deserialize)]
+struct ReleaseAsset {
+    name: String,
+    browser_download_url: String,
+}
+
+#[derive(Deserialize)]
+struct LatestReleaseResponse {
+    tag_name: String,
+    assets: Vec<ReleaseAsset>,
+}
+
 struct LatestReleaseMetadata {
     tag: String,
-    name: String,
-    url: String,
+    archive_name: String,
+    archive_url: String,
+    checksums_url: String,
+}
+
+#[derive(Clone, Serialize)]
+#[serde(rename_all = "snake_case")]
+struct CoreUpdateProgressEvent {
+    stage: String,
+    percent: u8,
+    message: String,
 }
 
 #[derive(Serialize)]
@@ -29,6 +58,15 @@ pub struct SingboxCoreUpdateResult {
     pub previous_version: Option<String>,
     pub current_version: String,
     pub latest_version: String,
+    pub restart_required: bool,
+}
+
+struct CoreUpdatePaths {
+    zip_path: PathBuf,
+    checksum_path: PathBuf,
+    executable_path: PathBuf,
+    staged_path: PathBuf,
+    backup_path: PathBuf,
 }
 
 #[tauri::command]
@@ -37,7 +75,7 @@ pub async fn get_singbox_core_status(
 ) -> Result<SingboxCoreStatus, CommandError> {
     let is_running = crate::singbox::is_singbox_running(state).await?;
     let current_version = get_installed_singbox_version()?;
-    let latest_release = fetch_latest_release_metadata()?;
+    let latest_release = fetch_latest_release_metadata().await?;
     let latest_version = normalized_version(&latest_release.tag).or(Some(latest_release.tag));
     let update_available = match (&current_version, &latest_version) {
         (Some(current), Some(latest)) => current != latest,
@@ -56,154 +94,609 @@ pub async fn get_singbox_core_status(
 
 #[tauri::command]
 pub async fn update_singbox_core(
+    app: AppHandle,
     state: State<'_, SingboxState>,
 ) -> Result<SingboxCoreUpdateResult, CommandError> {
+    cleanup_staged_core_update_files()?;
+    emit_progress(
+        &app,
+        "preparing",
+        5,
+        "Checking the latest sing-box release...",
+    );
+
     let previous_version = get_installed_singbox_version()?;
-    let latest_release = fetch_latest_release_metadata()?;
+    let latest_release = fetch_latest_release_metadata().await?;
     let latest_version =
         normalized_version(&latest_release.tag).unwrap_or(latest_release.tag.clone());
-    let update_paths = get_update_paths(&latest_release.name)?;
+    let update_paths = get_update_paths(&latest_release.archive_name)?;
 
-    download_latest_core_archive(&latest_release, &update_paths.zip_path)?;
+    emit_progress(
+        &app,
+        "downloading",
+        8,
+        format!("Downloading {}...", latest_release.archive_name),
+    );
+    download_file_with_progress(
+        &app,
+        &latest_release.archive_url,
+        &update_paths.zip_path,
+        "Downloading sing-box core...",
+        8,
+        58,
+    )
+    .await?;
 
-    if crate::singbox::is_singbox_running(state).await? {
-        return Err(CommandError::InvalidState(format!(
-            "The latest core package has been downloaded to {}. Please stop sing-box and retry to apply it.",
-            update_paths.zip_path.display()
-        )));
-    }
+    emit_progress(&app, "verifying", 70, "Downloading release checksums...");
+    download_file(&latest_release.checksums_url, &update_paths.checksum_path).await?;
+    verify_downloaded_archive(
+        &update_paths.checksum_path,
+        &update_paths.zip_path,
+        &latest_release.archive_name,
+    )?;
 
-    install_downloaded_core(&update_paths)?;
+    emit_progress(&app, "extracting", 82, "Extracting sing-box.exe...");
+    extract_core_executable(&update_paths.zip_path, &update_paths.staged_path)?;
+
+    let restart_required = crate::singbox::is_singbox_running(state).await?;
+    emit_progress(
+        &app,
+        "applying",
+        92,
+        if restart_required {
+            "Replacing sing-box.exe. Restart sing-box after the update finishes."
+        } else {
+            "Applying the updated sing-box core..."
+        },
+    );
+    apply_staged_core_update(&update_paths, restart_required)?;
+    cleanup_download_artifacts(&update_paths)?;
 
     let current_version = get_installed_singbox_version()?.ok_or_else(|| {
-        CommandError::IoError("sing-box.exe is missing after the update completed.".to_string())
+        CommandError::io(
+            "Updated sing-box version could not be read",
+            "sing-box.exe is missing",
+        )
     })?;
     if current_version != latest_version {
-        return Err(CommandError::IoError(format!(
-            "Installed sing-box version {} does not match the latest release {}.",
+        return Err(CommandError::validation(format!(
+            "Installed sing-box version {} does not match the downloaded release {}.",
             current_version, latest_version
         )));
     }
+
+    emit_progress(
+        &app,
+        "complete",
+        100,
+        if restart_required {
+            "Core update completed. Restart sing-box to start using the new version."
+        } else {
+            "Core update completed."
+        },
+    );
 
     Ok(SingboxCoreUpdateResult {
         previous_version,
         current_version,
         latest_version,
+        restart_required,
     })
 }
 
-struct CoreUpdatePaths {
-    zip_path: std::path::PathBuf,
-    extract_dir: std::path::PathBuf,
-    bin_dir: std::path::PathBuf,
+pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
+    cleanup_staged_core_update_files()
+}
+
+fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
+    let paths = get_update_paths("cleanup.zip")?;
+
+    if !paths.executable_path.exists() {
+        if paths.staged_path.exists() {
+            rename_file(
+                &paths.staged_path,
+                &paths.executable_path,
+                "Failed to restore the staged sing-box executable on startup",
+            )?;
+        } else if paths.backup_path.exists() {
+            rename_file(
+                &paths.backup_path,
+                &paths.executable_path,
+                "Failed to restore the previous sing-box executable on startup",
+            )?;
+        }
+    }
+
+    if paths.executable_path.exists() && paths.staged_path.exists() {
+        remove_file_if_exists(
+            &paths.staged_path,
+            "Failed to clean the staged sing-box executable on startup",
+        )?;
+    }
+
+    if paths.executable_path.exists() && paths.backup_path.exists() {
+        remove_file_if_exists(
+            &paths.backup_path,
+            "Failed to clean the previous sing-box executable on startup",
+        )?;
+    }
+
+    cleanup_download_artifacts(&paths)?;
+    Ok(())
 }
 
 fn get_update_paths(asset_name: &str) -> Result<CoreUpdatePaths, CommandError> {
     let bin_dir = get_bin_dir()?;
     let update_dir = get_data_dir()?.join("core-update");
-    std::fs::create_dir_all(&update_dir)?;
-    std::fs::create_dir_all(&bin_dir)?;
+    fs::create_dir_all(&update_dir).map_err(|error| {
+        map_io_error(
+            "Failed to prepare the sing-box core update directory",
+            &update_dir,
+            error,
+        )
+    })?;
+    fs::create_dir_all(&bin_dir).map_err(|error| {
+        map_io_error(
+            "Failed to prepare the sing-box bin directory",
+            &bin_dir,
+            error,
+        )
+    })?;
+
+    let executable_path = bin_dir.join(CORE_EXECUTABLE_NAME);
 
     Ok(CoreUpdatePaths {
         zip_path: update_dir.join(asset_name),
-        extract_dir: update_dir.join("extract"),
-        bin_dir,
+        checksum_path: update_dir.join(CHECKSUM_ASSET_NAME),
+        executable_path: executable_path.clone(),
+        staged_path: executable_path.with_extension("exe.new"),
+        backup_path: executable_path.with_extension("exe.old"),
     })
 }
 
-fn download_latest_core_archive(
-    release: &LatestReleaseMetadata,
-    zip_path: &std::path::Path,
+async fn fetch_latest_release_metadata() -> Result<LatestReleaseMetadata, CommandError> {
+    let response = github_client()?
+        .get(GITHUB_RELEASE_API)
+        .header("Accept", "application/vnd.github+json")
+        .header("X-GitHub-Api-Version", "2022-11-28")
+        .send()
+        .await
+        .map_err(|error| map_network_error("Failed to reach GitHub", error))?
+        .error_for_status()
+        .map_err(|error| map_network_error("GitHub rejected the release metadata request", error))?
+        .json::<LatestReleaseResponse>()
+        .await
+        .map_err(|error| {
+            map_network_error(
+                "Failed to parse the latest sing-box release metadata",
+                error,
+            )
+        })?;
+
+    let archive = response
+        .assets
+        .iter()
+        .find(|asset| asset.name.ends_with(WINDOWS_AMD64_ASSET_SUFFIX))
+        .ok_or_else(|| {
+            CommandError::validation(
+                "No Windows amd64 sing-box core asset was found in the latest GitHub release.",
+            )
+        })?;
+    let checksums = response
+        .assets
+        .iter()
+        .find(|asset| asset.name == CHECKSUM_ASSET_NAME)
+        .ok_or_else(|| {
+            CommandError::validation(
+                "The latest GitHub release is missing sha256sums.txt, so the core download cannot be verified safely.",
+            )
+        })?;
+
+    Ok(LatestReleaseMetadata {
+        tag: response.tag_name,
+        archive_name: archive.name.clone(),
+        archive_url: archive.browser_download_url.clone(),
+        checksums_url: checksums.browser_download_url.clone(),
+    })
+}
+
+async fn download_file_with_progress(
+    app: &AppHandle,
+    url: &str,
+    destination: &Path,
+    message: &str,
+    start_percent: u8,
+    end_percent: u8,
 ) -> Result<(), CommandError> {
-    let script = format!(
-        r#"
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$downloadUrl = '{download_url}'
-$zipPath = '{zip_path}'
+    let response = github_client()?
+        .get(url)
+        .header("Accept", "application/octet-stream")
+        .send()
+        .await
+        .map_err(|error| map_network_error("Failed to download the sing-box release asset", error))?
+        .error_for_status()
+        .map_err(|error| {
+            map_network_error("GitHub rejected the sing-box download request", error)
+        })?;
 
-if (Test-Path $zipPath) {{
-  Remove-Item $zipPath -Force
-}}
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            map_io_error(
+                "Failed to prepare the download directory for the sing-box core",
+                parent,
+                error,
+            )
+        })?;
+    }
 
-Invoke-WebRequest -Headers @{{ 'User-Agent' = 'fresh-box'; 'Accept' = 'application/octet-stream' }} -Uri $downloadUrl -OutFile $zipPath
-"#,
-        download_url = escape_powershell_literal(&release.url),
-        zip_path = escape_powershell_literal(&zip_path.to_string_lossy()),
-    );
+    remove_file_if_exists(destination, "Failed to clear the previous sing-box archive")?;
 
-    run_powershell_script(&script)?;
+    let mut file = File::create(destination).map_err(|error| {
+        map_io_error(
+            "Failed to create the temporary sing-box archive",
+            destination,
+            error,
+        )
+    })?;
+    let total_size = response.content_length();
+    let mut downloaded = 0_u64;
+    let mut last_percent = start_percent;
+    emit_progress(app, "downloading", start_percent, message);
+
+    let mut stream = response.bytes_stream();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk
+            .map_err(|error| map_network_error("The sing-box download was interrupted", error))?;
+        file.write_all(&chunk).map_err(|error| {
+            map_io_error(
+                "Failed to write the downloaded sing-box archive to disk",
+                destination,
+                error,
+            )
+        })?;
+        downloaded += chunk.len() as u64;
+
+        if let Some(total_size) = total_size {
+            let percent = scale_progress(downloaded, total_size, start_percent, end_percent);
+            if percent > last_percent {
+                last_percent = percent;
+                emit_progress(app, "downloading", percent, message);
+            }
+        }
+    }
+
+    file.flush().map_err(|error| {
+        map_io_error(
+            "Failed to finalize the downloaded sing-box archive",
+            destination,
+            error,
+        )
+    })?;
+
     Ok(())
 }
 
-fn install_downloaded_core(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
-    let script = format!(
-        r#"
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$zipPath = '{zip_path}'
-$extractDir = '{extract_dir}'
-$binDir = '{bin_dir}'
+async fn download_file(url: &str, destination: &Path) -> Result<(), CommandError> {
+    let response = github_client()?
+        .get(url)
+        .header("Accept", "application/octet-stream")
+        .send()
+        .await
+        .map_err(|error| map_network_error("Failed to download the release checksums", error))?
+        .error_for_status()
+        .map_err(|error| {
+            map_network_error("GitHub rejected the checksum download request", error)
+        })?;
 
-if (-not (Test-Path $zipPath)) {{
-  throw 'The downloaded sing-box archive could not be found.'
-}}
+    let bytes = response
+        .bytes()
+        .await
+        .map_err(|error| map_network_error("Failed to read the downloaded checksums", error))?;
 
-if (Test-Path $extractDir) {{
-  Remove-Item $extractDir -Recurse -Force
-}}
+    if let Some(parent) = destination.parent() {
+        fs::create_dir_all(parent).map_err(|error| {
+            map_io_error(
+                "Failed to prepare the checksum download directory",
+                parent,
+                error,
+            )
+        })?;
+    }
 
-New-Item -Path $extractDir -ItemType Directory -Force | Out-Null
-New-Item -Path $binDir -ItemType Directory -Force | Out-Null
+    fs::write(destination, &bytes).map_err(|error| {
+        map_io_error(
+            "Failed to write the downloaded checksums to disk",
+            destination,
+            error,
+        )
+    })?;
 
-Expand-Archive -Path $zipPath -DestinationPath $extractDir -Force
-
-$core = Get-ChildItem -Path $extractDir -Filter 'sing-box.exe' -Recurse | Select-Object -First 1
-if (-not $core) {{
-  throw 'sing-box.exe was not found in the downloaded archive.'
-}}
-
-Copy-Item -Path $core.FullName -Destination (Join-Path $binDir 'sing-box.exe') -Force
-
-Remove-Item $zipPath -Force
-Remove-Item $extractDir -Recurse -Force
-"#,
-        zip_path = escape_powershell_literal(&paths.zip_path.to_string_lossy()),
-        extract_dir = escape_powershell_literal(&paths.extract_dir.to_string_lossy()),
-        bin_dir = escape_powershell_literal(&paths.bin_dir.to_string_lossy()),
-    );
-
-    run_powershell_script(&script)?;
     Ok(())
 }
 
-fn fetch_latest_release_metadata() -> Result<LatestReleaseMetadata, CommandError> {
-    let script = format!(
-        r#"
-$ErrorActionPreference = 'Stop'
-$ProgressPreference = 'SilentlyContinue'
-$release = Invoke-RestMethod -Headers @{{ 'User-Agent' = 'fresh-box'; 'X-GitHub-Api-Version' = '2022-11-28' }} -Uri '{release_api}'
-$asset = $release.assets | Where-Object {{ $_.name -like '*{asset_suffix}' }} | Select-Object -First 1
-if (-not $asset) {{
-  throw 'No Windows amd64 sing-box asset was found in the latest release.'
-}}
+fn verify_downloaded_archive(
+    checksum_path: &Path,
+    archive_path: &Path,
+    archive_name: &str,
+) -> Result<(), CommandError> {
+    let checksums = fs::read_to_string(checksum_path).map_err(|error| {
+        map_io_error(
+            "Failed to read sha256sums.txt for verification",
+            checksum_path,
+            error,
+        )
+    })?;
+    let expected_checksum = checksums
+        .lines()
+        .find_map(|line| parse_checksum_line(line, archive_name))
+        .ok_or_else(|| {
+            CommandError::validation(format!(
+                "sha256sums.txt does not contain a checksum for {}.",
+                archive_name
+            ))
+        })?;
 
-[PSCustomObject]@{{
-  tag = [string]$release.tag_name
-  name = [string]$asset.name
-  url = [string]$asset.browser_download_url
-}} | ConvertTo-Json -Compress
-"#,
-        release_api = GITHUB_RELEASE_API,
-        asset_suffix = WINDOWS_AMD64_ASSET_SUFFIX,
+    let actual_checksum = compute_sha256(archive_path)?;
+    if !actual_checksum.eq_ignore_ascii_case(&expected_checksum) {
+        return Err(CommandError::validation(format!(
+            "Checksum verification failed for {}. Expected {}, got {}.",
+            archive_name, expected_checksum, actual_checksum
+        )));
+    }
+
+    Ok(())
+}
+
+fn parse_checksum_line(line: &str, archive_name: &str) -> Option<String> {
+    let trimmed = line.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let mut parts = trimmed.split_whitespace();
+    let hash = parts.next()?;
+    let file_name = parts.next()?.trim_start_matches('*').replace('\\', "/");
+    if file_name == archive_name || file_name.ends_with(&format!("/{}", archive_name)) {
+        Some(hash.to_string())
+    } else {
+        None
+    }
+}
+
+fn compute_sha256(path: &Path) -> Result<String, CommandError> {
+    let mut file = File::open(path).map_err(|error| {
+        map_io_error(
+            "Failed to open the downloaded archive for verification",
+            path,
+            error,
+        )
+    })?;
+    let mut hasher = Sha256::new();
+    let mut buffer = [0_u8; 8192];
+
+    loop {
+        let read = file.read(&mut buffer).map_err(|error| {
+            map_io_error(
+                "Failed to read the downloaded archive during checksum verification",
+                path,
+                error,
+            )
+        })?;
+        if read == 0 {
+            break;
+        }
+        hasher.update(&buffer[..read]);
+    }
+
+    Ok(format!("{:x}", hasher.finalize()))
+}
+
+fn extract_core_executable(archive_path: &Path, staged_path: &Path) -> Result<(), CommandError> {
+    remove_file_if_exists(
+        staged_path,
+        "Failed to clear the staged sing-box executable",
+    )?;
+
+    let archive_file = File::open(archive_path).map_err(|error| {
+        map_io_error(
+            "Failed to open the downloaded sing-box archive",
+            archive_path,
+            error,
+        )
+    })?;
+    let mut archive = zip::ZipArchive::new(archive_file).map_err(|error| {
+        CommandError::validation(format!(
+            "The downloaded sing-box archive could not be opened: {}",
+            error
+        ))
+    })?;
+
+    for index in 0..archive.len() {
+        let mut entry = archive.by_index(index).map_err(|error| {
+            CommandError::validation(format!(
+                "Failed to read an entry from the sing-box archive: {}",
+                error
+            ))
+        })?;
+        let entry_name = entry.name().replace('\\', "/");
+        if entry_name.ends_with("/sing-box.exe") || entry_name == CORE_EXECUTABLE_NAME {
+            let mut staged_file = File::create(staged_path).map_err(|error| {
+                map_io_error(
+                    "Failed to create the staged sing-box executable",
+                    staged_path,
+                    error,
+                )
+            })?;
+            io::copy(&mut entry, &mut staged_file).map_err(|error| {
+                map_io_error(
+                    "Failed to extract sing-box.exe from the downloaded archive",
+                    staged_path,
+                    error,
+                )
+            })?;
+            staged_file.flush().map_err(|error| {
+                map_io_error(
+                    "Failed to finalize the staged sing-box executable",
+                    staged_path,
+                    error,
+                )
+            })?;
+            return Ok(());
+        }
+    }
+
+    Err(CommandError::validation(
+        "sing-box.exe was not found in the downloaded archive.",
+    ))
+}
+
+fn apply_staged_core_update(
+    paths: &CoreUpdatePaths,
+    restart_required: bool,
+) -> Result<(), CommandError> {
+    if !paths.staged_path.exists() {
+        return Err(CommandError::resource_not_found(
+            "staged sing-box executable",
+            paths.staged_path.display(),
+        ));
+    }
+
+    remove_file_if_exists(
+        &paths.backup_path,
+        "Failed to clear the previous sing-box backup",
+    )?;
+
+    let had_existing_core = paths.executable_path.exists();
+    if had_existing_core {
+        rename_file(
+            &paths.executable_path,
+            &paths.backup_path,
+            "Failed to move the current sing-box executable out of the way",
+        )?;
+    }
+
+    if let Err(error) = rename_file(
+        &paths.staged_path,
+        &paths.executable_path,
+        "Failed to place the new sing-box executable",
+    ) {
+        if had_existing_core && paths.backup_path.exists() && !paths.executable_path.exists() {
+            let _ = fs::rename(&paths.backup_path, &paths.executable_path);
+        }
+        return Err(error);
+    }
+
+    if !restart_required {
+        remove_file_if_exists(
+            &paths.backup_path,
+            "Failed to remove the previous sing-box backup after the update",
+        )?;
+    }
+
+    Ok(())
+}
+
+fn cleanup_download_artifacts(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
+    remove_file_if_exists(
+        &paths.zip_path,
+        "Failed to clean the downloaded sing-box archive",
+    )?;
+    remove_file_if_exists(
+        &paths.checksum_path,
+        "Failed to clean the downloaded checksum file",
+    )?;
+    Ok(())
+}
+
+fn remove_file_if_exists(path: &Path, context: &str) -> Result<(), CommandError> {
+    if path.exists() {
+        fs::remove_file(path).map_err(|error| map_io_error(context, path, error))?;
+    }
+    Ok(())
+}
+
+fn rename_file(source: &Path, target: &Path, context: &str) -> Result<(), CommandError> {
+    fs::rename(source, target).map_err(|error| map_io_error(context, source, error))
+}
+
+fn scale_progress(downloaded: u64, total: u64, start_percent: u8, end_percent: u8) -> u8 {
+    if total == 0 || end_percent <= start_percent {
+        return end_percent;
+    }
+
+    let span = u64::from(end_percent - start_percent);
+    let progressed = downloaded.saturating_mul(span) / total;
+    let value = u64::from(start_percent) + progressed;
+    value.min(u64::from(end_percent)) as u8
+}
+
+fn emit_progress(app: &AppHandle, stage: &str, percent: u8, message: impl Into<String>) {
+    let _ = app.emit(
+        CORE_UPDATE_PROGRESS_EVENT,
+        CoreUpdateProgressEvent {
+            stage: stage.to_string(),
+            percent,
+            message: message.into(),
+        },
     );
+}
 
-    let response = run_powershell_script(&script)?;
-    serde_json::from_str(response.trim()).map_err(CommandError::from)
+fn github_client() -> Result<Client, CommandError> {
+    Client::builder()
+        .user_agent("fresh-box")
+        .connect_timeout(std::time::Duration::from_secs(15))
+        .timeout(std::time::Duration::from_secs(300))
+        .build()
+        .map_err(|error| {
+            CommandError::network(format!("Failed to initialize the HTTP client: {}", error))
+        })
+}
+
+fn map_network_error(context: &str, error: reqwest::Error) -> CommandError {
+    if error.is_timeout() {
+        return CommandError::network(format!(
+            "{}: request timed out. Check your network connection and try again.",
+            context
+        ));
+    }
+
+    if error.is_connect() {
+        return CommandError::network(format!(
+            "{}: could not connect to GitHub. Check your network connection or proxy settings.",
+            context
+        ));
+    }
+
+    if let Some(status) = error.status() {
+        let hint = match status.as_u16() {
+            401 | 403 => {
+                "GitHub refused the request. You may be rate limited or blocked by a proxy."
+            }
+            404 => "GitHub could not find the requested release asset.",
+            500..=599 => "GitHub is currently unavailable. Please try again later.",
+            _ => "The request failed unexpectedly.",
+        };
+        return CommandError::network(format!("{}: {} (HTTP {}).", context, hint, status));
+    }
+
+    CommandError::network(format!("{}: {}", context, error))
+}
+
+fn map_io_error(context: &str, path: &Path, error: io::Error) -> CommandError {
+    if error.kind() == io::ErrorKind::PermissionDenied {
+        return CommandError::permission_denied(format!(
+            "{}: {}. Make sure fresh-box can write to {} and close other programs that may be using it.",
+            context,
+            error,
+            path.display()
+        ));
+    }
+
+    CommandError::io(format!("{} ({})", context, path.display()), error)
 }
 
 fn get_installed_singbox_version() -> Result<Option<String>, CommandError> {
-    let singbox_path = get_bin_dir()?.join("sing-box.exe");
+    let singbox_path = get_bin_dir()?.join(CORE_EXECUTABLE_NAME);
     if !singbox_path.exists() {
         return Ok(None);
     }
@@ -212,10 +705,11 @@ fn get_installed_singbox_version() -> Result<Option<String>, CommandError> {
     hide_window(&mut command);
 
     let output = command.arg("version").output().map_err(|error| {
-        CommandError::IoError(format!(
-            "Failed to read the installed sing-box version: {}",
-            error
-        ))
+        map_io_error(
+            "Failed to read the installed sing-box version",
+            &singbox_path,
+            error,
+        )
     })?;
 
     if !output.status.success() {
@@ -229,10 +723,13 @@ fn get_installed_singbox_version() -> Result<Option<String>, CommandError> {
             format!("exit code {:?}", output.status.code())
         };
 
-        return Err(CommandError::IoError(format!(
-            "Failed to read the installed sing-box version: {}",
-            reason
-        )));
+        return Err(CommandError::io(
+            format!(
+                "Failed to read the installed sing-box version ({})",
+                singbox_path.display()
+            ),
+            reason,
+        ));
     }
 
     let stdout = String::from_utf8_lossy(&output.stdout);
@@ -274,60 +771,6 @@ fn normalized_version(value: &str) -> Option<String> {
         None
     } else {
         Some(cleaned.to_string())
-    }
-}
-
-fn escape_powershell_literal(value: &str) -> String {
-    value.replace('\'', "''")
-}
-
-fn run_powershell_script(script: &str) -> Result<String, CommandError> {
-    #[cfg(target_os = "windows")]
-    {
-        let mut command = Command::new("powershell.exe");
-        hide_window(&mut command);
-
-        let output = command
-            .args([
-                "-NoLogo",
-                "-NoProfile",
-                "-NonInteractive",
-                "-ExecutionPolicy",
-                "Bypass",
-                "-Command",
-                script,
-            ])
-            .output()
-            .map_err(|error| {
-                CommandError::IoError(format!("Failed to start PowerShell: {}", error))
-            })?;
-
-        if !output.status.success() {
-            let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-            let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-            let reason = if !stderr.is_empty() {
-                stderr
-            } else if !stdout.is_empty() {
-                stdout
-            } else {
-                format!("exit code {:?}", output.status.code())
-            };
-
-            return Err(CommandError::IoError(format!(
-                "Failed to run the sing-box core command: {}",
-                reason
-            )));
-        }
-
-        Ok(String::from_utf8_lossy(&output.stdout).to_string())
-    }
-
-    #[cfg(not(target_os = "windows"))]
-    {
-        let _ = script;
-        Err(CommandError::InvalidState(
-            "Updating the sing-box core is only supported on Windows.".to_string(),
-        ))
     }
 }
 

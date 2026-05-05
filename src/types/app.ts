@@ -63,6 +63,13 @@ export interface SingboxCoreUpdateResult {
   previous_version: string | null;
   current_version: string;
   latest_version: string;
+  restart_required: boolean;
+}
+
+export interface CoreUpdateProgressEvent {
+  stage: string;
+  percent: number;
+  message: string;
 }
 
 export interface CommandErrorPayload {
