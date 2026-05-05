@@ -4,9 +4,10 @@ use crate::singbox::SingboxState;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
+use std::ffi::OsString;
 use std::fs::{self, File};
 use std::io::{self, Write};
-use std::path::{Path, PathBuf};
+use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, State};
 
@@ -60,9 +61,9 @@ pub struct SingboxCoreUpdateResult {
 
 struct CoreUpdatePaths {
     zip_path: PathBuf,
-    executable_path: PathBuf,
-    staged_path: PathBuf,
-    backup_path: PathBuf,
+    bin_dir: PathBuf,
+    staged_dir: PathBuf,
+    backup_dir: PathBuf,
 }
 
 #[tauri::command]
@@ -117,14 +118,14 @@ pub async fn update_singbox_core(
         &app,
         &latest_release.archive_url,
         &update_paths.zip_path,
-        "Downloading sing-box core...",
+        "Downloading sing-box package...",
         8,
         68,
     )
     .await?;
 
-    emit_progress(&app, "extracting", 76, "Extracting sing-box.exe...");
-    extract_core_executable(&update_paths.zip_path, &update_paths.staged_path)?;
+    emit_progress(&app, "extracting", 76, "Extracting sing-box package...");
+    extract_package_files(&update_paths.zip_path, &update_paths.staged_dir)?;
 
     let restart_required = crate::singbox::is_singbox_running(state).await?;
     emit_progress(
@@ -132,9 +133,9 @@ pub async fn update_singbox_core(
         "applying",
         90,
         if restart_required {
-            "Replacing sing-box.exe. Restart sing-box after the update finishes."
+            "Replacing sing-box files. Restart sing-box after the update finishes."
         } else {
-            "Applying the updated sing-box core..."
+            "Applying the updated sing-box package..."
         },
     );
     apply_staged_core_update(&update_paths, restart_required)?;
@@ -179,37 +180,10 @@ pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
 fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
     let paths = get_update_paths("cleanup.zip")?;
 
-    if !paths.executable_path.exists() {
-        if paths.staged_path.exists() {
-            rename_file(
-                &paths.staged_path,
-                &paths.executable_path,
-                "Failed to restore the staged sing-box executable on startup",
-            )?;
-        } else if paths.backup_path.exists() {
-            rename_file(
-                &paths.backup_path,
-                &paths.executable_path,
-                "Failed to restore the previous sing-box executable on startup",
-            )?;
-        }
-    }
-
-    if paths.executable_path.exists() && paths.staged_path.exists() {
-        remove_file_if_exists(
-            &paths.staged_path,
-            "Failed to clean the staged sing-box executable on startup",
-        )?;
-    }
-
-    if paths.executable_path.exists() && paths.backup_path.exists() {
-        remove_file_if_exists(
-            &paths.backup_path,
-            "Failed to clean the previous sing-box executable on startup",
-        )?;
-    }
-
+    recover_staged_files(&paths)?;
+    recover_backup_files(&paths)?;
     cleanup_download_artifacts(&paths)?;
+
     Ok(())
 }
 
@@ -231,13 +205,11 @@ fn get_update_paths(asset_name: &str) -> Result<CoreUpdatePaths, CommandError> {
         )
     })?;
 
-    let executable_path = bin_dir.join(CORE_EXECUTABLE_NAME);
-
     Ok(CoreUpdatePaths {
         zip_path: update_dir.join(asset_name),
-        executable_path: executable_path.clone(),
-        staged_path: executable_path.with_extension("exe.new"),
-        backup_path: executable_path.with_extension("exe.old"),
+        staged_dir: update_dir.join("package.new"),
+        backup_dir: update_dir.join("package.old"),
+        bin_dir,
     })
 }
 
@@ -299,7 +271,7 @@ async fn download_file_with_progress(
     if let Some(parent) = destination.parent() {
         fs::create_dir_all(parent).map_err(|error| {
             map_io_error(
-                "Failed to prepare the download directory for the sing-box core",
+                "Failed to prepare the download directory for the sing-box package",
                 parent,
                 error,
             )
@@ -353,11 +325,18 @@ async fn download_file_with_progress(
     Ok(())
 }
 
-fn extract_core_executable(archive_path: &Path, staged_path: &Path) -> Result<(), CommandError> {
-    remove_file_if_exists(
-        staged_path,
-        "Failed to clear the staged sing-box executable",
+fn extract_package_files(archive_path: &Path, staged_dir: &Path) -> Result<(), CommandError> {
+    remove_dir_if_exists(
+        staged_dir,
+        "Failed to clear the staged sing-box package directory",
     )?;
+    fs::create_dir_all(staged_dir).map_err(|error| {
+        map_io_error(
+            "Failed to create the staged sing-box package directory",
+            staged_dir,
+            error,
+        )
+    })?;
 
     let archive_file = File::open(archive_path).map_err(|error| {
         map_io_error(
@@ -373,6 +352,8 @@ fn extract_core_executable(archive_path: &Path, staged_path: &Path) -> Result<()
         ))
     })?;
 
+    let mut extracted_any = false;
+
     for index in 0..archive.len() {
         let mut entry = archive.by_index(index).map_err(|error| {
             CommandError::validation(format!(
@@ -380,79 +361,344 @@ fn extract_core_executable(archive_path: &Path, staged_path: &Path) -> Result<()
                 error
             ))
         })?;
-        let entry_name = entry.name().replace('\\', "/");
-        if entry_name.ends_with("/sing-box.exe") || entry_name == CORE_EXECUTABLE_NAME {
-            let mut staged_file = File::create(staged_path).map_err(|error| {
+
+        if entry.is_dir() {
+            continue;
+        }
+
+        let relative_path = archive_relative_path(entry.name())?.ok_or_else(|| {
+            CommandError::validation(
+                "The downloaded sing-box archive contains an invalid file path.",
+            )
+        })?;
+        let staged_path = staged_dir.join(&relative_path);
+
+        if let Some(parent) = staged_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
                 map_io_error(
-                    "Failed to create the staged sing-box executable",
-                    staged_path,
+                    "Failed to prepare the staged sing-box package directory",
+                    parent,
                     error,
                 )
             })?;
-            io::copy(&mut entry, &mut staged_file).map_err(|error| {
-                map_io_error(
-                    "Failed to extract sing-box.exe from the downloaded archive",
-                    staged_path,
-                    error,
-                )
-            })?;
-            staged_file.flush().map_err(|error| {
-                map_io_error(
-                    "Failed to finalize the staged sing-box executable",
-                    staged_path,
-                    error,
-                )
-            })?;
-            return Ok(());
+        }
+
+        let mut staged_file = File::create(&staged_path).map_err(|error| {
+            map_io_error(
+                "Failed to create a staged sing-box package file",
+                &staged_path,
+                error,
+            )
+        })?;
+        io::copy(&mut entry, &mut staged_file).map_err(|error| {
+            map_io_error(
+                "Failed to extract a file from the sing-box archive",
+                &staged_path,
+                error,
+            )
+        })?;
+        staged_file.flush().map_err(|error| {
+            map_io_error(
+                "Failed to finalize a staged sing-box package file",
+                &staged_path,
+                error,
+            )
+        })?;
+        extracted_any = true;
+    }
+
+    if !extracted_any {
+        return Err(CommandError::validation(
+            "The downloaded sing-box archive did not contain any files to install.",
+        ));
+    }
+
+    Ok(())
+}
+
+fn archive_relative_path(name: &str) -> Result<Option<PathBuf>, CommandError> {
+    let normalized = name.replace('\\', "/");
+    let mut components = Vec::<OsString>::new();
+
+    for component in Path::new(&normalized).components() {
+        match component {
+            Component::Normal(part) => components.push(part.to_os_string()),
+            Component::CurDir => {}
+            Component::ParentDir => {
+                return Err(CommandError::validation(
+                    "The downloaded sing-box archive contains a parent-directory path.",
+                ));
+            }
+            Component::RootDir | Component::Prefix(_) => {}
         }
     }
 
-    Err(CommandError::validation(
-        "sing-box.exe was not found in the downloaded archive.",
-    ))
+    if components.is_empty() {
+        return Ok(None);
+    }
+
+    let relevant_components = if components.len() > 1 {
+        &components[1..]
+    } else {
+        &components[..]
+    };
+
+    if relevant_components.is_empty() {
+        return Ok(None);
+    }
+
+    let mut relative_path = PathBuf::new();
+    for component in relevant_components {
+        relative_path.push(component);
+    }
+
+    if relative_path.as_os_str().is_empty() {
+        Ok(None)
+    } else {
+        Ok(Some(relative_path))
+    }
 }
 
 fn apply_staged_core_update(
     paths: &CoreUpdatePaths,
     restart_required: bool,
 ) -> Result<(), CommandError> {
-    if !paths.staged_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "staged sing-box executable",
-            paths.staged_path.display(),
+    let relative_files = collect_relative_files(&paths.staged_dir)?;
+    if relative_files.is_empty() {
+        return Err(CommandError::validation(
+            "No staged sing-box package files were found to apply.",
         ));
     }
 
-    remove_file_if_exists(
-        &paths.backup_path,
-        "Failed to clear the previous sing-box backup",
+    remove_dir_if_exists(
+        &paths.backup_dir,
+        "Failed to clear the previous sing-box package backup",
     )?;
 
-    let had_existing_core = paths.executable_path.exists();
-    if had_existing_core {
-        rename_file(
-            &paths.executable_path,
-            &paths.backup_path,
-            "Failed to move the current sing-box executable out of the way",
-        )?;
+    let mut backed_up = Vec::<PathBuf>::new();
+    let mut installed = Vec::<PathBuf>::new();
+
+    for relative_path in &relative_files {
+        let staged_path = paths.staged_dir.join(relative_path);
+        let target_path = paths.bin_dir.join(relative_path);
+        let backup_path = paths.backup_dir.join(relative_path);
+
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                map_io_error(
+                    "Failed to prepare the target directory for a sing-box package file",
+                    parent,
+                    error,
+                )
+            })?;
+        }
+
+        if target_path.exists() {
+            if let Some(parent) = backup_path.parent() {
+                fs::create_dir_all(parent).map_err(|error| {
+                    map_io_error(
+                        "Failed to prepare the backup directory for a sing-box package file",
+                        parent,
+                        error,
+                    )
+                })?;
+            }
+
+            rename_file(
+                &target_path,
+                &backup_path,
+                "Failed to move an existing sing-box package file out of the way",
+            )?;
+            backed_up.push(relative_path.clone());
+        }
+
+        if let Err(error) = rename_file(
+            &staged_path,
+            &target_path,
+            "Failed to place a new sing-box package file",
+        ) {
+            rollback_package_apply(paths, &installed, &backed_up);
+            return Err(error);
+        }
+
+        installed.push(relative_path.clone());
     }
 
-    if let Err(error) = rename_file(
-        &paths.staged_path,
-        &paths.executable_path,
-        "Failed to place the new sing-box executable",
-    ) {
-        if had_existing_core && paths.backup_path.exists() && !paths.executable_path.exists() {
-            let _ = fs::rename(&paths.backup_path, &paths.executable_path);
-        }
-        return Err(error);
-    }
+    remove_dir_if_exists(
+        &paths.staged_dir,
+        "Failed to clear the staged sing-box package directory after the update",
+    )?;
 
     if !restart_required {
-        remove_file_if_exists(
-            &paths.backup_path,
-            "Failed to remove the previous sing-box backup after the update",
+        remove_dir_if_exists(
+            &paths.backup_dir,
+            "Failed to clear the previous sing-box package backup after the update",
         )?;
+    }
+
+    Ok(())
+}
+
+fn rollback_package_apply(paths: &CoreUpdatePaths, installed: &[PathBuf], backed_up: &[PathBuf]) {
+    for relative_path in installed.iter().rev() {
+        let staged_path = paths.staged_dir.join(relative_path);
+        let target_path = paths.bin_dir.join(relative_path);
+
+        if target_path.exists() {
+            if let Some(parent) = staged_path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+            let _ = fs::rename(&target_path, &staged_path);
+        }
+    }
+
+    for relative_path in backed_up.iter().rev() {
+        let backup_path = paths.backup_dir.join(relative_path);
+        let target_path = paths.bin_dir.join(relative_path);
+
+        if backup_path.exists() {
+            if let Some(parent) = target_path.parent() {
+                let _ = fs::create_dir_all(parent);
+            }
+
+            if target_path.exists() {
+                let _ = fs::remove_file(&target_path);
+            }
+
+            let _ = fs::rename(&backup_path, &target_path);
+        }
+    }
+}
+
+fn recover_staged_files(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
+    let relative_files = collect_relative_files(&paths.staged_dir)?;
+
+    for relative_path in relative_files {
+        let staged_path = paths.staged_dir.join(&relative_path);
+        let target_path = paths.bin_dir.join(&relative_path);
+
+        if target_path.exists() {
+            remove_file_if_exists(
+                &staged_path,
+                "Failed to clean a staged sing-box package file on startup",
+            )?;
+            continue;
+        }
+
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                map_io_error(
+                    "Failed to prepare the target directory while recovering a staged sing-box package file",
+                    parent,
+                    error,
+                )
+            })?;
+        }
+
+        rename_file(
+            &staged_path,
+            &target_path,
+            "Failed to recover a staged sing-box package file on startup",
+        )?;
+    }
+
+    remove_dir_if_exists(
+        &paths.staged_dir,
+        "Failed to clean the staged sing-box package directory on startup",
+    )?;
+
+    Ok(())
+}
+
+fn recover_backup_files(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
+    let relative_files = collect_relative_files(&paths.backup_dir)?;
+
+    for relative_path in relative_files {
+        let backup_path = paths.backup_dir.join(&relative_path);
+        let target_path = paths.bin_dir.join(&relative_path);
+
+        if target_path.exists() {
+            remove_file_if_exists(
+                &backup_path,
+                "Failed to clean a previous sing-box package file on startup",
+            )?;
+            continue;
+        }
+
+        if let Some(parent) = target_path.parent() {
+            fs::create_dir_all(parent).map_err(|error| {
+                map_io_error(
+                    "Failed to prepare the target directory while recovering a previous sing-box package file",
+                    parent,
+                    error,
+                )
+            })?;
+        }
+
+        rename_file(
+            &backup_path,
+            &target_path,
+            "Failed to recover a previous sing-box package file on startup",
+        )?;
+    }
+
+    remove_dir_if_exists(
+        &paths.backup_dir,
+        "Failed to clean the previous sing-box package backup directory on startup",
+    )?;
+
+    Ok(())
+}
+
+fn collect_relative_files(root: &Path) -> Result<Vec<PathBuf>, CommandError> {
+    let mut files = Vec::new();
+    collect_relative_files_recursive(root, root, &mut files)?;
+    Ok(files)
+}
+
+fn collect_relative_files_recursive(
+    root: &Path,
+    current: &Path,
+    files: &mut Vec<PathBuf>,
+) -> Result<(), CommandError> {
+    if !current.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(current).map_err(|error| {
+        map_io_error(
+            "Failed to read a sing-box package directory",
+            current,
+            error,
+        )
+    })? {
+        let entry = entry.map_err(|error| {
+            map_io_error(
+                "Failed to enumerate a sing-box package directory entry",
+                current,
+                error,
+            )
+        })?;
+        let path = entry.path();
+        let entry_type = entry.file_type().map_err(|error| {
+            map_io_error(
+                "Failed to determine a sing-box package entry type",
+                &path,
+                error,
+            )
+        })?;
+
+        if entry_type.is_dir() {
+            collect_relative_files_recursive(root, &path, files)?;
+        } else if entry_type.is_file() {
+            let relative_path = path.strip_prefix(root).map_err(|error| {
+                CommandError::invalid_state(
+                    "collect_relative_files",
+                    format!("failed to compute relative path: {}", error),
+                )
+            })?;
+            files.push(relative_path.to_path_buf());
+        }
     }
 
     Ok(())
@@ -469,6 +715,13 @@ fn cleanup_download_artifacts(paths: &CoreUpdatePaths) -> Result<(), CommandErro
 fn remove_file_if_exists(path: &Path, context: &str) -> Result<(), CommandError> {
     if path.exists() {
         fs::remove_file(path).map_err(|error| map_io_error(context, path, error))?;
+    }
+    Ok(())
+}
+
+fn remove_dir_if_exists(path: &Path, context: &str) -> Result<(), CommandError> {
+    if path.exists() {
+        fs::remove_dir_all(path).map_err(|error| map_io_error(context, path, error))?;
     }
     Ok(())
 }

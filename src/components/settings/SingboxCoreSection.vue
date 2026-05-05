@@ -103,14 +103,7 @@ defineEmits<{
           :disabled="isRefreshingCoreStatus || isUpdatingCore"
           @click="$emit('refresh')"
         >
-          <span
-            v-if="isRefreshingCoreStatus"
-            class="flex h-5 w-5 items-center justify-center text-base animate-spin"
-            >🔄</span
-          >
-          <span
-            v-else
-            class="flex h-5 w-5 items-center justify-center text-base"
+          <span class="flex h-5 w-5 items-center justify-center text-base"
             >🧭</span
           >
           <span class="font-medium">
@@ -132,14 +125,7 @@ defineEmits<{
           "
           @click="$emit('update')"
         >
-          <span
-            v-if="isUpdatingCore"
-            class="flex h-5 w-5 items-center justify-center text-base animate-spin"
-            >⬇️</span
-          >
-          <span
-            v-else
-            class="flex h-5 w-5 items-center justify-center text-base"
+          <span class="flex h-5 w-5 items-center justify-center text-base"
             >⚙️</span
           >
           <span class="font-medium">

@@ -501,42 +501,11 @@ fn stop_process_by_pid(process_state: &mut ProcessState, pid: u32) -> Result<(),
 
 #[cfg(not(windows))]
 fn stop_process_by_pid(_process_state: &mut ProcessState, pid: u32) -> Result<(), CommandError> {
-    use sysinfo::System;
-
-    let mut system = System::new_all();
-    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-    if let Some(process) = system.process(sysinfo::Pid::from_u32(pid)) {
-        let process_name = process.name().to_string_lossy().to_lowercase();
-        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-            println!(
-                "Attempting to kill sing-box process (PID: {}, Name: {})",
-                pid,
-                process.name().to_string_lossy()
-            );
-
-            use sysinfo::Signal;
-            if process.kill_with(Signal::Term).unwrap_or(false) {
-                println!(
-                    "Successfully sent SIGTERM to sing-box process (PID: {})",
-                    pid
-                );
-                Ok(())
-            } else {
-                Err(CommandError::FailedToStopProcess(format!(
-                    "Failed to send SIGTERM to process PID: {}",
-                    pid
-                )))
-            }
-        } else {
-            Err(CommandError::FailedToStopProcess(format!(
-                "Process PID {} is not a sing-box process",
-                pid
-            )))
-        }
-    } else {
-        Err(CommandError::ProcessNotRunning)
-    }
+    let _ = pid;
+    Err(CommandError::invalid_state(
+        "stop_process_by_pid",
+        "non-Windows process termination is not implemented",
+    ))
 }
 
 #[cfg(windows)]
@@ -568,36 +537,10 @@ fn stop_any_singbox_process(process_state: &mut ProcessState) -> Result<bool, Co
 
 #[cfg(not(windows))]
 fn stop_any_singbox_process(_process_state: &mut ProcessState) -> Result<bool, CommandError> {
-    use sysinfo::System;
-
-    let mut system = System::new_all();
-    system.refresh_processes(sysinfo::ProcessesToUpdate::All, true);
-
-    let mut killed_any = false;
-
-    for (pid, process) in system.processes() {
-        let process_name = process.name().to_string_lossy().to_lowercase();
-        if process_name.contains("sing-box") || process_name.contains("sing-box.exe") {
-            println!(
-                "Attempting to kill sing-box process (PID: {}, Name: {})",
-                pid,
-                process.name().to_string_lossy()
-            );
-
-            use sysinfo::Signal;
-            if process.kill_with(Signal::Term).unwrap_or(false) {
-                killed_any = true;
-                println!(
-                    "Successfully sent SIGTERM to sing-box process (PID: {})",
-                    pid
-                );
-            } else {
-                eprintln!("Failed to send SIGTERM to sing-box process (PID: {})", pid);
-            }
-        }
-    }
-
-    Ok(killed_any)
+    Err(CommandError::invalid_state(
+        "stop_any_singbox_process",
+        "non-Windows process sweep is not implemented",
+    ))
 }
 
 fn get_singbox_process_info_by_pid(
