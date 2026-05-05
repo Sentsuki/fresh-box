@@ -1,6 +1,7 @@
 use crate::config::{
-    get_active_singbox_core_version, get_core_version_dir, get_core_versions_dir, get_data_dir,
-    set_active_singbox_core_version,
+    get_active_singbox_core_executable, get_active_singbox_core_selection, get_core_channel_dir,
+    get_core_version_dir, get_data_dir, normalize_core_channel, set_active_singbox_core_selection,
+    CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING,
 };
 use crate::errors::CommandError;
 use crate::singbox::SingboxState;
@@ -14,7 +15,8 @@ use std::path::{Component, Path, PathBuf};
 use std::process::Command;
 use tauri::{AppHandle, Emitter, State};
 
-const GITHUB_RELEASE_API: &str = "https://api.github.com/repos/SagerNet/sing-box/releases/latest";
+const GITHUB_RELEASES_API: &str =
+    "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=12";
 const WINDOWS_AMD64_ASSET_SUFFIX: &str = "windows-amd64.zip";
 const CORE_UPDATE_PROGRESS_EVENT: &str = "core-update-progress";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
@@ -26,13 +28,16 @@ struct ReleaseAsset {
 }
 
 #[derive(Deserialize)]
-struct LatestReleaseResponse {
+struct GithubRelease {
     tag_name: String,
+    prerelease: bool,
+    draft: bool,
     assets: Vec<ReleaseAsset>,
 }
 
-struct LatestReleaseMetadata {
-    tag: String,
+struct CoreReleaseMetadata {
+    channel: &'static str,
+    version: String,
     archive_name: String,
     archive_url: String,
 }
@@ -46,12 +51,23 @@ struct CoreUpdateProgressEvent {
 }
 
 #[derive(Serialize)]
+pub struct SingboxCoreOption {
+    pub channel: String,
+    pub version: String,
+    pub label: String,
+    pub installed: bool,
+    pub is_active: bool,
+}
+
+#[derive(Serialize)]
 pub struct SingboxCoreStatus {
     pub installed: bool,
+    pub current_channel: Option<String>,
     pub current_version: Option<String>,
     pub latest_version: Option<String>,
     pub update_available: bool,
     pub is_running: bool,
+    pub available_options: Vec<SingboxCoreOption>,
 }
 
 #[derive(Serialize)]
@@ -64,7 +80,6 @@ pub struct SingboxCoreUpdateResult {
 
 struct CoreUpdatePaths {
     zip_path: PathBuf,
-    versions_dir: PathBuf,
     target_version_dir: PathBuf,
     staged_version_dir: PathBuf,
 }
@@ -73,53 +88,143 @@ struct CoreUpdatePaths {
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
 ) -> Result<SingboxCoreStatus, CommandError> {
+    cleanup_staged_core_update_files()?;
+
+    let releases = fetch_available_core_releases().await?;
+    let active_selection = get_active_singbox_core_selection()?;
+    cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
+
     let is_running = crate::singbox::is_singbox_running(state).await?;
-    let current_version = get_installed_singbox_version()?;
-    let latest_release = fetch_latest_release_metadata().await?;
-    let latest_version = normalized_version(&latest_release.tag).or(Some(latest_release.tag));
-    let update_available = match (&current_version, &latest_version) {
-        (Some(current), Some(latest)) => current != latest,
-        (None, Some(_)) => true,
+    let installed = get_active_singbox_core_executable().is_ok();
+    let (current_channel, current_version) = active_selection
+        .clone()
+        .filter(|(channel, version)| core_version_installed(channel, version))
+        .map_or((None, None), |(channel, version)| {
+            (Some(channel), Some(version))
+        });
+
+    let available_options = releases
+        .iter()
+        .map(|release| {
+            let installed = core_version_installed(release.channel, &release.version);
+            let is_active = current_channel.as_deref() == Some(release.channel)
+                && current_version.as_deref() == Some(release.version.as_str());
+            SingboxCoreOption {
+                channel: release.channel.to_string(),
+                version: release.version.clone(),
+                label: format!("{} · {}", channel_label(release.channel), release.version),
+                installed,
+                is_active,
+            }
+        })
+        .collect::<Vec<_>>();
+
+    let latest_version = current_channel
+        .as_deref()
+        .and_then(|channel| latest_version_for_channel(&releases, channel))
+        .or_else(|| latest_version_for_channel(&releases, CORE_CHANNEL_STABLE));
+
+    let update_available = match (current_channel.as_deref(), current_version.as_deref()) {
+        (Some(channel), Some(version)) => {
+            latest_version_for_channel(&releases, channel).is_some_and(|latest| latest != version)
+        }
         _ => false,
     };
 
     Ok(SingboxCoreStatus {
-        installed: current_version.is_some(),
+        installed,
+        current_channel,
         current_version,
         latest_version,
         update_available,
         is_running,
+        available_options,
     })
+}
+
+#[tauri::command]
+pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
+    let normalized_channel = normalize_core_channel(&channel)?;
+    if !core_version_installed(normalized_channel, &version) {
+        return Err(CommandError::resource_not_found(
+            "sing-box core version",
+            format!(
+                "{} {} is not installed under {}",
+                channel_label(normalized_channel),
+                version,
+                get_core_version_dir(normalized_channel, &version)?.display()
+            ),
+        ));
+    }
+
+    set_active_singbox_core_selection(
+        Some(normalized_channel.to_string()),
+        Some(version.to_string()),
+    )
 }
 
 #[tauri::command]
 pub async fn update_singbox_core(
     app: AppHandle,
     state: State<'_, SingboxState>,
+    channel: String,
+    version: String,
 ) -> Result<SingboxCoreUpdateResult, CommandError> {
     cleanup_staged_core_update_files()?;
     emit_progress(
         &app,
         "preparing",
         5,
-        "Checking the latest sing-box release...",
+        "Checking the requested sing-box release...",
     );
 
-    let previous_version = get_installed_singbox_version()?;
-    let latest_release = fetch_latest_release_metadata().await?;
-    let latest_version =
-        normalized_version(&latest_release.tag).unwrap_or(latest_release.tag.clone());
-    let update_paths = get_update_paths(&latest_release.archive_name, &latest_version)?;
+    let normalized_channel = normalize_core_channel(&channel)?;
+    let releases = fetch_available_core_releases().await?;
+    let previous_selection = get_active_singbox_core_selection()?;
+    cleanup_unused_core_versions(previous_selection.as_ref(), &releases)?;
 
+    let target_release = releases
+        .iter()
+        .find(|release| release.channel == normalized_channel && release.version == version)
+        .ok_or_else(|| {
+            CommandError::validation(format!(
+                "{} {} is not one of the available sing-box releases exposed by fresh-box.",
+                channel_label(normalized_channel),
+                version
+            ))
+        })?;
+
+    let previous_version = previous_selection
+        .as_ref()
+        .map(|(_, version)| version.clone());
+    let restart_required = crate::singbox::is_singbox_running(state).await?;
+    if restart_required
+        && previous_selection
+            .as_ref()
+            .is_some_and(|(active_channel, active_version)| {
+                active_channel == normalized_channel && active_version == &version
+            })
+    {
+        return Err(CommandError::invalid_state(
+            "update_singbox_core",
+            format!(
+                "{} {} is currently running. Stop sing-box before reinstalling the same core version.",
+                channel_label(normalized_channel),
+                version
+            ),
+        ));
+    }
+
+    let update_paths = get_update_paths(target_release)?;
     emit_progress(
         &app,
         "downloading",
         8,
-        format!("Downloading {}...", latest_release.archive_name),
+        format!("Downloading {}...", target_release.archive_name),
     );
     download_file_with_progress(
         &app,
-        &latest_release.archive_url,
+        &target_release.archive_url,
         &update_paths.zip_path,
         "Downloading sing-box package...",
         8,
@@ -127,19 +232,17 @@ pub async fn update_singbox_core(
     )
     .await?;
 
-    emit_progress(&app, "extracting", 76, "Extracting sing-box package...");
-    extract_package_files(&update_paths.zip_path, &update_paths.staged_version_dir)?;
-
-    let restart_required = crate::singbox::is_singbox_running(state).await?;
-    if restart_required && previous_version.as_deref() == Some(latest_version.as_str()) {
-        return Err(CommandError::invalid_state(
-            "update_singbox_core",
-            format!(
-                "sing-box {} is currently running. Stop sing-box before reinstalling the same core version.",
-                latest_version
-            ),
-        ));
-    }
+    emit_progress(
+        &app,
+        "extracting",
+        76,
+        format!(
+            "Extracting {} {}...",
+            channel_label(normalized_channel),
+            version
+        ),
+    );
+    extract_package_files(&update_paths.staged_version_dir, &update_paths.zip_path)?;
 
     emit_progress(
         &app,
@@ -152,19 +255,23 @@ pub async fn update_singbox_core(
         },
     );
     promote_staged_version(&update_paths)?;
-    set_active_singbox_core_version(Some(latest_version.clone()))?;
+    set_active_singbox_core_selection(Some(normalized_channel.to_string()), Some(version.clone()))?;
+    cleanup_unused_core_versions(
+        Some(&(normalized_channel.to_string(), version.clone())),
+        &releases,
+    )?;
     cleanup_download_artifacts(&update_paths)?;
 
-    let current_version = get_installed_singbox_version()?.ok_or_else(|| {
+    let current_version = read_active_singbox_core_version()?.ok_or_else(|| {
         CommandError::io(
             "Updated sing-box version could not be read",
             "the active version directory does not contain sing-box.exe",
         )
     })?;
-    if current_version != latest_version {
+    if current_version != version {
         return Err(CommandError::validation(format!(
-            "Installed sing-box version {} does not match the downloaded release {}.",
-            current_version, latest_version
+            "Installed sing-box version {} does not match the requested release {}.",
+            current_version, version
         )));
     }
 
@@ -182,7 +289,7 @@ pub async fn update_singbox_core(
     Ok(SingboxCoreUpdateResult {
         previous_version,
         current_version,
-        latest_version,
+        latest_version: target_release.version.clone(),
         restart_required,
     })
 }
@@ -193,8 +300,6 @@ pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
 
 fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
     let update_dir = get_data_dir()?.join("core-update");
-    let versions_dir = get_core_versions_dir()?;
-
     if update_dir.exists() {
         for entry in fs::read_dir(&update_dir).map_err(|error| {
             CommandError::io(format!("failed to read {}", update_dir.display()), error)
@@ -209,20 +314,24 @@ fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
             let file_type = entry.file_type().map_err(|error| {
                 CommandError::io(format!("failed to inspect {}", path.display()), error)
             })?;
-
             if file_type.is_file() && path.extension().is_some_and(|ext| ext == "zip") {
                 remove_file_if_exists(&path, "Failed to clean a temporary sing-box archive")?;
             }
         }
     }
 
-    if versions_dir.exists() {
-        for entry in fs::read_dir(&versions_dir).map_err(|error| {
-            CommandError::io(format!("failed to read {}", versions_dir.display()), error)
+    for channel in [CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING] {
+        let channel_dir = get_core_channel_dir(channel)?;
+        if !channel_dir.exists() {
+            continue;
+        }
+
+        for entry in fs::read_dir(&channel_dir).map_err(|error| {
+            CommandError::io(format!("failed to read {}", channel_dir.display()), error)
         })? {
             let entry = entry.map_err(|error| {
                 CommandError::io(
-                    format!("failed to enumerate {}", versions_dir.display()),
+                    format!("failed to enumerate {}", channel_dir.display()),
                     error,
                 )
             })?;
@@ -230,9 +339,7 @@ fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
             let file_type = entry.file_type().map_err(|error| {
                 CommandError::io(format!("failed to inspect {}", path.display()), error)
             })?;
-            let file_name = entry.file_name();
-
-            if file_type.is_dir() && file_name.to_string_lossy().ends_with(".new") {
+            if file_type.is_dir() && entry.file_name().to_string_lossy().ends_with(".new") {
                 remove_dir_if_exists(
                     &path,
                     "Failed to clean a staged sing-box version directory on startup",
@@ -244,27 +351,23 @@ fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
     Ok(())
 }
 
-fn get_update_paths(asset_name: &str, version: &str) -> Result<CoreUpdatePaths, CommandError> {
+fn get_update_paths(release: &CoreReleaseMetadata) -> Result<CoreUpdatePaths, CommandError> {
     let update_dir = get_data_dir()?.join("core-update");
     fs::create_dir_all(&update_dir).map_err(|error| {
         CommandError::io(format!("failed to create {}", update_dir.display()), error)
     })?;
 
-    let versions_dir = get_core_versions_dir()?;
-    let target_version_dir = get_core_version_dir(version)?;
-    let staged_version_dir = versions_dir.join(format!("{}.new", version));
-
     Ok(CoreUpdatePaths {
-        zip_path: update_dir.join(asset_name),
-        versions_dir,
-        target_version_dir,
-        staged_version_dir,
+        zip_path: update_dir.join(&release.archive_name),
+        target_version_dir: get_core_version_dir(release.channel, &release.version)?,
+        staged_version_dir: get_core_channel_dir(release.channel)?
+            .join(format!("{}.new", release.version)),
     })
 }
 
-async fn fetch_latest_release_metadata() -> Result<LatestReleaseMetadata, CommandError> {
-    let response = github_client()?
-        .get(GITHUB_RELEASE_API)
+async fn fetch_available_core_releases() -> Result<Vec<CoreReleaseMetadata>, CommandError> {
+    let releases = github_client()?
+        .get(GITHUB_RELEASES_API)
         .header("Accept", "application/vnd.github+json")
         .header("X-GitHub-Api-Version", "2022-11-28")
         .send()
@@ -272,30 +375,138 @@ async fn fetch_latest_release_metadata() -> Result<LatestReleaseMetadata, Comman
         .map_err(|error| map_network_error("Failed to reach GitHub", error))?
         .error_for_status()
         .map_err(|error| map_network_error("GitHub rejected the release metadata request", error))?
-        .json::<LatestReleaseResponse>()
+        .json::<Vec<GithubRelease>>()
         .await
         .map_err(|error| {
             map_network_error(
-                "Failed to parse the latest sing-box release metadata",
+                "Failed to parse the available sing-box release metadata",
                 error,
             )
         })?;
 
-    let archive = response
+    let stable_releases = releases
+        .iter()
+        .filter(|release| !release.draft && !release.prerelease)
+        .filter_map(|release| release_to_core_metadata(release, CORE_CHANNEL_STABLE))
+        .take(3)
+        .collect::<Vec<_>>();
+
+    let testing_releases = releases
+        .iter()
+        .filter(|release| !release.draft && release.prerelease)
+        .filter_map(|release| release_to_core_metadata(release, CORE_CHANNEL_TESTING))
+        .take(3)
+        .collect::<Vec<_>>();
+
+    let mut result = stable_releases;
+    result.extend(testing_releases);
+
+    if result.is_empty() {
+        return Err(CommandError::validation(
+            "No suitable sing-box releases were found on GitHub.",
+        ));
+    }
+
+    Ok(result)
+}
+
+fn release_to_core_metadata(
+    release: &GithubRelease,
+    channel: &'static str,
+) -> Option<CoreReleaseMetadata> {
+    let asset = release
         .assets
         .iter()
-        .find(|asset| asset.name.ends_with(WINDOWS_AMD64_ASSET_SUFFIX))
-        .ok_or_else(|| {
-            CommandError::validation(
-                "No Windows amd64 sing-box core asset was found in the latest GitHub release.",
+        .find(|asset| asset.name.ends_with(WINDOWS_AMD64_ASSET_SUFFIX))?;
+
+    let version = normalized_version(&release.tag_name)?;
+
+    Some(CoreReleaseMetadata {
+        channel,
+        version,
+        archive_name: asset.name.clone(),
+        archive_url: asset.browser_download_url.clone(),
+    })
+}
+
+fn latest_version_for_channel(releases: &[CoreReleaseMetadata], channel: &str) -> Option<String> {
+    releases
+        .iter()
+        .find(|release| release.channel == channel)
+        .map(|release| release.version.clone())
+}
+
+fn cleanup_unused_core_versions(
+    active_selection: Option<&(String, String)>,
+    releases: &[CoreReleaseMetadata],
+) -> Result<(), CommandError> {
+    let mut stable_keep = releases
+        .iter()
+        .filter(|release| release.channel == CORE_CHANNEL_STABLE)
+        .map(|release| release.version.clone())
+        .collect::<Vec<_>>();
+    let mut testing_keep = releases
+        .iter()
+        .filter(|release| release.channel == CORE_CHANNEL_TESTING)
+        .map(|release| release.version.clone())
+        .collect::<Vec<_>>();
+
+    if let Some((channel, version)) = active_selection {
+        match channel.as_str() {
+            CORE_CHANNEL_STABLE if !stable_keep.iter().any(|item| item == version) => {
+                stable_keep.push(version.clone());
+            }
+            CORE_CHANNEL_TESTING if !testing_keep.iter().any(|item| item == version) => {
+                testing_keep.push(version.clone());
+            }
+            _ => {}
+        }
+    }
+
+    prune_channel_versions(CORE_CHANNEL_STABLE, &stable_keep)?;
+    prune_channel_versions(CORE_CHANNEL_TESTING, &testing_keep)?;
+    Ok(())
+}
+
+fn prune_channel_versions(channel: &str, keep_versions: &[String]) -> Result<(), CommandError> {
+    let channel_dir = get_core_channel_dir(channel)?;
+    if !channel_dir.exists() {
+        return Ok(());
+    }
+
+    for entry in fs::read_dir(&channel_dir).map_err(|error| {
+        CommandError::io(format!("failed to read {}", channel_dir.display()), error)
+    })? {
+        let entry = entry.map_err(|error| {
+            CommandError::io(
+                format!("failed to enumerate {}", channel_dir.display()),
+                error,
             )
         })?;
+        let path = entry.path();
+        let file_type = entry.file_type().map_err(|error| {
+            CommandError::io(format!("failed to inspect {}", path.display()), error)
+        })?;
+        if !file_type.is_dir() {
+            continue;
+        }
 
-    Ok(LatestReleaseMetadata {
-        tag: response.tag_name,
-        archive_name: archive.name.clone(),
-        archive_url: archive.browser_download_url.clone(),
-    })
+        let version = entry.file_name().to_string_lossy().to_string();
+        if version.ends_with(".new") {
+            continue;
+        }
+
+        if keep_versions.iter().any(|item| item == &version) {
+            continue;
+        }
+
+        remove_dir_if_exists(
+            &path,
+            "Failed to clean an outdated sing-box version directory",
+        )?;
+    }
+
+    Ok(())
 }
 
 async fn download_file_with_progress(
@@ -374,7 +585,7 @@ async fn download_file_with_progress(
     Ok(())
 }
 
-fn extract_package_files(archive_path: &Path, staged_dir: &Path) -> Result<(), CommandError> {
+fn extract_package_files(staged_dir: &Path, archive_path: &Path) -> Result<(), CommandError> {
     remove_dir_if_exists(
         staged_dir,
         "Failed to clear the staged sing-box version directory",
@@ -462,8 +673,7 @@ fn extract_package_files(archive_path: &Path, staged_dir: &Path) -> Result<(), C
         ));
     }
 
-    let staged_executable = staged_dir.join(CORE_EXECUTABLE_NAME);
-    if !staged_executable.exists() {
+    if !staged_dir.join(CORE_EXECUTABLE_NAME).exists() {
         return Err(CommandError::validation(
             "The downloaded sing-box package does not contain sing-box.exe.",
         ));
@@ -523,14 +733,6 @@ fn promote_staged_version(paths: &CoreUpdatePaths) -> Result<(), CommandError> {
         ));
     }
 
-    fs::create_dir_all(&paths.versions_dir).map_err(|error| {
-        map_io_error(
-            "Failed to prepare the sing-box versions directory",
-            &paths.versions_dir,
-            error,
-        )
-    })?;
-
     if paths.target_version_dir.exists() {
         remove_dir_if_exists(
             &paths.target_version_dir,
@@ -571,6 +773,100 @@ fn remove_dir_if_exists(path: &Path, context: &str) -> Result<(), CommandError> 
         fs::remove_dir_all(path).map_err(|error| map_io_error(context, path, error))?;
     }
     Ok(())
+}
+
+fn core_version_installed(channel: &str, version: &str) -> bool {
+    get_core_version_dir(channel, version)
+        .map(|dir| dir.join(CORE_EXECUTABLE_NAME).exists())
+        .unwrap_or(false)
+}
+
+fn read_active_singbox_core_version() -> Result<Option<String>, CommandError> {
+    let executable_path = match get_active_singbox_core_executable() {
+        Ok(path) => path,
+        Err(CommandError::ResourceNotFound(_)) => return Ok(None),
+        Err(error) => return Err(error),
+    };
+
+    let mut command = Command::new(&executable_path);
+    hide_window(&mut command);
+
+    let output = command.arg("version").output().map_err(|error| {
+        map_io_error(
+            "Failed to read the installed sing-box version",
+            &executable_path,
+            error,
+        )
+    })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
+        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
+        let reason = if !stderr.is_empty() {
+            stderr
+        } else if !stdout.is_empty() {
+            stdout
+        } else {
+            format!("exit code {:?}", output.status.code())
+        };
+
+        return Err(CommandError::io(
+            format!(
+                "Failed to read the installed sing-box version ({})",
+                executable_path.display()
+            ),
+            reason,
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let first_line = stdout
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .unwrap_or_default();
+
+    if first_line.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(normalized_version(first_line).or_else(|| Some(first_line.to_string())))
+}
+
+fn normalized_version(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let candidate = trimmed
+        .split_whitespace()
+        .find(|segment| {
+            let lowered = segment.trim_start_matches('v');
+            lowered.chars().next().is_some_and(|ch| ch.is_ascii_digit())
+        })
+        .unwrap_or(trimmed);
+
+    let cleaned = candidate
+        .trim()
+        .trim_start_matches('v')
+        .trim_matches(|ch: char| {
+            !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '+'
+        });
+
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
+}
+
+fn channel_label(channel: &str) -> &'static str {
+    match channel {
+        CORE_CHANNEL_STABLE => "Stable",
+        CORE_CHANNEL_TESTING => "Testing",
+        _ => "Unknown",
+    }
 }
 
 fn scale_progress(downloaded: u64, total: u64, start_percent: u8, end_percent: u8) -> u8 {
@@ -647,89 +943,6 @@ fn map_io_error(context: &str, path: &Path, error: io::Error) -> CommandError {
     }
 
     CommandError::io(format!("{} ({})", context, path.display()), error)
-}
-
-fn get_installed_singbox_version() -> Result<Option<String>, CommandError> {
-    let Some(version) = get_active_singbox_core_version()? else {
-        return Ok(None);
-    };
-
-    let singbox_path = get_core_version_dir(&version)?.join(CORE_EXECUTABLE_NAME);
-    if !singbox_path.exists() {
-        return Ok(None);
-    }
-
-    let mut command = Command::new(&singbox_path);
-    hide_window(&mut command);
-
-    let output = command.arg("version").output().map_err(|error| {
-        map_io_error(
-            "Failed to read the installed sing-box version",
-            &singbox_path,
-            error,
-        )
-    })?;
-
-    if !output.status.success() {
-        let stderr = String::from_utf8_lossy(&output.stderr).trim().to_string();
-        let stdout = String::from_utf8_lossy(&output.stdout).trim().to_string();
-        let reason = if !stderr.is_empty() {
-            stderr
-        } else if !stdout.is_empty() {
-            stdout
-        } else {
-            format!("exit code {:?}", output.status.code())
-        };
-
-        return Err(CommandError::io(
-            format!(
-                "Failed to read the installed sing-box version ({})",
-                singbox_path.display()
-            ),
-            reason,
-        ));
-    }
-
-    let stdout = String::from_utf8_lossy(&output.stdout);
-    let first_line = stdout
-        .lines()
-        .find(|line| !line.trim().is_empty())
-        .map(str::trim)
-        .unwrap_or_default();
-
-    if first_line.is_empty() {
-        return Ok(None);
-    }
-
-    Ok(normalized_version(first_line).or_else(|| Some(first_line.to_string())))
-}
-
-fn normalized_version(value: &str) -> Option<String> {
-    let trimmed = value.trim();
-    if trimmed.is_empty() {
-        return None;
-    }
-
-    let candidate = trimmed
-        .split_whitespace()
-        .find(|segment| {
-            let lowered = segment.trim_start_matches('v');
-            lowered.chars().next().is_some_and(|ch| ch.is_ascii_digit())
-        })
-        .unwrap_or(trimmed);
-
-    let cleaned = candidate
-        .trim()
-        .trim_start_matches('v')
-        .trim_matches(|ch: char| {
-            !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '+'
-        });
-
-    if cleaned.is_empty() {
-        None
-    } else {
-        Some(cleaned.to_string())
-    }
 }
 
 fn hide_window(command: &mut Command) {

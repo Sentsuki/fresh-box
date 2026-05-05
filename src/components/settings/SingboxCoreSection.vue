@@ -1,6 +1,7 @@
 <script setup lang="ts">
 import type {
   CoreUpdateProgressEvent,
+  SingboxCoreOption,
   SingboxCoreStatus,
 } from "../../types/app";
 
@@ -8,16 +9,21 @@ defineProps<{
   coreStatus: SingboxCoreStatus | null;
   coreStatusError: string;
   coreUpdateProgress: CoreUpdateProgressEvent | null;
+  currentCoreLabel: string;
+  selectedCoreLabel: string;
+  selectedCoreOptionKey: string;
   coreStatusText: string;
   coreStatusBadgeClass: string;
   isRefreshingCoreStatus: boolean;
   isUpdatingCore: boolean;
   updateCoreButtonLabel: string;
+  availableOptions: SingboxCoreOption[];
 }>();
 
 defineEmits<{
   refresh: [];
-  update: [];
+  apply: [];
+  "update:selected-core-option-key": [value: string];
 }>();
 </script>
 
@@ -27,7 +33,7 @@ defineEmits<{
 
     <div class="flex flex-wrap items-center justify-between gap-3">
       <p class="m-0 text-sm text-gray-500">
-        Syncs with the latest SagerNet/sing-box Windows amd64 release.
+        Stable and Testing each keep the latest 3 available releases.
       </p>
       <span
         class="rounded-full px-3 py-1 text-xs font-semibold"
@@ -41,18 +47,18 @@ defineEmits<{
       <div class="grid grid-cols-1 gap-3 md:grid-cols-2">
         <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p class="m-0 text-xs uppercase tracking-wide text-gray-500">
-            Current Version
+            Current Core
           </p>
           <p class="m-0 mt-2 text-sm font-semibold text-gray-800">
-            {{ coreStatus?.current_version || "Not installed" }}
+            {{ currentCoreLabel }}
           </p>
         </div>
         <div class="rounded-lg border border-gray-200 bg-gray-50 p-3">
           <p class="m-0 text-xs uppercase tracking-wide text-gray-500">
-            Latest Version
+            Selected Target
           </p>
           <p class="m-0 mt-2 text-sm font-semibold text-gray-800">
-            {{ coreStatus?.latest_version || "Unknown" }}
+            {{ selectedCoreLabel }}
           </p>
         </div>
       </div>
@@ -61,8 +67,8 @@ defineEmits<{
         v-if="coreStatus?.is_running"
         class="rounded-lg border border-amber-200 bg-amber-50 px-3 py-2 text-sm text-amber-800"
       >
-        You can update while sing-box is running. Restart sing-box after the
-        update finishes to start using the new core version.
+        You can switch to another installed core while sing-box is running.
+        Restart sing-box after the change to start using the selected version.
       </div>
 
       <div
@@ -92,6 +98,36 @@ defineEmits<{
         </div>
       </div>
 
+      <div class="rounded-lg border border-gray-200 bg-white p-3">
+        <label
+          class="mb-2 block text-xs font-semibold uppercase tracking-wide text-gray-500"
+        >
+          Core Channel / Version
+        </label>
+        <select
+          class="w-full rounded-lg border border-gray-300 bg-white px-3 py-2 text-sm text-gray-800 outline-none transition focus:border-blue-500"
+          :value="selectedCoreOptionKey"
+          :disabled="
+            isRefreshingCoreStatus || isUpdatingCore || !availableOptions.length
+          "
+          @change="
+            $emit(
+              'update:selected-core-option-key',
+              ($event.target as HTMLSelectElement).value,
+            )
+          "
+        >
+          <option
+            v-for="option in availableOptions"
+            :key="`${option.channel}:${option.version}`"
+            :value="`${option.channel}:${option.version}`"
+          >
+            {{ option.label }}{{ option.installed ? " (Installed)" : ""
+            }}{{ option.is_active ? " (Active)" : "" }}
+          </option>
+        </select>
+      </div>
+
       <div class="flex flex-wrap gap-3">
         <button
           class="control-button min-w-40 flex-1 rounded-lg border-0 px-4 py-3 text-sm font-medium text-white shadow-sm transition-all duration-200"
@@ -107,7 +143,7 @@ defineEmits<{
             >🧭</span
           >
           <span class="font-medium">
-            {{ isRefreshingCoreStatus ? "Checking..." : "Check Latest" }}
+            {{ isRefreshingCoreStatus ? "Checking..." : "Refresh Releases" }}
           </span>
         </button>
 
@@ -119,11 +155,9 @@ defineEmits<{
               : 'bg-violet-600 hover:bg-violet-700 hover:shadow-sm config-button-hover'
           "
           :disabled="
-            isUpdatingCore ||
-            isRefreshingCoreStatus ||
-            !coreStatus?.latest_version
+            isUpdatingCore || isRefreshingCoreStatus || !selectedCoreOptionKey
           "
-          @click="$emit('update')"
+          @click="$emit('apply')"
         >
           <span class="flex h-5 w-5 items-center justify-center text-base"
             >⚙️</span

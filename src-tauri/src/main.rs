@@ -34,6 +34,7 @@ fn main() {
             singbox::get_singbox_status,
             singbox::refresh_singbox_detection,
             core_update::get_singbox_core_status,
+            core_update::activate_singbox_core,
             core_update::update_singbox_core,
             config::list_configs,
             config::copy_config_to_bin,
