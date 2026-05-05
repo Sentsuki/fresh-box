@@ -86,10 +86,15 @@ fn is_singbox_process_name(process_name: &std::ffi::OsStr) -> bool {
         .contains("sing-box")
 }
 
-fn detect_existing_singbox(process_state: &mut ProcessState) -> Result<Option<u32>, CommandError> {
+fn detect_existing_singbox(
+    process_state: &mut ProcessState,
+    refresh_table: bool,
+) -> Result<Option<u32>, CommandError> {
     #[cfg(windows)]
     {
-        refresh_process_table(process_state);
+        if refresh_table {
+            refresh_process_table(process_state);
+        }
 
         for (pid, process) in process_state.system.processes() {
             if is_singbox_process_name(process.name()) {
@@ -136,10 +141,12 @@ fn detect_existing_singbox(process_state: &mut ProcessState) -> Result<Option<u3
     }
 }
 
-fn is_process_running(process_state: &mut ProcessState, pid: u32) -> bool {
+fn is_process_running(process_state: &mut ProcessState, pid: u32, refresh_table: bool) -> bool {
     #[cfg(windows)]
     {
-        refresh_process_table(process_state);
+        if refresh_table {
+            refresh_process_table(process_state);
+        }
 
         if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
             is_singbox_process_name(process.name())
@@ -164,11 +171,11 @@ fn clear_process_state(state: &mut ProcessState) {
 fn detect_and_track_existing_process(
     process_state: &mut ProcessState,
 ) -> Result<Option<(u32, String)>, CommandError> {
-    match detect_existing_singbox(process_state)? {
+    match detect_existing_singbox(process_state, true)? {
         Some(pid) => {
             process_state.child = None;
             process_state.pid = Some(pid);
-            let process_info = get_singbox_process_info_by_pid(process_state, pid)?;
+            let process_info = get_singbox_process_info_by_pid(process_state, pid, false)?;
             Ok(Some((pid, process_info)))
         }
         None => {
@@ -198,15 +205,26 @@ fn inspect_running_process(
     }
 
     if let Some(pid) = process_state.pid {
-        if is_process_running(process_state, pid) {
+        if is_process_running(process_state, pid, true) {
             return Ok(Some(ProcessOrigin::Tracked(pid)));
         }
 
         process_state.pid = None;
         process_state.last_start_time = None;
+
+        match detect_existing_singbox(process_state, false)? {
+            Some(pid) => {
+                process_state.pid = Some(pid);
+                return Ok(Some(ProcessOrigin::Detected(pid)));
+            }
+            None => {
+                clear_process_state(process_state);
+                return Ok(None);
+            }
+        }
     }
 
-    match detect_existing_singbox(process_state)? {
+    match detect_existing_singbox(process_state, true)? {
         Some(pid) => {
             process_state.pid = Some(pid);
             Ok(Some(ProcessOrigin::Detected(pid)))
@@ -550,10 +568,13 @@ fn stop_any_singbox_process() -> Result<bool, CommandError> {
 fn get_singbox_process_info_by_pid(
     process_state: &mut ProcessState,
     pid: u32,
+    refresh_table: bool,
 ) -> Result<String, CommandError> {
     #[cfg(windows)]
     {
-        refresh_process_table(process_state);
+        if refresh_table {
+            refresh_process_table(process_state);
+        }
 
         if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
             if is_singbox_process_name(process.name()) {
@@ -567,7 +588,7 @@ fn get_singbox_process_info_by_pid(
 
     #[cfg(not(windows))]
     {
-        if is_process_running(process_state, pid) {
+        if is_process_running(process_state, pid, refresh_table) {
             return Ok("Process metrics unavailable on this platform".to_string());
         }
     }
@@ -587,7 +608,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
     let mut process_state = state.lock("get_singbox_status")?;
     match inspect_running_process(&mut process_state)? {
         Some(ProcessOrigin::Direct(pid)) => {
-            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, true)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (Direct Management, PID: {}) - {}",
@@ -595,7 +616,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
             ))
         }
         Some(ProcessOrigin::Tracked(pid)) => {
-            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, false)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (PID Management, PID: {}) - {}",
@@ -603,7 +624,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
             ))
         }
         Some(ProcessOrigin::Detected(pid)) => {
-            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid)
+            let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, false)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
                 "Sing-box is running (Detected, PID: {}) - {}",
@@ -641,7 +662,7 @@ pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<Stri
     }
 
     if let Some(pid) = process_state.pid {
-        if is_process_running(&mut process_state, pid) {
+        if is_process_running(&mut process_state, pid, true) {
             return Ok(format!("PID managed process running (PID: {})", pid));
         }
 

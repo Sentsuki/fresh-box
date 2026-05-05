@@ -39,12 +39,10 @@ const settings = useSettings({ loadCustomerSettings: false });
       </div>
 
       <ProcessManager
-        :is-refreshing="settings.isRefreshing.value"
-        :is-getting-status="settings.isGettingStatus.value"
+        :is-refreshing-status="settings.isRefreshingStatus.value"
         :process-status="settings.processStatus.value"
         :process-status-class="settings.processStatusClass.value"
-        @refresh="settings.detectManagedProcess"
-        @get-status="settings.loadManagedProcessStatus"
+        @refresh="settings.refreshManagedProcessStatus"
       />
     </div>
   </div>

@@ -1,11 +1,10 @@
 import { computed, ref } from "vue";
-import { getSingboxStatus, refreshSingboxDetection } from "../../services/api";
+import { getSingboxStatus } from "../../services/api";
 import { getErrorMessage } from "../../services/tauri";
 import { toast } from "../useToast";
 
 export function useProcessManagement() {
-  const isRefreshing = ref(false);
-  const isGettingStatus = ref(false);
+  const isRefreshingStatus = ref(false);
   const processStatus = ref("");
 
   const processStatusClass = computed(() => {
@@ -25,35 +24,12 @@ export function useProcessManagement() {
     return "status-info";
   });
 
-  async function detectManagedProcess() {
-    if (isRefreshing.value) {
+  async function refreshManagedProcessStatus() {
+    if (isRefreshingStatus.value) {
       return;
     }
 
-    isRefreshing.value = true;
-    processStatus.value = "";
-
-    try {
-      const hasProcess = await refreshSingboxDetection();
-      processStatus.value = hasProcess
-        ? "Sing-box process detected and now under management"
-        : "No sing-box process found";
-    } catch (error) {
-      processStatus.value = "Failed to detect sing-box process";
-      toast.error(
-        `Failed to detect sing-box process: ${getErrorMessage(error)}`,
-      );
-    } finally {
-      isRefreshing.value = false;
-    }
-  }
-
-  async function loadManagedProcessStatus() {
-    if (isGettingStatus.value) {
-      return;
-    }
-
-    isGettingStatus.value = true;
+    isRefreshingStatus.value = true;
 
     try {
       processStatus.value = await getSingboxStatus();
@@ -61,16 +37,14 @@ export function useProcessManagement() {
       processStatus.value = "Failed to get sing-box status";
       toast.error(`Failed to get sing-box status: ${getErrorMessage(error)}`);
     } finally {
-      isGettingStatus.value = false;
+      isRefreshingStatus.value = false;
     }
   }
 
   return {
-    isRefreshing,
-    isGettingStatus,
+    isRefreshingStatus,
     processStatus,
     processStatusClass,
-    detectManagedProcess,
-    loadManagedProcessStatus,
+    refreshManagedProcessStatus,
   };
 }
