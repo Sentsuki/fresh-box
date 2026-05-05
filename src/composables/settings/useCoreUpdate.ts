@@ -136,7 +136,10 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
     return "Install & Switch";
   });
 
-  async function refreshCoreStatus(showErrorToast = false) {
+  async function refreshCoreStatus(
+    showErrorToast = false,
+    forceRefresh = false,
+  ) {
     if (isRefreshingCoreStatus.value) {
       return;
     }
@@ -145,7 +148,7 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
     coreStatusError.value = "";
 
     try {
-      coreStatus.value = await getSingboxCoreStatus();
+      coreStatus.value = await getSingboxCoreStatus(forceRefresh);
     } catch (error) {
       coreStatus.value = null;
       coreStatusError.value = getErrorMessage(error);

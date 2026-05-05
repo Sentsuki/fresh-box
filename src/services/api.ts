@@ -169,8 +169,12 @@ export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
 }
 
-export async function getSingboxCoreStatus(): Promise<SingboxCoreStatus> {
-  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status");
+export async function getSingboxCoreStatus(
+  forceRefresh = false,
+): Promise<SingboxCoreStatus> {
+  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status", {
+    forceRefresh,
+  });
 }
 
 export async function activateSingboxCore(

@@ -1,7 +1,7 @@
 use crate::config::{
     get_active_singbox_core_executable, get_active_singbox_core_selection, get_core_channel_dir,
-    get_core_version_dir, get_data_dir, normalize_core_channel, set_active_singbox_core_selection,
-    CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING,
+    get_core_version_dir, get_data_dir, normalize_core_channel, read_json_file,
+    set_active_singbox_core_selection, write_json_file, CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING,
 };
 use crate::errors::CommandError;
 use crate::singbox::SingboxState;
@@ -13,6 +13,7 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
 const GITHUB_RELEASES_API: &str =
@@ -20,6 +21,8 @@ const GITHUB_RELEASES_API: &str =
 const WINDOWS_AMD64_ASSET_SUFFIX: &str = "windows-amd64.zip";
 const CORE_UPDATE_PROGRESS_EVENT: &str = "core-update-progress";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
+const RELEASE_CACHE_FILE_NAME: &str = "github-releases-cache.json";
+const RELEASE_CACHE_TTL_SECONDS: u64 = 60 * 60;
 
 #[derive(Deserialize)]
 struct ReleaseAsset {
@@ -35,11 +38,18 @@ struct GithubRelease {
     assets: Vec<ReleaseAsset>,
 }
 
+#[derive(Clone, Serialize, Deserialize)]
 struct CoreReleaseMetadata {
-    channel: &'static str,
+    channel: String,
     version: String,
     archive_name: String,
     archive_url: String,
+}
+
+#[derive(Serialize, Deserialize)]
+struct CoreReleaseCache {
+    fetched_at_unix_seconds: u64,
+    releases: Vec<CoreReleaseMetadata>,
 }
 
 #[derive(Clone, Serialize)]
@@ -87,10 +97,11 @@ struct CoreUpdatePaths {
 #[tauri::command]
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
+    force_refresh: Option<bool>,
 ) -> Result<SingboxCoreStatus, CommandError> {
     cleanup_staged_core_update_files()?;
 
-    let releases = fetch_available_core_releases().await?;
+    let releases = fetch_available_core_releases(force_refresh.unwrap_or(false)).await?;
     let active_selection = get_active_singbox_core_selection()?;
     cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
 
@@ -106,13 +117,13 @@ pub async fn get_singbox_core_status(
     let available_options = releases
         .iter()
         .map(|release| {
-            let installed = core_version_installed(release.channel, &release.version);
-            let is_active = current_channel.as_deref() == Some(release.channel)
+            let installed = core_version_installed(&release.channel, &release.version);
+            let is_active = current_channel.as_deref() == Some(release.channel.as_str())
                 && current_version.as_deref() == Some(release.version.as_str());
             SingboxCoreOption {
-                channel: release.channel.to_string(),
+                channel: release.channel.clone(),
                 version: release.version.clone(),
-                label: format!("{} · {}", channel_label(release.channel), release.version),
+                label: format!("{} · {}", channel_label(&release.channel), release.version),
                 installed,
                 is_active,
             }
@@ -179,7 +190,7 @@ pub async fn update_singbox_core(
     );
 
     let normalized_channel = normalize_core_channel(&channel)?;
-    let releases = fetch_available_core_releases().await?;
+    let releases = fetch_available_core_releases(false).await?;
     let previous_selection = get_active_singbox_core_selection()?;
     cleanup_unused_core_versions(previous_selection.as_ref(), &releases)?;
 
@@ -359,13 +370,44 @@ fn get_update_paths(release: &CoreReleaseMetadata) -> Result<CoreUpdatePaths, Co
 
     Ok(CoreUpdatePaths {
         zip_path: update_dir.join(&release.archive_name),
-        target_version_dir: get_core_version_dir(release.channel, &release.version)?,
-        staged_version_dir: get_core_channel_dir(release.channel)?
+        target_version_dir: get_core_version_dir(&release.channel, &release.version)?,
+        staged_version_dir: get_core_channel_dir(&release.channel)?
             .join(format!("{}.new", release.version)),
     })
 }
 
-async fn fetch_available_core_releases() -> Result<Vec<CoreReleaseMetadata>, CommandError> {
+async fn fetch_available_core_releases(
+    force_refresh: bool,
+) -> Result<Vec<CoreReleaseMetadata>, CommandError> {
+    if !force_refresh {
+        if let Some(cache) = load_cached_core_releases()? {
+            if is_release_cache_fresh(&cache)? {
+                return Ok(cache.releases);
+            }
+        }
+    }
+
+    match fetch_available_core_releases_from_github().await {
+        Ok(releases) => {
+            store_cached_core_releases(&releases)?;
+            Ok(releases)
+        }
+        Err(error) => {
+            if let Some(cache) = load_cached_core_releases()? {
+                eprintln!(
+                    "Failed to refresh sing-box release metadata from GitHub, using cached data: {}",
+                    error
+                );
+                Ok(cache.releases)
+            } else {
+                Err(error)
+            }
+        }
+    }
+}
+
+async fn fetch_available_core_releases_from_github(
+) -> Result<Vec<CoreReleaseMetadata>, CommandError> {
     let releases = github_client()?
         .get(GITHUB_RELEASES_API)
         .header("Accept", "application/vnd.github+json")
@@ -422,7 +464,7 @@ fn release_to_core_metadata(
     let version = normalized_version(&release.tag_name)?;
 
     Some(CoreReleaseMetadata {
-        channel,
+        channel: channel.to_string(),
         version,
         archive_name: asset.name.clone(),
         archive_url: asset.browser_download_url.clone(),
@@ -434,6 +476,53 @@ fn latest_version_for_channel(releases: &[CoreReleaseMetadata], channel: &str) -
         .iter()
         .find(|release| release.channel == channel)
         .map(|release| release.version.clone())
+}
+
+fn get_release_cache_path() -> Result<PathBuf, CommandError> {
+    let cache_dir = get_data_dir()?.join("core-update");
+    fs::create_dir_all(&cache_dir).map_err(|error| {
+        CommandError::io(format!("failed to create {}", cache_dir.display()), error)
+    })?;
+    Ok(cache_dir.join(RELEASE_CACHE_FILE_NAME))
+}
+
+fn load_cached_core_releases() -> Result<Option<CoreReleaseCache>, CommandError> {
+    let cache_path = get_release_cache_path()?;
+    if !cache_path.exists() {
+        return Ok(None);
+    }
+
+    match read_json_file::<CoreReleaseCache>(&cache_path) {
+        Ok(cache) => Ok(Some(cache)),
+        Err(error) => {
+            eprintln!(
+                "Ignoring invalid sing-box release cache at {}: {}",
+                cache_path.display(),
+                error
+            );
+            Ok(None)
+        }
+    }
+}
+
+fn store_cached_core_releases(releases: &[CoreReleaseMetadata]) -> Result<(), CommandError> {
+    let cache = CoreReleaseCache {
+        fetched_at_unix_seconds: current_unix_timestamp_seconds()?,
+        releases: releases.to_vec(),
+    };
+    write_json_file(&get_release_cache_path()?, &cache)
+}
+
+fn is_release_cache_fresh(cache: &CoreReleaseCache) -> Result<bool, CommandError> {
+    let now = current_unix_timestamp_seconds()?;
+    Ok(now.saturating_sub(cache.fetched_at_unix_seconds) < RELEASE_CACHE_TTL_SECONDS)
+}
+
+fn current_unix_timestamp_seconds() -> Result<u64, CommandError> {
+    SystemTime::now()
+        .duration_since(UNIX_EPOCH)
+        .map(|duration| duration.as_secs())
+        .map_err(|error| CommandError::invalid_state("system_clock", error))
 }
 
 fn cleanup_unused_core_versions(
