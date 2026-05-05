@@ -3,7 +3,10 @@ import ProcessManager from "./settings/ProcessManager.vue";
 import SingboxCoreSection from "./settings/SingboxCoreSection.vue";
 import { useSettings } from "../composables/useSettings";
 
-const settings = useSettings({ loadCustomerSettings: false });
+const settings = useSettings({
+  loadCustomerSettings: false,
+  autoRefreshCoreStatus: true,
+});
 </script>
 
 <template>

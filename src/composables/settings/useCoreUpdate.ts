@@ -19,16 +19,29 @@ function toOptionKey(option: Pick<SingboxCoreOption, "channel" | "version">) {
   return `${option.channel}:${option.version}`;
 }
 
-export function useCoreUpdate() {
+interface UseCoreUpdateOptions {
+  autoRefreshOnFirstMount?: boolean;
+}
+
+const isRefreshingCoreStatusState = ref(false);
+const isUpdatingCoreState = ref(false);
+const coreStatusState = ref<SingboxCoreStatus | null>(null);
+const coreStatusErrorState = ref("");
+const coreUpdateProgressState = ref<CoreUpdateProgressEvent | null>(null);
+const selectedCoreOptionKeyState = ref("");
+let hasAutoRefreshedCoreStatus = false;
+
+export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
   let unlistenProgress: UnlistenFn | null = null;
   const appStore = useAppStore();
+  const { autoRefreshOnFirstMount = false } = options;
 
-  const isRefreshingCoreStatus = ref(false);
-  const isUpdatingCore = ref(false);
-  const coreStatus = ref<SingboxCoreStatus | null>(null);
-  const coreStatusError = ref("");
-  const coreUpdateProgress = ref<CoreUpdateProgressEvent | null>(null);
-  const selectedCoreOptionKey = ref("");
+  const isRefreshingCoreStatus = isRefreshingCoreStatusState;
+  const isUpdatingCore = isUpdatingCoreState;
+  const coreStatus = coreStatusState;
+  const coreStatusError = coreStatusErrorState;
+  const coreUpdateProgress = coreUpdateProgressState;
+  const selectedCoreOptionKey = selectedCoreOptionKeyState;
 
   const selectedCoreOption = computed(() => {
     return (
@@ -255,7 +268,11 @@ export function useCoreUpdate() {
   );
 
   onMounted(() => {
-    void refreshCoreStatus();
+    if (autoRefreshOnFirstMount && !hasAutoRefreshedCoreStatus) {
+      hasAutoRefreshedCoreStatus = true;
+      void refreshCoreStatus();
+    }
+
     void listen<CoreUpdateProgressEvent>("core-update-progress", (event) => {
       coreUpdateProgress.value = event.payload;
     }).then((unlisten) => {
