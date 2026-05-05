@@ -52,28 +52,55 @@ jobs:
           restore-keys: |
             ${{ runner.os }}-pnpm-
 
-      - name: Install jq and 7-Zip
+      - name: Install 7-Zip
         run: |
-          choco install jq -y
           choco install 7zip -y
         shell: pwsh
 
-      - name: Download and extract sing-box
+      - name: Download latest stable sing-box core
         run: |
-          # Create src-tauri/bin directory if it doesn't exist
-          New-Item -Path src-tauri/bin -ItemType Directory -Force
-          # Fetch the latest release download URL for sing-box-windows-amd64.zip
-          $url = curl -s https://api.github.com/repos/SagerNet/sing-box/releases/latest | jq -r '.assets[] | select(.name | contains("windows-amd64.zip")) | .browser_download_url'
-          Write-Output "Downloading from: $url"
-          # Download the zip file
-          curl -L -o sing-box.zip $url
-          # Extract all files to src-tauri/bin
-          7z e sing-box.zip -osrc-tauri/bin -r
-          # Verify the file exists
-          if (Test-Path src-tauri/bin/sing-box.exe) { Write-Output "sing-box.exe extracted successfully" }
-          else { Write-Output "Failed to extract sing-box.exe"; exit 1 }
-          # Clean up
-          Remove-Item sing-box.zip
+          $release = Invoke-RestMethod `
+            -Uri 'https://api.github.com/repos/SagerNet/sing-box/releases/latest' `
+            -Headers @{ 'User-Agent' = 'fresh-box-release-workflow' }
+
+          $asset = $release.assets |
+            Where-Object { $_.name -like '*windows-amd64.zip' } |
+            Select-Object -First 1
+
+          if (-not $asset) {
+            throw 'Failed to find the windows-amd64 sing-box package in the latest stable release.'
+          }
+
+          $version = $release.tag_name.TrimStart('v')
+          $binRoot = 'src-tauri/bin'
+          $stableDir = Join-Path $binRoot "stable/$version"
+          $extractDir = Join-Path $binRoot '_extract'
+
+          Remove-Item $binRoot -Recurse -Force -ErrorAction SilentlyContinue
+          New-Item -Path $stableDir -ItemType Directory -Force | Out-Null
+
+          Write-Output "Downloading stable sing-box $version from: $($asset.browser_download_url)"
+          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile 'sing-box.zip'
+
+          7z x 'sing-box.zip' "-o$extractDir" -y | Out-Null
+
+          $executable = Get-ChildItem $extractDir -Filter 'sing-box.exe' -Recurse -File |
+            Select-Object -First 1
+
+          if (-not $executable) {
+            throw 'Failed to find sing-box.exe in the extracted stable package.'
+          }
+
+          Copy-Item (Join-Path $executable.Directory.FullName '*') $stableDir -Recurse -Force
+
+          if (Test-Path (Join-Path $stableDir 'sing-box.exe')) {
+            Write-Output "Packaged stable sing-box core at $stableDir"
+          } else {
+            throw 'Failed to package the stable sing-box core.'
+          }
+
+          Remove-Item 'sing-box.zip' -Force
+          Remove-Item $extractDir -Recurse -Force
         shell: pwsh
 
       - name: Install dependencies
