@@ -9,12 +9,15 @@ use std::process::Command;
 
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
+const CORE_VERSIONS_DIR: &str = "versions";
+const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppSettings {
     pub selected_config: Option<String>,
     pub selected_config_display: Option<String>,
     pub current_page: Option<String>,
+    pub active_singbox_core_version: Option<String>,
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
@@ -87,6 +90,14 @@ fn get_app_settings_path() -> Result<PathBuf, CommandError> {
     Ok(get_config_dir()?.join(APP_SETTINGS_FILE))
 }
 
+pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
+    load_json_or_default(&get_app_settings_path()?)
+}
+
+pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
+    write_json_file(&get_app_settings_path()?, settings)
+}
+
 fn extract_clash_api_url(config: &Value) -> Option<String> {
     let external_controller = config
         .get("experimental")
@@ -127,7 +138,188 @@ pub fn get_exe_dir() -> Result<PathBuf, CommandError> {
 // 获取 bin 目录路径（放 sing-box 核心）
 pub fn get_bin_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("bin");
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("bin directory", e))?;
+    }
     Ok(dir)
+}
+
+pub fn get_core_versions_dir() -> Result<PathBuf, CommandError> {
+    let dir = get_bin_dir()?.join(CORE_VERSIONS_DIR);
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("core versions directory", e))?;
+    }
+    Ok(dir)
+}
+
+pub fn get_core_version_dir(version: &str) -> Result<PathBuf, CommandError> {
+    Ok(get_core_versions_dir()?.join(version))
+}
+
+pub fn set_active_singbox_core_version(version: Option<String>) -> Result<(), CommandError> {
+    let mut settings = load_app_settings_file()?;
+    settings.active_singbox_core_version = version;
+    save_app_settings_file(&settings)
+}
+
+pub fn get_active_singbox_core_version() -> Result<Option<String>, CommandError> {
+    ensure_active_singbox_core_version()?;
+    Ok(load_app_settings_file()?.active_singbox_core_version)
+}
+
+pub fn get_active_singbox_core_executable() -> Result<PathBuf, CommandError> {
+    ensure_active_singbox_core_version()?;
+    let settings = load_app_settings_file()?;
+    let version = settings.active_singbox_core_version.ok_or_else(|| {
+        CommandError::resource_not_found(
+            "active sing-box core version",
+            "app_settings.json does not point to an installed core version",
+        )
+    })?;
+    let executable_path = get_core_version_dir(&version)?.join(CORE_EXECUTABLE_NAME);
+    if !executable_path.exists() {
+        return Err(CommandError::resource_not_found(
+            "active sing-box core executable",
+            executable_path.display(),
+        ));
+    }
+
+    Ok(executable_path)
+}
+
+fn ensure_active_singbox_core_version() -> Result<(), CommandError> {
+    let settings = load_app_settings_file()?;
+    if let Some(version) = settings.active_singbox_core_version.as_deref() {
+        let executable_path = get_core_version_dir(version)?.join(CORE_EXECUTABLE_NAME);
+        if executable_path.exists() {
+            return Ok(());
+        }
+    }
+
+    migrate_legacy_core_layout()
+}
+
+fn migrate_legacy_core_layout() -> Result<(), CommandError> {
+    let bin_dir = get_bin_dir()?;
+    let legacy_executable = bin_dir.join(CORE_EXECUTABLE_NAME);
+    if !legacy_executable.exists() {
+        return Ok(());
+    }
+
+    let version = read_singbox_version_from_executable(&legacy_executable)?.ok_or_else(|| {
+        CommandError::invalid_state(
+            "migrate_legacy_core_layout",
+            "could not determine the version of the legacy sing-box core",
+        )
+    })?;
+    let target_dir = get_core_version_dir(&version)?;
+
+    if target_dir.exists() {
+        return Err(CommandError::invalid_state(
+            "migrate_legacy_core_layout",
+            format!(
+                "target version directory {} already exists while legacy bin files are still present",
+                target_dir.display()
+            ),
+        ));
+    }
+
+    fs::create_dir_all(&target_dir).map_err(|error| {
+        CommandError::io(format!("failed to create {}", target_dir.display()), error)
+    })?;
+
+    for entry in fs::read_dir(&bin_dir)
+        .map_err(|error| CommandError::io(format!("failed to read {}", bin_dir.display()), error))?
+    {
+        let entry = entry.map_err(|error| {
+            CommandError::io(format!("failed to enumerate {}", bin_dir.display()), error)
+        })?;
+        let source_path = entry.path();
+        let file_name = entry.file_name();
+
+        if file_name == CORE_VERSIONS_DIR {
+            continue;
+        }
+
+        let target_path = target_dir.join(&file_name);
+        fs::rename(&source_path, &target_path).map_err(|error| {
+            CommandError::io(
+                format!(
+                    "failed to move legacy core entry {} into {}",
+                    source_path.display(),
+                    target_path.display()
+                ),
+                error,
+            )
+        })?;
+    }
+
+    set_active_singbox_core_version(Some(version))
+}
+
+fn read_singbox_version_from_executable(path: &Path) -> Result<Option<String>, CommandError> {
+    if !path.exists() {
+        return Ok(None);
+    }
+
+    let output = Command::new(path)
+        .arg("version")
+        .output()
+        .map_err(|error| CommandError::io(format!("failed to run {}", path.display()), error))?;
+
+    if !output.status.success() {
+        return Err(CommandError::invalid_state(
+            "read_singbox_version_from_executable",
+            format!(
+                "failed to read sing-box version from {} with exit code {:?}",
+                path.display(),
+                output.status.code()
+            ),
+        ));
+    }
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    let first_line = stdout
+        .lines()
+        .find(|line| !line.trim().is_empty())
+        .map(str::trim)
+        .unwrap_or_default();
+
+    if first_line.is_empty() {
+        return Ok(None);
+    }
+
+    Ok(normalize_version_value(first_line).or_else(|| Some(first_line.to_string())))
+}
+
+fn normalize_version_value(value: &str) -> Option<String> {
+    let trimmed = value.trim();
+    if trimmed.is_empty() {
+        return None;
+    }
+
+    let candidate = trimmed
+        .split_whitespace()
+        .find(|segment| {
+            let lowered = segment.trim_start_matches('v');
+            lowered.chars().next().is_some_and(|ch| ch.is_ascii_digit())
+        })
+        .unwrap_or(trimmed);
+
+    let cleaned = candidate
+        .trim()
+        .trim_start_matches('v')
+        .trim_matches(|ch: char| {
+            !ch.is_ascii_alphanumeric() && ch != '.' && ch != '-' && ch != '+'
+        });
+
+    if cleaned.is_empty() {
+        None
+    } else {
+        Some(cleaned.to_string())
+    }
 }
 
 // 获取 sub 目录路径（放订阅得到的配置文件）
@@ -212,12 +404,12 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
-    load_json_or_default(&get_app_settings_path()?)
+    load_app_settings_file()
 }
 
 #[tauri::command]
 pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
-    write_json_file(&get_app_settings_path()?, &settings)
+    save_app_settings_file(&settings)
 }
 
 #[tauri::command]

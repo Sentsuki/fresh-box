@@ -81,6 +81,7 @@ export async function loadAppSettings(): Promise<AppSettings> {
     selected_config: settings.selected_config ?? null,
     selected_config_display: settings.selected_config_display ?? null,
     current_page: settings.current_page ?? null,
+    active_singbox_core_version: settings.active_singbox_core_version ?? null,
   };
 }
 

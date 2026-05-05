@@ -2,6 +2,7 @@ import { listen, type UnlistenFn } from "@tauri-apps/api/event";
 import { computed, onMounted, onUnmounted, ref } from "vue";
 import { getSingboxCoreStatus, updateSingboxCore } from "../../services/api";
 import { getCommandErrorPayload, getErrorMessage } from "../../services/tauri";
+import { useAppStore } from "../../stores/appStore";
 import { toast } from "../useToast";
 import type {
   CoreUpdateProgressEvent,
@@ -11,6 +12,7 @@ import type {
 
 export function useCoreUpdate() {
   let unlistenProgress: UnlistenFn | null = null;
+  const appStore = useAppStore();
 
   const isRefreshingCoreStatus = ref(false);
   const isUpdatingCore = ref(false);
@@ -146,6 +148,7 @@ export function useCoreUpdate() {
           ? `Sing-box core updated to ${result.current_version}. Restart sing-box to use the new core.`
           : `Sing-box core updated to ${result.current_version}`,
       );
+      await appStore.setActiveSingboxCoreVersion(result.current_version);
       await refreshCoreStatus();
     } catch (error) {
       const message = formatCoreUpdateError(error);

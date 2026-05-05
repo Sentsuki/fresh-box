@@ -15,6 +15,7 @@ const state = reactive({
   configFiles: [] as ConfigFileEntry[],
   selectedConfigPath: null as string | null,
   selectedConfigDisplay: null as string | null,
+  activeSingboxCoreVersion: null as string | null,
   subscriptions: {} as SubscriptionRecord,
 });
 
@@ -29,6 +30,7 @@ async function persistSettings() {
     selected_config: state.selectedConfigPath,
     selected_config_display: state.selectedConfigDisplay,
     current_page: state.currentPage,
+    active_singbox_core_version: state.activeSingboxCoreVersion,
   };
 
   await saveAppSettings(payload);
@@ -48,6 +50,7 @@ export function useAppStore() {
         : "overview";
     state.selectedConfigPath = settings.selected_config;
     state.selectedConfigDisplay = settings.selected_config_display;
+    state.activeSingboxCoreVersion = settings.active_singbox_core_version;
     settingsHydrated = true;
   }
 
@@ -83,6 +86,11 @@ export function useAppStore() {
     await persistSettings();
   }
 
+  async function setActiveSingboxCoreVersion(version: string | null) {
+    state.activeSingboxCoreVersion = version;
+    await persistSettings();
+  }
+
   function setConfigFiles(configFiles: ConfigFileEntry[]) {
     state.configFiles = configFiles;
   }
@@ -108,6 +116,7 @@ export function useAppStore() {
     withLoading,
     setCurrentPage,
     setSelectedConfig,
+    setActiveSingboxCoreVersion,
     setConfigFiles,
     setSubscriptions,
     setRunning,

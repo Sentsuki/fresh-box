@@ -16,6 +16,7 @@ export interface AppSettings {
   selected_config: string | null;
   selected_config_display: string | null;
   current_page: AppPage | null;
+  active_singbox_core_version: string | null;
 }
 
 export interface ConfigOverride {

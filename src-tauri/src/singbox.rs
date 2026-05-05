@@ -327,8 +327,7 @@ pub async fn start_singbox(
     let _startup_flag_guard = StartupFlagGuard::new(state.inner().clone());
 
     let startup_result = async {
-        let bin_dir = crate::config::get_bin_dir()?;
-        let singbox_path = bin_dir.join("sing-box.exe");
+        let singbox_path = crate::config::get_active_singbox_core_executable()?;
 
         let log_dir = crate::config::get_log_dir()?;
         let data_dir = crate::config::get_data_dir()?;
@@ -336,13 +335,6 @@ pub async fn start_singbox(
         let log_file_path = log_dir.join("singbox.log");
         let log_file = std::fs::File::create(&log_file_path)
             .map_err(|error| CommandError::resource_not_found("log file", error))?;
-
-        if !singbox_path.exists() {
-            return Err(CommandError::resource_not_found(
-                "sing-box.exe",
-                singbox_path.display(),
-            ));
-        }
 
         if !std::path::Path::new(&config_path).exists() {
             return Err(CommandError::resource_not_found(
