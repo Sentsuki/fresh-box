@@ -7,9 +7,11 @@ import {
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useAppStore } from "../stores/appStore";
+import { useClash } from "./useClash";
 import { toast } from "./useToast";
 
 const appStore = useAppStore();
+const clash = useClash();
 let statusCheckInterval: number | null = null;
 
 function stopPolling() {
@@ -50,8 +52,10 @@ export function useSingbox() {
 
     if (running) {
       ensurePolling();
+      await clash.refreshOverview();
     } else {
       stopPolling();
+      clash.clearOverview();
     }
   }
 
@@ -76,9 +80,11 @@ export function useSingbox() {
 
       appStore.setRunning(true);
       ensurePolling();
+      await clash.refreshOverview(true);
       toast.success("Sing-box is running.");
     } catch (error) {
       appStore.setRunning(false);
+      clash.clearOverview();
       toast.error(`Error starting sing-box: ${getErrorMessage(error)}`);
     }
   }
@@ -96,6 +102,7 @@ export function useSingbox() {
 
       appStore.setRunning(false);
       stopPolling();
+      clash.clearOverview();
       toast.success("Sing-box is stopped.");
     } catch (error) {
       toast.error(`Error stopping sing-box: ${getErrorMessage(error)}`);

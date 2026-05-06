@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod clash_api;
 mod config;
 mod config_override;
 mod core_update;
@@ -36,6 +37,10 @@ fn main() {
             core_update::get_singbox_core_status,
             core_update::activate_singbox_core,
             core_update::update_singbox_core,
+            clash_api::get_clash_overview,
+            clash_api::update_clash_mode,
+            clash_api::select_clash_proxy,
+            clash_api::test_clash_proxy_delay,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,

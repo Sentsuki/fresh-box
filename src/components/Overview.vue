@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { computed } from "vue";
+import ClashControlSection from "./overview/ClashControlSection.vue";
 import { useSingbox } from "../composables/useSingbox";
 import { useAppStore } from "../stores/appStore";
 
@@ -162,6 +163,8 @@ const isSubscription = computed(() => {
           }}
         </button>
       </div>
+
+      <ClashControlSection />
     </div>
   </div>
 </template>

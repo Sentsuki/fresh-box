@@ -1,6 +1,7 @@
 import { invokeCommand } from "./tauri";
 import type {
   AppSettings,
+  ClashOverview,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
@@ -119,6 +120,36 @@ export async function getClashApiUrl(
 
 export async function openUrl(url: string): Promise<void> {
   return invokeCommand<void>("open_url", { url });
+}
+
+export async function getClashOverview(): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("get_clash_overview");
+}
+
+export async function updateClashMode(mode: string): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("update_clash_mode", { mode });
+}
+
+export async function selectClashProxy(
+  proxyGroup: string,
+  name: string,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("select_clash_proxy", {
+    proxyGroup,
+    name,
+  });
+}
+
+export async function testClashProxyDelay(
+  proxyName: string,
+  url?: string,
+  timeoutMs?: number,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("test_clash_proxy_delay", {
+    proxyName,
+    url,
+    timeoutMs,
+  });
 }
 
 export async function enableConfigOverride(): Promise<void> {

@@ -30,6 +30,7 @@ reqwest = { version = "0.13", default-features = false, features = ["json", "str
 sysinfo = "0.38"
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
+urlencoding = "2"
 zip = "8"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]

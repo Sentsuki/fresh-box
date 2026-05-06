@@ -89,3 +89,25 @@ export interface CommandErrorPayload {
   kind?: string;
   message?: string;
 }
+
+export interface ClashProxyNode {
+  name: string;
+  kind: string;
+  delay: number | null;
+  alive: boolean | null;
+  is_selected: boolean;
+}
+
+export interface ClashProxyGroup {
+  name: string;
+  kind: string;
+  current: string;
+  current_delay: number | null;
+  options: ClashProxyNode[];
+}
+
+export interface ClashOverview {
+  current_mode: string;
+  available_modes: string[];
+  proxy_groups: ClashProxyGroup[];
+}
