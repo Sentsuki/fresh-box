@@ -15,7 +15,16 @@ mod window_utils;
 use core_update::cleanup_staged_core_update_files_directly;
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Manager, Window};
+
+#[tauri::command]
+fn update_mica_theme(window: Window, is_light: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::apply_mica;
+        let _ = apply_mica(&window, Some(!is_light));
+    }
+}
 
 fn main() {
     logger::install_panic_hook();
@@ -71,6 +80,7 @@ fn main() {
             priority_config::load_priority_config,
             priority_config::clear_priority_config,
             priority_config::check_config_fields,
+            update_mica_theme,
         ])
         .setup(|app| {
             tray::setup_system_tray(app)?;
