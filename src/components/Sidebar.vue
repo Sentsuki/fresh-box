@@ -30,7 +30,7 @@ function changePage(page: AppPage) {
         @click="changePage('proxy')"
       >
         <span class="sidebar-icon">🌐</span>
-        Proxy
+        Proxies
       </button>
       <button
         class="sidebar-item"

@@ -97,8 +97,8 @@ onMounted(() => {
           No proxy groups were returned by the core.
         </div>
 
-        <!-- Zashboard style grid for proxy groups -->
-        <div v-else class="grid grid-cols-1 md:grid-cols-2 gap-4 pb-4">
+        <!-- Zashboard style list for proxy groups -->
+        <div v-else class="flex flex-col gap-4 pb-4">
           <ProxyGroupRow
             v-for="group in proxyGroups"
             :key="group.name"
