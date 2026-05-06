@@ -27,15 +27,13 @@ function DelayLabel({ delay }: { delay: number | null }) {
   );
 }
 
-function abbreviateType(type: string): string {
+function abbreviateType(type: string | undefined): string {
+  if (!type) return "";
   return type
     .replace(/shadowsocks/i, "SS")
     .replace(/hysteria2/i, "Hy2")
     .replace(/hysteria/i, "Hy")
     .replace(/wireguard/i, "WG")
-    .replace(/trojan/i, "Trojan")
-    .replace(/vless/i, "VLESS")
-    .replace(/vmess/i, "VMess")
     .toLowerCase();
 }
 

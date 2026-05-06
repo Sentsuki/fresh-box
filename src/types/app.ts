@@ -367,7 +367,7 @@ export interface SingboxCoreUpdateResult {
 
 export interface ClashProxyNode {
   name: string;
-  type: string;
+  type?: string;
   delay: number | null;
   extra?: Record<string, unknown>;
 }
