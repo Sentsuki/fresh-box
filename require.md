@@ -10,19 +10,46 @@
 |------|------|------|
 | UI 框架 | React 19 | 已有，保留 |
 | 样式系统 | Tailwind CSS v4 | 已有，重新规范使用方式 |
-| 组件库 | `@fluentui/react-components` v9 | 已有，作为底层控件来源 |
-| 图标库 | `@fluentui/react-icons` v2 | 已有，保留 |
+| 图标库 | `@fluentui/react-icons` v2 | **必须保留**，WinUI 3 视觉语言核心 |
+| Design Token 来源 | `@fluentui/react-components`（仅 FluentProvider）| 注入 Windows 11 色彩系统 CSS 变量，不引入控件样式运行时 |
+| 复杂控件 | `@fluentui/react-components`（精选组件）| 仅用于行为/a11y 复杂的控件（见下方清单）|
+| 无头原语 | `@radix-ui/*` | 简单交互控件的 a11y 基础层（Switch、Tabs、Accordion）|
+| 简单控件 | 自写 Tailwind 组件 | Button、Badge、Spinner 等，零运行时开销 |
 | 状态管理 | Zustand v5 | 已有，重构 Store 设计 |
 | 构建工具 | Vite | 已有，保留 |
 | 类型系统 | TypeScript strict | 已有，全面强化 |
 | 路由 | 无路由库（页面切换用 Zustand 状态）| 轻量方案，无需引入 react-router |
 
-### 关于 FluentUI 与 Tailwind 的协作原则
+### FluentUI 使用边界（混合策略）
 
-- **FluentUI 负责**：交互控件（Button、Dialog、Dropdown、Badge、Tooltip、Spinner 等）、Design Token（颜色、字体、圆角、阴影）、可访问性（a11y）
-- **Tailwind 负责**：布局（flex/grid/gap/padding）、尺寸、背景颜色（使用 CSS 变量桥接 Fluent Token）、响应式工具类
-- **禁止**：在 Tailwind 中硬编码颜色值（如 `bg-neutral-800`），必须通过 `var(--colorNeutral*)` 等 Fluent Token 或自定义 CSS 变量使用
-- **不使用** FluentUI 的 `makeStyles` / `shorthands`，统一改用 Tailwind 工具类 + CSS 变量
+**保留（不可替代）：**
+
+| 内容 | 原因 |
+|------|------|
+| `@fluentui/react-icons` | Windows 官方 Segoe Fluent Icons，无替代 |
+| `FluentProvider` + `webDarkTheme` | 注入 200+ Windows 11 色彩 Token 为 CSS 变量，是 WinUI 3 设计系统基础 |
+| `Tooltip` | Floating UI 定位逻辑复杂，a11y 要求高 |
+| `Dialog` / `Drawer` | Focus trap、aria-modal、滚动锁定 |
+| `Toaster` / `useToastController` | 全局通知队列管理 |
+| `Combobox` / `Dropdown` | 键盘导航、虚拟列表、a11y 复杂 |
+
+**替换掉（用更轻量方案）：**
+
+| FluentUI 控件 | 替换方案 | 原因 |
+|------|------|------|
+| `Button` | 自写 `<button>` + Tailwind | 简单元素，Griffel 运行时浪费 |
+| `Badge` / `Tag` | 自写 `<span>` + Tailwind | 纯展示，无行为需求 |
+| `Spinner` | 纯 CSS animation | 不需要 JS |
+| `Switch` | `@radix-ui/react-switch` + Tailwind | 无头原语，自写 WinUI 样式 |
+| `Tabs` / `TabList` | `@radix-ui/react-tabs` + Tailwind | 同上 |
+| `AccordionItem` | `@radix-ui/react-accordion` + Tailwind | 同上 |
+| `MessageBar` | 自写 + Tailwind | 布局简单，无复杂行为 |
+
+**绝对禁止：**
+
+- 使用 FluentUI 的 `makeStyles` / `shorthands`（Griffel 运行时，有性能开销）
+- 在 Tailwind 中硬编码颜色值（如 `bg-neutral-800`），必须通过 `var(--colorNeutral*)` 等 Fluent Token 或自定义 CSS 变量
+- 引入未在上方清单中列出的 FluentUI 组件（先评估是否真的需要）
 
 ---
 
@@ -83,17 +110,22 @@ body {
 
 ### 2.4 WinUI 3 控件映射
 
-| 原生 WinUI 控件 | 实现方案 |
-|------|------|
-| NavigationView | 自定义 `<Sidebar>` + FluentUI `NavDrawer` token |
-| TitleBar | 自定义 `<TitleBar>` 利用 Tauri window decoration |
-| InfoBar | FluentUI `<MessageBar>` |
-| ProgressRing | FluentUI `<Spinner>` |
-| ComboBox | FluentUI `<Dropdown>` / `<Select>` |
-| ToggleSwitch | FluentUI `<Switch>` |
-| Expander | FluentUI `<AccordionItem>` |
-| DataGrid | 自研虚拟列表（见性能规范） |
-| TeachingTip / Toast | FluentUI `<Toaster>` + `useToastController` |
+| 原生 WinUI 控件 | 实现方案 | 来源 |
+|------|------|------|
+| NavigationView | 自定义 `<Sidebar>` | Tailwind + Fluent Token CSS 变量 |
+| TitleBar | 自定义 `<TitleBar>` | Tauri window decoration + Tailwind |
+| Button（普通）| 自定义 `<Button>` | Tailwind + CSS 变量，零运行时 |
+| Button（Accent）| 自定义 `<AccentButton>` | Tailwind，使用 `--wb-accent` |
+| InfoBar | 自定义 `<InfoBar>` | Tailwind + Fluent Token |
+| ProgressRing | 纯 CSS Spinner | CSS `@keyframes`，零 JS |
+| ComboBox | FluentUI `<Combobox>` | 键盘导航复杂，保留 |
+| ToggleSwitch | `@radix-ui/react-switch` | Radix 无头，自写 WinUI 样式 |
+| Expander | `@radix-ui/react-accordion` | Radix 无头，自写 WinUI 样式 |
+| TabView | `@radix-ui/react-tabs` | Radix 无头，自写 WinUI 样式 |
+| DataGrid | 自研 `<VirtualTable>` | 见性能规范 |
+| Toast / TeachingTip | FluentUI `<Toaster>` | 保留，全局通知队列管理 |
+| Tooltip | FluentUI `<Tooltip>` | 保留，Floating UI 定位 |
+| Dialog | FluentUI `<Dialog>` | 保留，focus trap + a11y |
 
 ---
 
@@ -469,9 +501,12 @@ export async function invokeCommand<T>(cmd: string, args?: object): Promise<T> {
 > 按此顺序执行，保证每阶段都有可运行的状态。
 
 ### Phase 1：基础设施（Day 1）
+- [ ] 安装 Radix UI 原语：`pnpm add @radix-ui/react-switch @radix-ui/react-tabs @radix-ui/react-accordion`
 - [ ] 新建 `src/styles/winui-tokens.css`，定义全部 CSS 变量
 - [ ] 修改 `src/styles/index.css`，引入 Tailwind v4 + tokens
 - [ ] 修改 `main.tsx`：配置 `FluentProvider` 使用 `webDarkTheme` + 自定义 token 覆盖
+- [ ] 新建基础控件：`components/ui/Button.tsx`、`Badge.tsx`、`Spinner.tsx`（Tailwind 自写）
+- [ ] 新建 Radix 封装：`Switch.tsx`、`Tabs.tsx`、`Accordion.tsx`（无头 + WinUI 样式）
 - [ ] 新建 `components/layout/TitleBar.tsx`
 - [ ] 新建 `components/ui/Card.tsx`、`Section.tsx` 等基础组件
 - [ ] 新建 `components/global/ErrorBoundary.tsx`
@@ -510,14 +545,16 @@ export async function invokeCommand<T>(cmd: string, args?: object): Promise<T> {
 
 | 禁止 | 原因 |
 |------|------|
-| 在 JSX render 中使用 `makeStyles` hook | 每次渲染重新创建样式对象，严重影响性能 |
+| 使用 FluentUI 的 `makeStyles` / `shorthands` | Griffel 运行时开销，与 Tailwind 产生样式优先级冲突 |
+| 引入未在清单中列出的 FluentUI 组件 | 每个组件都携带 Griffel 运行时，先评估必要性 |
+| 在 Tailwind 中硬编码颜色（`bg-neutral-800`）| 必须使用 `var(--colorNeutral*)` 或 `--wb-*` CSS 变量 |
 | 在 Store action 中 `await` 多个 invoke | 异步副作用应在 Hook 中处理 |
 | 整体订阅 store（`const s = useStore()`）| 导致任意字段变化都触发重渲染 |
 | 在 Connections/Logs 中直接 `setState` 每条消息 | 必须使用 rAF 批量更新 |
 | 使用 `transition: all` | 性能浪费，按需声明 |
 | 使用 `JSON.parse` 在渲染路径中 | 提前解析，缓存结果 |
 | 引入 Recharts / Chart.js 等大型图表库 | 用 Canvas API 手写，控制包体积 |
-| 混用 `makeStyles` 和 Tailwind 类名 | 统一使用 Tailwind + CSS 变量 |
+| 混用 `makeStyles` 和 Tailwind 类名 | 样式来源混乱，优先级不可预测，统一用 Tailwind + CSS 变量 |
 
 ---
 
