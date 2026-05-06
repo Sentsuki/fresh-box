@@ -190,6 +190,41 @@ async fn fetch_clash_overview_inner() -> Result<ClashOverview, CommandError> {
     Ok(build_clash_overview(config, proxies))
 }
 
+async fn execute_proxy_delay_test(
+    proxy_name: &str,
+    url: Option<&str>,
+    timeout_ms: Option<u64>,
+) -> Result<(), CommandError> {
+    if proxy_name.trim().is_empty() {
+        return Err(CommandError::validation("Proxy name cannot be empty."));
+    }
+
+    let client = clash_client()?;
+    let encoded_name = urlencoding::encode(proxy_name.trim());
+    let target_url = url
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(DEFAULT_TEST_URL);
+    let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
+    let request_url = format!(
+        "{}?url={}&timeout={}",
+        build_clash_url(&format!("/proxies/{}/delay", encoded_name)),
+        urlencoding::encode(target_url),
+        timeout
+    );
+
+    client
+        .get(request_url)
+        .bearer_auth(CLASH_API_SECRET)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?;
+
+    Ok(())
+}
+
 fn build_clash_overview(
     config: ClashConfigResponse,
     proxies: ClashProxiesResponse,
@@ -324,33 +359,32 @@ pub async fn test_clash_proxy_delay(
     url: Option<String>,
     timeout_ms: Option<u64>,
 ) -> Result<ClashOverview, CommandError> {
-    if proxy_name.trim().is_empty() {
-        return Err(CommandError::validation("Proxy name cannot be empty."));
+    execute_proxy_delay_test(proxy_name.as_str(), url.as_deref(), timeout_ms).await?;
+
+    fetch_clash_overview_inner().await
+}
+
+#[tauri::command]
+pub async fn test_clash_proxy_group_delay(
+    proxy_group: String,
+    url: Option<String>,
+    timeout_ms: Option<u64>,
+) -> Result<ClashOverview, CommandError> {
+    let normalized_group = proxy_group.trim();
+    if normalized_group.is_empty() {
+        return Err(CommandError::validation("Proxy group cannot be empty."));
     }
 
-    let client = clash_client()?;
-    let encoded_name = urlencoding::encode(proxy_name.trim());
-    let target_url = url
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-        .unwrap_or(DEFAULT_TEST_URL);
-    let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
-    let request_url = format!(
-        "{}?url={}&timeout={}",
-        build_clash_url(&format!("/proxies/{}/delay", encoded_name)),
-        urlencoding::encode(target_url),
-        timeout
-    );
+    let overview = fetch_clash_overview_inner().await?;
+    let group = overview
+        .proxy_groups
+        .iter()
+        .find(|item| item.name == normalized_group)
+        .ok_or_else(|| CommandError::resource_not_found("proxy group", normalized_group))?;
 
-    client
-        .get(request_url)
-        .bearer_auth(CLASH_API_SECRET)
-        .send()
-        .await
-        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?
-        .error_for_status()
-        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?;
+    for node in &group.options {
+        execute_proxy_delay_test(node.name.as_str(), url.as_deref(), timeout_ms).await?;
+    }
 
     fetch_clash_overview_inner().await
 }

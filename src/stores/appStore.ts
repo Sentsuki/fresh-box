@@ -46,6 +46,7 @@ export function useAppStore() {
     const settings = await loadAppSettings();
     state.currentPage =
       settings.current_page === "overview" ||
+      settings.current_page === "proxy" ||
       settings.current_page === "config" ||
       settings.current_page === "custom" ||
       settings.current_page === "settings"

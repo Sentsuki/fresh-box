@@ -26,6 +26,14 @@ function changePage(page: AppPage) {
       </button>
       <button
         class="sidebar-item"
+        :class="{ active: appStore.currentPage.value === 'proxy' }"
+        @click="changePage('proxy')"
+      >
+        <span class="sidebar-icon">🌐</span>
+        Proxy
+      </button>
+      <button
+        class="sidebar-item"
         :class="{ active: appStore.currentPage.value === 'config' }"
         @click="changePage('config')"
       >

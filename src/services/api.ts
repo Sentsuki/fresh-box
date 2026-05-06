@@ -152,6 +152,18 @@ export async function testClashProxyDelay(
   });
 }
 
+export async function testClashProxyGroupDelay(
+  proxyGroup: string,
+  url?: string,
+  timeoutMs?: number,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("test_clash_proxy_group_delay", {
+    proxyGroup,
+    url,
+    timeoutMs,
+  });
+}
+
 export async function enableConfigOverride(): Promise<void> {
   return invokeCommand<void>("enable_config_override");
 }

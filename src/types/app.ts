@@ -1,4 +1,4 @@
-export type AppPage = "overview" | "config" | "custom" | "settings";
+export type AppPage = "overview" | "proxy" | "config" | "custom" | "settings";
 export type SingboxCoreChannel = "stable" | "testing";
 
 export interface SubscriptionInfo {
@@ -103,11 +103,11 @@ export interface ClashProxyGroup {
   kind: string;
   current: string;
   current_delay: number | null;
-  options: ClashProxyNode[];
+  options: ReadonlyArray<ClashProxyNode>;
 }
 
 export interface ClashOverview {
   current_mode: string;
-  available_modes: string[];
-  proxy_groups: ClashProxyGroup[];
+  available_modes: ReadonlyArray<string>;
+  proxy_groups: ReadonlyArray<ClashProxyGroup>;
 }

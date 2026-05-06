@@ -3,6 +3,7 @@ import {
   getClashOverview,
   selectClashProxy,
   testClashProxyDelay,
+  testClashProxyGroupDelay,
   updateClashMode,
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
@@ -15,6 +16,7 @@ const isRefreshing = ref(false);
 const activeMode = ref<string | null>(null);
 const activeSelectionKey = ref<string | null>(null);
 const activeDelayNode = ref<string | null>(null);
+const activeGroupDelay = ref<string | null>(null);
 let requestSequence = 0;
 
 function findDelay(
@@ -60,6 +62,7 @@ export function useClash() {
     activeMode.value = null;
     activeSelectionKey.value = null;
     activeDelayNode.value = null;
+    activeGroupDelay.value = null;
   }
 
   async function changeMode(mode: string) {
@@ -125,6 +128,28 @@ export function useClash() {
     }
   }
 
+  async function testGroupDelay(proxyGroup: string) {
+    if (activeGroupDelay.value === proxyGroup) {
+      return;
+    }
+
+    activeGroupDelay.value = proxyGroup;
+    try {
+      const nextOverview = await testClashProxyGroupDelay(proxyGroup);
+      overview.value = nextOverview;
+      errorMessage.value = null;
+
+      const group = nextOverview.proxy_groups.find((item) => item.name === proxyGroup);
+      toast.success(
+        `${proxyGroup}: tested ${group?.options.length ?? 0} nodes`,
+      );
+    } catch (error) {
+      toast.error(`Failed to test group latency: ${getErrorMessage(error)}`);
+    } finally {
+      activeGroupDelay.value = null;
+    }
+  }
+
   return {
     overview: readonly(overview),
     errorMessage: readonly(errorMessage),
@@ -132,11 +157,13 @@ export function useClash() {
     activeMode: readonly(activeMode),
     activeSelectionKey: readonly(activeSelectionKey),
     activeDelayNode: readonly(activeDelayNode),
+    activeGroupDelay: readonly(activeGroupDelay),
     hasData: computed(() => overview.value !== null),
     refreshOverview,
     clearOverview,
     changeMode,
     switchProxy,
     testDelay,
+    testGroupDelay,
   };
 }
