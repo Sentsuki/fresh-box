@@ -1,4 +1,4 @@
-import { ref } from "vue";
+import { create } from 'zustand';
 import {
   clearConfigOverride,
   disableConfigOverride,
@@ -9,48 +9,45 @@ import {
 } from "./api";
 import type { ConfigOverride } from "../types/app";
 
-const isEnabled = ref(false);
-const config = ref<ConfigOverride>({});
+interface ConfigOverrideState {
+  isEnabled: boolean;
+  config: ConfigOverride;
+  loadConfig: () => Promise<ConfigOverride>;
+  enableOverride: () => Promise<void>;
+  disableOverride: () => Promise<void>;
+  saveConfig: (newConfig: ConfigOverride) => Promise<void>;
+  clearConfig: () => Promise<void>;
+}
 
-export function useConfigOverride() {
-  async function loadConfig() {
+export const useConfigOverrideStore = create<ConfigOverrideState>((set) => ({
+  isEnabled: false,
+  config: {},
+  loadConfig: async () => {
     const [loadedConfig, enabled] = await Promise.all([
       loadConfigOverride(),
       isConfigOverrideEnabled(),
     ]);
-
-    config.value = loadedConfig;
-    isEnabled.value = enabled;
+    set({ config: loadedConfig, isEnabled: enabled });
     return loadedConfig;
-  }
-
-  async function enableOverride() {
-    isEnabled.value = true;
+  },
+  enableOverride: async () => {
+    set({ isEnabled: true });
     await enableConfigOverride();
-  }
-
-  async function disableOverride() {
-    isEnabled.value = false;
+  },
+  disableOverride: async () => {
+    set({ isEnabled: false });
     await disableConfigOverride();
-  }
-
-  async function saveConfig(newConfig: ConfigOverride) {
-    config.value = newConfig;
+  },
+  saveConfig: async (newConfig: ConfigOverride) => {
+    set({ config: newConfig });
     await saveConfigOverride(newConfig);
-  }
-
-  async function clearConfig() {
-    config.value = {};
+  },
+  clearConfig: async () => {
+    set({ config: {} });
     await clearConfigOverride();
-  }
+  },
+}));
 
-  return {
-    isEnabled,
-    config,
-    loadConfig,
-    enableOverride,
-    disableOverride,
-    saveConfig,
-    clearConfig,
-  };
+export function useConfigOverride() {
+  return useConfigOverrideStore();
 }

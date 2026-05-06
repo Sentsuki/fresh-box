@@ -1,4 +1,4 @@
-import { onMounted, onUnmounted, watch } from "vue";
+import { useEffect, useCallback } from "react";
 import { openAppDirectory } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useAppStore } from "../stores/appStore";
@@ -15,8 +15,8 @@ interface UseSettingsOptions {
 
 export function useSettings(options: UseSettingsOptions = {}) {
   const appStore = useAppStore();
-  const { loadCustomerSettings = true, autoRefreshCoreStatus = false } =
-    options;
+  const { loadCustomerSettings = true, autoRefreshCoreStatus = false } = options;
+  
   const prioritySettings = usePriorityConfig();
   const overrideSettings = useConfigOverrideSettings();
   const processManagement = useProcessManagement();
@@ -24,46 +24,44 @@ export function useSettings(options: UseSettingsOptions = {}) {
     autoRefreshOnFirstMount: autoRefreshCoreStatus,
   });
 
-  async function openApplicationDirectory() {
+  const openApplicationDirectory = useCallback(async () => {
     try {
       await openAppDirectory();
     } catch (error) {
       toast.error(`Failed to open app directory: ${getErrorMessage(error)}`);
     }
-  }
+  }, []);
 
-  async function initialize() {
+  const initialize = useCallback(async () => {
     await Promise.all([
       overrideSettings.initializeOverride(),
       loadCustomerSettings
         ? prioritySettings.loadConfiguration()
         : Promise.resolve(),
     ]);
-  }
+  }, [overrideSettings, loadCustomerSettings, prioritySettings]);
 
-  const handleWindowFocus = async () => {
-    if (loadCustomerSettings) {
-      await prioritySettings.loadConfiguration();
-    }
-  };
+  useEffect(() => {
+    const handleWindowFocus = async () => {
+      if (loadCustomerSettings) {
+        await prioritySettings.loadConfiguration();
+      }
+    };
 
-  if (loadCustomerSettings) {
-    watch(
-      () => appStore.selectedConfigPath.value,
-      () => {
-        void prioritySettings.loadConfiguration();
-      },
-    );
-  }
-
-  onMounted(() => {
     void initialize();
     window.addEventListener("focus", handleWindowFocus);
-  });
+    return () => {
+      window.removeEventListener("focus", handleWindowFocus);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [loadCustomerSettings]); 
 
-  onUnmounted(() => {
-    window.removeEventListener("focus", handleWindowFocus);
-  });
+  useEffect(() => {
+    if (loadCustomerSettings) {
+      void prioritySettings.loadConfiguration();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [appStore.appSettings.app.selected_config_path, loadCustomerSettings]);
 
   return {
     ...prioritySettings,

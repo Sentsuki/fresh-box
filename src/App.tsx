@@ -1,8 +1,7 @@
 import { useEffect } from "react";
 import { useAppStore } from "./stores/appStore";
-// Import hooks once migrated
-// import { useConfigs } from "./hooks/useConfigs";
-// import { useSingbox } from "./hooks/useSingbox";
+import { useConfigs } from "./hooks/useConfigs";
+import { useSingbox } from "./hooks/useSingbox";
 
 // Components to be migrated
 import Sidebar from "./components/Sidebar";
@@ -21,13 +20,16 @@ export default function App() {
   const hydrateSettings = useAppStore((state) => state.hydrateSettings);
   const markInitialized = useAppStore((state) => state.markInitialized);
   const currentPage = useAppStore((state) => state.appSettings.app.current_page);
+  
+  const { initializeConfigs } = useConfigs();
+  const { initializeSingbox } = useSingbox();
 
   useEffect(() => {
     async function init() {
       try {
         await hydrateSettings();
-        // TODO: await useConfigs().initializeConfigs();
-        // TODO: await useSingbox().initializeSingbox();
+        await initializeConfigs();
+        await initializeSingbox();
         markInitialized();
       } catch (error) {
         console.error("Failed to initialize app:", error);
@@ -37,7 +39,7 @@ export default function App() {
     if (!initialized) {
       init();
     }
-  }, [initialized, hydrateSettings, markInitialized]);
+  }, [initialized, hydrateSettings, initializeConfigs, initializeSingbox, markInitialized]);
 
   if (!initialized) {
     return <div className="flex items-center justify-center h-full">Loading...</div>;

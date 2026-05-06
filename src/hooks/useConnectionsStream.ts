@@ -1,4 +1,5 @@
-import { computed, readonly, ref } from "vue";
+import { useMemo } from "react";
+import { create } from 'zustand';
 import { coreRequest, buildCoreWebSocketUrl } from "../services/coreClient";
 import { formatRelativeDuration } from "../services/utils";
 import type {
@@ -149,20 +150,33 @@ const columnDefinitions: Record<ConnectionColumnKey, ConnectionColumnDefinition>
   },
 };
 
-const activeConnections = ref<ConnectionEntry[]>([]);
-const closedConnections = ref<ConnectionEntry[]>([]);
-const totalDownload = ref(0);
-const totalUpload = ref(0);
-const isPaused = ref(false);
-const search = ref("");
-const streamStatus = ref<"disconnected" | "connecting" | "connected" | "error">(
-  "disconnected",
-);
-const streamError = ref<string | null>(null);
-const selectedConnection = ref<ConnectionEntry | null>(null);
-const detailsOpen = ref(false);
-const activeDisconnectIds = ref<string[]>([]);
-const isDisconnectingAll = ref(false);
+interface ConnectionsState {
+  activeConnections: ConnectionEntry[];
+  closedConnections: ConnectionEntry[];
+  totalDownload: number;
+  totalUpload: number;
+  isPaused: boolean;
+  search: string;
+  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamError: string | null;
+  selectedConnection: ConnectionEntry | null;
+  detailsOpen: boolean;
+  activeDisconnectIds: string[];
+  isDisconnectingAll: boolean;
+
+  setSearch: (search: string) => void;
+  setIsPaused: (paused: boolean) => void;
+  setStreamStatus: (status: "disconnected" | "connecting" | "connected" | "error") => void;
+  setStreamError: (error: string | null) => void;
+  setSelectedConnection: (conn: ConnectionEntry | null) => void;
+  setDetailsOpen: (open: boolean) => void;
+  setActiveDisconnectIds: (ids: string[]) => void;
+  setIsDisconnectingAll: (disconnecting: boolean) => void;
+
+  applyFrame: (frame: CoreConnectionsFrame) => void;
+  resetConnectionState: () => void;
+  clearClosedConnections: () => void;
+}
 
 let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
@@ -190,15 +204,78 @@ function normalizeConnection(
   };
 }
 
-function resetConnectionState() {
-  activeConnections.value = [];
-  closedConnections.value = [];
-  totalDownload.value = 0;
-  totalUpload.value = 0;
-  previousConnectionsMap.clear();
-  selectedConnection.value = null;
-  detailsOpen.value = false;
-}
+export const useConnectionsStore = create<ConnectionsState>((set, get) => ({
+  activeConnections: [],
+  closedConnections: [],
+  totalDownload: 0,
+  totalUpload: 0,
+  isPaused: false,
+  search: "",
+  streamStatus: "disconnected",
+  streamError: null,
+  selectedConnection: null,
+  detailsOpen: false,
+  activeDisconnectIds: [],
+  isDisconnectingAll: false,
+
+  setSearch: (search) => set({ search }),
+  setIsPaused: (paused) => set({ isPaused: paused }),
+  setStreamStatus: (status) => set({ streamStatus: status }),
+  setStreamError: (error) => set({ streamError: error }),
+  setSelectedConnection: (conn) => set({ selectedConnection: conn }),
+  setDetailsOpen: (open) => set({ detailsOpen: open }),
+  setActiveDisconnectIds: (ids) => set({ activeDisconnectIds: ids }),
+  setIsDisconnectingAll: (disconnecting) => set({ isDisconnectingAll: disconnecting }),
+
+  applyFrame: (frame) => {
+    if (get().isPaused) {
+      set({ totalDownload: frame.downloadTotal, totalUpload: frame.uploadTotal });
+      return;
+    }
+
+    const currentConnectionsMap = new Map<string, CoreConnectionSnapshot>();
+    const previousSnapshot = new Map(previousConnectionsMap);
+
+    const newActiveConnections = (frame.connections ?? []).map((connection) => {
+      const previous = previousSnapshot.get(connection.id);
+      previousSnapshot.delete(connection.id);
+      currentConnectionsMap.set(connection.id, connection);
+      return normalizeConnection(connection, previous);
+    });
+
+    const newlyClosed = Array.from(previousSnapshot.values())
+      .map((connection) => normalizeConnection(connection))
+      .sort((left, right) => right.start.localeCompare(left.start));
+
+    previousConnectionsMap = currentConnectionsMap;
+
+    set((state) => ({
+      totalDownload: frame.downloadTotal,
+      totalUpload: frame.uploadTotal,
+      activeConnections: newActiveConnections,
+      closedConnections: newlyClosed.length > 0 
+        ? [...newlyClosed, ...state.closedConnections].slice(0, 500) 
+        : state.closedConnections
+    }));
+  },
+
+  resetConnectionState: () => {
+    previousConnectionsMap.clear();
+    set({
+      activeConnections: [],
+      closedConnections: [],
+      totalDownload: 0,
+      totalUpload: 0,
+      selectedConnection: null,
+      detailsOpen: false
+    });
+  },
+
+  clearClosedConnections: () => {
+    set({ closedConnections: [] });
+    toast.success("Closed connection history cleared");
+  }
+}));
 
 function clearReconnectTimer() {
   if (reconnectTimer !== null) {
@@ -216,69 +293,42 @@ function scheduleReconnect() {
   }, 1500);
 }
 
-function applyFrame(frame: CoreConnectionsFrame) {
-  totalDownload.value = frame.downloadTotal;
-  totalUpload.value = frame.uploadTotal;
-
-  if (isPaused.value) {
-    return;
-  }
-
-  const currentConnectionsMap = new Map<string, CoreConnectionSnapshot>();
-  const previousSnapshot = new Map(previousConnectionsMap);
-
-  activeConnections.value = (frame.connections ?? []).map((connection) => {
-    const previous = previousSnapshot.get(connection.id);
-    previousSnapshot.delete(connection.id);
-    currentConnectionsMap.set(connection.id, connection);
-    return normalizeConnection(connection, previous);
-  });
-
-  const newlyClosed = Array.from(previousSnapshot.values())
-    .map((connection) => normalizeConnection(connection))
-    .sort((left, right) => right.start.localeCompare(left.start));
-
-  if (newlyClosed.length > 0) {
-    closedConnections.value = [...newlyClosed, ...closedConnections.value].slice(0, 500);
-  }
-
-  previousConnectionsMap = currentConnectionsMap;
-}
-
 function connect() {
   clearReconnectTimer();
-  streamStatus.value = "connecting";
-  streamError.value = null;
+  const store = useConnectionsStore.getState();
+  store.setStreamStatus("connecting");
+  store.setStreamError(null);
 
   socket = new WebSocket(buildCoreWebSocketUrl("connections"));
 
   socket.onopen = () => {
-    streamStatus.value = "connected";
-    streamError.value = null;
+    store.setStreamStatus("connected");
+    store.setStreamError(null);
   };
 
   socket.onmessage = (event) => {
     try {
-      applyFrame(JSON.parse(event.data as string) as CoreConnectionsFrame);
+      store.applyFrame(JSON.parse(event.data as string) as CoreConnectionsFrame);
     } catch (error) {
-      streamStatus.value = "error";
-      streamError.value =
-        error instanceof Error ? error.message : "Failed to parse connections frame";
+      store.setStreamStatus("error");
+      store.setStreamError(
+        error instanceof Error ? error.message : "Failed to parse connections frame"
+      );
     }
   };
 
   socket.onerror = () => {
-    streamStatus.value = "error";
-    streamError.value = "Connections stream failed.";
+    store.setStreamStatus("error");
+    store.setStreamError("Connections stream failed.");
   };
 
   socket.onclose = () => {
     socket = null;
     if (shouldReconnect) {
-      streamStatus.value = "connecting";
+      store.setStreamStatus("connecting");
       scheduleReconnect();
     } else {
-      streamStatus.value = "disconnected";
+      store.setStreamStatus("disconnected");
     }
   };
 }
@@ -372,66 +422,62 @@ export function getConnectionRule(connection: ConnectionEntry) {
 }
 
 export function useConnectionsStream() {
+  const store = useConnectionsStore();
   const appStore = useAppStore();
-  const connectionSettings = computed(() => appStore.appSettings.value.pages.connections);
+  
+  const connectionSettings = appStore.appSettings.pages.connections;
 
-  function updateConnectionSettings(
-    updater: (settings: ConnectionPageSettings) => void,
-  ) {
+  function updateConnectionSettings(updater: (settings: ConnectionPageSettings) => void) {
     void appStore.updatePageSettings("connections", updater);
   }
 
-  const currentTab = computed<ConnectionPageTab>({
-    get: () => connectionSettings.value.current_tab,
-    set: (value) => {
-      updateConnectionSettings((settings) => {
-        settings.current_tab = value;
-      });
-    },
-  });
+  const currentTab = connectionSettings.current_tab;
+  const setCurrentTab = (value: ConnectionPageTab) => {
+    updateConnectionSettings((settings) => {
+      settings.current_tab = value;
+    });
+  };
 
-  const columnOrder = computed(() => connectionSettings.value.column_order);
-  const visibleColumnKeys = computed(
-    () => connectionSettings.value.visible_columns,
-  );
-  const sortKey = computed(() => connectionSettings.value.sort_key);
-  const sortDirection = computed(() => connectionSettings.value.sort_direction);
-  const groupedColumnKey = computed(
-    () => connectionSettings.value.grouped_column,
-  );
-  const collapsedGroups = computed(
-    () => connectionSettings.value.collapsed_groups,
+  const columnOrder = connectionSettings.column_order;
+  const visibleColumnKeys = connectionSettings.visible_columns;
+  const sortKey = connectionSettings.sort_key;
+  const sortDirection = connectionSettings.sort_direction;
+  const groupedColumnKey = connectionSettings.grouped_column;
+  const collapsedGroups = connectionSettings.collapsed_groups;
+
+  const orderedColumnOptions = useMemo(() =>
+    columnOrder.map((key) => columnDefinitions[key]),
+    [columnOrder]
   );
 
-  const orderedColumnOptions = computed(() =>
-    columnOrder.value.map((key) => columnDefinitions[key]),
-  );
-
-  const visibleColumns = computed(() =>
-    orderedColumnOptions.value.filter((column) =>
-      visibleColumnKeys.value.includes(column.key),
+  const visibleColumns = useMemo(() =>
+    orderedColumnOptions.filter((column) =>
+      visibleColumnKeys.includes(column.key),
     ),
+    [orderedColumnOptions, visibleColumnKeys]
   );
 
-  const filteredConnections = computed(() => {
+  const filteredConnections = useMemo(() => {
     const source =
-      currentTab.value === "active"
-        ? activeConnections.value
-        : closedConnections.value;
+      currentTab === "active"
+        ? store.activeConnections
+        : store.closedConnections;
 
-    return source.filter((connection) => matchesSearch(connection, search.value));
-  });
+    return source.filter((connection) => matchesSearch(connection, store.search));
+  }, [currentTab, store.activeConnections, store.closedConnections, store.search]);
 
-  const visibleConnections = computed(() =>
-    sortConnections(filteredConnections.value, sortKey.value, sortDirection.value),
+  const visibleConnections = useMemo(() =>
+    sortConnections(filteredConnections, sortKey, sortDirection),
+    [filteredConnections, sortKey, sortDirection]
   );
 
-  const groupedColumn = computed(() =>
-    groupedColumnKey.value ? columnDefinitions[groupedColumnKey.value] : null,
+  const groupedColumn = useMemo(() =>
+    groupedColumnKey ? columnDefinitions[groupedColumnKey] : null,
+    [groupedColumnKey]
   );
 
-  const groupedVisibleConnections = computed<ConnectionGroup[]>(() => {
-    const activeGroupedColumn = groupedColumn.value;
+  const groupedVisibleConnections = useMemo<ConnectionGroup[]>(() => {
+    const activeGroupedColumn = groupedColumn;
 
     if (!activeGroupedColumn) {
       return [];
@@ -442,7 +488,7 @@ export function useConnectionsStream() {
       { id: string; label: string; rawValue: ColumnValue; items: ConnectionEntry[] }
     >();
 
-    for (const connection of filteredConnections.value) {
+    for (const connection of filteredConnections) {
       const rawValue = activeGroupedColumn.getValue(connection);
       const label = String(rawValue || "--");
       const id = `${activeGroupedColumn.key}:${label}`;
@@ -462,7 +508,7 @@ export function useConnectionsStream() {
     }
 
     const groupDirection =
-      sortKey.value === activeGroupedColumn.key ? sortDirection.value : "asc";
+      sortKey === activeGroupedColumn.key ? sortDirection : "asc";
 
     return Array.from(groups.values())
       .sort((left, right) => {
@@ -477,12 +523,12 @@ export function useConnectionsStream() {
         id: group.id,
         label: group.label,
         column: activeGroupedColumn,
-        items: sortConnections(group.items, sortKey.value, sortDirection.value),
+        items: sortConnections(group.items, sortKey, sortDirection),
       }));
-  });
+  }, [groupedColumn, filteredConnections, sortKey, sortDirection]);
 
-  const activeCount = computed(() => activeConnections.value.length);
-  const closedCount = computed(() => closedConnections.value.length);
+  const activeCount = store.activeConnections.length;
+  const closedCount = store.closedConnections.length;
 
   function startStream() {
     if (shouldReconnect) {
@@ -502,22 +548,22 @@ export function useConnectionsStream() {
       socket = null;
       activeSocket.close();
     } else {
-      streamStatus.value = "disconnected";
+      store.setStreamStatus("disconnected");
     }
 
     if (clearState) {
-      resetConnectionState();
+      store.resetConnectionState();
     }
   }
 
   function openDetails(connection: ConnectionEntry) {
-    selectedConnection.value = connection;
-    detailsOpen.value = true;
+    store.setSelectedConnection(connection);
+    store.setDetailsOpen(true);
   }
 
   function closeDetails() {
-    detailsOpen.value = false;
-    selectedConnection.value = null;
+    store.setDetailsOpen(false);
+    store.setSelectedConnection(null);
   }
 
   function toggleSort(columnKey: ConnectionColumnKey) {
@@ -525,7 +571,7 @@ export function useConnectionsStream() {
       return;
     }
 
-    if (sortKey.value !== columnKey) {
+    if (sortKey !== columnKey) {
       updateConnectionSettings((settings) => {
         settings.sort_key = columnKey;
         settings.sort_direction = columnDefinitions[columnKey].defaultDirection;
@@ -568,16 +614,16 @@ export function useConnectionsStream() {
   }
 
   function isGroupCollapsed(groupId: string) {
-    return Boolean(collapsedGroups.value[groupId]);
+    return Boolean(collapsedGroups[groupId]);
   }
 
   function isColumnVisible(columnKey: ConnectionColumnKey) {
-    return visibleColumnKeys.value.includes(columnKey);
+    return visibleColumnKeys.includes(columnKey);
   }
 
   function toggleColumnVisibility(columnKey: ConnectionColumnKey) {
     if (isColumnVisible(columnKey)) {
-      if (visibleColumnKeys.value.length === 1) {
+      if (visibleColumnKeys.length === 1) {
         return;
       }
 
@@ -613,14 +659,14 @@ export function useConnectionsStream() {
   }
 
   function moveColumn(columnKey: ConnectionColumnKey, direction: -1 | 1) {
-    const currentIndex = columnOrder.value.indexOf(columnKey);
+    const currentIndex = columnOrder.indexOf(columnKey);
     const targetIndex = currentIndex + direction;
 
-    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= columnOrder.value.length) {
+    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= columnOrder.length) {
       return;
     }
 
-    const nextOrder = [...columnOrder.value];
+    const nextOrder = [...columnOrder];
     const [movedColumn] = nextOrder.splice(currentIndex, 1);
     nextOrder.splice(targetIndex, 0, movedColumn);
     updateConnectionSettings((settings) => {
@@ -644,11 +690,11 @@ export function useConnectionsStream() {
   }
 
   async function disconnectConnection(id: string) {
-    if (activeDisconnectIds.value.includes(id)) {
+    if (store.activeDisconnectIds.includes(id)) {
       return;
     }
 
-    activeDisconnectIds.value = [...activeDisconnectIds.value, id];
+    store.setActiveDisconnectIds([...store.activeDisconnectIds, id]);
     try {
       await coreRequest<void>(`connections/${encodeURIComponent(id)}`, {
         method: "DELETE",
@@ -661,25 +707,25 @@ export function useConnectionsStream() {
         }`,
       );
     } finally {
-      activeDisconnectIds.value = activeDisconnectIds.value.filter(
+      store.setActiveDisconnectIds(store.activeDisconnectIds.filter(
         (value) => value !== id,
-      );
+      ));
     }
   }
 
   async function disconnectVisibleConnections() {
     const targets =
-      currentTab.value === "active"
-        ? visibleConnections.value.map((connection) => connection.id)
+      currentTab === "active"
+        ? visibleConnections.map((connection) => connection.id)
         : [];
 
-    if (targets.length === 0 || isDisconnectingAll.value) {
+    if (targets.length === 0 || store.isDisconnectingAll) {
       return;
     }
 
-    isDisconnectingAll.value = true;
+    store.setIsDisconnectingAll(true);
     try {
-      if (targets.length === activeConnections.value.length && !search.value.trim()) {
+      if (targets.length === store.activeConnections.length && !store.search.trim()) {
         await coreRequest<void>("connections", { method: "DELETE" });
       } else {
         await Promise.all(
@@ -698,37 +744,22 @@ export function useConnectionsStream() {
         }`,
       );
     } finally {
-      isDisconnectingAll.value = false;
+      store.setIsDisconnectingAll(false);
     }
   }
 
-  function clearClosedConnections() {
-    closedConnections.value = [];
-    toast.success("Closed connection history cleared");
-  }
-
   return {
-    activeConnections: readonly(activeConnections),
-    closedConnections: readonly(closedConnections),
+    ...store,
     visibleConnections,
     groupedVisibleConnections,
     visibleColumns,
     orderedColumnOptions,
-    totalDownload: readonly(totalDownload),
-    totalUpload: readonly(totalUpload),
-    isPaused,
-    search,
     currentTab,
+    setCurrentTab,
     sortKey,
     sortDirection,
     groupedColumnKey,
     groupedColumn,
-    streamStatus: readonly(streamStatus),
-    streamError: readonly(streamError),
-    selectedConnection: readonly(selectedConnection),
-    detailsOpen: readonly(detailsOpen),
-    activeDisconnectIds: readonly(activeDisconnectIds),
-    isDisconnectingAll: readonly(isDisconnectingAll),
     activeCount,
     closedCount,
     startStream,
@@ -746,10 +777,6 @@ export function useConnectionsStream() {
     resetColumnCustomization,
     disconnectConnection,
     disconnectVisibleConnections,
-    clearClosedConnections,
-    getConnectionHost,
-    getConnectionChain,
-    getConnectionRule,
     formatRelativeDuration,
   };
 }
