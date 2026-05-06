@@ -1,11 +1,11 @@
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowMinimizeRegular, MaximizeRegular, DismissRegular } from "@fluentui/react-icons";
-import { useSettingsStore } from "../../stores/settingsStore";
+import { useAppStore } from "../../stores/appStore";
 
 const appWindow = getCurrentWindow();
 
 export function TitleBar() {
-  const currentPage = useSettingsStore((s) => s.settings.app.current_page);
+  const currentPage = useAppStore((s) => s.currentPage);
 
   const pageTitle: Record<string, string> = {
     overview: "Overview",
@@ -19,50 +19,47 @@ export function TitleBar() {
   };
 
   return (
-    <div
+    <header
       data-tauri-drag-region
-      className="flex items-center justify-between px-4 h-[var(--wb-titlebar-height)] bg-[var(--wb-surface-base)] border-b border-[var(--wb-border-subtle)] flex-shrink-0 select-none"
+      className="flex items-center justify-between px-4 bg-[var(--wb-surface-base)] border-b border-[var(--wb-border-subtle)] flex-shrink-0 select-none relative z-50"
       style={{ height: "var(--wb-titlebar-height)" }}
     >
       <div
         data-tauri-drag-region
-        className="flex items-center gap-2 flex-1 min-w-0"
+        className="flex items-center gap-2 flex-1 min-w-0 h-full"
       >
-        <span className="text-sm font-semibold text-[var(--wb-text-primary)]">
+        <span className="text-sm font-semibold text-[var(--wb-text-primary)] pointer-events-none">
           Fresh Box
         </span>
-        <span className="text-[var(--wb-text-tertiary)] text-sm">·</span>
-        <span className="text-sm text-[var(--wb-text-secondary)] truncate">
+        <span className="text-[var(--wb-text-tertiary)] text-sm pointer-events-none">·</span>
+        <span className="text-sm text-[var(--wb-text-secondary)] truncate pointer-events-none">
           {pageTitle[currentPage] ?? currentPage}
         </span>
       </div>
 
-      <div className="flex items-center flex-shrink-0">
+      <div className="flex items-center flex-shrink-0 h-full">
         <button
-          onClick={() => void appWindow.minimize()}
-          className="flex items-center justify-center w-11 h-[var(--wb-titlebar-height)] text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-100 focus-visible:outline-none"
-          style={{ height: "var(--wb-titlebar-height)" }}
+          onClick={() => { void getCurrentWindow().minimize(); }}
+          className="flex items-center justify-center w-11 h-full text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-100 focus-visible:outline-none"
           aria-label="Minimize"
         >
           <ArrowMinimizeRegular className="text-base" />
         </button>
         <button
-          onClick={() => void appWindow.toggleMaximize()}
-          className="flex items-center justify-center w-11 h-[var(--wb-titlebar-height)] text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-100 focus-visible:outline-none"
-          style={{ height: "var(--wb-titlebar-height)" }}
+          onClick={() => { void getCurrentWindow().toggleMaximize(); }}
+          className="flex items-center justify-center w-11 h-full text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-100 focus-visible:outline-none"
           aria-label="Maximize"
         >
           <MaximizeRegular className="text-base" />
         </button>
         <button
-          onClick={() => void appWindow.close()}
-          className="flex items-center justify-center w-11 h-[var(--wb-titlebar-height)] text-[var(--wb-text-secondary)] hover:bg-red-600 hover:text-white transition-colors duration-100 focus-visible:outline-none"
-          style={{ height: "var(--wb-titlebar-height)" }}
+          onClick={() => { void getCurrentWindow().close(); }}
+          className="flex items-center justify-center w-11 h-full text-[var(--wb-text-secondary)] hover:bg-red-600 hover:text-white transition-colors duration-100 focus-visible:outline-none"
           aria-label="Close"
         >
           <DismissRegular className="text-base" />
         </button>
       </div>
-    </div>
+    </header>
   );
 }
