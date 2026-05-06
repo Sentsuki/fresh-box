@@ -75,6 +75,13 @@ fn main() {
         .setup(|app| {
             tray::setup_system_tray(app)?;
 
+            let window = app.get_webview_window("main").unwrap();
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::apply_mica;
+                let _ = apply_mica(&window, None);
+            }
+
             if let Err(error) = cleanup_staged_core_update_files_directly() {
                 eprintln!("Failed to clean staged sing-box core files: {}", error);
             }
