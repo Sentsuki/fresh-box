@@ -3,6 +3,7 @@ export type AppPage =
   | "proxy"
   | "connections"
   | "logs"
+  | "rules"
   | "config"
   | "custom"
   | "settings";
@@ -179,4 +180,38 @@ export interface LogEntry extends CoreLogMessage {
   seq: number;
   time: string;
   category: string;
+}
+
+export interface RuleExtraInfo {
+  disabled?: boolean;
+  hitAt?: string;
+  hitCount?: number;
+  missAt?: string;
+  missCount?: number;
+}
+
+export interface RuleEntry {
+  type: string;
+  payload: string;
+  proxy: string;
+  size?: number;
+  uuid?: string;
+  disabled?: boolean;
+  index?: number;
+  extra?: RuleExtraInfo;
+}
+
+export interface RuleProviderEntry {
+  behavior: string;
+  format: string;
+  name: string;
+  ruleCount: number;
+  type: string;
+  updatedAt: string;
+  vehicleType: string;
+}
+
+export interface ClashRulesSnapshot {
+  rules: ReadonlyArray<RuleEntry>;
+  providers: ReadonlyArray<RuleProviderEntry>;
 }

@@ -1,7 +1,7 @@
 use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::json;
+use serde_json::{json, Value};
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -24,6 +24,25 @@ struct ClashConfigResponse {
 #[derive(Debug, Deserialize)]
 struct ClashProxiesResponse {
     proxies: HashMap<String, ClashProxy>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClashRulesResponse {
+    #[serde(default)]
+    rules: Vec<ClashRule>,
+}
+
+#[derive(Debug, Deserialize)]
+struct ClashRuleProvidersResponse {
+    #[serde(default)]
+    providers: Option<ClashRuleProviders>,
+}
+
+#[derive(Debug, Deserialize)]
+#[serde(untagged)]
+enum ClashRuleProviders {
+    List(Vec<ClashRuleProvider>),
+    Map(HashMap<String, ClashRuleProvider>),
 }
 
 #[derive(Debug, Deserialize, Clone)]
@@ -73,6 +92,58 @@ pub struct ClashProxyNode {
     delay: Option<i64>,
     alive: Option<bool>,
     is_selected: bool,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClashRuleExtra {
+    disabled: Option<bool>,
+    hit_at: Option<String>,
+    hit_count: Option<u64>,
+    miss_at: Option<String>,
+    miss_count: Option<u64>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClashRule {
+    #[serde(default)]
+    r#type: String,
+    #[serde(default)]
+    payload: String,
+    #[serde(default)]
+    proxy: String,
+    size: Option<i64>,
+    uuid: Option<String>,
+    disabled: Option<bool>,
+    index: Option<usize>,
+    extra: Option<ClashRuleExtra>,
+}
+
+#[derive(Debug, Deserialize, Serialize, Clone)]
+#[serde(rename_all = "camelCase")]
+pub struct ClashRuleProvider {
+    #[serde(default)]
+    behavior: String,
+    #[serde(default)]
+    format: String,
+    #[serde(default)]
+    name: String,
+    #[serde(default)]
+    rule_count: u64,
+    #[serde(default)]
+    r#type: String,
+    #[serde(default)]
+    updated_at: String,
+    #[serde(default)]
+    vehicle_type: String,
+}
+
+#[derive(Debug, Serialize)]
+#[serde(rename_all = "snake_case")]
+pub struct ClashRulesSnapshot {
+    rules: Vec<ClashRule>,
+    providers: Vec<ClashRuleProvider>,
 }
 
 fn clash_client() -> Result<Client, CommandError> {
@@ -190,6 +261,38 @@ async fn fetch_clash_overview_inner() -> Result<ClashOverview, CommandError> {
     Ok(build_clash_overview(config, proxies))
 }
 
+async fn fetch_clash_rules_inner() -> Result<ClashRulesSnapshot, CommandError> {
+    let (rules, providers) = tokio::try_join!(
+        clash_get::<ClashRulesResponse>("/rules", "Failed to load Clash rules"),
+        clash_get::<ClashRuleProvidersResponse>(
+            "/providers/rules",
+            "Failed to load Clash rule providers"
+        ),
+    )?;
+
+    Ok(ClashRulesSnapshot {
+        rules: rules
+            .rules
+            .into_iter()
+            .enumerate()
+            .map(|(index, mut rule)| {
+                if let Some(proxy_name) = rule
+                    .proxy
+                    .strip_prefix("route(")
+                    .and_then(|value| value.strip_suffix(')'))
+                {
+                    rule.proxy = proxy_name.to_string();
+                }
+                if rule.index.is_none() {
+                    rule.index = Some(index);
+                }
+                rule
+            })
+            .collect(),
+        providers: normalize_rule_providers(providers.providers),
+    })
+}
+
 async fn execute_proxy_delay_test(
     proxy_name: &str,
     url: Option<&str>,
@@ -292,6 +395,14 @@ fn build_clash_overview(
     }
 }
 
+fn normalize_rule_providers(providers: Option<ClashRuleProviders>) -> Vec<ClashRuleProvider> {
+    match providers {
+        Some(ClashRuleProviders::List(items)) => items,
+        Some(ClashRuleProviders::Map(items)) => items.into_values().collect(),
+        None => Vec::new(),
+    }
+}
+
 fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Ordering {
     match (
         sort_index.iter().position(|name| name == left),
@@ -387,4 +498,59 @@ pub async fn test_clash_proxy_group_delay(
     }
 
     fetch_clash_overview_inner().await
+}
+
+#[tauri::command]
+pub async fn get_clash_rules() -> Result<ClashRulesSnapshot, CommandError> {
+    fetch_clash_rules_inner().await
+}
+
+#[tauri::command]
+pub async fn toggle_clash_rule(
+    rule_uuid: Option<String>,
+    rule_index: Option<usize>,
+    disabled: bool,
+) -> Result<ClashRulesSnapshot, CommandError> {
+    if let Some(uuid) = rule_uuid.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+        clash_put(
+            &format!("/rules/{}", urlencoding::encode(uuid)),
+            json!({}),
+            "Failed to toggle Clash rule",
+        )
+        .await?;
+        return fetch_clash_rules_inner().await;
+    }
+
+    if let Some(index) = rule_index {
+        let mut payload = serde_json::Map::new();
+        payload.insert(index.to_string(), json!(disabled));
+        clash_patch(
+            "/rules/disable",
+            Value::Object(payload),
+            "Failed to toggle Clash rule",
+        )
+        .await?;
+        return fetch_clash_rules_inner().await;
+    }
+
+    Err(CommandError::validation(
+        "Rule toggle requires either a rule UUID or rule index.",
+    ))
+}
+
+#[tauri::command]
+pub async fn update_clash_rule_provider(name: String) -> Result<ClashRulesSnapshot, CommandError> {
+    let normalized_name = name.trim();
+    if normalized_name.is_empty() {
+        return Err(CommandError::validation("Rule provider name cannot be empty."));
+    }
+
+    clash_put(
+        &format!("/providers/rules/{}", urlencoding::encode(normalized_name)),
+        json!({}),
+        "Failed to update Clash rule provider",
+    )
+    .await?;
+
+    fetch_clash_rules_inner().await
 }

@@ -50,6 +50,14 @@ function changePage(page: AppPage) {
       </button>
       <button
         class="sidebar-item"
+        :class="{ active: appStore.currentPage.value === 'rules' }"
+        @click="changePage('rules')"
+      >
+        <span class="sidebar-icon">📐</span>
+        Rules
+      </button>
+      <button
+        class="sidebar-item"
         :class="{ active: appStore.currentPage.value === 'config' }"
         @click="changePage('config')"
       >

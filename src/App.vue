@@ -5,6 +5,7 @@ import Overview from "./components/Overview.vue";
 import Proxy from "./components/Proxy.vue";
 import Connections from "./components/Connections.vue";
 import Logs from "./components/Logs.vue";
+import Rules from "./components/Rules.vue";
 import Config from "./components/Config.vue";
 import Custom from "./components/Custom.vue";
 import Settings from "./components/Settings.vue";
@@ -40,6 +41,7 @@ onMounted(async () => {
       <Proxy v-else-if="appStore.currentPage.value === 'proxy'" />
       <Connections v-else-if="appStore.currentPage.value === 'connections'" />
       <Logs v-else-if="appStore.currentPage.value === 'logs'" />
+      <Rules v-else-if="appStore.currentPage.value === 'rules'" />
       <Config v-else-if="appStore.currentPage.value === 'config'" />
       <Custom v-else-if="appStore.currentPage.value === 'custom'" />
       <Settings v-else />

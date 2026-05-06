@@ -49,6 +49,7 @@ export function useAppStore() {
       settings.current_page === "proxy" ||
       settings.current_page === "connections" ||
       settings.current_page === "logs" ||
+      settings.current_page === "rules" ||
       settings.current_page === "config" ||
       settings.current_page === "custom" ||
       settings.current_page === "settings"
