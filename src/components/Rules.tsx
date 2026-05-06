@@ -14,10 +14,8 @@ import { useRulesPage } from "../hooks/useRulesPage";
 import { useAppStore } from "../stores/appStore";
 
 export default function Rules() {
-  const appStore = useAppStore();
+  const isRunning = useAppStore((state) => state.isRunning);
   const rulesPage = useRulesPage();
-
-  const isRunning = appStore.isRunning;
 
   const statusLabel = useMemo(() => {
     if (!isRunning) return "Service stopped";
@@ -37,8 +35,7 @@ export default function Rules() {
     if (isRunning) {
       void rulesPage.refreshRules(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning]);
+  }, [isRunning, rulesPage.refreshRules]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden pb-4">

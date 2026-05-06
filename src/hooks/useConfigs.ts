@@ -128,8 +128,6 @@ export function useConfigs() {
   async function initializeConfigs() {
     const store = useAppStore.getState();
     await store.withLoading(async () => {
-      await store.hydrateSettings();
-
       const [subscriptions, files] = await Promise.all([
         loadSubscriptions(),
         listConfigs(),

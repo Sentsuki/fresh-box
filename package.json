@@ -10,8 +10,8 @@
     "tauri": "tauri",
     "lint": "eslint src --fix",
     "lint:check": "eslint src",
-    "format": "prettier --write src/**/*.{vue,js,ts,json,css,scss}",
-    "format:check": "prettier --check src/**/*.{vue,js,ts,json,css,scss}"
+    "format": "prettier --write src/**/*.{js,ts,tsx,json,css,scss}",
+    "format:check": "prettier --check src/**/*.{js,ts,tsx,json,css,scss}"
   },
   "dependencies": {
     "@fluentui/react-components": "^9.73.8",
@@ -27,6 +27,7 @@
     "@eslint/js": "^10.0.1",
     "@tailwindcss/vite": "^4.2.4",
     "@tauri-apps/cli": "^2.11.0",
+    "@vitejs/plugin-react": "^5.1.1",
     "eslint": "^10.3.0",
     "eslint-config-prettier": "^10.1.8",
     "globals": "^17.6.0",

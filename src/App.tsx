@@ -1,19 +1,22 @@
-import { useEffect } from "react";
+import { Suspense, lazy, useEffect } from "react";
 import { useAppStore } from "./stores/appStore";
 import { useConfigs } from "./hooks/useConfigs";
 import { useSingbox } from "./hooks/useSingbox";
-
-// Components to be migrated
 import Sidebar from "./components/Sidebar";
-import Overview from "./components/Overview";
-import Proxies from "./components/Proxies";
-import Connections from "./components/Connections";
-import Logs from "./components/Logs";
-import Rules from "./components/Rules";
-import Config from "./components/Config";
-import Custom from "./components/Custom";
-import Settings from "./components/Settings";
 import GlobalToaster from "./components/GlobalToaster";
+
+const Overview = lazy(() => import("./components/Overview"));
+const Proxies = lazy(() => import("./components/Proxies"));
+const Connections = lazy(() => import("./components/Connections"));
+const Logs = lazy(() => import("./components/Logs"));
+const Rules = lazy(() => import("./components/Rules"));
+const Config = lazy(() => import("./components/Config"));
+const Custom = lazy(() => import("./components/Custom"));
+const Settings = lazy(() => import("./components/Settings"));
+
+function LoadingView() {
+  return <div className="flex h-full items-center justify-center">Loading...</div>;
+}
 
 export default function App() {
   const initialized = useAppStore((state) => state.initialized);
@@ -42,7 +45,7 @@ export default function App() {
   }, [initialized, hydrateSettings, initializeConfigs, initializeSingbox, markInitialized]);
 
   if (!initialized) {
-    return <div className="flex items-center justify-center h-full">Loading...</div>;
+    return <LoadingView />;
   }
 
   const renderContent = () => {
@@ -64,7 +67,9 @@ export default function App() {
       <Sidebar />
       <main className="flex-1 flex flex-col min-w-0 bg-neutral-800 rounded-tl-md border-t border-l border-neutral-700/50 shadow-inner overflow-y-auto">
         <div className="flex-1 p-6 relative">
-           {renderContent()}
+          <Suspense fallback={<LoadingView />}>
+            {renderContent()}
+          </Suspense>
         </div>
       </main>
       <GlobalToaster />

@@ -10,7 +10,7 @@ import {
   ChevronUpRegular,
   FlashRegular,
 } from "@fluentui/react-icons";
-import { useClash } from "../../hooks/useClash";
+import { useClashStore } from "../../hooks/useClash";
 import { useAppStore } from "../../stores/appStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
@@ -37,11 +37,17 @@ function getDelayColor(delay: number | null): "subtle" | "danger" | "success" | 
 }
 
 export default function ProxyGroupRow({ group }: ProxyGroupRowProps) {
-  const clash = useClash();
-  
+  const isRefreshing = useClashStore((state) => state.isRefreshing);
+  const activeMode = useClashStore((state) => state.activeMode);
+  const activeSelectionKey = useClashStore((state) => state.activeSelectionKey);
+  const activeDelayNode = useClashStore((state) => state.activeDelayNode);
+  const activeGroupDelay = useClashStore((state) => state.activeGroupDelay);
+  const switchProxy = useClashStore((state) => state.switchProxy);
+  const testDelay = useClashStore((state) => state.testDelay);
+  const testGroupDelay = useClashStore((state) => state.testGroupDelay);
+
   const collapsedState = useAppStore((state) => state.appSettings.pages.proxies.collapsed_groups[group.name]);
   const isCollapsed = Boolean(collapsedState);
-  
   const updatePageSettings = useAppStore((state) => state.updatePageSettings);
 
   const toggleCollapse = useCallback(() => {
@@ -53,7 +59,7 @@ export default function ProxyGroupRow({ group }: ProxyGroupRowProps) {
     });
   }, [group.name, isCollapsed, updatePageSettings]);
 
-  const actionDisabled = clash.isRefreshing || clash.activeMode !== null || clash.activeGroupDelay !== null;
+  const actionDisabled = isRefreshing || activeMode !== null || activeGroupDelay !== null;
 
   return (
     <div className="flex flex-col rounded-xl border border-neutral-700 bg-neutral-800 shadow-sm overflow-hidden">
@@ -79,11 +85,11 @@ export default function ProxyGroupRow({ group }: ProxyGroupRowProps) {
         <div className="flex items-center gap-2 shrink-0 ml-3">
           <Button
             appearance="subtle"
-            icon={clash.activeGroupDelay === group.name ? <Spinner size="extra-tiny" /> : <FlashRegular />}
-            disabled={actionDisabled || clash.activeGroupDelay === group.name}
+            icon={activeGroupDelay === group.name ? <Spinner size="extra-tiny" /> : <FlashRegular />}
+            disabled={actionDisabled || activeGroupDelay === group.name}
             onClick={(e) => {
               e.stopPropagation();
-              void clash.testGroupDelay(group.name);
+              void testGroupDelay(group.name);
             }}
             title="Test group delay"
           />
@@ -109,7 +115,7 @@ export default function ProxyGroupRow({ group }: ProxyGroupRowProps) {
                     ? "border-brand-500 bg-brand-500/10 shadow-sm"
                     : "border-neutral-700 bg-neutral-800 hover:border-neutral-600 hover:bg-neutral-700/50"
                 }`}
-                onClick={() => clash.switchProxy(group.name, node.name)}
+                onClick={() => void switchProxy(group.name, node.name)}
               >
                 {node.is_selected && (
                   <div className="absolute left-0 top-0 bottom-0 w-1 bg-[var(--colorBrandBackground)]"></div>
@@ -136,15 +142,15 @@ export default function ProxyGroupRow({ group }: ProxyGroupRowProps) {
                     onClick={(e) => {
                       e.stopPropagation();
                       if (!actionDisabled) {
-                        void clash.testDelay(node.name);
+                        void testDelay(node.name);
                       }
                     }}
                   >
-                    {clash.activeDelayNode === node.name ? "..." : formatDelay(node.delay)}
+                    {activeDelayNode === node.name ? "..." : formatDelay(node.delay)}
                   </Badge>
                 </div>
 
-                {clash.activeSelectionKey === `${group.name}:${node.name}` && (
+                {activeSelectionKey === `${group.name}:${node.name}` && (
                   <div className="absolute inset-0 bg-neutral-900/60 flex items-center justify-center pointer-events-none">
                     <Spinner size="small" />
                   </div>

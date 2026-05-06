@@ -38,10 +38,8 @@ function getLogBadgeColor(type: string): "subtle" | "brand" | "informative" | "w
 }
 
 export default function Logs() {
-  const appStore = useAppStore();
+  const isRunning = useAppStore((state) => state.isRunning);
   const logs = useLogsStream();
-
-  const isRunning = appStore.isRunning;
 
   const statusLabel = useMemo(() => {
     if (!isRunning) return "Service stopped";
@@ -61,32 +59,19 @@ export default function Logs() {
   useEffect(() => {
     if (isRunning) {
       logs.startStream();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (isRunning) {
-      logs.startStream();
     } else {
       logs.stopStream(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning]);
+    return () => {
+      logs.stopStream(false);
+    };
+  }, [isRunning, logs.startStream, logs.stopStream]);
 
   useEffect(() => {
     if (isRunning) {
       logs.restartStream();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [logs.logLevel]);
-
-  useEffect(() => {
-    return () => {
-      logs.stopStream(false);
-    };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isRunning, logs.logLevel, logs.restartStream]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden pb-4">

@@ -56,11 +56,11 @@ interface UseCoreUpdateOptions {
 
 export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
   const store = useCoreUpdateStore();
-  const appStore = useAppStore();
   const { autoRefreshOnFirstMount = false } = options;
 
-  const selectedCoreOptionKey = appStore.appSettings.singbox_core.selected_option_key;
-  const setSelectedCoreOptionKey = appStore.setSelectedCoreOptionKey;
+  const selectedCoreOptionKey = useAppStore((state) => state.appSettings.singbox_core.selected_option_key);
+  const setSelectedCoreOptionKey = useAppStore((state) => state.setSelectedCoreOptionKey);
+  const setActiveSingboxCoreSelection = useAppStore((state) => state.setActiveSingboxCoreSelection);
 
   const selectedCoreOption = useMemo(() => {
     return (
@@ -174,10 +174,10 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
       message: "Preparing the sing-box core action...",
     });
 
-    try {
-      if (currentSelectedOption.installed) {
-        await activateSingboxCore(currentSelectedOption.channel, currentSelectedOption.version);
-        await appStore.setActiveSingboxCoreSelection(currentSelectedOption.channel, currentSelectedOption.version);
+      try {
+        if (currentSelectedOption.installed) {
+          await activateSingboxCore(currentSelectedOption.channel, currentSelectedOption.version);
+          await setActiveSingboxCoreSelection(currentSelectedOption.channel, currentSelectedOption.version);
 
         if (!currentSelectedOption.is_active) {
           toast.success(`Switched to ${currentSelectedOption.label}`);
@@ -204,7 +204,7 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
         );
       }
 
-      await appStore.setActiveSingboxCoreSelection(
+      await setActiveSingboxCoreSelection(
         currentSelectedOption.channel,
         currentSelectedOption.version,
       );
@@ -254,8 +254,7 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
         unlistenProgress = null;
       }
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [autoRefreshOnFirstMount]);
+  }, [autoRefreshOnFirstMount, store.hasAutoRefreshedCoreStatus, store.setHasAutoRefreshed]);
 
   return {
     ...store,

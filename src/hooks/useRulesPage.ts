@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { create } from 'zustand';
 import {
   getClashRules,
@@ -51,14 +51,14 @@ export function getRuleToggleKey(rule: RuleEntry, index: number) {
 
 export function useRulesPage() {
   const store = useRulesStore();
-  const appStore = useAppStore();
-  
-  const currentTab = appStore.appSettings.pages.rules.current_tab;
-  const setCurrentTab = (value: RulesTab) => {
-    void appStore.updatePageSettings("rules", (settings) => {
+  const currentTab = useAppStore((state) => state.appSettings.pages.rules.current_tab);
+  const updatePageSettings = useAppStore((state) => state.updatePageSettings);
+
+  const setCurrentTab = useCallback((value: RulesTab) => {
+    void updatePageSettings("rules", (settings) => {
       settings.current_tab = value;
     });
-  };
+  }, [updatePageSettings]);
 
   const visibleRules = useMemo(() =>
     store.rules.filter((rule) => matchesRuleSearch(rule, store.search)),
@@ -72,7 +72,7 @@ export function useRulesPage() {
 
   const hasProviders = store.providers.length > 0;
 
-  async function refreshRules(showToastOnError = false) {
+  const refreshRules = useCallback(async (showToastOnError = false) => {
     if (useRulesStore.getState().isRefreshing) return;
     useRulesStore.setState({ isRefreshing: true });
     try {
@@ -93,9 +93,9 @@ export function useRulesPage() {
     } finally {
       useRulesStore.setState({ isRefreshing: false });
     }
-  }
+  }, [currentTab, setCurrentTab]);
 
-  async function toggleRule(rule: RuleEntry) {
+  const toggleRule = useCallback(async (rule: RuleEntry) => {
     const toggleKey = getRuleToggleKey(rule, rule.index ?? 0);
     const activeRuleToggle = useRulesStore.getState().activeRuleToggle;
     
@@ -123,9 +123,9 @@ export function useRulesPage() {
         activeRuleToggle: state.activeRuleToggle.filter((key) => key !== toggleKey)
       }));
     }
-  }
+  }, []);
 
-  async function updateProvider(name: string) {
+  const updateProvider = useCallback(async (name: string) => {
     const activeProviderUpdates = useRulesStore.getState().activeProviderUpdates;
     if (activeProviderUpdates.includes(name)) return;
 
@@ -145,7 +145,7 @@ export function useRulesPage() {
         activeProviderUpdates: state.activeProviderUpdates.filter((value) => value !== name)
       }));
     }
-  }
+  }, []);
 
   return {
     ...store,

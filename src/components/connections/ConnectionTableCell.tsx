@@ -1,12 +1,12 @@
 import {
   formatBytes,
+  formatRelativeDuration,
   formatSpeed,
 } from "../../services/utils";
 import {
   getConnectionChain,
   getConnectionHost,
   getConnectionRule,
-  useConnectionsStream,
 } from "../../hooks/useConnectionsStream";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
 
@@ -33,8 +33,6 @@ function formatConnectionStart(value: string) {
 }
 
 export default function ConnectionTableCell({ connection, columnKey }: Props) {
-  const { formatRelativeDuration } = useConnectionsStream();
-
   if (columnKey === "host") {
     return (
       <div className="min-w-0 flex flex-col">

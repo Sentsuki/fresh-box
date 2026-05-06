@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { create } from 'zustand';
 import { coreRequest, buildCoreWebSocketUrl } from "../services/coreClient";
 import { formatRelativeDuration } from "../services/utils";
@@ -423,13 +423,12 @@ export function getConnectionRule(connection: ConnectionEntry) {
 
 export function useConnectionsStream() {
   const store = useConnectionsStore();
-  const appStore = useAppStore();
-  
-  const connectionSettings = appStore.appSettings.pages.connections;
+  const connectionSettings = useAppStore((state) => state.appSettings.pages.connections);
+  const updatePageSettings = useAppStore((state) => state.updatePageSettings);
 
-  function updateConnectionSettings(updater: (settings: ConnectionPageSettings) => void) {
-    void appStore.updatePageSettings("connections", updater);
-  }
+  const updateConnectionSettings = useCallback((updater: (settings: ConnectionPageSettings) => void) => {
+    void updatePageSettings("connections", updater);
+  }, [updatePageSettings]);
 
   const currentTab = connectionSettings.current_tab;
   const setCurrentTab = (value: ConnectionPageTab) => {
@@ -530,16 +529,16 @@ export function useConnectionsStream() {
   const activeCount = store.activeConnections.length;
   const closedCount = store.closedConnections.length;
 
-  function startStream() {
+  const startStream = useCallback(() => {
     if (shouldReconnect) {
       return;
     }
 
     shouldReconnect = true;
     connect();
-  }
+  }, []);
 
-  function stopStream(clearState = false) {
+  const stopStream = useCallback((clearState = false) => {
     shouldReconnect = false;
     clearReconnectTimer();
 
@@ -548,23 +547,25 @@ export function useConnectionsStream() {
       socket = null;
       activeSocket.close();
     } else {
-      store.setStreamStatus("disconnected");
+      useConnectionsStore.getState().setStreamStatus("disconnected");
     }
 
     if (clearState) {
-      store.resetConnectionState();
+      useConnectionsStore.getState().resetConnectionState();
     }
-  }
+  }, []);
 
-  function openDetails(connection: ConnectionEntry) {
-    store.setSelectedConnection(connection);
-    store.setDetailsOpen(true);
-  }
+  const openDetails = useCallback((connection: ConnectionEntry) => {
+    const currentStore = useConnectionsStore.getState();
+    currentStore.setSelectedConnection(connection);
+    currentStore.setDetailsOpen(true);
+  }, []);
 
-  function closeDetails() {
-    store.setDetailsOpen(false);
-    store.setSelectedConnection(null);
-  }
+  const closeDetails = useCallback(() => {
+    const currentStore = useConnectionsStore.getState();
+    currentStore.setDetailsOpen(false);
+    currentStore.setSelectedConnection(null);
+  }, []);
 
   function toggleSort(columnKey: ConnectionColumnKey) {
     if (!columnDefinitions[columnKey].sortable) {

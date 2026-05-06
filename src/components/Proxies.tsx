@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useCallback, useEffect } from "react";
 import {
   Text,
   Button,
@@ -8,23 +8,31 @@ import {
 } from "@fluentui/react-components";
 import { ArrowClockwiseRegular } from "@fluentui/react-icons";
 import ProxyGroupRow from "./proxy/ProxyGroupRow";
-import { useClash } from "../hooks/useClash";
+import { useClashStore } from "../hooks/useClash";
 import { useAppStore } from "../stores/appStore";
 
 export default function Proxies() {
-  const appStore = useAppStore();
-  const clash = useClash();
+  const isRunning = useAppStore((state) => state.isRunning);
+  const overview = useClashStore((state) => state.overview);
+  const errorMessage = useClashStore((state) => state.errorMessage);
+  const isRefreshing = useClashStore((state) => state.isRefreshing);
+  const activeMode = useClashStore((state) => state.activeMode);
+  const activeGroupDelay = useClashStore((state) => state.activeGroupDelay);
+  const refreshOverview = useClashStore((state) => state.refreshOverview);
+  const changeMode = useClashStore((state) => state.changeMode);
 
-  const isRunning = appStore.isRunning;
-  const modeOptions = clash.overview?.available_modes ?? [];
-  const proxyGroups = clash.overview?.proxy_groups ?? [];
+  const modeOptions = overview?.available_modes ?? [];
+  const proxyGroups = overview?.proxy_groups ?? [];
+  const hasData = overview !== null;
+  const refreshOverviewWithToast = useCallback(() => {
+    void refreshOverview(true);
+  }, [refreshOverview]);
 
   useEffect(() => {
-    if (isRunning && !clash.hasData && !clash.isRefreshing) {
-      void clash.refreshOverview(true);
+    if (isRunning && !hasData && !isRefreshing) {
+      void refreshOverview(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning]);
+  }, [hasData, isRefreshing, isRunning, refreshOverview]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-y-auto pr-2 pb-4">
@@ -39,12 +47,12 @@ export default function Proxies() {
               Start sing-box first, then open Proxies to manage groups and run tests.
             </Text>
           </Card>
-        ) : clash.errorMessage ? (
+        ) : errorMessage ? (
           <Card className="border-red-900/50 bg-red-900/10">
             <div className="flex flex-col gap-3">
-              <Text className="text-red-400">{clash.errorMessage}</Text>
+              <Text className="text-red-400">{errorMessage}</Text>
               <div>
-                <Button appearance="primary" onClick={() => void clash.refreshOverview(true)}>
+                <Button appearance="primary" onClick={refreshOverviewWithToast}>
                   Retry
                 </Button>
               </div>
@@ -59,14 +67,14 @@ export default function Proxies() {
                   <Select
                     disabled={
                       !isRunning ||
-                      clash.isRefreshing ||
-                      clash.activeMode !== null ||
-                      clash.activeGroupDelay !== null ||
+                      isRefreshing ||
+                      activeMode !== null ||
+                      activeGroupDelay !== null ||
                       modeOptions.length === 0
                     }
-                    value={clash.overview?.current_mode ?? ""}
+                    value={overview?.current_mode ?? ""}
                     onChange={(_, data) => {
-                      void clash.changeMode(data.value);
+                      void changeMode(data.value);
                     }}
                   >
                     {modeOptions.length === 0 && <option value="">No modes</option>}
@@ -79,15 +87,15 @@ export default function Proxies() {
                 </div>
 
                 <Button
-                  icon={clash.isRefreshing ? <Spinner size="extra-tiny" /> : <ArrowClockwiseRegular />}
+                  icon={isRefreshing ? <Spinner size="extra-tiny" /> : <ArrowClockwiseRegular />}
                   disabled={
-                    clash.isRefreshing ||
-                    clash.activeMode !== null ||
-                    clash.activeGroupDelay !== null
+                    isRefreshing ||
+                    activeMode !== null ||
+                    activeGroupDelay !== null
                   }
-                  onClick={() => void clash.refreshOverview(true)}
+                  onClick={refreshOverviewWithToast}
                 >
-                  {clash.isRefreshing ? "Refreshing" : "Refresh"}
+                  {isRefreshing ? "Refreshing" : "Refresh"}
                 </Button>
               </div>
             </Card>

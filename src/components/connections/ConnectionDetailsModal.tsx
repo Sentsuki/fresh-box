@@ -9,8 +9,11 @@ import {
   Button,
   Text,
 } from "@fluentui/react-components";
-import { formatBytes, formatSpeed } from "../../services/utils";
-import { useConnectionsStream } from "../../hooks/useConnectionsStream";
+import {
+  formatBytes,
+  formatRelativeDuration,
+  formatSpeed,
+} from "../../services/utils";
 import type { ConnectionEntry } from "../../types/app";
 
 interface Props {
@@ -26,7 +29,6 @@ export default function ConnectionDetailsModal({
   onClose,
   onDisconnect,
 }: Props) {
-  const { formatRelativeDuration } = useConnectionsStream();
   const formattedJson = useMemo(
     () => (connection ? JSON.stringify(connection, null, 2) : ""),
     [connection],

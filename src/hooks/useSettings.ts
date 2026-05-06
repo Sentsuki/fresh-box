@@ -14,7 +14,7 @@ interface UseSettingsOptions {
 }
 
 export function useSettings(options: UseSettingsOptions = {}) {
-  const appStore = useAppStore();
+  const selectedConfigPath = useAppStore((state) => state.appSettings.app.selected_config_path);
   const { loadCustomerSettings = true, autoRefreshCoreStatus = false } = options;
   
   const prioritySettings = usePriorityConfig();
@@ -23,6 +23,8 @@ export function useSettings(options: UseSettingsOptions = {}) {
   const coreUpdate = useCoreUpdate({
     autoRefreshOnFirstMount: autoRefreshCoreStatus,
   });
+  const loadPriorityConfiguration = prioritySettings.loadConfiguration;
+  const initializeOverride = overrideSettings.initializeOverride;
 
   const openApplicationDirectory = useCallback(async () => {
     try {
@@ -34,17 +36,17 @@ export function useSettings(options: UseSettingsOptions = {}) {
 
   const initialize = useCallback(async () => {
     await Promise.all([
-      overrideSettings.initializeOverride(),
+      initializeOverride(),
       loadCustomerSettings
-        ? prioritySettings.loadConfiguration()
+        ? loadPriorityConfiguration()
         : Promise.resolve(),
     ]);
-  }, [overrideSettings, loadCustomerSettings, prioritySettings]);
+  }, [initializeOverride, loadCustomerSettings, loadPriorityConfiguration]);
 
   useEffect(() => {
     const handleWindowFocus = async () => {
       if (loadCustomerSettings) {
-        await prioritySettings.loadConfiguration();
+        await loadPriorityConfiguration();
       }
     };
 
@@ -53,15 +55,13 @@ export function useSettings(options: UseSettingsOptions = {}) {
     return () => {
       window.removeEventListener("focus", handleWindowFocus);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [loadCustomerSettings]); 
+  }, [initialize, loadCustomerSettings, loadPriorityConfiguration]);
 
   useEffect(() => {
     if (loadCustomerSettings) {
-      void prioritySettings.loadConfiguration();
+      void loadPriorityConfiguration();
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [appStore.appSettings.app.selected_config_path, loadCustomerSettings]);
+  }, [loadCustomerSettings, loadPriorityConfiguration, selectedConfigPath]);
 
   return {
     ...prioritySettings,

@@ -3,7 +3,7 @@ import { buildCoreWebSocketUrl } from "../services/coreClient";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
 import { useAppStore } from "../stores/appStore";
 import { toast } from "./useToast";
-import { useMemo } from 'react';
+import { useCallback, useEffect, useMemo } from 'react';
 
 const LOG_LEVELS = ["trace", "debug", "info", "warn", "error", "fatal", "panic"] as const;
 const LOG_LIMIT = 1000;
@@ -145,53 +145,65 @@ function matchesSearch(entry: LogEntry, filter: string) {
 }
 
 export function useLogsStream() {
-  const store = useLogsStore();
-  const appStore = useAppStore();
-  
-  const logLevel = appStore.appSettings.pages.logs.log_level;
-  const typeFilter = appStore.appSettings.pages.logs.type_filter;
+  const logs = useLogsStore((state) => state.logs);
+  const search = useLogsStore((state) => state.search);
+  const isPaused = useLogsStore((state) => state.isPaused);
+  const currentLogLevel = useLogsStore((state) => state.currentLogLevel);
+  const streamStatus = useLogsStore((state) => state.streamStatus);
+  const streamError = useLogsStore((state) => state.streamError);
+  const setSearch = useLogsStore((state) => state.setSearch);
+  const setIsPaused = useLogsStore((state) => state.setIsPaused);
+  const setCurrentLogLevel = useLogsStore((state) => state.setCurrentLogLevel);
+  const setStreamStatus = useLogsStore((state) => state.setStreamStatus);
+  const clearLogsState = useLogsStore((state) => state.clearLogs);
 
-  const setLogLevel = (value: LogLevel) => {
-    void appStore.updatePageSettings("logs", (settings) => {
+  const logLevel = useAppStore((state) => state.appSettings.pages.logs.log_level);
+  const typeFilter = useAppStore((state) => state.appSettings.pages.logs.type_filter);
+  const updatePageSettings = useAppStore((state) => state.updatePageSettings);
+
+  useEffect(() => {
+    if (currentLogLevel !== logLevel) {
+      setCurrentLogLevel(logLevel);
+    }
+  }, [currentLogLevel, logLevel, setCurrentLogLevel]);
+
+  const setLogLevel = useCallback((value: LogLevel) => {
+    void updatePageSettings("logs", (settings) => {
       settings.log_level = value;
     });
-    store.setCurrentLogLevel(value);
-  };
+    setCurrentLogLevel(value);
+  }, [setCurrentLogLevel, updatePageSettings]);
 
-  const setTypeFilter = (value: string) => {
-    void appStore.updatePageSettings("logs", (settings) => {
+  const setTypeFilter = useCallback((value: string) => {
+    void updatePageSettings("logs", (settings) => {
       settings.type_filter = value;
     });
-  };
-
-  if (store.currentLogLevel !== logLevel) {
-     store.setCurrentLogLevel(logLevel);
-  }
+  }, [updatePageSettings]);
 
   const visibleLogs = useMemo(() => 
-    store.logs.filter((entry) => {
+    logs.filter((entry) => {
       if (typeFilter && entry.category !== typeFilter && entry.type !== typeFilter) {
         return false;
       }
-      return matchesSearch(entry, store.search);
+      return matchesSearch(entry, search);
     }),
-    [store.logs, typeFilter, store.search]
+    [logs, search, typeFilter]
   );
 
   const availableTypes = useMemo(() =>
-    [...new Set(store.logs.map((entry) => entry.category))].sort((left, right) =>
+    [...new Set(logs.map((entry) => entry.category))].sort((left, right) =>
       left.localeCompare(right),
     ),
-    [store.logs]
+    [logs]
   );
 
-  function startStream() {
+  const startStream = useCallback(() => {
     if (shouldReconnect) return;
     shouldReconnect = true;
     connect();
-  }
+  }, []);
 
-  function stopStream(clear = false) {
+  const stopStream = useCallback((clear = false) => {
     shouldReconnect = false;
     clearReconnectTimer();
     if (socket) {
@@ -199,33 +211,33 @@ export function useLogsStream() {
       socket = null;
       activeSocket.close();
     } else {
-      store.setStreamStatus("disconnected");
+      setStreamStatus("disconnected");
     }
     if (clear) {
-      store.clearLogs();
+      clearLogsState();
     }
-  }
+  }, [clearLogsState, setStreamStatus]);
 
-  function restartStream() {
+  const restartStream = useCallback(() => {
     if (!shouldReconnect) return;
     stopStream(false);
     shouldReconnect = true;
     connect();
-  }
+  }, [stopStream]);
 
-  function clearLogsCmd() {
-    store.clearLogs();
+  const clearLogsCmd = useCallback(() => {
+    clearLogsState();
     toast.success("Logs cleared");
-  }
+  }, [clearLogsState]);
 
-  function downloadLogs() {
-    if (store.logs.length === 0) {
+  const downloadLogs = useCallback(() => {
+    if (logs.length === 0) {
       toast.info("No logs to export");
       return;
     }
     const blob = new Blob(
       [
-        store.logs.slice().reverse().map(
+        logs.slice().reverse().map(
           (entry) => `${entry.seq.toString().padStart(5, "0")}\t${entry.time}\t${entry.type}\t${entry.category}\t${entry.payload}`,
         ).join("\n"),
       ],
@@ -237,21 +249,21 @@ export function useLogsStream() {
     link.download = `${new Date().toISOString().replace(/[:]/g, "-")}.log`;
     link.click();
     URL.revokeObjectURL(url);
-  }
+  }, [logs]);
 
   return {
-    logs: store.logs,
+    logs,
     visibleLogs,
-    search: store.search,
-    setSearch: store.setSearch,
+    search,
+    setSearch,
     typeFilter,
     setTypeFilter,
     logLevel,
     setLogLevel,
-    isPaused: store.isPaused,
-    setIsPaused: store.setIsPaused,
-    streamStatus: store.streamStatus,
-    streamError: store.streamError,
+    isPaused,
+    setIsPaused,
+    streamStatus,
+    streamError,
     availableTypes,
     logLevels: LOG_LEVELS as readonly LogLevel[],
     startStream,

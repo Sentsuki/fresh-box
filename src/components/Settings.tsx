@@ -6,7 +6,7 @@ import { useSettings } from "../hooks/useSettings";
 import { useAppStore } from "../stores/appStore";
 
 export default function Settings() {
-  const appStore = useAppStore();
+  const setSelectedCoreOptionKey = useAppStore((state) => state.setSelectedCoreOptionKey);
   const settings = useSettings({
     loadCustomerSettings: false,
     autoRefreshCoreStatus: true,
@@ -35,7 +35,7 @@ export default function Settings() {
           onRefresh={() => void settings.refreshCoreStatus(true, true)}
           onApply={() => void settings.applySelectedCore()}
           onSelectedCoreOptionKeyChange={(val) => {
-            void appStore.setSelectedCoreOptionKey(val);
+            void setSelectedCoreOptionKey(val);
           }}
         />
 

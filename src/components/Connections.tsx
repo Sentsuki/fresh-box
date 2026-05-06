@@ -29,11 +29,9 @@ import ConnectionDetailsModal from "./connections/ConnectionDetailsModal";
 import ConnectionTableCell from "./connections/ConnectionTableCell";
 
 export default function Connections() {
-  const appStore = useAppStore();
+  const isRunning = useAppStore((state) => state.isRunning);
   const connections = useConnectionsStream();
   const [columnsMenuOpen, setColumnsMenuOpen] = useState(false);
-
-  const isRunning = appStore.isRunning;
 
   const statusLabel = useMemo(() => {
     if (!isRunning) return "Service stopped";
@@ -57,25 +55,13 @@ export default function Connections() {
   useEffect(() => {
     if (isRunning) {
       connections.startStream();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
-
-  useEffect(() => {
-    if (isRunning) {
-      connections.startStream();
     } else {
       connections.stopStream(true);
     }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [isRunning]);
-
-  useEffect(() => {
     return () => {
       connections.stopStream(false);
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [isRunning, connections.startStream, connections.stopStream]);
 
   return (
     <div className="flex flex-col gap-4 h-full overflow-hidden pb-4">

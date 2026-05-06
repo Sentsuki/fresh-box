@@ -1,68 +1,39 @@
 import js from '@eslint/js';
-import vue from 'eslint-plugin-vue';
-import vueParser from 'vue-eslint-parser';
 import globals from 'globals';
 import prettier from 'eslint-config-prettier/flat';
 import tseslint from 'typescript-eslint';
 
 export default [
-  // 忽略构建输出和依赖
   {
     ignores: [
       '**/dist/**',
       '**/dist-ssr/**',
       '**/node_modules/**',
-      'src-tauri/**', // 忽略 Rust 后端代码
+      'src-tauri/**',
       '**/*.config.js',
     ],
   },
-
-  // 基础配置
   js.configs.recommended,
   ...tseslint.configs.recommended,
-  ...vue.configs['flat/recommended'],
   prettier,
-
-  // JavaScript/TypeScript 文件配置
   {
-    files: ['**/*.{js,mjs,cjs,ts}'],
+    files: ['**/*.{js,mjs,cjs,ts,tsx}'],
     languageOptions: {
       globals: {
         ...globals.browser,
-        ...globals.node, // 添加 Node.js 全局变量支持
+        ...globals.node,
+        __TAURI__: 'readonly',
+        __TAURI_INVOKE__: 'readonly',
       },
       parserOptions: {
         ecmaVersion: 'latest',
         sourceType: 'module',
+        ecmaFeatures: {
+          jsx: true,
+        },
       },
     },
     rules: {
-      // Vue 规则
-      'vue/multi-word-component-names': 'off',
-      'vue/require-default-prop': 'warn',
-      'vue/require-prop-types': 'warn',
-      'vue/no-unused-vars': 'warn',
-      'vue/html-self-closing': [
-        'warn',
-        {
-          html: {
-            void: 'always',
-            normal: 'always',
-            component: 'always',
-          },
-        },
-      ],
-      'vue/component-api-style': ['warn', ['script-setup']],
-      'vue/block-lang': [
-        'error',
-        {
-          script: {
-            lang: 'ts',
-          },
-        },
-      ],
-
-      // TypeScript 规则
       '@typescript-eslint/no-unused-vars': [
         'warn',
         {
@@ -73,47 +44,13 @@ export default [
       '@typescript-eslint/no-explicit-any': 'warn',
       '@typescript-eslint/explicit-module-boundary-types': 'off',
       '@typescript-eslint/no-non-null-assertion': 'warn',
-
-      // 通用规则
       'no-console': process.env.NODE_ENV === 'production' ? 'warn' : 'off',
       'no-debugger': process.env.NODE_ENV === 'production' ? 'error' : 'off',
       'no-unsafe-finally': 'error',
-      'no-unused-vars': 'off', // 使用 TypeScript 的规则
-      'no-useless-assignment': 'off', // 在 Vue script setup 中会误报被模板使用的变量
+      'no-unused-vars': 'off',
+      'no-useless-assignment': 'off',
       'prefer-const': 'warn',
       'no-var': 'error',
-    },
-  },
-
-  // Vue 文件特殊配置
-  {
-    files: ['**/*.vue'],
-    languageOptions: {
-      parser: vueParser,
-      globals: {
-        ...globals.browser,
-        ...globals.node,
-      },
-      parserOptions: {
-        parser: tseslint.parser,
-        extraFileExtensions: ['.vue'],
-        ecmaVersion: 'latest',
-        sourceType: 'module',
-      },
-    },
-    rules: {
-      'vue/multi-word-component-names': 'off',
-    },
-  },
-
-  // Tauri API 全局变量配置
-  {
-    files: ['**/*.{js,ts,vue}'],
-    languageOptions: {
-      globals: {
-        __TAURI__: 'readonly', // Tauri 全局对象
-        __TAURI_INVOKE__: 'readonly',
-      },
     },
   },
 ];
