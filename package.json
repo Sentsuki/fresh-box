@@ -16,6 +16,9 @@
   "dependencies": {
     "@fluentui/react-components": "^9.73.8",
     "@fluentui/react-icons": "^2.0.325",
+    "@radix-ui/react-accordion": "^1.2.12",
+    "@radix-ui/react-switch": "^1.2.6",
+    "@radix-ui/react-tabs": "^1.1.13",
     "@tauri-apps/api": "^2.11.0",
     "@tauri-apps/plugin-dialog": "^2.7.1",
     "@tauri-apps/plugin-http": "^2.5.9",

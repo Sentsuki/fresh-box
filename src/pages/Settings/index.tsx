@@ -1,0 +1,125 @@
+import {
+  WrenchRegular,
+  OpenRegular,
+  InfoRegular,
+} from "@fluentui/react-icons";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { useSingboxStore } from "../../stores/singboxStore";
+import { useSingbox } from "../../hooks/useSingbox";
+import { Button } from "../../components/ui/Button";
+import { Section } from "../../components/ui/Section";
+import { KeyValue } from "../../components/ui/KeyValue";
+import type { LogLevel } from "../../types/app";
+
+export default function Settings() {
+  const settings = useSettingsStore((s) => s.settings);
+  const setLogLevel = useSettingsStore((s) => s.setLogLevel);
+  const isRunning = useSingboxStore((s) => s.isRunning);
+  const { openPanel, startService, stopService } = useSingbox();
+
+  const currentLogLevel = settings.pages.logs.log_level;
+
+  return (
+    <div className="flex flex-col gap-5 max-w-lg">
+      <div>
+        <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Settings</h1>
+        <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+          Application and core settings
+        </p>
+      </div>
+
+      {/* Core */}
+      <Section
+        title="Sing-box Core"
+        icon={<WrenchRegular />}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-[var(--wb-text-primary)]">Core status</p>
+              <p className="text-xs text-[var(--wb-text-secondary)]">
+                {isRunning ? "Running" : "Stopped"}
+              </p>
+            </div>
+            <div className="flex gap-2">
+              {isRunning && (
+                <Button
+                  icon={<OpenRegular />}
+                  variant="subtle"
+                  size="sm"
+                  onClick={openPanel}
+                >
+                  Panel
+                </Button>
+              )}
+              <Button
+                variant={isRunning ? "default" : "accent"}
+                size="sm"
+                onClick={isRunning ? stopService : startService}
+              >
+                {isRunning ? "Stop" : "Start"}
+              </Button>
+            </div>
+          </div>
+        </div>
+      </Section>
+
+      {/* Logs settings */}
+      <Section title="Logs">
+        <div className="flex flex-col gap-4">
+          <SettingRow
+            label="Log level"
+            description="Minimum log level to display"
+          >
+            <select
+              value={currentLogLevel}
+              onChange={(e) =>
+                void setLogLevel(e.target.value as LogLevel)
+              }
+              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+            >
+              {(["trace", "debug", "info", "warn", "error"] as LogLevel[]).map((level) => (
+                <option key={level} value={level}>
+                  {level}
+                </option>
+              ))}
+            </select>
+          </SettingRow>
+        </div>
+      </Section>
+
+      {/* About */}
+      <Section title="About" icon={<InfoRegular />}>
+        <div className="flex flex-col gap-1">
+          <KeyValue label="App" value="Fresh Box" />
+          <KeyValue label="Framework" value="Tauri + React 19" />
+          <KeyValue label="UI" value="FluentUI v9 + Tailwind v4" />
+        </div>
+      </Section>
+    </div>
+  );
+}
+
+function SettingRow({
+  label,
+  description,
+  children,
+}: {
+  label: string;
+  description?: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-[var(--wb-text-primary)]">{label}</p>
+        {description && (
+          <p className="text-xs text-[var(--wb-text-secondary)] mt-0.5">
+            {description}
+          </p>
+        )}
+      </div>
+      <div className="flex-shrink-0">{children}</div>
+    </div>
+  );
+}

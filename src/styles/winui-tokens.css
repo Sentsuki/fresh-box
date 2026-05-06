@@ -1,0 +1,26 @@
+:root {
+  --wb-surface-base: rgba(32, 32, 32, 0.85);
+  --wb-surface-layer: rgba(40, 40, 40, 0.72);
+  --wb-surface-flyout: rgba(44, 44, 44, 0.96);
+  --wb-surface-hover: rgba(255, 255, 255, 0.06);
+  --wb-surface-active: rgba(255, 255, 255, 0.08);
+  --wb-surface-selected: rgba(255, 255, 255, 0.06);
+
+  --wb-border-subtle: rgba(255, 255, 255, 0.08);
+  --wb-border-default: rgba(255, 255, 255, 0.12);
+
+  --wb-accent: #60CDFF;
+  --wb-accent-hover: #8CD7FF;
+  --wb-accent-pressed: #4DC8FF;
+
+  --wb-text-primary: rgba(255, 255, 255, 0.95);
+  --wb-text-secondary: rgba(255, 255, 255, 0.60);
+  --wb-text-tertiary: rgba(255, 255, 255, 0.40);
+  --wb-text-disabled: rgba(255, 255, 255, 0.28);
+
+  --wb-sidebar-width: 240px;
+  --wb-titlebar-height: 36px;
+  --wb-radius-sm: 4px;
+  --wb-radius-md: 6px;
+  --wb-radius-lg: 8px;
+}

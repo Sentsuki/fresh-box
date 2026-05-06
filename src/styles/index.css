@@ -1,0 +1,58 @@
+@import "tailwindcss";
+@import "./winui-tokens.css";
+
+@theme {
+  --color-wb-surface-base: var(--wb-surface-base);
+  --color-wb-surface-layer: var(--wb-surface-layer);
+  --color-wb-surface-flyout: var(--wb-surface-flyout);
+  --color-wb-surface-hover: var(--wb-surface-hover);
+  --color-wb-surface-active: var(--wb-surface-active);
+  --color-wb-surface-selected: var(--wb-surface-selected);
+  --color-wb-border: var(--wb-border-default);
+  --color-wb-border-subtle: var(--wb-border-subtle);
+  --color-wb-accent: var(--wb-accent);
+  --color-wb-accent-hover: var(--wb-accent-hover);
+  --color-wb-accent-pressed: var(--wb-accent-pressed);
+  --color-wb-text: var(--wb-text-primary);
+  --color-wb-text-muted: var(--wb-text-secondary);
+  --color-wb-text-tertiary: var(--wb-text-tertiary);
+  --color-wb-text-disabled: var(--wb-text-disabled);
+}
+
+* {
+  box-sizing: border-box;
+  scroll-behavior: auto;
+}
+
+html,
+body,
+#root {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  background: transparent;
+  color: var(--wb-text-primary);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(255, 255, 255, 0.15);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(255, 255, 255, 0.25);
+}
