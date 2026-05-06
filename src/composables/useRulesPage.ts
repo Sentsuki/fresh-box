@@ -4,15 +4,13 @@ import {
   toggleClashRule,
   updateClashRuleProvider,
 } from "../services/api";
-import type { RuleEntry, RuleProviderEntry } from "../types/app";
+import type { RuleEntry, RuleProviderEntry, RulesTab } from "../types/app";
+import { useAppStore } from "../stores/appStore";
 import { toast } from "./useToast";
-
-type RulesTab = "rules" | "providers";
 
 const rules = ref<RuleEntry[]>([]);
 const providers = ref<RuleProviderEntry[]>([]);
 const search = ref("");
-const currentTab = ref<RulesTab>("rules");
 const isRefreshing = ref(false);
 const errorMessage = ref<string | null>(null);
 const activeProviderUpdates = ref<string[]>([]);
@@ -50,6 +48,16 @@ function getRuleToggleKey(rule: RuleEntry, index: number) {
 }
 
 export function useRulesPage() {
+  const appStore = useAppStore();
+  const currentTab = computed<RulesTab>({
+    get: () => appStore.appSettings.value.pages.rules.current_tab,
+    set: (value) => {
+      void appStore.updatePageSettings("rules", (settings) => {
+        settings.current_tab = value;
+      });
+    },
+  });
+
   const visibleRules = computed(() =>
     rules.value.filter((rule) => matchesRuleSearch(rule, search.value)),
   );

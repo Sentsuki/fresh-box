@@ -28,7 +28,6 @@ const isUpdatingCoreState = ref(false);
 const coreStatusState = ref<SingboxCoreStatus | null>(null);
 const coreStatusErrorState = ref("");
 const coreUpdateProgressState = ref<CoreUpdateProgressEvent | null>(null);
-const selectedCoreOptionKeyState = ref("");
 let hasAutoRefreshedCoreStatus = false;
 
 export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
@@ -41,7 +40,12 @@ export function useCoreUpdate(options: UseCoreUpdateOptions = {}) {
   const coreStatus = coreStatusState;
   const coreStatusError = coreStatusErrorState;
   const coreUpdateProgress = coreUpdateProgressState;
-  const selectedCoreOptionKey = selectedCoreOptionKeyState;
+  const selectedCoreOptionKey = computed({
+    get: () => appStore.appSettings.value.singbox_core.selected_option_key,
+    set: (value: string) => {
+      void appStore.setSelectedCoreOptionKey(value);
+    },
+  });
 
   const selectedCoreOption = computed(() => {
     return (

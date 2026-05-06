@@ -12,6 +12,7 @@ import type {
   SubscriptionInfo,
   SubscriptionRecord,
 } from "../types/app";
+import { normalizeAppSettings } from "../types/app";
 
 function normalizeSubscriptions(
   parsed: Record<string, SubscriptionInfo | string>,
@@ -77,16 +78,8 @@ export async function saveSubscriptions(
 }
 
 export async function loadAppSettings(): Promise<AppSettings> {
-  const settings =
-    await invokeCommand<Partial<AppSettings>>("load_app_settings");
-
-  return {
-    selected_config: settings.selected_config ?? null,
-    selected_config_display: settings.selected_config_display ?? null,
-    current_page: settings.current_page ?? null,
-    active_singbox_core_channel: settings.active_singbox_core_channel ?? null,
-    active_singbox_core_version: settings.active_singbox_core_version ?? null,
-  };
+  const settings = await invokeCommand<AppSettings>("load_app_settings");
+  return normalizeAppSettings(settings);
 }
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {

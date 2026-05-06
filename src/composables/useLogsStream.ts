@@ -1,6 +1,7 @@
-import { computed, readonly, ref } from "vue";
+import { computed, readonly, ref, watch } from "vue";
 import { buildCoreWebSocketUrl } from "../services/coreClient";
-import type { CoreLogMessage, LogEntry } from "../types/app";
+import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
+import { useAppStore } from "../stores/appStore";
 import { toast } from "./useToast";
 
 const LOG_LEVELS = [
@@ -16,9 +17,8 @@ const LOG_LIMIT = 1000;
 
 const logs = ref<LogEntry[]>([]);
 const search = ref("");
-const typeFilter = ref("");
-const logLevel = ref<(typeof LOG_LEVELS)[number]>("info");
 const isPaused = ref(false);
+const currentLogLevel = ref<LogLevel>("info");
 const streamStatus = ref<"disconnected" | "connecting" | "connected" | "error">(
   "disconnected",
 );
@@ -92,7 +92,7 @@ function connect() {
 
   socket = new WebSocket(
     buildCoreWebSocketUrl("logs", {
-      level: logLevel.value,
+      level: currentLogLevel.value,
     }),
   );
 
@@ -141,6 +141,32 @@ function matchesSearch(entry: LogEntry, filter: string) {
 }
 
 export function useLogsStream() {
+  const appStore = useAppStore();
+  const logLevel = computed<LogLevel>({
+    get: () => appStore.appSettings.value.pages.logs.log_level,
+    set: (value) => {
+      void appStore.updatePageSettings("logs", (settings) => {
+        settings.log_level = value;
+      });
+    },
+  });
+  const typeFilter = computed<string>({
+    get: () => appStore.appSettings.value.pages.logs.type_filter,
+    set: (value) => {
+      void appStore.updatePageSettings("logs", (settings) => {
+        settings.type_filter = value;
+      });
+    },
+  });
+
+  watch(
+    logLevel,
+    (value) => {
+      currentLogLevel.value = value;
+    },
+    { immediate: true },
+  );
+
   const visibleLogs = computed(() =>
     logs.value.filter((entry) => {
       if (typeFilter.value && entry.category !== typeFilter.value && entry.type !== typeFilter.value) {
@@ -239,7 +265,7 @@ export function useLogsStream() {
     streamStatus: readonly(streamStatus),
     streamError: readonly(streamError),
     availableTypes,
-    logLevels: LOG_LEVELS,
+    logLevels: LOG_LEVELS as readonly LogLevel[],
     startStream,
     stopStream,
     restartStream,

@@ -1,30 +1,23 @@
-import { computed, readonly, ref, watch } from "vue";
+import { computed, readonly, ref } from "vue";
 import { coreRequest, buildCoreWebSocketUrl } from "../services/coreClient";
 import { formatRelativeDuration } from "../services/utils";
 import type {
+  ConnectionColumnKey,
   ConnectionEntry,
+  ConnectionPageSettings,
+  ConnectionPageTab,
   CoreConnectionsFrame,
   CoreConnectionSnapshot,
+  SortDirection,
 } from "../types/app";
+import {
+  DEFAULT_CONNECTION_COLUMN_ORDER,
+  DEFAULT_CONNECTION_VISIBLE_COLUMNS,
+} from "../types/app";
+import { useAppStore } from "../stores/appStore";
 import { toast } from "./useToast";
 
-type ConnectionTab = "active" | "closed";
-export type SortDirection = "asc" | "desc";
 type ColumnValue = number | string;
-
-export type ConnectionColumnKey =
-  | "host"
-  | "destination"
-  | "downloadSpeed"
-  | "uploadSpeed"
-  | "download"
-  | "upload"
-  | "chain"
-  | "rule"
-  | "source"
-  | "process"
-  | "network"
-  | "start";
 
 export interface ConnectionColumnOption {
   key: ConnectionColumnKey;
@@ -45,17 +38,6 @@ interface ConnectionColumnDefinition extends ConnectionColumnOption {
   defaultDirection: SortDirection;
   getValue: (connection: ConnectionEntry) => ColumnValue;
 }
-
-const CONNECTION_COLUMN_ORDER_STORAGE_KEY = "fresh-box.connections.column-order";
-const CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY =
-  "fresh-box.connections.visible-columns";
-const CONNECTION_SORT_KEY_STORAGE_KEY = "fresh-box.connections.sort-key";
-const CONNECTION_SORT_DIRECTION_STORAGE_KEY =
-  "fresh-box.connections.sort-direction";
-const CONNECTION_GROUPED_COLUMN_STORAGE_KEY =
-  "fresh-box.connections.grouped-column";
-const CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY =
-  "fresh-box.connections.collapsed-groups";
 
 const columnDefinitions: Record<ConnectionColumnKey, ConnectionColumnDefinition> = {
   host: {
@@ -167,61 +149,12 @@ const columnDefinitions: Record<ConnectionColumnKey, ConnectionColumnDefinition>
   },
 };
 
-const DEFAULT_COLUMN_ORDER = [
-  "host",
-  "destination",
-  "downloadSpeed",
-  "uploadSpeed",
-  "download",
-  "upload",
-  "chain",
-  "rule",
-  "source",
-  "process",
-  "network",
-  "start",
-] satisfies ConnectionColumnKey[];
-
-const DEFAULT_VISIBLE_COLUMNS = [
-  "host",
-  "downloadSpeed",
-  "uploadSpeed",
-  "chain",
-  "rule",
-  "source",
-  "process",
-  "start",
-] satisfies ConnectionColumnKey[];
-
-const validColumnKeys = new Set<ConnectionColumnKey>(DEFAULT_COLUMN_ORDER);
-
 const activeConnections = ref<ConnectionEntry[]>([]);
 const closedConnections = ref<ConnectionEntry[]>([]);
 const totalDownload = ref(0);
 const totalUpload = ref(0);
 const isPaused = ref(false);
 const search = ref("");
-const currentTab = ref<ConnectionTab>("active");
-const columnOrder = ref<ConnectionColumnKey[]>(
-  sanitizeColumnOrder(readStoredValue(CONNECTION_COLUMN_ORDER_STORAGE_KEY)),
-);
-const visibleColumnKeys = ref<ConnectionColumnKey[]>(
-  sanitizeVisibleColumns(readStoredValue(CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY)),
-);
-const sortKey = ref<ConnectionColumnKey>(
-  sanitizeSortKey(readStoredValue(CONNECTION_SORT_KEY_STORAGE_KEY)),
-);
-const sortDirection = ref<SortDirection>(
-  sanitizeSortDirection(readStoredValue(CONNECTION_SORT_DIRECTION_STORAGE_KEY)),
-);
-const groupedColumnKey = ref<ConnectionColumnKey | null>(
-  sanitizeGroupedColumn(readStoredValue(CONNECTION_GROUPED_COLUMN_STORAGE_KEY)),
-);
-const collapsedGroups = ref<Record<string, boolean>>(
-  sanitizeCollapsedGroups(
-    readStoredValue(CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY),
-  ),
-);
 const streamStatus = ref<"disconnected" | "connecting" | "connected" | "error">(
   "disconnected",
 );
@@ -235,141 +168,6 @@ let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let shouldReconnect = false;
 let previousConnectionsMap = new Map<string, CoreConnectionSnapshot>();
-
-watch(
-  columnOrder,
-  (value) => {
-    writeStoredValue(CONNECTION_COLUMN_ORDER_STORAGE_KEY, value);
-  },
-  { deep: true },
-);
-
-watch(
-  visibleColumnKeys,
-  (value) => {
-    writeStoredValue(CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY, value);
-  },
-  { deep: true },
-);
-
-watch(sortKey, (value) => {
-  writeStoredValue(CONNECTION_SORT_KEY_STORAGE_KEY, value);
-});
-
-watch(sortDirection, (value) => {
-  writeStoredValue(CONNECTION_SORT_DIRECTION_STORAGE_KEY, value);
-});
-
-watch(groupedColumnKey, (value) => {
-  writeStoredValue(CONNECTION_GROUPED_COLUMN_STORAGE_KEY, value);
-});
-
-watch(
-  collapsedGroups,
-  (value) => {
-    writeStoredValue(CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY, value);
-  },
-  { deep: true },
-);
-
-function readStoredValue(key: string) {
-  if (typeof window === "undefined") {
-    return null;
-  }
-
-  const rawValue = window.localStorage.getItem(key);
-  if (!rawValue) {
-    return null;
-  }
-
-  try {
-    return JSON.parse(rawValue) as unknown;
-  } catch {
-    return null;
-  }
-}
-
-function writeStoredValue(key: string, value: unknown) {
-  if (typeof window === "undefined") {
-    return;
-  }
-
-  window.localStorage.setItem(key, JSON.stringify(value));
-}
-
-function sanitizeColumnOrder(value: unknown): ConnectionColumnKey[] {
-  const stored = Array.isArray(value)
-    ? value.filter(
-        (item): item is ConnectionColumnKey =>
-          typeof item === "string" && validColumnKeys.has(item as ConnectionColumnKey),
-      )
-    : [];
-  const seen = new Set<ConnectionColumnKey>();
-  const normalized: ConnectionColumnKey[] = [];
-
-  for (const key of stored) {
-    if (seen.has(key)) {
-      continue;
-    }
-    seen.add(key);
-    normalized.push(key);
-  }
-
-  for (const key of DEFAULT_COLUMN_ORDER) {
-    if (seen.has(key)) {
-      continue;
-    }
-    normalized.push(key);
-  }
-
-  return normalized;
-}
-
-function sanitizeVisibleColumns(value: unknown): ConnectionColumnKey[] {
-  const stored = Array.isArray(value)
-    ? value.filter(
-        (item): item is ConnectionColumnKey =>
-          typeof item === "string" && validColumnKeys.has(item as ConnectionColumnKey),
-      )
-    : [];
-
-  if (stored.length === 0) {
-    return [...DEFAULT_VISIBLE_COLUMNS];
-  }
-
-  return sanitizeColumnOrder(stored).filter((key) => stored.includes(key));
-}
-
-function sanitizeSortKey(value: unknown): ConnectionColumnKey {
-  return typeof value === "string" && validColumnKeys.has(value as ConnectionColumnKey)
-    ? (value as ConnectionColumnKey)
-    : "downloadSpeed";
-}
-
-function sanitizeSortDirection(value: unknown): SortDirection {
-  return value === "asc" || value === "desc" ? value : "desc";
-}
-
-function sanitizeGroupedColumn(value: unknown): ConnectionColumnKey | null {
-  if (typeof value !== "string") {
-    return null;
-  }
-
-  const key = value as ConnectionColumnKey;
-  return columnDefinitions[key]?.groupable ? key : null;
-}
-
-function sanitizeCollapsedGroups(value: unknown): Record<string, boolean> {
-  if (!value || typeof value !== "object" || Array.isArray(value)) {
-    return {};
-  }
-
-  return Object.fromEntries(
-    Object.entries(value).filter(
-      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
-    ),
-  );
-}
 
 function normalizeConnection(
   connection: CoreConnectionSnapshot,
@@ -529,8 +327,12 @@ function compareValues(left: ColumnValue, right: ColumnValue) {
   });
 }
 
-function sortConnections(items: ConnectionEntry[]) {
-  const definition = columnDefinitions[sortKey.value];
+function sortConnections(
+  items: ConnectionEntry[],
+  activeSortKey: ConnectionColumnKey,
+  activeSortDirection: SortDirection,
+) {
+  const definition = columnDefinitions[activeSortKey];
 
   return [...items].sort((left, right) => {
     const result = compareValues(
@@ -539,11 +341,11 @@ function sortConnections(items: ConnectionEntry[]) {
     );
 
     if (result !== 0) {
-      return sortDirection.value === "asc" ? result : -result;
+      return activeSortDirection === "asc" ? result : -result;
     }
 
     const fallback = left.id.localeCompare(right.id);
-    return sortDirection.value === "asc" ? fallback : -fallback;
+    return activeSortDirection === "asc" ? fallback : -fallback;
   });
 }
 
@@ -570,6 +372,37 @@ export function getConnectionRule(connection: ConnectionEntry) {
 }
 
 export function useConnectionsStream() {
+  const appStore = useAppStore();
+  const connectionSettings = computed(() => appStore.appSettings.value.pages.connections);
+
+  function updateConnectionSettings(
+    updater: (settings: ConnectionPageSettings) => void,
+  ) {
+    void appStore.updatePageSettings("connections", updater);
+  }
+
+  const currentTab = computed<ConnectionPageTab>({
+    get: () => connectionSettings.value.current_tab,
+    set: (value) => {
+      updateConnectionSettings((settings) => {
+        settings.current_tab = value;
+      });
+    },
+  });
+
+  const columnOrder = computed(() => connectionSettings.value.column_order);
+  const visibleColumnKeys = computed(
+    () => connectionSettings.value.visible_columns,
+  );
+  const sortKey = computed(() => connectionSettings.value.sort_key);
+  const sortDirection = computed(() => connectionSettings.value.sort_direction);
+  const groupedColumnKey = computed(
+    () => connectionSettings.value.grouped_column,
+  );
+  const collapsedGroups = computed(
+    () => connectionSettings.value.collapsed_groups,
+  );
+
   const orderedColumnOptions = computed(() =>
     columnOrder.value.map((key) => columnDefinitions[key]),
   );
@@ -590,7 +423,7 @@ export function useConnectionsStream() {
   });
 
   const visibleConnections = computed(() =>
-    sortConnections(filteredConnections.value),
+    sortConnections(filteredConnections.value, sortKey.value, sortDirection.value),
   );
 
   const groupedColumn = computed(() =>
@@ -644,7 +477,7 @@ export function useConnectionsStream() {
         id: group.id,
         label: group.label,
         column: activeGroupedColumn,
-        items: sortConnections(group.items),
+        items: sortConnections(group.items, sortKey.value, sortDirection.value),
       }));
   });
 
@@ -693,12 +526,17 @@ export function useConnectionsStream() {
     }
 
     if (sortKey.value !== columnKey) {
-      sortKey.value = columnKey;
-      sortDirection.value = columnDefinitions[columnKey].defaultDirection;
+      updateConnectionSettings((settings) => {
+        settings.sort_key = columnKey;
+        settings.sort_direction = columnDefinitions[columnKey].defaultDirection;
+      });
       return;
     }
 
-    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+    updateConnectionSettings((settings) => {
+      settings.sort_direction =
+        settings.sort_direction === "asc" ? "desc" : "asc";
+    });
   }
 
   function toggleGrouping(columnKey: ConnectionColumnKey) {
@@ -706,21 +544,27 @@ export function useConnectionsStream() {
       return;
     }
 
-    groupedColumnKey.value =
-      groupedColumnKey.value === columnKey ? null : columnKey;
-    collapsedGroups.value = {};
+    updateConnectionSettings((settings) => {
+      settings.grouped_column =
+        settings.grouped_column === columnKey ? null : columnKey;
+      settings.collapsed_groups = {};
+    });
   }
 
   function clearGrouping() {
-    groupedColumnKey.value = null;
-    collapsedGroups.value = {};
+    updateConnectionSettings((settings) => {
+      settings.grouped_column = null;
+      settings.collapsed_groups = {};
+    });
   }
 
   function toggleGroupCollapsed(groupId: string) {
-    collapsedGroups.value = {
-      ...collapsedGroups.value,
-      [groupId]: !collapsedGroups.value[groupId],
-    };
+    updateConnectionSettings((settings) => {
+      settings.collapsed_groups = {
+        ...settings.collapsed_groups,
+        [groupId]: !settings.collapsed_groups[groupId],
+      };
+    });
   }
 
   function isGroupCollapsed(groupId: string) {
@@ -737,29 +581,35 @@ export function useConnectionsStream() {
         return;
       }
 
-      visibleColumnKeys.value = visibleColumnKeys.value.filter(
-        (value) => value !== columnKey,
-      );
+      updateConnectionSettings((settings) => {
+        settings.visible_columns = settings.visible_columns.filter(
+          (value) => value !== columnKey,
+        );
 
-      if (groupedColumnKey.value === columnKey) {
-        clearGrouping();
-      }
-
-      if (sortKey.value === columnKey) {
-        const nextSortKey = visibleColumnKeys.value[0];
-        if (nextSortKey) {
-          sortKey.value = nextSortKey;
-          sortDirection.value = columnDefinitions[nextSortKey].defaultDirection;
+        if (settings.grouped_column === columnKey) {
+          settings.grouped_column = null;
+          settings.collapsed_groups = {};
         }
-      }
+
+        if (settings.sort_key === columnKey) {
+          const nextSortKey = settings.visible_columns[0];
+          if (nextSortKey) {
+            settings.sort_key = nextSortKey;
+            settings.sort_direction =
+              columnDefinitions[nextSortKey].defaultDirection;
+          }
+        }
+      });
 
       return;
     }
 
-    visibleColumnKeys.value = columnOrder.value.filter(
-      (value) =>
-        value === columnKey || visibleColumnKeys.value.includes(value),
-    );
+    updateConnectionSettings((settings) => {
+      settings.visible_columns = settings.column_order.filter(
+        (value) =>
+          value === columnKey || settings.visible_columns.includes(value),
+      );
+    });
   }
 
   function moveColumn(columnKey: ConnectionColumnKey, direction: -1 | 1) {
@@ -773,16 +623,24 @@ export function useConnectionsStream() {
     const nextOrder = [...columnOrder.value];
     const [movedColumn] = nextOrder.splice(currentIndex, 1);
     nextOrder.splice(targetIndex, 0, movedColumn);
-    columnOrder.value = nextOrder;
+    updateConnectionSettings((settings) => {
+      settings.column_order = nextOrder;
+      settings.visible_columns = nextOrder.filter((value) =>
+        settings.visible_columns.includes(value),
+      );
+    });
   }
 
   function resetColumnCustomization() {
-    columnOrder.value = [...DEFAULT_COLUMN_ORDER];
-    visibleColumnKeys.value = [...DEFAULT_VISIBLE_COLUMNS];
-    groupedColumnKey.value = null;
-    collapsedGroups.value = {};
-    sortKey.value = "downloadSpeed";
-    sortDirection.value = "desc";
+    updateConnectionSettings((settings) => {
+      settings.column_order = [...DEFAULT_CONNECTION_COLUMN_ORDER];
+      settings.visible_columns = [...DEFAULT_CONNECTION_VISIBLE_COLUMNS];
+      settings.sort_key = "downloadSpeed";
+      settings.sort_direction = "desc";
+      settings.grouped_column = null;
+      settings.collapsed_groups = {};
+      settings.current_tab = "active";
+    });
   }
 
   async function disconnectConnection(id: string) {

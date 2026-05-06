@@ -1,6 +1,7 @@
 <script setup lang="ts">
-import { computed, ref } from "vue";
+import { computed } from "vue";
 import { useClash } from "../../composables/useClash";
+import { useAppStore } from "../../stores/appStore";
 import type { ClashProxyGroup } from "../../types/app";
 
 const props = defineProps<{
@@ -8,7 +9,21 @@ const props = defineProps<{
 }>();
 
 const clash = useClash();
-const isCollapsed = ref(false);
+const appStore = useAppStore();
+const isCollapsed = computed({
+  get: () =>
+    Boolean(
+      appStore.appSettings.value.pages.proxies.collapsed_groups[props.group.name],
+    ),
+  set: (value: boolean) => {
+    void appStore.updatePageSettings("proxies", (settings) => {
+      settings.collapsed_groups = {
+        ...settings.collapsed_groups,
+        [props.group.name]: value,
+      };
+    });
+  },
+});
 
 const actionDisabled = computed(
   () =>

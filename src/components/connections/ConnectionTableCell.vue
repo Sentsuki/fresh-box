@@ -8,8 +8,8 @@ import {
   getConnectionChain,
   getConnectionHost,
   getConnectionRule,
-  type ConnectionColumnKey,
 } from "../../composables/useConnectionsStream";
+import type { ConnectionColumnKey } from "../../types/app";
 import type { ConnectionEntry } from "../../types/app";
 
 defineProps<{

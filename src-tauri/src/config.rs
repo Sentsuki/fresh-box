@@ -9,17 +9,196 @@ use std::process::Command;
 
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
+const APP_SETTINGS_SCHEMA_VERSION: u32 = 2;
 pub const CORE_CHANNEL_STABLE: &str = "stable";
 pub const CORE_CHANNEL_TESTING: &str = "testing";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
+    #[serde(default = "default_app_settings_schema_version")]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub app: AppSelectionSettings,
+    #[serde(default)]
+    pub singbox_core: SingboxCoreSettings,
+    #[serde(default)]
+    pub pages: PageSettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppSelectionSettings {
+    pub current_page: String,
+    pub selected_config_path: Option<String>,
+    pub selected_config_display: Option<String>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SingboxCoreSettings {
+    pub active_channel: Option<String>,
+    pub active_version: Option<String>,
+    pub selected_option_key: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct PageSettings {
+    #[serde(default)]
+    pub proxies: ProxyPageSettings,
+    #[serde(default)]
+    pub connections: ConnectionPageSettings,
+    #[serde(default)]
+    pub logs: LogsPageSettings,
+    #[serde(default)]
+    pub rules: RulesPageSettings,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProxyPageSettings {
+    #[serde(default)]
+    pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectionPageSettings {
+    pub current_tab: String,
+    pub column_order: Vec<String>,
+    pub visible_columns: Vec<String>,
+    pub sort_key: String,
+    pub sort_direction: String,
+    pub grouped_column: Option<String>,
+    #[serde(default)]
+    pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LogsPageSettings {
+    pub log_level: String,
+    pub type_filter: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RulesPageSettings {
+    pub current_tab: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+struct LegacyAppSettings {
     pub selected_config: Option<String>,
     pub selected_config_display: Option<String>,
     pub current_page: Option<String>,
     pub active_singbox_core_channel: Option<String>,
     pub active_singbox_core_version: Option<String>,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            schema_version: APP_SETTINGS_SCHEMA_VERSION,
+            app: AppSelectionSettings::default(),
+            singbox_core: SingboxCoreSettings::default(),
+            pages: PageSettings::default(),
+        }
+    }
+}
+
+impl Default for AppSelectionSettings {
+    fn default() -> Self {
+        Self {
+            current_page: "overview".to_string(),
+            selected_config_path: None,
+            selected_config_display: None,
+        }
+    }
+}
+
+impl Default for ConnectionPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "active".to_string(),
+            column_order: vec![
+                "host".to_string(),
+                "destination".to_string(),
+                "downloadSpeed".to_string(),
+                "uploadSpeed".to_string(),
+                "download".to_string(),
+                "upload".to_string(),
+                "chain".to_string(),
+                "rule".to_string(),
+                "source".to_string(),
+                "process".to_string(),
+                "network".to_string(),
+                "start".to_string(),
+            ],
+            visible_columns: vec![
+                "host".to_string(),
+                "downloadSpeed".to_string(),
+                "uploadSpeed".to_string(),
+                "chain".to_string(),
+                "rule".to_string(),
+                "source".to_string(),
+                "process".to_string(),
+                "start".to_string(),
+            ],
+            sort_key: "downloadSpeed".to_string(),
+            sort_direction: "desc".to_string(),
+            grouped_column: None,
+            collapsed_groups: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl Default for LogsPageSettings {
+    fn default() -> Self {
+        Self {
+            log_level: "info".to_string(),
+            type_filter: String::new(),
+        }
+    }
+}
+
+impl Default for RulesPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "rules".to_string(),
+        }
+    }
+}
+
+impl From<LegacyAppSettings> for AppSettings {
+    fn from(value: LegacyAppSettings) -> Self {
+        let mut settings = AppSettings::default();
+        settings.app.current_page = value
+            .current_page
+            .filter(|page| !page.trim().is_empty())
+            .unwrap_or_else(|| "overview".to_string());
+        settings.app.selected_config_path = value.selected_config;
+        settings.app.selected_config_display = value.selected_config_display;
+        settings.singbox_core.active_channel = value.active_singbox_core_channel;
+        settings.singbox_core.active_version = value.active_singbox_core_version;
+        settings
+    }
+}
+
+fn default_app_settings_schema_version() -> u32 {
+    APP_SETTINGS_SCHEMA_VERSION
+}
+
+fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
+    if let Ok(mut settings) = serde_json::from_value::<AppSettings>(value.clone()) {
+        settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
+        return Ok(settings);
+    }
+
+    serde_json::from_value::<LegacyAppSettings>(value)
+        .map(AppSettings::from)
+        .map_err(|error| CommandError::json("failed to parse app_settings.json", error))
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
@@ -93,7 +272,13 @@ fn get_app_settings_path() -> Result<PathBuf, CommandError> {
 }
 
 pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
-    load_json_or_default(&get_app_settings_path()?)
+    let path = get_app_settings_path()?;
+    if !path.exists() {
+        return Ok(AppSettings::default());
+    }
+
+    let value: Value = read_json_file(&path)?;
+    normalize_app_settings(value)
 }
 
 pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
@@ -177,22 +362,22 @@ pub fn set_active_singbox_core_selection(
     }
 
     let mut settings = load_app_settings_file()?;
-    settings.active_singbox_core_channel = channel;
-    settings.active_singbox_core_version = version;
+    settings.singbox_core.active_channel = channel;
+    settings.singbox_core.active_version = version;
     save_app_settings_file(&settings)
 }
 
 pub fn get_active_singbox_core_selection() -> Result<Option<(String, String)>, CommandError> {
     let settings = load_app_settings_file()?;
     match (
-        settings.active_singbox_core_channel,
-        settings.active_singbox_core_version,
+        settings.singbox_core.active_channel,
+        settings.singbox_core.active_version,
     ) {
         (Some(channel), Some(version)) => Ok(Some((normalize_core_channel(&channel)?.to_string(), version))),
         (None, None) => Ok(None),
         _ => Err(CommandError::invalid_state(
             "get_active_singbox_core_selection",
-            "app_settings.json must store both active_singbox_core_channel and active_singbox_core_version together",
+            "app_settings.json must store both singbox_core.active_channel and singbox_core.active_version together",
         )),
     }
 }
