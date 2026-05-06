@@ -1,26 +1,33 @@
 :root {
   /* Dark mode - let Mica show through */
   --wb-surface-base: transparent;
-  --wb-surface-layer: rgba(40, 40, 40, 0.72);
-  --wb-surface-flyout: rgba(44, 44, 44, 0.96);
-  --wb-surface-hover: rgba(255, 255, 255, 0.06);
-  --wb-surface-active: rgba(255, 255, 255, 0.08);
-  --wb-surface-selected: rgba(255, 255, 255, 0.06);
+  
+  /* Layer (Card) in dark mode is typically 5.1% white over the background */
+  --wb-surface-layer: rgba(255, 255, 255, 0.051);
+  --wb-surface-flyout: rgba(44, 44, 44, 0.96); /* Menus/Flyouts */
+  
+  /* Interaction states */
+  --wb-surface-hover: rgba(255, 255, 255, 0.0605);
+  --wb-surface-active: rgba(255, 255, 255, 0.0326);
+  --wb-surface-selected: rgba(255, 255, 255, 0.0605);
 
-  --wb-border-subtle: rgba(255, 255, 255, 0.08);
-  --wb-border-default: rgba(255, 255, 255, 0.12);
+  /* Borders */
+  --wb-border-subtle: rgba(255, 255, 255, 0.05);
+  --wb-border-default: rgba(255, 255, 255, 0.08);
 
+  /* Accent - Windows 11 Dark Mode Default */
   --wb-accent: #60CDFF;
   --wb-accent-hover: #8CD7FF;
   --wb-accent-pressed: #4DC8FF;
 
-  --wb-text-primary: rgba(255, 255, 255, 0.95);
-  --wb-text-secondary: rgba(255, 255, 255, 0.60);
-  --wb-text-tertiary: rgba(255, 255, 255, 0.40);
-  --wb-text-disabled: rgba(255, 255, 255, 0.28);
+  /* Typography - WinUI 3 Dark Mode standard opacities */
+  --wb-text-primary: rgba(255, 255, 255, 1);
+  --wb-text-secondary: rgba(255, 255, 255, 0.786);
+  --wb-text-tertiary: rgba(255, 255, 255, 0.5442);
+  --wb-text-disabled: rgba(255, 255, 255, 0.3628);
 
-  --wb-scrollbar-thumb: rgba(255, 255, 255, 0.15);
-  --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.25);
+  --wb-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
 
   --wb-sidebar-width: 240px;
   --wb-titlebar-height: 36px;
@@ -40,7 +47,7 @@
   
   /* 交互状态: WinUI 3 的悬浮和点击反馈通常比较克制 */
   --wb-surface-hover: rgba(0, 0, 0, 0.0392);
-  --wb-surface-active: rgba(0, 0, 0, 0.06);
+  --wb-surface-active: rgba(0, 0, 0, 0.0241);
   --wb-surface-selected: rgba(0, 0, 0, 0.0392);
 
   /* 边框: Windows 11 风格的边框非常微妙，通常是 5.78% 的黑色 */

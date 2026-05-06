@@ -4,6 +4,7 @@ import {
   webLightTheme,
   type Theme,
 } from "@fluentui/react-components";
+import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useSettingsStore } from "../stores/settingsStore";
 
 const BASE_OVERRIDES = {
@@ -34,6 +35,7 @@ export function useTheme(): Theme {
 
   useEffect(() => {
     document.documentElement.classList.toggle("light", isLight);
+    getCurrentWindow().setTheme(isLight ? "light" : "dark").catch(console.error);
   }, [isLight]);
 
   return isLight ? LIGHT_THEME : DARK_THEME;
