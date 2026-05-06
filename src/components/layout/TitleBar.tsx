@@ -2,8 +2,6 @@ import { getCurrentWindow } from "@tauri-apps/api/window";
 import { ArrowMinimizeRegular, MaximizeRegular, DismissRegular } from "@fluentui/react-icons";
 import { useAppStore } from "../../stores/appStore";
 
-const appWindow = getCurrentWindow();
-
 export function TitleBar() {
   const currentPage = useAppStore((s) => s.currentPage);
 

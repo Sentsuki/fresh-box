@@ -1,64 +1,164 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useState, useCallback } from "react";
 import {
   ArrowClockwiseRegular,
   TimerRegular,
+  ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
-import { Accordion, AccordionItem } from "../../components/ui/Accordion";
 import { Button } from "../../components/ui/Button";
-import { Badge } from "../../components/ui/Badge";
 import { Spinner } from "../../components/ui/Spinner";
-import type { ClashProxyNode } from "../../types/app";
+import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
-function delayVariant(delay: number | null): "success" | "warning" | "error" | "default" {
-  if (!delay) return "default";
-  if (delay < 200) return "success";
-  if (delay < 600) return "warning";
-  return "error";
+function delayColor(delay: number | null): string {
+  if (!delay) return "text-[var(--wb-text-disabled)]";
+  if (delay < 200) return "text-[#6BB44A]";
+  if (delay < 500) return "text-[#D4A017]";
+  return "text-[#E05252]";
 }
 
-function DelayBadge({ delay }: { delay: number | null }) {
-  if (!delay) return <Badge variant="subtle">--</Badge>;
-  return <Badge variant={delayVariant(delay)}>{delay}ms</Badge>;
+function DelayLabel({ delay }: { delay: number | null }) {
+  if (!delay)
+    return <span className="text-[10px] text-[var(--wb-text-disabled)]">--</span>;
+  return (
+    <span className={`text-[10px] tabular-nums ${delayColor(delay)}`}>
+      {delay}ms
+    </span>
+  );
 }
 
-interface ProxyNodeItemProps {
+function abbreviateType(type: string): string {
+  return type
+    .replace(/shadowsocks/i, "SS")
+    .replace(/hysteria2/i, "Hy2")
+    .replace(/hysteria/i, "Hy")
+    .replace(/wireguard/i, "WG")
+    .replace(/trojan/i, "Trojan")
+    .replace(/vless/i, "VLESS")
+    .replace(/vmess/i, "VMess")
+    .toLowerCase();
+}
+
+interface NodeCardProps {
   node: ClashProxyNode;
   selected: boolean;
-  groupName: string;
   onSelect: () => void;
   onTest: () => void;
 }
 
-function ProxyNodeItem({ node, selected, onSelect, onTest }: ProxyNodeItemProps) {
+function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
   return (
     <button
       onClick={onSelect}
+      onContextMenu={(e) => {
+        e.preventDefault();
+        onTest();
+      }}
+      title={node.name}
       className={[
-        "w-full flex items-center justify-between px-3 py-2 text-sm rounded-[var(--wb-radius-md)]",
-        "transition-colors duration-100 text-left",
+        "flex flex-col items-start gap-1.5 px-2 py-2 rounded-[var(--wb-radius-md)]",
+        "text-left transition-all duration-100 cursor-pointer w-full min-w-0",
         selected
-          ? "bg-[var(--wb-surface-selected)] text-[var(--wb-text-primary)] border border-[var(--wb-accent)]"
-          : "hover:bg-[var(--wb-surface-hover)] text-[var(--wb-text-secondary)]",
+          ? "bg-[var(--wb-accent)] text-white shadow-sm"
+          : "bg-[var(--wb-surface-base)] hover:bg-[var(--wb-surface-hover)] text-[var(--wb-text-primary)]",
       ].join(" ")}
     >
-      <div className="flex items-center gap-2 min-w-0 flex-1">
-        {selected && (
-          <span className="w-1.5 h-1.5 rounded-full bg-[var(--wb-accent)] flex-shrink-0" />
-        )}
-        <span className="truncate">{node.name}</span>
-        {node.type && (
-          <Badge variant="subtle">{node.type}</Badge>
-        )}
-      </div>
-      <div
-        className="flex items-center gap-2 flex-shrink-0 ml-2"
-        onClick={(e) => { e.stopPropagation(); onTest(); }}
+      <span
+        className={`w-full truncate text-xs font-medium leading-tight ${
+          selected ? "text-white" : "text-[var(--wb-text-primary)]"
+        }`}
       >
-        <DelayBadge delay={node.delay} />
+        {node.name}
+      </span>
+      <div className="flex w-full items-center justify-between gap-1">
+        <span
+          className={`text-[10px] truncate ${
+            selected ? "text-white/70" : "text-[var(--wb-text-tertiary)]"
+          }`}
+        >
+          {abbreviateType(node.type)}
+        </span>
+        <DelayLabel delay={node.delay} />
       </div>
     </button>
+  );
+}
+
+interface GroupCardProps {
+  group: ClashProxyGroup;
+  onSelectNode: (node: string) => void;
+  onTestNode: (node: string) => void;
+  onTestGroup: () => void;
+}
+
+function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
+  const [open, setOpen] = useState(true);
+
+  return (
+    <div className="rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] overflow-hidden">
+      {/* Header */}
+      <button
+        onClick={() => setOpen((o) => !o)}
+        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--wb-surface-hover)] transition-colors"
+      >
+        <ChevronDownRegular
+          className={`text-[var(--wb-text-secondary)] transition-transform duration-200 flex-shrink-0 ${
+            open ? "rotate-0" : "-rotate-90"
+          }`}
+        />
+        <div className="flex-1 min-w-0 text-left">
+          <div className="flex items-center gap-2">
+            <span className="text-sm font-semibold text-[var(--wb-text-primary)] truncate">
+              {group.name}
+            </span>
+            <span className="text-xs text-[var(--wb-text-tertiary)] flex-shrink-0">
+              {group.type}
+            </span>
+            <span className="text-xs text-[var(--wb-text-disabled)] flex-shrink-0">
+              · {group.options.length}
+            </span>
+          </div>
+          {group.now && (
+            <div className="text-xs text-[var(--wb-accent)] truncate mt-0.5">
+              → {group.now}
+            </div>
+          )}
+        </div>
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTestGroup();
+          }}
+          className="flex-shrink-0 p-1.5 rounded-[var(--wb-radius-sm)] text-[var(--wb-text-secondary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-active)] transition-colors"
+          title="Test all latencies"
+        >
+          <TimerRegular className="text-sm" />
+        </button>
+      </button>
+
+      {/* Node grid */}
+      {open && (
+        <div className="px-3 pb-3">
+          <div
+            className="grid gap-1.5"
+            style={{
+              gridTemplateColumns:
+                "repeat(auto-fill, minmax(min(140px, 100%), 1fr))",
+            }}
+          >
+            {group.options.map((node) => (
+              <NodeCard
+                key={node.name}
+                node={node}
+                selected={group.now === node.name}
+                onSelect={() => onSelectNode(node.name)}
+                onTest={() => onTestNode(node.name)}
+              />
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
   );
 }
 
@@ -71,9 +171,26 @@ export default function Proxies() {
     void refreshOverview();
   }, [refreshOverview]);
 
-  const handleTestGroup = useCallback(async (groupName: string) => {
-    await testGroupDelay(groupName);
-  }, [testGroupDelay]);
+  const handleSelectNode = useCallback(
+    async (groupName: string, nodeName: string) => {
+      await switchProxy(groupName, nodeName);
+    },
+    [switchProxy],
+  );
+
+  const handleTestNode = useCallback(
+    async (nodeName: string) => {
+      await testDelay(nodeName);
+    },
+    [testDelay],
+  );
+
+  const handleTestGroup = useCallback(
+    async (groupName: string) => {
+      await testGroupDelay(groupName);
+    },
+    [testGroupDelay],
+  );
 
   if (!overview) {
     return (
@@ -84,24 +201,14 @@ export default function Proxies() {
     );
   }
 
-  if (groups.length === 0) {
-    return (
-      <div className="flex flex-col items-center justify-center h-48 gap-3">
-        <p className="text-sm text-[var(--wb-text-secondary)]">No proxy groups found</p>
-        <Button icon={<ArrowClockwiseRegular />} onClick={() => void refreshOverview()}>
-          Refresh
-        </Button>
-      </div>
-    );
-  }
-
   return (
-    <div className="flex flex-col gap-4 max-w-2xl">
+    <div className="flex flex-col gap-4">
+      {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
           <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Proxies</h1>
           <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
-            {groups.length} groups
+            {groups.length} groups · {overview.current_mode}
           </p>
         </div>
         <Button
@@ -113,56 +220,25 @@ export default function Proxies() {
         </Button>
       </div>
 
-      <Accordion
-        type="multiple"
-        defaultValue={groups.slice(0, 1).map((g) => g.name)}
-      >
-        {groups.map((group) => (
-          <AccordionItem
-            key={group.name}
-            value={group.name}
-            trigger={
-              <div className="flex items-center gap-2 flex-1 min-w-0">
-                <span className="truncate font-medium">{group.name}</span>
-                <Badge variant="subtle">{group.type}</Badge>
-                {group.now && (
-                  <span className="text-xs text-[var(--wb-accent)] truncate max-w-32">
-                    → {group.now}
-                  </span>
-                )}
-                <span className="ml-auto text-xs text-[var(--wb-text-tertiary)]">
-                  {group.options.length}
-                </span>
-              </div>
-            }
-            actions={
-              <button
-                onClick={(e) => {
-                  e.stopPropagation();
-                  void handleTestGroup(group.name);
-                }}
-                className="p-1 text-[var(--wb-text-secondary)] hover:text-[var(--wb-text-primary)] transition-colors rounded"
-                title="Test all delays"
-              >
-                <TimerRegular />
-              </button>
-            }
-          >
-            <div className="flex flex-col gap-1 pt-1 pb-2">
-              {group.options.map((node) => (
-                <ProxyNodeItem
-                  key={node.name}
-                  node={node}
-                  groupName={group.name}
-                  selected={group.now === node.name}
-                  onSelect={() => void switchProxy(group.name, node.name)}
-                  onTest={() => void testDelay(node.name)}
-                />
-              ))}
-            </div>
-          </AccordionItem>
-        ))}
-      </Accordion>
+      {groups.length === 0 ? (
+        <div className="flex flex-col items-center justify-center h-32 text-sm text-[var(--wb-text-secondary)]">
+          No proxy groups found
+        </div>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {groups.map((group) => (
+            <GroupCard
+              key={group.name}
+              group={group}
+              onSelectNode={(node) =>
+                void handleSelectNode(group.name, node)
+              }
+              onTestNode={(node) => void handleTestNode(node)}
+              onTestGroup={() => void handleTestGroup(group.name)}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
