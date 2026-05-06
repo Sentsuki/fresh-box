@@ -1,4 +1,4 @@
-import { computed, readonly, ref } from "vue";
+import { computed, readonly, ref, watch } from "vue";
 import { coreRequest, buildCoreWebSocketUrl } from "../services/coreClient";
 import { formatRelativeDuration } from "../services/utils";
 import type {
@@ -9,14 +9,191 @@ import type {
 import { toast } from "./useToast";
 
 type ConnectionTab = "active" | "closed";
-type ConnectionSortKey =
+export type SortDirection = "asc" | "desc";
+type ColumnValue = number | string;
+
+export type ConnectionColumnKey =
   | "host"
-  | "download"
-  | "upload"
+  | "destination"
   | "downloadSpeed"
   | "uploadSpeed"
+  | "download"
+  | "upload"
+  | "chain"
+  | "rule"
+  | "source"
+  | "process"
+  | "network"
   | "start";
-type SortDirection = "asc" | "desc";
+
+export interface ConnectionColumnOption {
+  key: ConnectionColumnKey;
+  label: string;
+  sortable: boolean;
+  groupable: boolean;
+  align?: "start" | "end";
+}
+
+export interface ConnectionGroup {
+  id: string;
+  label: string;
+  column: ConnectionColumnOption;
+  items: ConnectionEntry[];
+}
+
+interface ConnectionColumnDefinition extends ConnectionColumnOption {
+  defaultDirection: SortDirection;
+  getValue: (connection: ConnectionEntry) => ColumnValue;
+}
+
+const CONNECTION_COLUMN_ORDER_STORAGE_KEY = "fresh-box.connections.column-order";
+const CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY =
+  "fresh-box.connections.visible-columns";
+const CONNECTION_SORT_KEY_STORAGE_KEY = "fresh-box.connections.sort-key";
+const CONNECTION_SORT_DIRECTION_STORAGE_KEY =
+  "fresh-box.connections.sort-direction";
+const CONNECTION_GROUPED_COLUMN_STORAGE_KEY =
+  "fresh-box.connections.grouped-column";
+const CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY =
+  "fresh-box.connections.collapsed-groups";
+
+const columnDefinitions: Record<ConnectionColumnKey, ConnectionColumnDefinition> = {
+  host: {
+    key: "host",
+    label: "Host",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) => getConnectionHost(connection),
+  },
+  destination: {
+    key: "destination",
+    label: "Destination",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) =>
+      `${connection.metadata.destinationIP}:${connection.metadata.destinationPort}`,
+  },
+  downloadSpeed: {
+    key: "downloadSpeed",
+    label: "DL Speed",
+    sortable: true,
+    groupable: false,
+    align: "end",
+    defaultDirection: "desc",
+    getValue: (connection) => connection.downloadSpeed,
+  },
+  uploadSpeed: {
+    key: "uploadSpeed",
+    label: "UL Speed",
+    sortable: true,
+    groupable: false,
+    align: "end",
+    defaultDirection: "desc",
+    getValue: (connection) => connection.uploadSpeed,
+  },
+  download: {
+    key: "download",
+    label: "Download",
+    sortable: true,
+    groupable: false,
+    align: "end",
+    defaultDirection: "desc",
+    getValue: (connection) => connection.download,
+  },
+  upload: {
+    key: "upload",
+    label: "Upload",
+    sortable: true,
+    groupable: false,
+    align: "end",
+    defaultDirection: "desc",
+    getValue: (connection) => connection.upload,
+  },
+  chain: {
+    key: "chain",
+    label: "Chain",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) => getConnectionChain(connection),
+  },
+  rule: {
+    key: "rule",
+    label: "Rule",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) => getConnectionRule(connection),
+  },
+  source: {
+    key: "source",
+    label: "Source",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) =>
+      `${connection.metadata.sourceIP}:${connection.metadata.sourcePort}`,
+  },
+  process: {
+    key: "process",
+    label: "Process",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) =>
+      connection.metadata.process ||
+      connection.metadata.inboundName ||
+      connection.metadata.inboundUser ||
+      "--",
+  },
+  network: {
+    key: "network",
+    label: "Network",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (connection) =>
+      `${connection.metadata.network}/${connection.metadata.type}`,
+  },
+  start: {
+    key: "start",
+    label: "Time",
+    sortable: true,
+    groupable: false,
+    defaultDirection: "desc",
+    getValue: (connection) => new Date(connection.start).getTime(),
+  },
+};
+
+const DEFAULT_COLUMN_ORDER = [
+  "host",
+  "destination",
+  "downloadSpeed",
+  "uploadSpeed",
+  "download",
+  "upload",
+  "chain",
+  "rule",
+  "source",
+  "process",
+  "network",
+  "start",
+] satisfies ConnectionColumnKey[];
+
+const DEFAULT_VISIBLE_COLUMNS = [
+  "host",
+  "downloadSpeed",
+  "uploadSpeed",
+  "chain",
+  "rule",
+  "source",
+  "process",
+  "start",
+] satisfies ConnectionColumnKey[];
+
+const validColumnKeys = new Set<ConnectionColumnKey>(DEFAULT_COLUMN_ORDER);
 
 const activeConnections = ref<ConnectionEntry[]>([]);
 const closedConnections = ref<ConnectionEntry[]>([]);
@@ -25,8 +202,26 @@ const totalUpload = ref(0);
 const isPaused = ref(false);
 const search = ref("");
 const currentTab = ref<ConnectionTab>("active");
-const sortKey = ref<ConnectionSortKey>("downloadSpeed");
-const sortDirection = ref<SortDirection>("desc");
+const columnOrder = ref<ConnectionColumnKey[]>(
+  sanitizeColumnOrder(readStoredValue(CONNECTION_COLUMN_ORDER_STORAGE_KEY)),
+);
+const visibleColumnKeys = ref<ConnectionColumnKey[]>(
+  sanitizeVisibleColumns(readStoredValue(CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY)),
+);
+const sortKey = ref<ConnectionColumnKey>(
+  sanitizeSortKey(readStoredValue(CONNECTION_SORT_KEY_STORAGE_KEY)),
+);
+const sortDirection = ref<SortDirection>(
+  sanitizeSortDirection(readStoredValue(CONNECTION_SORT_DIRECTION_STORAGE_KEY)),
+);
+const groupedColumnKey = ref<ConnectionColumnKey | null>(
+  sanitizeGroupedColumn(readStoredValue(CONNECTION_GROUPED_COLUMN_STORAGE_KEY)),
+);
+const collapsedGroups = ref<Record<string, boolean>>(
+  sanitizeCollapsedGroups(
+    readStoredValue(CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY),
+  ),
+);
 const streamStatus = ref<"disconnected" | "connecting" | "connected" | "error">(
   "disconnected",
 );
@@ -40,6 +235,141 @@ let socket: WebSocket | null = null;
 let reconnectTimer: number | null = null;
 let shouldReconnect = false;
 let previousConnectionsMap = new Map<string, CoreConnectionSnapshot>();
+
+watch(
+  columnOrder,
+  (value) => {
+    writeStoredValue(CONNECTION_COLUMN_ORDER_STORAGE_KEY, value);
+  },
+  { deep: true },
+);
+
+watch(
+  visibleColumnKeys,
+  (value) => {
+    writeStoredValue(CONNECTION_VISIBLE_COLUMNS_STORAGE_KEY, value);
+  },
+  { deep: true },
+);
+
+watch(sortKey, (value) => {
+  writeStoredValue(CONNECTION_SORT_KEY_STORAGE_KEY, value);
+});
+
+watch(sortDirection, (value) => {
+  writeStoredValue(CONNECTION_SORT_DIRECTION_STORAGE_KEY, value);
+});
+
+watch(groupedColumnKey, (value) => {
+  writeStoredValue(CONNECTION_GROUPED_COLUMN_STORAGE_KEY, value);
+});
+
+watch(
+  collapsedGroups,
+  (value) => {
+    writeStoredValue(CONNECTION_COLLAPSED_GROUPS_STORAGE_KEY, value);
+  },
+  { deep: true },
+);
+
+function readStoredValue(key: string) {
+  if (typeof window === "undefined") {
+    return null;
+  }
+
+  const rawValue = window.localStorage.getItem(key);
+  if (!rawValue) {
+    return null;
+  }
+
+  try {
+    return JSON.parse(rawValue) as unknown;
+  } catch {
+    return null;
+  }
+}
+
+function writeStoredValue(key: string, value: unknown) {
+  if (typeof window === "undefined") {
+    return;
+  }
+
+  window.localStorage.setItem(key, JSON.stringify(value));
+}
+
+function sanitizeColumnOrder(value: unknown): ConnectionColumnKey[] {
+  const stored = Array.isArray(value)
+    ? value.filter(
+        (item): item is ConnectionColumnKey =>
+          typeof item === "string" && validColumnKeys.has(item as ConnectionColumnKey),
+      )
+    : [];
+  const seen = new Set<ConnectionColumnKey>();
+  const normalized: ConnectionColumnKey[] = [];
+
+  for (const key of stored) {
+    if (seen.has(key)) {
+      continue;
+    }
+    seen.add(key);
+    normalized.push(key);
+  }
+
+  for (const key of DEFAULT_COLUMN_ORDER) {
+    if (seen.has(key)) {
+      continue;
+    }
+    normalized.push(key);
+  }
+
+  return normalized;
+}
+
+function sanitizeVisibleColumns(value: unknown): ConnectionColumnKey[] {
+  const stored = Array.isArray(value)
+    ? value.filter(
+        (item): item is ConnectionColumnKey =>
+          typeof item === "string" && validColumnKeys.has(item as ConnectionColumnKey),
+      )
+    : [];
+
+  if (stored.length === 0) {
+    return [...DEFAULT_VISIBLE_COLUMNS];
+  }
+
+  return sanitizeColumnOrder(stored).filter((key) => stored.includes(key));
+}
+
+function sanitizeSortKey(value: unknown): ConnectionColumnKey {
+  return typeof value === "string" && validColumnKeys.has(value as ConnectionColumnKey)
+    ? (value as ConnectionColumnKey)
+    : "downloadSpeed";
+}
+
+function sanitizeSortDirection(value: unknown): SortDirection {
+  return value === "asc" || value === "desc" ? value : "desc";
+}
+
+function sanitizeGroupedColumn(value: unknown): ConnectionColumnKey | null {
+  if (typeof value !== "string") {
+    return null;
+  }
+
+  const key = value as ConnectionColumnKey;
+  return columnDefinitions[key]?.groupable ? key : null;
+}
+
+function sanitizeCollapsedGroups(value: unknown): Record<string, boolean> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, boolean] => typeof entry[1] === "boolean",
+    ),
+  );
+}
 
 function normalizeConnection(
   connection: CoreConnectionSnapshot,
@@ -188,36 +518,32 @@ function matchesSearch(connection: ConnectionEntry, filter: string) {
   return tokens.every((token) => haystack.includes(token));
 }
 
+function compareValues(left: ColumnValue, right: ColumnValue) {
+  if (typeof left === "number" && typeof right === "number") {
+    return left - right;
+  }
+
+  return String(left).localeCompare(String(right), undefined, {
+    numeric: true,
+    sensitivity: "base",
+  });
+}
+
 function sortConnections(items: ConnectionEntry[]) {
+  const definition = columnDefinitions[sortKey.value];
+
   return [...items].sort((left, right) => {
-    let result = 0;
-    switch (sortKey.value) {
-      case "download":
-        result = left.download - right.download;
-        break;
-      case "upload":
-        result = left.upload - right.upload;
-        break;
-      case "downloadSpeed":
-        result = left.downloadSpeed - right.downloadSpeed;
-        break;
-      case "uploadSpeed":
-        result = left.uploadSpeed - right.uploadSpeed;
-        break;
-      case "start":
-        result =
-          new Date(left.start).getTime() - new Date(right.start).getTime();
-        break;
-      default:
-        result = getConnectionHost(left).localeCompare(getConnectionHost(right));
-        break;
+    const result = compareValues(
+      definition.getValue(left),
+      definition.getValue(right),
+    );
+
+    if (result !== 0) {
+      return sortDirection.value === "asc" ? result : -result;
     }
 
-    if (result === 0) {
-      result = left.id.localeCompare(right.id);
-    }
-
-    return sortDirection.value === "asc" ? result : -result;
+    const fallback = left.id.localeCompare(right.id);
+    return sortDirection.value === "asc" ? fallback : -fallback;
   });
 }
 
@@ -233,14 +559,93 @@ export function getConnectionChain(connection: ConnectionEntry) {
   return connection.chains.length > 0 ? connection.chains.join(" -> ") : "--";
 }
 
+export function getConnectionRule(connection: ConnectionEntry) {
+  if (!connection.rule) {
+    return "--";
+  }
+
+  return connection.rulePayload
+    ? `${connection.rule}: ${connection.rulePayload}`
+    : connection.rule;
+}
+
 export function useConnectionsStream() {
-  const visibleConnections = computed(() => {
+  const orderedColumnOptions = computed(() =>
+    columnOrder.value.map((key) => columnDefinitions[key]),
+  );
+
+  const visibleColumns = computed(() =>
+    orderedColumnOptions.value.filter((column) =>
+      visibleColumnKeys.value.includes(column.key),
+    ),
+  );
+
+  const filteredConnections = computed(() => {
     const source =
       currentTab.value === "active"
         ? activeConnections.value
         : closedConnections.value;
 
-    return sortConnections(source.filter((connection) => matchesSearch(connection, search.value)));
+    return source.filter((connection) => matchesSearch(connection, search.value));
+  });
+
+  const visibleConnections = computed(() =>
+    sortConnections(filteredConnections.value),
+  );
+
+  const groupedColumn = computed(() =>
+    groupedColumnKey.value ? columnDefinitions[groupedColumnKey.value] : null,
+  );
+
+  const groupedVisibleConnections = computed<ConnectionGroup[]>(() => {
+    const activeGroupedColumn = groupedColumn.value;
+
+    if (!activeGroupedColumn) {
+      return [];
+    }
+
+    const groups = new Map<
+      string,
+      { id: string; label: string; rawValue: ColumnValue; items: ConnectionEntry[] }
+    >();
+
+    for (const connection of filteredConnections.value) {
+      const rawValue = activeGroupedColumn.getValue(connection);
+      const label = String(rawValue || "--");
+      const id = `${activeGroupedColumn.key}:${label}`;
+      const existing = groups.get(id);
+
+      if (existing) {
+        existing.items.push(connection);
+        continue;
+      }
+
+      groups.set(id, {
+        id,
+        label,
+        rawValue,
+        items: [connection],
+      });
+    }
+
+    const groupDirection =
+      sortKey.value === activeGroupedColumn.key ? sortDirection.value : "asc";
+
+    return Array.from(groups.values())
+      .sort((left, right) => {
+        const result = compareValues(left.rawValue, right.rawValue);
+        if (result !== 0) {
+          return groupDirection === "asc" ? result : -result;
+        }
+
+        return left.id.localeCompare(right.id);
+      })
+      .map((group) => ({
+        id: group.id,
+        label: group.label,
+        column: activeGroupedColumn,
+        items: sortConnections(group.items),
+      }));
   });
 
   const activeCount = computed(() => activeConnections.value.length);
@@ -280,6 +685,104 @@ export function useConnectionsStream() {
   function closeDetails() {
     detailsOpen.value = false;
     selectedConnection.value = null;
+  }
+
+  function toggleSort(columnKey: ConnectionColumnKey) {
+    if (!columnDefinitions[columnKey].sortable) {
+      return;
+    }
+
+    if (sortKey.value !== columnKey) {
+      sortKey.value = columnKey;
+      sortDirection.value = columnDefinitions[columnKey].defaultDirection;
+      return;
+    }
+
+    sortDirection.value = sortDirection.value === "asc" ? "desc" : "asc";
+  }
+
+  function toggleGrouping(columnKey: ConnectionColumnKey) {
+    if (!columnDefinitions[columnKey].groupable) {
+      return;
+    }
+
+    groupedColumnKey.value =
+      groupedColumnKey.value === columnKey ? null : columnKey;
+    collapsedGroups.value = {};
+  }
+
+  function clearGrouping() {
+    groupedColumnKey.value = null;
+    collapsedGroups.value = {};
+  }
+
+  function toggleGroupCollapsed(groupId: string) {
+    collapsedGroups.value = {
+      ...collapsedGroups.value,
+      [groupId]: !collapsedGroups.value[groupId],
+    };
+  }
+
+  function isGroupCollapsed(groupId: string) {
+    return Boolean(collapsedGroups.value[groupId]);
+  }
+
+  function isColumnVisible(columnKey: ConnectionColumnKey) {
+    return visibleColumnKeys.value.includes(columnKey);
+  }
+
+  function toggleColumnVisibility(columnKey: ConnectionColumnKey) {
+    if (isColumnVisible(columnKey)) {
+      if (visibleColumnKeys.value.length === 1) {
+        return;
+      }
+
+      visibleColumnKeys.value = visibleColumnKeys.value.filter(
+        (value) => value !== columnKey,
+      );
+
+      if (groupedColumnKey.value === columnKey) {
+        clearGrouping();
+      }
+
+      if (sortKey.value === columnKey) {
+        const nextSortKey = visibleColumnKeys.value[0];
+        if (nextSortKey) {
+          sortKey.value = nextSortKey;
+          sortDirection.value = columnDefinitions[nextSortKey].defaultDirection;
+        }
+      }
+
+      return;
+    }
+
+    visibleColumnKeys.value = columnOrder.value.filter(
+      (value) =>
+        value === columnKey || visibleColumnKeys.value.includes(value),
+    );
+  }
+
+  function moveColumn(columnKey: ConnectionColumnKey, direction: -1 | 1) {
+    const currentIndex = columnOrder.value.indexOf(columnKey);
+    const targetIndex = currentIndex + direction;
+
+    if (currentIndex === -1 || targetIndex < 0 || targetIndex >= columnOrder.value.length) {
+      return;
+    }
+
+    const nextOrder = [...columnOrder.value];
+    const [movedColumn] = nextOrder.splice(currentIndex, 1);
+    nextOrder.splice(targetIndex, 0, movedColumn);
+    columnOrder.value = nextOrder;
+  }
+
+  function resetColumnCustomization() {
+    columnOrder.value = [...DEFAULT_COLUMN_ORDER];
+    visibleColumnKeys.value = [...DEFAULT_VISIBLE_COLUMNS];
+    groupedColumnKey.value = null;
+    collapsedGroups.value = {};
+    sortKey.value = "downloadSpeed";
+    sortDirection.value = "desc";
   }
 
   async function disconnectConnection(id: string) {
@@ -350,6 +853,9 @@ export function useConnectionsStream() {
     activeConnections: readonly(activeConnections),
     closedConnections: readonly(closedConnections),
     visibleConnections,
+    groupedVisibleConnections,
+    visibleColumns,
+    orderedColumnOptions,
     totalDownload: readonly(totalDownload),
     totalUpload: readonly(totalUpload),
     isPaused,
@@ -357,6 +863,8 @@ export function useConnectionsStream() {
     currentTab,
     sortKey,
     sortDirection,
+    groupedColumnKey,
+    groupedColumn,
     streamStatus: readonly(streamStatus),
     streamError: readonly(streamError),
     selectedConnection: readonly(selectedConnection),
@@ -369,11 +877,21 @@ export function useConnectionsStream() {
     stopStream,
     openDetails,
     closeDetails,
+    toggleSort,
+    toggleGrouping,
+    clearGrouping,
+    toggleGroupCollapsed,
+    isGroupCollapsed,
+    isColumnVisible,
+    toggleColumnVisibility,
+    moveColumn,
+    resetColumnCustomization,
     disconnectConnection,
     disconnectVisibleConnections,
     clearClosedConnections,
     getConnectionHost,
     getConnectionChain,
+    getConnectionRule,
     formatRelativeDuration,
   };
 }
