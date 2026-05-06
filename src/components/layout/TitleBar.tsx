@@ -21,7 +21,7 @@ export function TitleBar() {
   return (
     <header
       data-tauri-drag-region
-      className="flex items-center justify-between px-4 bg-[var(--wb-surface-base)] border-b border-[var(--wb-border-subtle)] flex-shrink-0 select-none relative z-50"
+      className="flex items-center justify-between pl-4 bg-[var(--wb-surface-base)] border-b border-[var(--wb-border-subtle)] flex-shrink-0 select-none relative z-50"
       style={{ height: "var(--wb-titlebar-height)" }}
     >
       <div
@@ -54,7 +54,7 @@ export function TitleBar() {
         </button>
         <button
           onClick={() => { void getCurrentWindow().close(); }}
-          className="flex items-center justify-center w-11 h-full text-[var(--wb-text-secondary)] hover:bg-red-600 hover:text-white transition-colors duration-100 focus-visible:outline-none"
+          className="flex items-center justify-center w-12 h-full text-[var(--wb-text-secondary)] hover:bg-red-600 hover:text-white transition-colors duration-100 focus-visible:outline-none"
           aria-label="Close"
         >
           <DismissRegular className="text-base" />
