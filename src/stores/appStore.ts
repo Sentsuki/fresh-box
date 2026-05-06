@@ -1,4 +1,4 @@
-import { computed, reactive, toRefs } from "vue";
+import { create } from 'zustand';
 import { loadAppSettings, saveAppSettings } from "../services/api";
 import type {
   AppPage,
@@ -10,16 +10,34 @@ import type {
 } from "../types/app";
 import { createDefaultAppSettings } from "../types/app";
 
-const state = reactive({
-  initialized: false,
-  isRunning: false,
-  pendingOperations: 0,
-  configFiles: [] as ConfigFileEntry[],
-  subscriptions: {} as SubscriptionRecord,
-  appSettings: createDefaultAppSettings(),
-});
+interface AppState {
+  initialized: boolean;
+  isRunning: boolean;
+  pendingOperations: number;
+  configFiles: ConfigFileEntry[];
+  subscriptions: SubscriptionRecord;
+  appSettings: AppSettings;
+  settingsHydrated: boolean;
+}
 
-let settingsHydrated = false;
+interface AppActions {
+  hydrateSettings: () => Promise<void>;
+  beginLoading: () => void;
+  endLoading: () => void;
+  withLoading: <T>(operation: () => Promise<T>) => Promise<T>;
+  updateAppSettings: (updater: (settings: AppSettings) => void) => Promise<void>;
+  updatePageSettings: <K extends keyof PageUiSettings>(page: K, updater: (settings: PageUiSettings[K]) => void) => Promise<void>;
+  setCurrentPage: (page: AppPage) => Promise<void>;
+  setSelectedConfig: (path: string | null, displayName: string | null) => Promise<void>;
+  setActiveSingboxCoreSelection: (channel: SingboxCoreChannel | null, version: string | null) => Promise<void>;
+  setSelectedCoreOptionKey: (value: string) => Promise<void>;
+  setConfigFiles: (configFiles: ConfigFileEntry[]) => void;
+  setSubscriptions: (subscriptions: SubscriptionRecord) => void;
+  setRunning: (isRunning: boolean) => void;
+  markInitialized: () => void;
+}
+
+type AppStore = AppState & AppActions;
 
 function cloneAppSettings(settings: AppSettings): AppSettings {
   return {
@@ -52,144 +70,83 @@ function cloneAppSettings(settings: AppSettings): AppSettings {
   };
 }
 
-async function persistSettings() {
-  if (!settingsHydrated) {
-    return;
-  }
+export const useAppStore = create<AppStore>((set, get) => ({
+  initialized: false,
+  isRunning: false,
+  pendingOperations: 0,
+  configFiles: [],
+  subscriptions: {},
+  appSettings: createDefaultAppSettings(),
+  settingsHydrated: false,
 
-  await saveAppSettings(state.appSettings);
-}
+  hydrateSettings: async () => {
+    const settings = await loadAppSettings();
+    set({ appSettings: cloneAppSettings(settings), settingsHydrated: true });
+  },
 
-function replaceAppSettings(nextSettings: AppSettings) {
-  state.appSettings = cloneAppSettings(nextSettings);
-}
+  beginLoading: () => set((state) => ({ pendingOperations: state.pendingOperations + 1 })),
+  
+  endLoading: () => set((state) => ({ pendingOperations: Math.max(0, state.pendingOperations - 1) })),
 
-async function updateAppSettings(updater: (settings: AppSettings) => void) {
-  const nextSettings = cloneAppSettings(state.appSettings);
-  updater(nextSettings);
-  replaceAppSettings(nextSettings);
-  await persistSettings();
-}
-
-async function updatePageSettings<K extends keyof PageUiSettings>(
-  page: K,
-  updater: (settings: PageUiSettings[K]) => void,
-) {
-  await updateAppSettings((settings) => {
-    updater(settings.pages[page]);
-  });
-}
-
-export function useAppStore() {
-  const isLoading = computed(() => state.pendingOperations > 0);
-  const currentPage = computed(() => state.appSettings.app.current_page);
-  const selectedConfigPath = computed(
-    () => state.appSettings.app.selected_config_path,
-  );
-  const selectedConfigDisplay = computed(
-    () => state.appSettings.app.selected_config_display,
-  );
-  const activeSingboxCoreChannel = computed(
-    () => state.appSettings.singbox_core.active_channel,
-  );
-  const activeSingboxCoreVersion = computed(
-    () => state.appSettings.singbox_core.active_version,
-  );
-  const appSettings = computed(() => state.appSettings);
-
-  async function hydrateSettings() {
-    replaceAppSettings(await loadAppSettings());
-    settingsHydrated = true;
-  }
-
-  function beginLoading() {
-    state.pendingOperations += 1;
-  }
-
-  function endLoading() {
-    state.pendingOperations = Math.max(0, state.pendingOperations - 1);
-  }
-
-  async function withLoading<T>(operation: () => Promise<T>): Promise<T> {
-    beginLoading();
-
+  withLoading: async <T>(operation: () => Promise<T>): Promise<T> => {
+    get().beginLoading();
     try {
       return await operation();
     } finally {
-      endLoading();
+      get().endLoading();
     }
-  }
+  },
 
-  async function setCurrentPage(page: AppPage) {
-    await updateAppSettings((settings) => {
+  updateAppSettings: async (updater: (settings: AppSettings) => void) => {
+    const nextSettings = cloneAppSettings(get().appSettings);
+    updater(nextSettings);
+    set({ appSettings: nextSettings });
+    
+    if (get().settingsHydrated) {
+      await saveAppSettings(nextSettings);
+    }
+  },
+
+  updatePageSettings: async <K extends keyof PageUiSettings>(
+    page: K,
+    updater: (settings: PageUiSettings[K]) => void
+  ) => {
+    await get().updateAppSettings((settings) => {
+      updater(settings.pages[page]);
+    });
+  },
+
+  setCurrentPage: async (page: AppPage) => {
+    await get().updateAppSettings((settings) => {
       settings.app.current_page = page;
     });
-  }
+  },
 
-  async function setSelectedConfig(
-    path: string | null,
-    displayName: string | null,
-  ) {
-    await updateAppSettings((settings) => {
+  setSelectedConfig: async (path: string | null, displayName: string | null) => {
+    await get().updateAppSettings((settings) => {
       settings.app.selected_config_path = path;
       settings.app.selected_config_display = displayName;
     });
-  }
+  },
 
-  async function setActiveSingboxCoreSelection(
-    channel: SingboxCoreChannel | null,
-    version: string | null,
-  ) {
-    await updateAppSettings((settings) => {
+  setActiveSingboxCoreSelection: async (channel: SingboxCoreChannel | null, version: string | null) => {
+    await get().updateAppSettings((settings) => {
       settings.singbox_core.active_channel = channel;
       settings.singbox_core.active_version = version;
     });
-  }
+  },
 
-  async function setSelectedCoreOptionKey(value: string) {
-    await updateAppSettings((settings) => {
+  setSelectedCoreOptionKey: async (value: string) => {
+    await get().updateAppSettings((settings) => {
       settings.singbox_core.selected_option_key = value;
     });
-  }
+  },
 
-  function setConfigFiles(configFiles: ConfigFileEntry[]) {
-    state.configFiles = configFiles;
-  }
-
-  function setSubscriptions(subscriptions: SubscriptionRecord) {
-    state.subscriptions = subscriptions;
-  }
-
-  function setRunning(isRunning: boolean) {
-    state.isRunning = isRunning;
-  }
-
-  function markInitialized() {
-    state.initialized = true;
-  }
-
-  return {
-    ...toRefs(state),
-    appSettings,
-    currentPage,
-    selectedConfigPath,
-    selectedConfigDisplay,
-    activeSingboxCoreChannel,
-    activeSingboxCoreVersion,
-    isLoading,
-    hydrateSettings,
-    beginLoading,
-    endLoading,
-    withLoading,
-    updateAppSettings,
-    updatePageSettings,
-    setCurrentPage,
-    setSelectedConfig,
-    setActiveSingboxCoreSelection,
-    setSelectedCoreOptionKey,
-    setConfigFiles,
-    setSubscriptions,
-    setRunning,
-    markInitialized,
-  };
-}
+  setConfigFiles: (configFiles: ConfigFileEntry[]) => set({ configFiles }),
+  
+  setSubscriptions: (subscriptions: SubscriptionRecord) => set({ subscriptions }),
+  
+  setRunning: (isRunning: boolean) => set({ isRunning }),
+  
+  markInitialized: () => set({ initialized: true }),
+}));
