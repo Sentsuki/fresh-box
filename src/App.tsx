@@ -1,6 +1,8 @@
 import { Suspense, lazy, useEffect } from "react";
+import { FluentProvider } from "@fluentui/react-components";
 import { useAppStore } from "./stores/appStore";
 import { useInit } from "./hooks/useInit";
+import { useTheme } from "./hooks/useTheme";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Sidebar } from "./components/layout/Sidebar";
 import { PageTransition } from "./components/layout/PageTransition";
@@ -71,6 +73,7 @@ export default function App() {
   const initialized = useAppStore((s) => s.initialized);
   const currentPage = useAppStore((s) => s.currentPage);
   const { initialize } = useInit();
+  const fluentTheme = useTheme();
 
   useEffect(() => {
     void initialize().catch((err: unknown) => {
@@ -80,10 +83,15 @@ export default function App() {
   }, []);
 
   if (!initialized) {
-    return <LoadingScreen />;
+    return (
+      <FluentProvider theme={fluentTheme} style={{ height: "100%", background: "transparent" }}>
+        <LoadingScreen />
+      </FluentProvider>
+    );
   }
 
   return (
+    <FluentProvider theme={fluentTheme} style={{ height: "100%", background: "transparent" }}>
     <div
       className="flex flex-col h-full w-full overflow-hidden"
       style={{ background: "var(--wb-surface-base)" }}
@@ -105,5 +113,6 @@ export default function App() {
       </div>
       <GlobalToaster />
     </div>
+    </FluentProvider>
   );
 }

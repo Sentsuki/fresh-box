@@ -2,6 +2,7 @@ import {
   WrenchRegular,
   OpenRegular,
   InfoRegular,
+  WeatherMoonRegular,
 } from "@fluentui/react-icons";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
@@ -9,15 +10,17 @@ import { useSingbox } from "../../hooks/useSingbox";
 import { Button } from "../../components/ui/Button";
 import { Section } from "../../components/ui/Section";
 import { KeyValue } from "../../components/ui/KeyValue";
-import type { LogLevel } from "../../types/app";
+import type { LogLevel, ThemeMode } from "../../types/app";
 
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setLogLevel = useSettingsStore((s) => s.setLogLevel);
+  const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const isRunning = useSingboxStore((s) => s.isRunning);
   const { openPanel, startService, stopService } = useSingbox();
 
   const currentLogLevel = settings.pages.logs.log_level;
+  const currentThemeMode = settings.theme_mode;
 
   return (
     <div className="flex flex-col gap-5 max-w-lg">
@@ -27,6 +30,28 @@ export default function Settings() {
           Application and core settings
         </p>
       </div>
+
+      {/* Appearance */}
+      <Section title="Appearance" icon={<WeatherMoonRegular />}>
+        <div className="flex flex-col gap-4">
+          <SettingRow
+            label="Theme"
+            description="Color theme for the application"
+          >
+            <select
+              value={currentThemeMode}
+              onChange={(e) =>
+                void setThemeMode(e.target.value as ThemeMode)
+              }
+              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+            >
+              <option value="system">Follow system</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
+            </select>
+          </SettingRow>
+        </div>
+      </Section>
 
       {/* Core */}
       <Section

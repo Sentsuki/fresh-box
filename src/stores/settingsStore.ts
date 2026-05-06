@@ -9,6 +9,7 @@ import type {
   RulesTab,
   SingboxCoreChannel,
   SortDirection,
+  ThemeMode,
 } from "../types/app";
 import { createDefaultAppSettings, normalizeAppSettings } from "../types/app";
 
@@ -51,6 +52,7 @@ interface SettingsActions {
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
+  setThemeMode: (mode: ThemeMode) => Promise<void>;
 }
 
 function cloneSettings(s: AppSettings): AppSettings {
@@ -165,6 +167,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setRulesTab: async (tab) => {
       await get().updateSettings((s) => {
         s.pages.rules.current_tab = tab;
+      });
+    },
+
+    setThemeMode: async (mode) => {
+      await get().updateSettings((s) => {
+        s.theme_mode = mode;
       });
     },
   }),

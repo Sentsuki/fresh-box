@@ -1,3 +1,5 @@
+export type ThemeMode = "light" | "dark" | "system";
+
 export type AppPage =
   | "overview"
   | "proxy"
@@ -90,6 +92,7 @@ export interface PageUiSettings {
 
 export interface AppSettings {
   schema_version: number;
+  theme_mode: ThemeMode;
   app: AppSelectionSettings;
   singbox_core: SingboxCoreSettings;
   pages: PageUiSettings;
@@ -124,6 +127,7 @@ export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
 export function createDefaultAppSettings(): AppSettings {
   return {
     schema_version: 2,
+    theme_mode: "system",
     app: {
       current_page: "overview",
       selected_config_path: null,
@@ -244,6 +248,12 @@ export function normalizeAppSettings(
       typeof settings.schema_version === "number"
         ? settings.schema_version
         : 2,
+    theme_mode:
+      settings.theme_mode === "light" ||
+      settings.theme_mode === "dark" ||
+      settings.theme_mode === "system"
+        ? settings.theme_mode
+        : "system",
     app: {
       current_page: APP_PAGES.includes(settings.app?.current_page)
         ? settings.app.current_page
