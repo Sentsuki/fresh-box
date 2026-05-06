@@ -34,6 +34,22 @@ function changePage(page: AppPage) {
       </button>
       <button
         class="sidebar-item"
+        :class="{ active: appStore.currentPage.value === 'connections' }"
+        @click="changePage('connections')"
+      >
+        <span class="sidebar-icon">🔌</span>
+        Connections
+      </button>
+      <button
+        class="sidebar-item"
+        :class="{ active: appStore.currentPage.value === 'logs' }"
+        @click="changePage('logs')"
+      >
+        <span class="sidebar-icon">📜</span>
+        Logs
+      </button>
+      <button
+        class="sidebar-item"
         :class="{ active: appStore.currentPage.value === 'config' }"
         @click="changePage('config')"
       >

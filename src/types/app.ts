@@ -1,4 +1,11 @@
-export type AppPage = "overview" | "proxy" | "config" | "custom" | "settings";
+export type AppPage =
+  | "overview"
+  | "proxy"
+  | "connections"
+  | "logs"
+  | "config"
+  | "custom"
+  | "settings";
 export type SingboxCoreChannel = "stable" | "testing";
 
 export interface SubscriptionInfo {
@@ -110,4 +117,66 @@ export interface ClashOverview {
   current_mode: string;
   available_modes: ReadonlyArray<string>;
   proxy_groups: ReadonlyArray<ClashProxyGroup>;
+}
+
+export interface CoreConnectionMetadata {
+  destinationGeoIP: string;
+  destinationIP: string;
+  destinationIPASN: string;
+  destinationPort: string;
+  dnsMode: string;
+  dscp: number;
+  host: string;
+  inboundIP: string;
+  inboundName: string;
+  inboundPort: string;
+  inboundUser: string;
+  network: string;
+  process: string;
+  processPath: string;
+  remoteDestination: string;
+  sniffHost: string;
+  sourceGeoIP: string;
+  sourceIP: string;
+  sourceIPASN: string;
+  sourcePort: string;
+  specialProxy: string;
+  specialRules: string;
+  type: string;
+  uid: number;
+  smartBlock: string;
+}
+
+export interface CoreConnectionSnapshot {
+  id: string;
+  download: number;
+  upload: number;
+  chains: ReadonlyArray<string>;
+  rule: string;
+  rulePayload: string;
+  start: string;
+  metadata: CoreConnectionMetadata;
+}
+
+export interface CoreConnectionsFrame {
+  connections: CoreConnectionSnapshot[];
+  downloadTotal: number;
+  uploadTotal: number;
+  memory?: number;
+}
+
+export interface ConnectionEntry extends CoreConnectionSnapshot {
+  downloadSpeed: number;
+  uploadSpeed: number;
+}
+
+export interface CoreLogMessage {
+  type: string;
+  payload: string;
+}
+
+export interface LogEntry extends CoreLogMessage {
+  seq: number;
+  time: string;
+  category: string;
 }

@@ -3,6 +3,8 @@ import { onMounted } from "vue";
 import Sidebar from "./components/Sidebar.vue";
 import Overview from "./components/Overview.vue";
 import Proxy from "./components/Proxy.vue";
+import Connections from "./components/Connections.vue";
+import Logs from "./components/Logs.vue";
 import Config from "./components/Config.vue";
 import Custom from "./components/Custom.vue";
 import Settings from "./components/Settings.vue";
@@ -36,6 +38,8 @@ onMounted(async () => {
     <div class="main-content">
       <Overview v-if="appStore.currentPage.value === 'overview'" />
       <Proxy v-else-if="appStore.currentPage.value === 'proxy'" />
+      <Connections v-else-if="appStore.currentPage.value === 'connections'" />
+      <Logs v-else-if="appStore.currentPage.value === 'logs'" />
       <Config v-else-if="appStore.currentPage.value === 'config'" />
       <Custom v-else-if="appStore.currentPage.value === 'custom'" />
       <Settings v-else />
