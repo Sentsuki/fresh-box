@@ -1,4 +1,4 @@
-import { useMemo } from "react";
+import { useEffect, useMemo } from "react";
 import {
   PlayRegular,
   StopRegular,
@@ -30,8 +30,13 @@ export default function Overview() {
   );
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const overview = useClashStore((s) => s.overview);
+  const refreshOverview = useClashStore((s) => s.refreshOverview);
 
   const { startService, stopService, openPanel } = useSingbox();
+
+  useEffect(() => {
+    if (isRunning) void refreshOverview();
+  }, [isRunning, refreshOverview]);
 
   const isSubscription = useMemo(
     () => !!(selectedDisplay && subscriptions[selectedDisplay]),

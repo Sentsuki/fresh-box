@@ -97,10 +97,9 @@ export function VirtualTable<T>({
     <div
       ref={containerRef}
       className={[
-        "overflow-auto contain-strict",
+        "h-full overflow-auto",
         className,
       ].join(" ")}
-      style={{ contain: "strict" }}
     >
       <table className="w-full border-collapse" style={{ minHeight: totalHeight }}>
         <thead className="sticky top-0 z-10 bg-[var(--wb-surface-layer)]">
