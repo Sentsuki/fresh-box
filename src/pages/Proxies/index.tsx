@@ -1,4 +1,4 @@
-import { useEffect, useState, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import {
   ArrowClockwiseRegular,
   TimerRegular,
@@ -6,6 +6,7 @@ import {
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
+import { useSettingsStore } from "../../stores/settingsStore";
 import { Button } from "../../components/ui/Button";
 import { Spinner } from "../../components/ui/Spinner";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
@@ -90,13 +91,16 @@ interface GroupCardProps {
 }
 
 function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
-  const [open, setOpen] = useState(true);
+  const collapsedGroups = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups);
+  const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
+  const open = !(collapsedGroups[group.name] ?? false);
+  const toggleOpen = () => void setProxyGroupCollapsed(group.name, open);
 
   return (
     <div className="rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] overflow-hidden">
       {/* Header */}
       <button
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => toggleOpen()}
         className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--wb-surface-hover)] transition-colors"
       >
         <ChevronDownRegular

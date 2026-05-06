@@ -1,6 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { create } from "zustand";
-import { buildCoreWebSocketUrl } from "../services/coreClient";
+import { buildCoreWebSocketUrl, coreRequest } from "../services/coreClient";
 import { formatRelativeDuration, formatSpeed } from "../services/utils";
 import type {
   ConnectionColumnKey,
@@ -365,12 +365,7 @@ export function useConnectionsStream() {
 
   const closeAll = useCallback(async () => {
     try {
-      await fetch("http://127.0.0.1:51385/connections", {
-        method: "DELETE",
-        headers: {
-          Authorization: "Bearer ~1]<R]:4db~4R)__EP4TN5dkLjob;9",
-        },
-      });
+      await coreRequest("connections", { method: "DELETE" });
       success("All connections closed");
     } catch {
       error("Failed to close connections");

@@ -1,3 +1,4 @@
+import { useCallback } from "react";
 import {
   Toast,
   ToastBody,
@@ -10,45 +11,57 @@ export const TOASTER_ID = "global";
 export function useToast() {
   const { dispatchToast } = useToastController(TOASTER_ID);
 
-  function success(title: string, body?: string) {
-    dispatchToast(
-      <Toast>
-        <ToastTitle>{title}</ToastTitle>
-        {body && <ToastBody>{body}</ToastBody>}
-      </Toast>,
-      { intent: "success", timeout: 3000 },
-    );
-  }
+  const success = useCallback(
+    (title: string, body?: string) => {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{title}</ToastTitle>
+          {body && <ToastBody>{body}</ToastBody>}
+        </Toast>,
+        { intent: "success", timeout: 3000 },
+      );
+    },
+    [dispatchToast],
+  );
 
-  function error(title: string, body?: string) {
-    dispatchToast(
-      <Toast>
-        <ToastTitle>{title}</ToastTitle>
-        {body && <ToastBody>{body}</ToastBody>}
-      </Toast>,
-      { intent: "error", timeout: 5000 },
-    );
-  }
+  const error = useCallback(
+    (title: string, body?: string) => {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{title}</ToastTitle>
+          {body && <ToastBody>{body}</ToastBody>}
+        </Toast>,
+        { intent: "error", timeout: 5000 },
+      );
+    },
+    [dispatchToast],
+  );
 
-  function info(title: string, body?: string) {
-    dispatchToast(
-      <Toast>
-        <ToastTitle>{title}</ToastTitle>
-        {body && <ToastBody>{body}</ToastBody>}
-      </Toast>,
-      { intent: "info", timeout: 3000 },
-    );
-  }
+  const info = useCallback(
+    (title: string, body?: string) => {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{title}</ToastTitle>
+          {body && <ToastBody>{body}</ToastBody>}
+        </Toast>,
+        { intent: "info", timeout: 3000 },
+      );
+    },
+    [dispatchToast],
+  );
 
-  function warning(title: string, body?: string) {
-    dispatchToast(
-      <Toast>
-        <ToastTitle>{title}</ToastTitle>
-        {body && <ToastBody>{body}</ToastBody>}
-      </Toast>,
-      { intent: "warning", timeout: 4000 },
-    );
-  }
+  const warning = useCallback(
+    (title: string, body?: string) => {
+      dispatchToast(
+        <Toast>
+          <ToastTitle>{title}</ToastTitle>
+          {body && <ToastBody>{body}</ToastBody>}
+        </Toast>,
+        { intent: "warning", timeout: 4000 },
+      );
+    },
+    [dispatchToast],
+  );
 
   return { success, error, info, warning };
 }
