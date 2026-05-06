@@ -75,6 +75,7 @@ export default function App() {
   useEffect(() => {
     void initialize().catch((err: unknown) => {
       console.error("Failed to initialize:", err);
+      useAppStore.getState().markInitialized();
     });
   }, []);
 

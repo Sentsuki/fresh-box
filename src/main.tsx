@@ -16,7 +16,7 @@ const customTheme: Partial<Theme> = {
 };
 
 ReactDOM.createRoot(
-  document.getElementById("root") as HTMLElement,
+  document.getElementById("app") as HTMLElement,
 ).render(
   <React.StrictMode>
     <FluentProvider theme={customTheme as Theme} style={{ height: "100%", background: "transparent" }}>
