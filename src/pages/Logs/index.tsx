@@ -53,6 +53,7 @@ export default function Logs() {
         className={[
           "flex items-start gap-3 py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors min-w-max",
           LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
+          _i % 2 === 0 ? "bg-(--wb-surface-active)" : "",
         ].join(" ")}
         style={{ height: 28, lineHeight: "20px" }}
       >
