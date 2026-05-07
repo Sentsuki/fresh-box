@@ -92,7 +92,7 @@ export function Sidebar() {
       </nav>
 
       <div className="px-2 py-2 border-t border-(--wb-border-subtle) overflow-x-hidden">
-        <div className={`px-2 mb-2 flex ${isExpanded ? "justify-start" : "justify-center"}`}>
+        <div className="mb-2 flex justify-start px-2">
           <StatusBadge running={isRunning} showLabel={isExpanded} />
         </div>
         <button
