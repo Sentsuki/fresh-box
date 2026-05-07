@@ -10,13 +10,14 @@ import {
   OpenRegular,
   DismissRegular,
   SaveRegular,
+  PlayCircleRegular,
 } from "@fluentui/react-icons";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useConfigs } from "../../hooks/useConfigs";
-import { Card } from "../../components/ui/Card";
 import { Button } from "../../components/ui/Button";
-import { Section } from "../../components/ui/Section";
+import { SettingGroup } from "../../components/ui/SettingCard";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { formatLastUpdated } from "../../services/utils";
 import type { SubscriptionInfo } from "../../types/app";
 
@@ -47,97 +48,88 @@ export default function Config() {
   const subscriptionFiles = configFiles.filter((f) => !!subscriptions[f.displayName]);
 
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Config</h1>
-        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
-          Manage sing-box configuration files
-        </p>
+    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
+      <PageHeader 
+        title="Profiles" 
+        description="Manage local sing-box configurations and remote subscriptions."
+      >
+        <Button
+          icon={<AddRegular />}
+          variant="subtle"
+          onClick={() => void selectConfigFile()}
+        >
+          Import Local
+        </Button>
+        <Button
+          icon={<CloudArrowDownRegular />}
+          variant="accent"
+          onClick={() => {
+            const url = prompt("Subscription URL:");
+            if (url) void addSubscription(url);
+          }}
+        >
+          Add Subscription
+        </Button>
+      </PageHeader>
+
+      <div className="flex flex-col gap-8">
+        <SettingGroup title="Remote Subscriptions">
+          {subscriptionFiles.length === 0 ? (
+            <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
+              No subscriptions. Click "Add Subscription" to add one.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {subscriptionFiles.map((file) => {
+                const sub = subscriptions[file.displayName];
+                return (
+                  <SubscriptionCard
+                    key={file.displayName}
+                    name={file.displayName}
+                    sub={sub}
+                    selected={selectedDisplay === file.displayName}
+                    onSelect={() => void selectConfig(file)}
+                    onUpdate={() => void updateSubscription(file.displayName)}
+                    onOpen={() => void openConfigFile(file.displayName)}
+                    onDelete={() => void deleteConfig(file.displayName)}
+                    onRename={(newName, newUrl) =>
+                      void renameAndEditSub(file.displayName, newName, newUrl, renameConfig, editSubscription)
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
+        </SettingGroup>
+
+        <SettingGroup title="Local Files">
+          {localFiles.length === 0 ? (
+            <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
+              No local config files. Click "Import Local" to add one.
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {localFiles.map((file) => {
+                const isSelected = selectedDisplay === file.displayName;
+                return (
+                  <LocalFileCard
+                    key={file.path}
+                    name={file.displayName}
+                    path={file.path}
+                    selected={isSelected}
+                    onSelect={() => void selectConfig(file)}
+                    onOpen={() => void openConfigFile(file.displayName)}
+                    onDelete={() => void deleteConfig(file.displayName)}
+                    onRename={(newName) =>
+                      void renameConfig(file.displayName, newName)
+                    }
+                  />
+                );
+              })}
+            </div>
+          )}
+        </SettingGroup>
       </div>
-
-      <Section
-        title="Subscriptions"
-        actions={
-          <Button
-            icon={<AddRegular />}
-            variant="accent"
-            size="sm"
-            onClick={() => {
-              const url = prompt("Subscription URL:");
-              if (url) void addSubscription(url);
-            }}
-          >
-            Add
-          </Button>
-        }
-      >
-        {subscriptionFiles.length === 0 ? (
-          <p className="text-sm text-(--wb-text-secondary) px-1">
-            No subscriptions. Click Add to add one.
-          </p>
-        ) : (
-          <div className="flex flex-col gap-2">
-            {subscriptionFiles.map((file) => {
-              const sub = subscriptions[file.displayName];
-              return (
-                <SubscriptionCard
-                  key={file.displayName}
-                  name={file.displayName}
-                  sub={sub}
-                  selected={selectedDisplay === file.displayName}
-                  onSelect={() => void selectConfig(file)}
-                  onUpdate={() => void updateSubscription(file.displayName)}
-                  onOpen={() => void openConfigFile(file.displayName)}
-                  onDelete={() => void deleteConfig(file.displayName)}
-                  onRename={(newName, newUrl) =>
-                    void renameAndEditSub(file.displayName, newName, newUrl, renameConfig, editSubscription)
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
-      </Section>
-
-      <Section
-        title="Local Files"
-        actions={
-          <Button
-            icon={<AddRegular />}
-            variant="subtle"
-            size="sm"
-            onClick={() => void selectConfigFile()}
-          >
-            Import
-          </Button>
-        }
-      >
-        {localFiles.length === 0 ? (
-          <p className="text-sm text-(--wb-text-secondary) px-1">
-            No local config files. Click Import to add one.
-          </p>
-        ) : (
-          <div className="grid grid-cols-2 gap-2">
-            {localFiles.map((file) => {
-              const isSelected = selectedDisplay === file.displayName;
-              return (
-                <LocalFileCard
-                  key={file.path}
-                  name={file.displayName}
-                  path={file.path}
-                  selected={isSelected}
-                  onSelect={() => void selectConfig(file)}
-                  onOpen={() => void openConfigFile(file.displayName)}
-                  onDelete={() => void deleteConfig(file.displayName)}
-                  onRename={(newName) =>
-                    void renameConfig(file.displayName, newName)
-                  }
-                />
-              );
-            })}
-          </div>
-        )}
-      </Section>
     </div>
   );
 }
@@ -195,10 +187,7 @@ function LocalFileCard({
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
-      if (nameInput.trim() && nameInput.trim() !== name) {
-        onRename(nameInput.trim());
-      }
-      setEditing(false);
+      save(e as unknown as React.MouseEvent);
     } else if (e.key === "Escape") {
       cancel();
     }
@@ -206,66 +195,61 @@ function LocalFileCard({
 
   if (editing) {
     return (
-      <Card selected={selected}>
-        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs font-medium text-(--wb-text-secondary)">File Name</p>
-          <input
-            autoFocus
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-          />
-          <div className="flex gap-1 justify-end">
-            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
-            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
-          </div>
+      <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider">Rename File</p>
+        <input
+          autoFocus
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+        />
+        <div className="flex gap-2 justify-end mt-1">
+          <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+          <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
         </div>
-      </Card>
+      </div>
     );
   }
 
   return (
-    <Card selected={selected} onClick={onSelect}>
-      <div className="flex items-start gap-2">
-        <DocumentRegular className="flex-shrink-0 text-(--wb-text-secondary) mt-0.5" />
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate text-(--wb-text-primary)">
+    <div 
+      className={[
+        "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
+        selected
+          ? "border-(--wb-accent) bg-(--wb-surface-selected)"
+          : "border-(--wb-border-subtle) bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)"
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div className={`p-2 rounded-lg flex-shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+          <DocumentRegular className="text-xl" />
+        </div>
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-sm font-semibold truncate text-(--wb-text-primary)">
             {name}
           </p>
-          <p className="text-xs text-(--wb-text-tertiary) truncate">{path}</p>
+          <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5" title={path}>{path}</p>
         </div>
-        {selected && (
-          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
-        )}
       </div>
-      <div className="mt-2 flex gap-1 justify-end">
+      
+      <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
         <Button
           size="sm"
-          variant="ghost"
-          icon={<OpenRegular />}
-          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          variant={selected ? "subtle" : "accent"}
+          icon={selected ? <CheckmarkRegular /> : <PlayCircleRegular />}
+          onClick={selected ? undefined : onSelect}
+          disabled={selected}
         >
-          Open
+          {selected ? "Active" : "Activate"}
         </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<EditRegular />}
-          onClick={startEdit}
-        >
-          Edit
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<DeleteRegular />}
-          onClick={(e) => { e.stopPropagation(); onDelete(); }}
-        >
-          Delete
-        </Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />
+          <Button size="sm" variant="ghost" icon={<EditRegular />} onClick={startEdit} title="Rename" />
+          <Button size="sm" variant="ghost" icon={<DeleteRegular />} onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete" />
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }
 
@@ -311,8 +295,7 @@ function SubscriptionCard({
 
   function handleKeyDown(e: React.KeyboardEvent) {
     if (e.key === "Enter") {
-      onRename(nameInput.trim() || name, urlInput.trim());
-      setEditing(false);
+      save(e as unknown as React.MouseEvent);
     } else if (e.key === "Escape") {
       cancel();
     }
@@ -320,100 +303,80 @@ function SubscriptionCard({
 
   if (editing) {
     return (
-      <Card selected={selected}>
-        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-          <div>
-            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Name</p>
-            <input
-              autoFocus
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-            />
-          </div>
-          <div>
-            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Subscription URL</p>
-            <input
-              value={urlInput}
-              onChange={(e) => setUrlInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              placeholder="https://..."
-              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-            />
-          </div>
-          <div className="flex gap-1 justify-end">
-            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
-            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
-          </div>
+      <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
+        <div>
+          <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider mb-1">Name</p>
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+          />
         </div>
-      </Card>
+        <div>
+          <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider mb-1">Subscription URL</p>
+          <input
+            value={urlInput}
+            onChange={(e) => setUrlInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            placeholder="https://..."
+            className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+          />
+        </div>
+        <div className="flex gap-2 justify-end mt-1">
+          <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+          <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+        </div>
+      </div>
     );
   }
 
   return (
-    <Card selected={selected} onClick={onSelect}>
-      <div className="flex items-start justify-between gap-3">
-        <div className="flex items-start gap-2 min-w-0 flex-1">
-          <CloudArrowDownRegular className="flex-shrink-0 text-(--wb-accent) mt-0.5" />
-          <div className="min-w-0">
-            <p className="text-sm font-medium text-(--wb-text-primary) truncate">
-              {name}
-            </p>
-            <p className="text-xs text-(--wb-text-tertiary) truncate max-w-xs">
-              {sub.url}
-            </p>
-            {sub.lastUpdated && (
-              <p className="text-xs text-(--wb-text-disabled) mt-0.5">
-                Updated {formatLastUpdated(sub.lastUpdated)}
-              </p>
-            )}
-          </div>
+    <div 
+      className={[
+        "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
+        selected
+          ? "border-(--wb-accent) bg-(--wb-surface-selected)"
+          : "border-(--wb-border-subtle) bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)"
+      ].join(" ")}
+    >
+      <div className="flex items-start gap-3 mb-4">
+        <div className={`p-2 rounded-lg flex-shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+          <CloudArrowDownRegular className="text-xl" />
         </div>
-        {selected && (
-          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
-        )}
+        <div className="flex-1 min-w-0 pt-0.5">
+          <p className="text-sm font-semibold text-(--wb-text-primary) truncate">
+            {name}
+          </p>
+          <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5" title={sub.url}>
+            {sub.url}
+          </p>
+          {sub.lastUpdated && (
+            <p className="text-[10px] font-medium text-(--wb-text-disabled) mt-1.5 uppercase tracking-wide">
+              Updated {formatLastUpdated(sub.lastUpdated)}
+            </p>
+          )}
+        </div>
       </div>
-      <div className="flex gap-1 mt-2 justify-end">
+      
+      <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
         <Button
           size="sm"
-          variant="ghost"
-          icon={<OpenRegular />}
-          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+          variant={selected ? "subtle" : "accent"}
+          icon={selected ? <CheckmarkRegular /> : <PlayCircleRegular />}
+          onClick={selected ? undefined : onSelect}
+          disabled={selected}
         >
-          Open
+          {selected ? "Active" : "Activate"}
         </Button>
-        <Button
-          size="sm"
-          variant="subtle"
-          icon={<ArrowClockwiseRegular />}
-          onClick={(e) => {
-            e.stopPropagation();
-            onUpdate();
-          }}
-        >
-          Update
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<EditRegular />}
-          onClick={startEdit}
-        >
-          Edit
-        </Button>
-        <Button
-          size="sm"
-          variant="ghost"
-          icon={<DeleteRegular />}
-          onClick={(e) => {
-            e.stopPropagation();
-            onDelete();
-          }}
-        >
-          Delete
-        </Button>
+        <div className="flex gap-1">
+          <Button size="sm" variant="ghost" icon={<ArrowClockwiseRegular />} onClick={(e) => { e.stopPropagation(); onUpdate(); }} title="Update" />
+          <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />
+          <Button size="sm" variant="ghost" icon={<EditRegular />} onClick={startEdit} title="Edit" />
+          <Button size="sm" variant="ghost" icon={<DeleteRegular />} onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete" />
+        </div>
       </div>
-    </Card>
+    </div>
   );
 }

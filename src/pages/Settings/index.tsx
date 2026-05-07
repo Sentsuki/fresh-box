@@ -1,60 +1,31 @@
-import { useCallback, useState } from "react";
+import { useEffect } from "react";
 import {
-  WrenchRegular,
-  InfoRegular,
   WeatherMoonRegular,
   FolderOpenRegular,
-  ArrowClockwiseRegular,
   ArrowSyncRegular,
+  DocumentTextRegular,
+  InfoRegular,
+  BoxRegular,
+  SettingsRegular,
 } from "@fluentui/react-icons";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useSingboxStore } from "../../stores/singboxStore";
-import { useSingbox } from "../../hooks/useSingbox";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
+import { usePriorityConfig, STACK_OPTIONS, LOG_LEVELS } from "../../hooks/usePriorityConfig";
 import { Button } from "../../components/ui/Button";
-import { Section } from "../../components/ui/Section";
-import { KeyValue } from "../../components/ui/KeyValue";
-import { openAppDirectory, getSingboxStatus } from "../../services/api";
-import { getErrorMessage } from "../../services/tauri";
-import { useToast } from "../../hooks/useToast";
-import type { LogLevel, ThemeMode } from "../../types/app";
+import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { openAppDirectory } from "../../services/api";
+import type { LogLevel as AppLogLevel, ThemeMode } from "../../types/app";
 
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const isRunning = useSingboxStore((s) => s.isRunning);
-  const { startService, stopService } = useSingbox();
-  const { error: toastError } = useToast();
 
-  const currentLogLevel = settings.pages.logs.log_level;
+  const currentAppLogLevel = settings.pages.logs.log_level;
   const currentThemeMode = settings.theme_mode;
 
-  const [processStatus, setProcessStatus] = useState("");
-  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
-
-  const refreshProcessStatus = useCallback(async () => {
-    if (isRefreshingStatus) return;
-    setIsRefreshingStatus(true);
-    try {
-      const status = await getSingboxStatus();
-      setProcessStatus(status);
-    } catch (err) {
-      setProcessStatus("Failed to get sing-box status");
-      toastError(`Failed to get sing-box status: ${getErrorMessage(err)}`);
-    } finally {
-      setIsRefreshingStatus(false);
-    }
-  }, [isRefreshingStatus, toastError]);
-
-  const processStatusColor = (() => {
-    if (!processStatus) return "text-(--wb-text-secondary)";
-    const n = processStatus.toLowerCase();
-    if (n.includes("running") || n.includes("detected")) return "text-(--wb-success)";
-    if (n.includes("failed") || n.includes("error")) return "text-(--wb-error)";
-    return "text-(--wb-accent)";
-  })();
-
+  // Core Update Manager
   const {
     isRefreshingCoreStatus,
     isUpdatingCore,
@@ -69,227 +40,219 @@ export default function Settings() {
     refreshCoreStatus,
     applySelectedCore,
   } = useCoreUpdate(true);
-
   const availableOptions = coreStatus?.available_options ?? [];
 
+  // Priority Config (TUN & Core Logs)
+  const {
+    isLoading: isPriorityLoading,
+    hasStackField,
+    hasLogField,
+    selectedStack,
+    logDisabled,
+    setLogDisabled,
+    selectedLogLevel,
+    setSelectedLogLevel,
+    loadConfiguration,
+    setStackOption,
+    updateLogConfiguration,
+  } = usePriorityConfig();
+
+  useEffect(() => {
+    void loadConfiguration();
+  }, [loadConfiguration]);
+
   return (
-    <div className="flex flex-col gap-5">
-      <div>
-        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Settings</h1>
-        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
-          Application and core settings
-        </p>
-      </div>
+    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
+      <PageHeader 
+        title="Settings" 
+        description="Configure application preferences and sing-box core parameters."
+      />
 
-      {/* Appearance */}
-      <Section title="Appearance" icon={<WeatherMoonRegular />}>
-        <div className="flex flex-col gap-4">
-          <SettingRow
-            label="Theme"
-            description="Color theme for the application"
-          >
-            <select
-              value={currentThemeMode}
-              onChange={(e) =>
-                void setThemeMode(e.target.value as ThemeMode)
-              }
-              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-            >
-              <option value="system">Follow system</option>
-              <option value="dark">Dark</option>
-              <option value="light">Light</option>
-            </select>
-          </SettingRow>
-        </div>
-      </Section>
-
-      {/* Sing-box Core Status */}
-      <Section
-        title="Sing-box Core"
-        icon={<WrenchRegular />}
-      >
-        <div className="flex flex-col gap-3">
-          <div className="flex items-center justify-between">
-            <div>
-              <p className="text-sm text-(--wb-text-primary)">Core status</p>
-              <p className="text-xs text-(--wb-text-secondary)">
-                {isRunning ? "Running" : "Stopped"}
-              </p>
-            </div>
-            <div className="flex gap-2">
-              <Button
-                variant={isRunning ? "default" : "accent"}
-                size="sm"
-                onClick={isRunning ? stopService : startService}
+      <div className="flex flex-col gap-8">
+        
+        {/* Appearance */}
+        <SettingGroup title="Appearance">
+          <SettingCard
+            icon={<WeatherMoonRegular />}
+            title="App Theme"
+            description="Select the color theme for the application"
+            control={
+              <select
+                value={currentThemeMode}
+                onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
+                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
-                {isRunning ? "Stop" : "Start"}
-              </Button>
-            </div>
-          </div>
-        </div>
-      </Section>
+                <option value="system">Follow System</option>
+                <option value="dark">Dark</option>
+                <option value="light">Light</option>
+              </select>
+            }
+          />
+        </SettingGroup>
 
-      {/* Sing-box Core Version Manager */}
-      <Section
-        title="Core Version"
-        icon={<ArrowSyncRegular />}
-        actions={
-          <Button
-            icon={<ArrowClockwiseRegular />}
-            size="sm"
-            variant="subtle"
-            disabled={isRefreshingCoreStatus}
-            onClick={() => void refreshCoreStatus(true, true)}
-          >
-            {isRefreshingCoreStatus ? "Checking..." : "Refresh"}
-          </Button>
-        }
-      >
-        <div className="flex flex-col gap-3">
-          {coreStatusError && (
-            <p className="text-xs text-(--wb-error)">{coreStatusError}</p>
-          )}
-          <KeyValue label="Status" value={coreStatusText} />
-          <KeyValue label="Current" value={currentCoreLabel} />
-
-          {availableOptions.length > 0 && (
-            <>
-              <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-(--wb-text-primary)">Target</p>
-                <select
-                  value={selectedCoreOptionKey}
-                  onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
-                  className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+        {/* Core Settings */}
+        <SettingGroup title="Sing-box Core">
+          <SettingCard
+            icon={<ArrowSyncRegular />}
+            title="Core Version"
+            description={
+              <div className="flex flex-col gap-1 mt-1">
+                <span>{coreStatusText} (Current: {currentCoreLabel})</span>
+                {coreStatusError && <span className="text-(--wb-error)">{coreStatusError}</span>}
+                {coreUpdateProgress && (
+                  <div className="flex flex-col gap-1 w-48 mt-1">
+                    <div className="flex justify-between text-[10px] text-(--wb-text-tertiary)">
+                      <span>{coreUpdateProgress.message}</span>
+                      <span>{coreUpdateProgress.percent}%</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
+                      <div
+                        className="h-full bg-(--wb-accent) transition-all duration-200"
+                        style={{ width: `${coreUpdateProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
+            control={
+              <div className="flex items-center gap-2">
+                {availableOptions.length > 0 && (
+                  <select
+                    value={selectedCoreOptionKey}
+                    onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
+                    className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+                  >
+                    {availableOptions.map((opt) => (
+                      <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
+                        {opt.label}{opt.installed ? (opt.is_active ? " ✓" : "") : ""}
+                      </option>
+                    ))}
+                  </select>
+                )}
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  disabled={isRefreshingCoreStatus}
+                  onClick={() => void refreshCoreStatus(true, true)}
                 >
-                  {availableOptions.map((opt) => (
-                    <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
-                      {opt.label}{opt.installed ? (opt.is_active ? " ✓ (active)" : " (installed)") : ""}
-                    </option>
+                  Check
+                </Button>
+                {availableOptions.length > 0 && (
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    disabled={isUpdatingCore || !availableOptions.length}
+                    onClick={() => void applySelectedCore()}
+                  >
+                    {updateCoreButtonLabel}
+                  </Button>
+                )}
+              </div>
+            }
+          />
+
+          {!isPriorityLoading && hasStackField && (
+            <SettingCard
+              icon={<BoxRegular />}
+              title="TUN Stack"
+              description="Select the network stack for the TUN interface (applied on restart)"
+              control={
+                <select
+                  value={selectedStack}
+                  onChange={(e) => void setStackOption(e.target.value as typeof STACK_OPTIONS[number])}
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+                >
+                  {STACK_OPTIONS.map((opt) => (
+                    <option key={opt} value={opt}>{opt}</option>
                   ))}
                 </select>
-              </div>
-
-              {coreUpdateProgress && (
-                <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-(--wb-text-secondary)">
-                    <span>{coreUpdateProgress.message}</span>
-                    <span>{coreUpdateProgress.percent}%</span>
-                  </div>
-                  <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
-                    <div
-                      className="h-full bg-(--wb-accent) transition-all duration-200"
-                      style={{ width: `${coreUpdateProgress.percent}%` }}
-                    />
-                  </div>
-                </div>
-              )}
-
-              <div className="flex justify-end">
-                <Button
-                  variant="accent"
-                  size="sm"
-                  disabled={isUpdatingCore || !availableOptions.length}
-                  onClick={() => void applySelectedCore()}
-                >
-                  {updateCoreButtonLabel}
-                </Button>
-              </div>
-            </>
-          )}
-        </div>
-      </Section>
-
-      {/* Process Manager */}
-      <Section
-        title="Process Status"
-        actions={
-          <Button
-            icon={<ArrowClockwiseRegular />}
-            size="sm"
-            variant="subtle"
-            disabled={isRefreshingStatus}
-            onClick={() => void refreshProcessStatus()}
-          >
-            {isRefreshingStatus ? "Checking..." : "Refresh Status"}
-          </Button>
-        }
-      >
-        {processStatus ? (
-          <p className={`text-sm font-mono ${processStatusColor}`}>{processStatus}</p>
-        ) : (
-          <p className="text-sm text-(--wb-text-secondary)">
-            Click "Refresh Status" to check the sing-box process state.
-          </p>
-        )}
-      </Section>
-
-      {/* Logs settings */}
-      <Section title="Logs">
-        <div className="flex flex-col gap-4">
-          <SettingRow
-            label="Log level"
-            description="Minimum log level to display"
-          >
-            <select
-              value={currentLogLevel}
-              onChange={(e) =>
-                void setLogLevel(e.target.value as LogLevel)
               }
-              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-            >
-              {(["trace", "debug", "info", "warn", "error"] as LogLevel[]).map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
-          </SettingRow>
-        </div>
-      </Section>
+            />
+          )}
 
-      {/* App Directory */}
-      <Section title="Application" icon={<FolderOpenRegular />}>
-        <Button
-          icon={<FolderOpenRegular />}
-          variant="subtle"
-          onClick={() => void openAppDirectory()}
-        >
-          Open App Directory
-        </Button>
-      </Section>
+          {!isPriorityLoading && hasLogField && (
+            <SettingCard
+              icon={<DocumentTextRegular />}
+              title="Core Log Level"
+              description="Log output detail from the sing-box core"
+              control={
+                <div className="flex items-center gap-3">
+                  <label className="flex items-center gap-2 text-sm text-(--wb-text-secondary) cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={logDisabled}
+                      onChange={(e) => setLogDisabled(e.target.checked)}
+                      className="accent-(--wb-accent)"
+                    />
+                    Disable
+                  </label>
+                  <select
+                    value={selectedLogLevel}
+                    onChange={(e) => setSelectedLogLevel(e.target.value as typeof LOG_LEVELS[number])}
+                    disabled={logDisabled}
+                    className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
+                  >
+                    {LOG_LEVELS.map((l) => (
+                      <option key={l} value={l}>{l}</option>
+                    ))}
+                  </select>
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    onClick={() => void updateLogConfiguration(logDisabled, selectedLogLevel)}
+                  >
+                    Apply
+                  </Button>
+                </div>
+              }
+            />
+          )}
+        </SettingGroup>
 
-      {/* About */}
-      <Section title="About" icon={<InfoRegular />}>
-        <div className="flex flex-col gap-1">
-          <KeyValue label="App" value="Fresh Box" />
-          <KeyValue label="Framework" value="Tauri + React 19" />
-          <KeyValue label="UI" value="FluentUI v9 + Tailwind v4" />
-        </div>
-      </Section>
-    </div>
-  );
-}
+        {/* Application */}
+        <SettingGroup title="Application">
+          <SettingCard
+            icon={<SettingsRegular />}
+            title="App Log Level"
+            description="Minimum log level displayed in the Logs page"
+            control={
+              <select
+                value={currentAppLogLevel}
+                onChange={(e) => void setLogLevel(e.target.value as AppLogLevel)}
+                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+              >
+                {(["trace", "debug", "info", "warn", "error"] as AppLogLevel[]).map((level) => (
+                  <option key={level} value={level}>
+                    {level}
+                  </option>
+                ))}
+              </select>
+            }
+          />
+          <SettingCard
+            icon={<FolderOpenRegular />}
+            title="App Directory"
+            description="Open the folder containing config files, overrides, and logs"
+            onClick={() => void openAppDirectory()}
+            control={<span className="text-sm text-(--wb-accent) font-medium">Open Folder</span>}
+          />
+        </SettingGroup>
 
-function SettingRow({
-  label,
-  description,
-  children,
-}: {
-  label: string;
-  description?: string;
-  children: React.ReactNode;
-}) {
-  return (
-    <div className="flex items-center justify-between gap-4">
-      <div className="flex-1 min-w-0">
-        <p className="text-sm text-(--wb-text-primary)">{label}</p>
-        {description && (
-          <p className="text-xs text-(--wb-text-secondary) mt-0.5">
-            {description}
-          </p>
-        )}
+        {/* About */}
+        <SettingGroup title="About">
+          <SettingCard
+            icon={<InfoRegular />}
+            title="Fresh Box"
+            description={
+              <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
+                <span>UI: FluentUI v9 + Tailwind v4</span>
+                <span>Framework: Tauri + React 19</span>
+              </div>
+            }
+          />
+        </SettingGroup>
       </div>
-      <div className="flex-shrink-0">{children}</div>
     </div>
   );
 }

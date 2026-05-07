@@ -4,6 +4,7 @@ import { Tabs, TabContent } from "../../components/ui/Tabs";
 import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { PageHeader } from "../../components/ui/PageHeader";
 import { useRulesPage } from "../../hooks/useRules";
 import type { RuleEntry } from "../../types/app";
 import { formatLastUpdated } from "../../services/utils";
@@ -30,7 +31,7 @@ export default function Rules() {
       {
         key: "type",
         label: "Type",
-        width: 120,
+        width: 140,
         render: (row) => <Badge variant="subtle">{row.type}</Badge>,
       },
       {
@@ -41,7 +42,7 @@ export default function Rules() {
       {
         key: "proxy",
         label: "Proxy",
-        width: 160,
+        width: 180,
         render: (row) => (
           <Badge
             variant={
@@ -61,93 +62,105 @@ export default function Rules() {
   );
 
   return (
-    <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center gap-3 flex-shrink-0">
-        <div>
-          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Rules</h1>
-          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
-            {visibleRules.length} rules · {visibleProviders.length} providers
-          </p>
-        </div>
-        <div className="flex-1" />
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
-          <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter rules..."
-            className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
-          />
-          {search && (
-            <button onClick={() => setSearch("")}>
-              <DismissRegular className="text-xs text-(--wb-text-tertiary)" />
-            </button>
-          )}
-        </div>
-        <Button
-          icon={<ArrowClockwiseRegular />}
-          variant="subtle"
-          disabled={isRefreshing}
-          onClick={() => void refreshRules(true)}
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 pr-2">
+        <PageHeader 
+          title="Rules" 
+          description="View active routing rules and manage external rule providers."
         >
-          Refresh
-        </Button>
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) shadow-sm min-w-64">
+              <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
+              <input
+                value={search}
+                onChange={(e) => setSearch(e.target.value)}
+                placeholder="Filter rules..."
+                className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
+              />
+              {search && (
+                <button onClick={() => setSearch("")} className="hover:bg-(--wb-surface-hover) rounded p-0.5">
+                  <DismissRegular className="text-xs text-(--wb-text-tertiary)" />
+                </button>
+              )}
+            </div>
+            <Button
+              icon={<ArrowClockwiseRegular />}
+              variant="accent"
+              disabled={isRefreshing}
+              onClick={() => void refreshRules(true)}
+            >
+              Refresh
+            </Button>
+          </div>
+        </PageHeader>
       </div>
 
-      <Tabs
-        value={currentTab}
-        tabs={[
-          { value: "rules", label: `Rules (${visibleRules.length})` },
-          { value: "providers", label: `Providers (${visibleProviders.length})` },
-        ]}
-        onValueChange={(v) => void setCurrentTab(v as "rules" | "providers")}
-      >
-        <TabContent value="rules">
-          <div className="h-full min-h-[400px] rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden">
-            <VirtualTable
-              columns={tableColumns}
-              rows={visibleRules}
-              rowHeight={32}
-              getRowKey={(row, i) => row.uuid ?? `${i}`}
-            />
-          </div>
-        </TabContent>
-
-        <TabContent value="providers">
-          <div className="flex flex-col gap-2">
-            {visibleProviders.length === 0 ? (
-              <p className="text-sm text-(--wb-text-secondary) p-4">
-                No rule providers configured
-              </p>
-            ) : (
-              visibleProviders.map((prov) => (
-                <div
-                  key={prov.name}
-                  className="flex items-center justify-between px-4 py-3 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer)"
-                >
-                  <div>
-                    <p className="text-sm font-medium text-(--wb-text-primary)">
-                      {prov.name}
-                    </p>
-                    <p className="text-xs text-(--wb-text-secondary)">
-                      {prov.ruleCount ?? 0} rules ·{" "}
-                      {prov.vehicleType} ·{" "}
-                      {prov.updatedAt ? formatLastUpdated(prov.updatedAt) : "never"}
-                    </p>
-                  </div>
-                  <Button
-                    variant="subtle"
-                    icon={<ArrowClockwiseRegular />}
-                    onClick={() => void updateProvider(prov.name)}
-                  >
-                    Update
-                  </Button>
+      <div className="flex flex-col flex-1 min-h-0 pr-2 pb-10">
+        <Tabs
+          value={currentTab}
+          tabs={[
+            { value: "rules", label: `Rules (${visibleRules.length})` },
+            { value: "providers", label: `Providers (${visibleProviders.length})` },
+          ]}
+          onChange={setCurrentTab}
+          className="flex-1"
+        >
+          <TabContent value="rules" className="h-full mt-4">
+            <div className="h-full rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden">
+              <VirtualTable
+                data={visibleRules}
+                columns={tableColumns}
+                itemHeight={40}
+              />
+            </div>
+          </TabContent>
+          <TabContent value="providers" className="h-full overflow-y-auto mt-4">
+            <div className="flex flex-col gap-4 pb-4">
+              {visibleProviders.length === 0 ? (
+                <div className="flex items-center justify-center h-48 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
+                  No rule providers configured.
                 </div>
-              ))
-            )}
-          </div>
-        </TabContent>
-      </Tabs>
+              ) : (
+                visibleProviders.map((p) => (
+                  <div
+                    key={p.name}
+                    className="flex flex-col p-5 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
+                  >
+                    <div className="flex items-start justify-between gap-4">
+                      <div>
+                        <div className="flex items-center gap-3">
+                          <p className="text-base font-semibold text-(--wb-text-primary)">
+                            {p.name}
+                          </p>
+                          <Badge variant="subtle" className="uppercase tracking-wider text-[10px]">
+                            {p.vehicleType}
+                          </Badge>
+                        </div>
+                        <p className="text-xs text-(--wb-text-tertiary) mt-1.5 font-mono">
+                          {p.behavior} · {p.ruleCount} rules
+                        </p>
+                        {p.updatedAt && (
+                          <p className="text-xs text-(--wb-text-secondary) mt-2">
+                            Updated {formatLastUpdated(p.updatedAt)}
+                          </p>
+                        )}
+                      </div>
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        icon={<ArrowClockwiseRegular />}
+                        onClick={() => void updateProvider(p.name)}
+                      >
+                        Update
+                      </Button>
+                    </div>
+                  </div>
+                ))
+              )}
+            </div>
+          </TabContent>
+        </Tabs>
+      </div>
     </div>
   );
 }

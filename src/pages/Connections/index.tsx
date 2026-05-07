@@ -15,6 +15,8 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { coreRequest } from "../../services/coreClient";
 import type { ConnectionEntry, ConnectionColumnKey } from "../../types/app";
 
+import { PageHeader } from "../../components/ui/PageHeader";
+
 export default function Connections() {
   const {
     active,
@@ -85,7 +87,7 @@ export default function Connections() {
         align: col.align,
         sortable: col.sortable,
         render: (row) => (
-          <span className="truncate text-xs">
+          <span className="truncate text-[13px]">
             {formatConnectionValue(col.key as ConnectionColumnKey, row)}
           </span>
         ),
@@ -135,139 +137,143 @@ export default function Connections() {
   }, []);
 
   return (
-    <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
-        <div>
-          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Connections</h1>
-          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
-            <Badge variant="success">{active.length} active</Badge>
-            {" "}
-            <Badge variant="subtle">{closed.length} closed</Badge>
-          </p>
-        </div>
-
-        {/* Tab switcher */}
-        <div className="flex rounded-(--wb-radius-md) border border-(--wb-border-default) overflow-hidden">
-          {(["active", "closed"] as const).map((tab) => (
-            <button
-              key={tab}
-              onClick={() => void setConnectionsTab(tab)}
-              className={[
-                "px-3 py-1 text-sm capitalize transition-colors",
-                currentTab === tab
-                  ? "bg-(--wb-accent) text-white"
-                  : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
-              ].join(" ")}
-            >
-              {tab}
-            </button>
-          ))}
-        </div>
-
-        {/* Grouped-by chip */}
-        {groupedColumn && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-(--wb-accent)/15 text-(--wb-accent) border border-(--wb-accent)/30">
-            <span>Grouped by {groupedColumn.label}</span>
-            <button
-              onClick={clearGrouping}
-              className="hover:opacity-70 transition-opacity leading-none"
-              title="Clear grouping"
-            >
-              ✕
-            </button>
-          </div>
-        )}
-
-        <div className="flex-1" />
-
-        {/* Search */}
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
-          <SearchRegular className="text-(--wb-text-tertiary)" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Filter..."
-            className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
-          />
-          {search && (
-            <button onClick={() => setSearch("")}>
-              <DismissRegular className="text-(--wb-text-tertiary) text-xs" />
-            </button>
-          )}
-        </div>
-
-        {/* Pause */}
-        <Button
-          icon={isPaused ? <PlayRegular /> : <PauseRegular />}
-          variant="subtle"
-          onClick={togglePause}
+    <div className="flex flex-col h-full overflow-hidden">
+      <div className="flex-shrink-0 pr-2">
+        <PageHeader 
+          title="Connections" 
+          description="Monitor and manage active network streams routed through sing-box."
         >
-          {isPaused ? "Resume" : "Pause"}
-        </Button>
-
-        {/* Columns customization */}
-        <div className="relative">
-          <Button
-            icon={<ColumnRegular />}
-            variant="subtle"
-            onClick={() => setShowColumns((v) => !v)}
-          >
-            Columns
-          </Button>
-          {showColumns && (
-            <div className="absolute right-0 top-full mt-1 z-20 min-w-52 rounded-(--wb-radius-lg) border border-(--wb-border-default) bg-(--wb-surface-base) shadow-lg p-2 flex flex-col gap-0.5">
-              {allColumns.map((col) => (
-                <div key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-(--wb-surface-hover)">
-                  <input
-                    type="checkbox"
-                    id={`col-${col.key}`}
-                    checked={visibleColumnKeys.includes(col.key)}
-                    onChange={() => toggleColumnVisible(col.key)}
-                    className="accent-(--wb-accent)"
-                  />
-                  <label htmlFor={`col-${col.key}`} className="flex-1 text-sm text-(--wb-text-primary) cursor-pointer">
-                    {col.label}
-                  </label>
-                  {col.groupable && (
-                    <button
-                      onClick={() => toggleGrouping(col.key)}
-                      title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
-                      className={[
-                        "px-1.5 py-0.5 text-xs rounded transition-colors",
-                        groupedColumn?.key === col.key
-                          ? "bg-(--wb-accent) text-white"
-                          : "text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)",
-                      ].join(" ")}
-                    >
-                      {groupedColumn?.key === col.key ? "Grouped" : "Group"}
-                    </button>
-                  )}
-                  <div className="flex gap-0.5">
-                    <button
-                      onClick={() => moveColumn(col.key, -1)}
-                      className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) px-1 text-xs"
-                      title="Move up"
-                    >↑</button>
-                    <button
-                      onClick={() => moveColumn(col.key, 1)}
-                      className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) px-1 text-xs"
-                      title="Move down"
-                    >↓</button>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-        </div>
-
-        <Button icon={<DismissRegular />} variant="subtle" onClick={closeAll}>
-          Close All
-        </Button>
+          <div className="flex items-center gap-2">
+            <Badge variant="success" className="px-3 py-1 font-medium">{active.length} active</Badge>
+            <Badge variant="subtle" className="px-3 py-1">{closed.length} closed</Badge>
+          </div>
+        </PageHeader>
       </div>
 
-      <div className="flex-1 min-h-0 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden">
-        {groupedEntries ? (
-          <GroupedTable
+      <div className="flex flex-col gap-4 h-full min-h-0 pr-2 pb-10">
+        <div className="flex items-center gap-3 flex-wrap">
+          {/* Tab switcher */}
+          <div className="flex rounded-(--wb-radius-md) border border-(--wb-border-subtle) overflow-hidden shadow-sm p-0.5 bg-(--wb-surface-layer)">
+            {(["active", "closed"] as const).map((tab) => (
+              <button
+                key={tab}
+                onClick={() => void setConnectionsTab(tab)}
+                className={[
+                  "px-4 py-1.5 text-sm font-medium capitalize transition-colors rounded",
+                  currentTab === tab
+                    ? "bg-(--wb-surface-hover) text-(--wb-text-primary) shadow-sm"
+                    : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
+                ].join(" ")}
+              >
+                {tab}
+              </button>
+            ))}
+          </div>
+
+          {/* Grouped-by chip */}
+          {groupedColumn && (
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-(--wb-accent)/10 text-(--wb-accent) border border-(--wb-accent)/20 shadow-sm">
+              <span>Grouped: {groupedColumn.label}</span>
+              <button
+                onClick={clearGrouping}
+                className="hover:opacity-70 transition-opacity leading-none ml-1"
+                title="Clear grouping"
+              >
+                ✕
+              </button>
+            </div>
+          )}
+
+          <div className="flex-1" />
+
+          {/* Search */}
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48 shadow-sm">
+            <SearchRegular className="text-(--wb-text-tertiary)" />
+            <input
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              placeholder="Filter..."
+              className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
+            />
+            {search && (
+              <button onClick={() => setSearch("")} className="hover:bg-(--wb-surface-hover) rounded p-0.5">
+                <DismissRegular className="text-(--wb-text-tertiary) text-xs" />
+              </button>
+            )}
+          </div>
+
+          {/* Pause */}
+          <Button
+            icon={isPaused ? <PlayRegular /> : <PauseRegular />}
+            variant="subtle"
+            onClick={togglePause}
+          >
+            {isPaused ? "Resume" : "Pause"}
+          </Button>
+
+          {/* Columns customization */}
+          <div className="relative">
+            <Button
+              icon={<ColumnRegular />}
+              variant="subtle"
+              onClick={() => setShowColumns((v) => !v)}
+            >
+              Columns
+            </Button>
+            {showColumns && (
+              <div className="absolute right-0 top-full mt-2 z-20 min-w-64 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-lg p-3 flex flex-col gap-1.5">
+                {allColumns.map((col) => (
+                  <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-(--wb-surface-hover) transition-colors">
+                    <input
+                      type="checkbox"
+                      id={`col-${col.key}`}
+                      checked={visibleColumnKeys.includes(col.key)}
+                      onChange={() => toggleColumnVisible(col.key)}
+                      className="accent-(--wb-accent)"
+                    />
+                    <label htmlFor={`col-${col.key}`} className="flex-1 text-sm font-medium text-(--wb-text-primary) cursor-pointer select-none">
+                      {col.label}
+                    </label>
+                    {col.groupable && (
+                      <button
+                        onClick={() => toggleGrouping(col.key)}
+                        title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
+                        className={[
+                          "px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded transition-colors border",
+                          groupedColumn?.key === col.key
+                            ? "bg-(--wb-accent)/20 text-(--wb-accent) border-(--wb-accent)/30"
+                            : "bg-transparent border-(--wb-border-subtle) text-(--wb-text-secondary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)",
+                        ].join(" ")}
+                      >
+                        {groupedColumn?.key === col.key ? "Grouped" : "Group"}
+                      </button>
+                    )}
+                    <div className="flex gap-1 ml-1">
+                      <button
+                        onClick={() => moveColumn(col.key, -1)}
+                        className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) rounded px-1.5 py-0.5 text-xs transition-colors"
+                        title="Move up"
+                      >↑</button>
+                      <button
+                        onClick={() => moveColumn(col.key, 1)}
+                        className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) rounded px-1.5 py-0.5 text-xs transition-colors"
+                        title="Move down"
+                      >↓</button>
+                    </div>
+                  </div>
+                ))}
+              </div>
+            )}
+          </div>
+
+          <Button icon={<DismissRegular />} variant="subtle" onClick={closeAll}>
+            Close All
+          </Button>
+        </div>
+
+        <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-[rgba(0,0,0,0.15)] shadow-inner overflow-hidden">
+          {groupedEntries ? (
+            <GroupedTable
             groups={groupedEntries}
             columns={tableColumns}
             sortKey={sortKey}
@@ -297,6 +303,7 @@ export default function Connections() {
         onClose={() => setSelectedConnection(null)}
         onDisconnect={disconnectConnection}
       />
+      </div>
     </div>
   );
 }
