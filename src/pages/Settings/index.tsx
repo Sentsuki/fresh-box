@@ -1,7 +1,6 @@
 import { useCallback, useState } from "react";
 import {
   WrenchRegular,
-  OpenRegular,
   InfoRegular,
   WeatherMoonRegular,
   FolderOpenRegular,
@@ -25,7 +24,7 @@ export default function Settings() {
   const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
   const isRunning = useSingboxStore((s) => s.isRunning);
-  const { openPanel, startService, stopService } = useSingbox();
+  const { startService, stopService } = useSingbox();
   const { error: toastError } = useToast();
 
   const currentLogLevel = settings.pages.logs.log_level;
@@ -118,16 +117,6 @@ export default function Settings() {
               </p>
             </div>
             <div className="flex gap-2">
-              {isRunning && (
-                <Button
-                  icon={<OpenRegular />}
-                  variant="subtle"
-                  size="sm"
-                  onClick={openPanel}
-                >
-                  Panel
-                </Button>
-              )}
               <Button
                 variant={isRunning ? "default" : "accent"}
                 size="sm"

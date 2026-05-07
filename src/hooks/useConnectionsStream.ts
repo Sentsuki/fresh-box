@@ -379,6 +379,27 @@ export function formatConnectionValue(
   }
 }
 
+export function startConnectionsStream() {
+  if (shouldReconnect) return;
+  shouldReconnect = true;
+  connectWs();
+}
+
+export function stopConnectionsStream(clear = false) {
+  shouldReconnect = false;
+  clearReconnectTimer();
+  if (ws) {
+    const activeWs = ws;
+    ws = null;
+    activeWs.close();
+  } else {
+    useConnectionsStore.getState().setStreamStatus("disconnected");
+  }
+  if (clear) {
+    useConnectionsStore.getState().clear();
+  }
+}
+
 export function useConnectionsStream() {
   const { success, error } = useToast();
   const active = useConnectionsStore((s) => s.active);

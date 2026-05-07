@@ -1,5 +1,5 @@
-import { useEffect, useRef } from "react";
-import { useClashStore } from "../../stores/clashStore";
+import { useEffect, useMemo, useRef } from "react";
+import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { formatSpeed } from "../../services/utils";
 
 const MAX_POINTS = 60;
@@ -13,12 +13,16 @@ const history: DataPoint[] = [];
 
 export default function TrafficChart() {
   const canvasRef = useRef<HTMLCanvasElement>(null);
-  const overview = useClashStore((s) => s.overview);
+  const active = useConnectionsStore((s) => s.active);
+
+  const { downloadSpeed, uploadSpeed } = useMemo(() => {
+    const dl = active.reduce((sum, c) => sum + c.downloadSpeed, 0);
+    const ul = active.reduce((sum, c) => sum + c.uploadSpeed, 0);
+    return { downloadSpeed: dl, uploadSpeed: ul };
+  }, [active]);
 
   useEffect(() => {
-    if (!overview?.traffic) return;
-    const { download, upload } = overview.traffic;
-    history.push({ dl: download, ul: upload });
+    history.push({ dl: downloadSpeed, ul: uploadSpeed });
     if (history.length > MAX_POINTS) history.shift();
 
     const canvas = canvasRef.current;
@@ -82,7 +86,7 @@ export default function TrafficChart() {
       80,
       14,
     );
-  }, [overview]);
+  }, [downloadSpeed, uploadSpeed]);
 
   return (
     <div className="rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] p-3">

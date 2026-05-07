@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   AddRegular,
   DeleteRegular,
@@ -7,6 +7,9 @@ import {
   DocumentRegular,
   ArrowClockwiseRegular,
   CheckmarkRegular,
+  OpenRegular,
+  DismissRegular,
+  SaveRegular,
 } from "@fluentui/react-icons";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -32,6 +35,8 @@ export default function Config() {
     updateSubscription,
     deleteConfig,
     openConfigFile,
+    renameConfig,
+    editSubscription,
   } = useConfigs();
 
   useEffect(() => {
@@ -82,7 +87,11 @@ export default function Config() {
                   selected={selectedDisplay === file.displayName}
                   onSelect={() => void selectConfig(file)}
                   onUpdate={() => void updateSubscription(file.displayName)}
+                  onOpen={() => void openConfigFile(file.displayName)}
                   onDelete={() => void deleteConfig(file.displayName)}
+                  onRename={(newName, newUrl) =>
+                    void renameAndEditSub(file.displayName, newName, newUrl, renameConfig, editSubscription)
+                  }
                 />
               );
             })}
@@ -112,37 +121,18 @@ export default function Config() {
             {localFiles.map((file) => {
               const isSelected = selectedDisplay === file.displayName;
               return (
-                <Card
+                <LocalFileCard
                   key={file.path}
+                  name={file.displayName}
+                  path={file.path}
                   selected={isSelected}
-                  onClick={() => void selectConfig(file)}
-                >
-                  <div className="flex items-start gap-2">
-                    <DocumentRegular className="flex-shrink-0 text-[var(--wb-text-secondary)] mt-0.5" />
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm font-medium truncate text-[var(--wb-text-primary)]">
-                        {file.displayName}
-                      </p>
-                      <p className="text-xs text-[var(--wb-text-tertiary)] truncate">{file.path}</p>
-                    </div>
-                    {isSelected && (
-                      <CheckmarkRegular className="flex-shrink-0 text-[var(--wb-accent)] text-sm" />
-                    )}
-                  </div>
-                  <div className="mt-2 flex gap-1 justify-end">
-                    <Button
-                      size="sm"
-                      variant="ghost"
-                      icon={<EditRegular />}
-                      onClick={(e) => {
-                        e.stopPropagation();
-                        void openConfigFile(file.displayName);
-                      }}
-                    >
-                      Edit
-                    </Button>
-                  </div>
-                </Card>
+                  onSelect={() => void selectConfig(file)}
+                  onOpen={() => void openConfigFile(file.displayName)}
+                  onDelete={() => void deleteConfig(file.displayName)}
+                  onRename={(newName) =>
+                    void renameConfig(file.displayName, newName)
+                  }
+                />
               );
             })}
           </div>
@@ -152,21 +142,215 @@ export default function Config() {
   );
 }
 
+async function renameAndEditSub(
+  oldName: string,
+  newName: string,
+  newUrl: string,
+  renameConfig: (oldName: string, newName: string) => Promise<void>,
+  editSubscription: (name: string, url: string) => Promise<void>,
+) {
+  const nameChanged = newName !== oldName;
+  const effectiveName = nameChanged ? newName : oldName;
+  if (nameChanged) await renameConfig(oldName, newName);
+  if (newUrl) await editSubscription(effectiveName, newUrl);
+}
+
+function LocalFileCard({
+  name,
+  path,
+  selected,
+  onSelect,
+  onOpen,
+  onDelete,
+  onRename,
+}: {
+  name: string;
+  path: string;
+  selected: boolean;
+  onSelect: () => void;
+  onOpen: () => void;
+  onDelete: () => void;
+  onRename: (newName: string) => void;
+}) {
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(name);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setNameInput(name);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+  }
+
+  function save(e: React.MouseEvent) {
+    e.stopPropagation();
+    if (nameInput.trim() && nameInput.trim() !== name) {
+      onRename(nameInput.trim());
+    }
+    setEditing(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      if (nameInput.trim() && nameInput.trim() !== name) {
+        onRename(nameInput.trim());
+      }
+      setEditing(false);
+    } else if (e.key === "Escape") {
+      cancel();
+    }
+  }
+
+  if (editing) {
+    return (
+      <Card selected={selected}>
+        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs font-medium text-[var(--wb-text-secondary)]">File Name</p>
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+          />
+          <div className="flex gap-1 justify-end">
+            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
+  return (
+    <Card selected={selected} onClick={onSelect}>
+      <div className="flex items-start gap-2">
+        <DocumentRegular className="flex-shrink-0 text-[var(--wb-text-secondary)] mt-0.5" />
+        <div className="flex-1 min-w-0">
+          <p className="text-sm font-medium truncate text-[var(--wb-text-primary)]">
+            {name}
+          </p>
+          <p className="text-xs text-[var(--wb-text-tertiary)] truncate">{path}</p>
+        </div>
+        {selected && (
+          <CheckmarkRegular className="flex-shrink-0 text-[var(--wb-accent)] text-sm" />
+        )}
+      </div>
+      <div className="mt-2 flex gap-1 justify-end">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<OpenRegular />}
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        >
+          Open
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<EditRegular />}
+          onClick={startEdit}
+        >
+          Edit
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<DeleteRegular />}
+          onClick={(e) => { e.stopPropagation(); onDelete(); }}
+        >
+          Delete
+        </Button>
+      </div>
+    </Card>
+  );
+}
+
 function SubscriptionCard({
   name,
   sub,
   selected,
   onSelect,
   onUpdate,
+  onOpen,
   onDelete,
+  onRename,
 }: {
   name: string;
   sub: SubscriptionInfo;
   selected: boolean;
   onSelect: () => void;
   onUpdate: () => void;
+  onOpen: () => void;
   onDelete: () => void;
+  onRename: (newName: string, newUrl: string) => void;
 }) {
+  const [editing, setEditing] = useState(false);
+  const [nameInput, setNameInput] = useState(name);
+  const [urlInput, setUrlInput] = useState(sub.url);
+
+  function startEdit(e: React.MouseEvent) {
+    e.stopPropagation();
+    setNameInput(name);
+    setUrlInput(sub.url);
+    setEditing(true);
+  }
+
+  function cancel() {
+    setEditing(false);
+  }
+
+  function save(e: React.MouseEvent) {
+    e.stopPropagation();
+    onRename(nameInput.trim() || name, urlInput.trim());
+    setEditing(false);
+  }
+
+  function handleKeyDown(e: React.KeyboardEvent) {
+    if (e.key === "Enter") {
+      onRename(nameInput.trim() || name, urlInput.trim());
+      setEditing(false);
+    } else if (e.key === "Escape") {
+      cancel();
+    }
+  }
+
+  if (editing) {
+    return (
+      <Card selected={selected}>
+        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <div>
+            <p className="text-xs font-medium text-[var(--wb-text-secondary)] mb-1">Name</p>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+            />
+          </div>
+          <div>
+            <p className="text-xs font-medium text-[var(--wb-text-secondary)] mb-1">Subscription URL</p>
+            <input
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="https://..."
+              className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+            />
+          </div>
+          <div className="flex gap-1 justify-end">
+            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+          </div>
+        </div>
+      </Card>
+    );
+  }
+
   return (
     <Card selected={selected} onClick={onSelect}>
       <div className="flex items-start justify-between gap-3">
@@ -193,6 +377,14 @@ function SubscriptionCard({
       <div className="flex gap-1 mt-2 justify-end">
         <Button
           size="sm"
+          variant="ghost"
+          icon={<OpenRegular />}
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        >
+          Open
+        </Button>
+        <Button
+          size="sm"
           variant="subtle"
           icon={<ArrowClockwiseRegular />}
           onClick={(e) => {
@@ -201,6 +393,14 @@ function SubscriptionCard({
           }}
         >
           Update
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<EditRegular />}
+          onClick={startEdit}
+        >
+          Edit
         </Button>
         <Button
           size="sm"

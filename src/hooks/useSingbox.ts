@@ -1,8 +1,6 @@
 import { useCallback } from "react";
 import {
-  getClashApiUrl,
   isSingboxRunning,
-  openUrl,
   startSingbox,
   stopSingbox,
 } from "../services/api";
@@ -11,6 +9,7 @@ import { useSingboxStore } from "../stores/singboxStore";
 import { useClashStore } from "../stores/clashStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
+import { startConnectionsStream, stopConnectionsStream } from "./useConnectionsStream";
 
 let statusCheckInterval: number | null = null;
 
@@ -59,6 +58,7 @@ export function useSingbox() {
       toastInfo("Starting sing-box...");
       await startSingbox(configPath);
       singbox.setRunning(true);
+      startConnectionsStream();
       startPolling(() => toastError("Sing-box has stopped unexpectedly."));
       await clash.refreshOverview(true);
       toastSuccess("Sing-box is running.");
@@ -83,6 +83,7 @@ export function useSingbox() {
       await stopSingbox();
       singbox.setRunning(false);
       stopPolling();
+      stopConnectionsStream(true);
       clash.clearOverview();
       toastSuccess("Sing-box is stopped.");
     } catch (err) {
@@ -92,24 +93,5 @@ export function useSingbox() {
     }
   }, [toastError, toastInfo, toastSuccess]);
 
-  const openPanel = useCallback(async () => {
-    const settings = useSettingsStore.getState();
-    const configPath = settings.settings.app.selected_config_path;
-    if (!configPath) {
-      toastError("No config selected");
-      return;
-    }
-    try {
-      const url = await getClashApiUrl(configPath);
-      if (!url) {
-        toastError("Clash API not configured in this config file");
-        return;
-      }
-      await openUrl(url);
-    } catch (err) {
-      toastError(`Failed to open Clash API: ${getErrorMessage(err)}`);
-    }
-  }, [toastError]);
-
-  return { startService, stopService, openPanel };
+  return { startService, stopService };
 }

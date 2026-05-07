@@ -18,15 +18,6 @@ function delayColor(delay: number | null): string {
   return "text-[#E05252]";
 }
 
-function DelayLabel({ delay }: { delay: number | null }) {
-  if (!delay)
-    return <span className="text-[10px] text-[var(--wb-text-disabled)]">--</span>;
-  return (
-    <span className={`text-[10px] tabular-nums ${delayColor(delay)}`}>
-      {delay}ms
-    </span>
-  );
-}
 
 function abbreviateType(type: string | undefined): string {
   if (!type) return "";
@@ -49,10 +40,6 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
   return (
     <button
       onClick={onSelect}
-      onContextMenu={(e) => {
-        e.preventDefault();
-        onTest();
-      }}
       title={node.name}
       className={[
         "flex flex-col items-start gap-1.5 px-2 py-2 rounded-[var(--wb-radius-md)]",
@@ -77,7 +64,20 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
         >
           {abbreviateType(node.type)}
         </span>
-        <DelayLabel delay={node.delay} />
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTest();
+          }}
+          title="Test latency"
+          className={`text-[10px] tabular-nums rounded px-1 transition-colors ${
+            selected
+              ? "text-white/80 hover:text-white hover:bg-white/20"
+              : `${delayColor(node.delay)} hover:bg-[var(--wb-surface-active)]`
+          }`}
+        >
+          {node.delay ? `${node.delay}ms` : "--"}
+        </button>
       </div>
     </button>
   );

@@ -4,7 +4,6 @@ import {
   StopRegular,
   DocumentRegular,
   CloudArrowDownRegular,
-  OpenRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
 } from "@fluentui/react-icons";
@@ -32,7 +31,7 @@ export default function Overview() {
   const overview = useClashStore((s) => s.overview);
   const refreshOverview = useClashStore((s) => s.refreshOverview);
 
-  const { startService, stopService, openPanel } = useSingbox();
+  const { startService, stopService } = useSingbox();
 
   useEffect(() => {
     if (isRunning) void refreshOverview();
@@ -72,8 +71,7 @@ export default function Overview() {
             )}
           </div>
           <div className="flex-1 min-w-0">
-            <div className="flex items-center justify-between">
-              <div>
+            <div>
                 <p className="text-sm font-semibold text-[var(--wb-text-primary)]">
                   {isRunning ? "Service Running" : "Service Stopped"}
                 </p>
@@ -83,16 +81,6 @@ export default function Overview() {
                     : "Select a config and click Start"}
                 </p>
               </div>
-              {isRunning && (
-                <button
-                  onClick={openPanel}
-                  className="flex items-center gap-1 text-xs text-[var(--wb-accent)] hover:text-[var(--wb-accent-hover)] transition-colors"
-                >
-                  <OpenRegular />
-                  Panel
-                </button>
-              )}
-            </div>
 
             {selectedDisplay && (
               <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-[var(--wb-radius-md)] bg-[rgba(0,0,0,0.2)] border border-[var(--wb-border-subtle)]">

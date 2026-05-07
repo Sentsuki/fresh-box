@@ -10,6 +10,7 @@ import {
 } from "../services/api";
 import { getCleanFileName } from "../services/utils";
 import type { ConfigFileEntry } from "../types/app";
+import { startConnectionsStream } from "./useConnectionsStream";
 
 function buildConfigEntries(files: string[]): ConfigFileEntry[] {
   return files.map((path) => ({
@@ -59,6 +60,7 @@ export function useInit() {
 
     singbox.setRunning(running);
     if (running) {
+      startConnectionsStream();
       await clash.refreshOverview(false);
     }
 

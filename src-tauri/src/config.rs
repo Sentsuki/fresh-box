@@ -88,15 +88,6 @@ pub struct RulesPageSettings {
     pub current_tab: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-struct LegacyAppSettings {
-    pub selected_config: Option<String>,
-    pub selected_config_display: Option<String>,
-    pub current_page: Option<String>,
-    pub active_singbox_core_channel: Option<String>,
-    pub active_singbox_core_version: Option<String>,
-}
-
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -171,34 +162,15 @@ impl Default for RulesPageSettings {
     }
 }
 
-impl From<LegacyAppSettings> for AppSettings {
-    fn from(value: LegacyAppSettings) -> Self {
-        let mut settings = AppSettings::default();
-        settings.app.current_page = value
-            .current_page
-            .filter(|page| !page.trim().is_empty())
-            .unwrap_or_else(|| "overview".to_string());
-        settings.app.selected_config_path = value.selected_config;
-        settings.app.selected_config_display = value.selected_config_display;
-        settings.singbox_core.active_channel = value.active_singbox_core_channel;
-        settings.singbox_core.active_version = value.active_singbox_core_version;
-        settings
-    }
+fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
+    let mut settings = serde_json::from_value::<AppSettings>(value)
+        .unwrap_or_default();
+    settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
+    Ok(settings)
 }
 
 fn default_app_settings_schema_version() -> u32 {
     APP_SETTINGS_SCHEMA_VERSION
-}
-
-fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
-    if let Ok(mut settings) = serde_json::from_value::<AppSettings>(value.clone()) {
-        settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
-        return Ok(settings);
-    }
-
-    serde_json::from_value::<LegacyAppSettings>(value)
-        .map(AppSettings::from)
-        .map_err(|error| CommandError::json("failed to parse app_settings.json", error))
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
