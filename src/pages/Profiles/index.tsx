@@ -23,7 +23,7 @@ import { Input } from "../../components/ui/Input";
 import { LinkRegular } from "@fluentui/react-icons";
 
 
-export default function Config() {
+export default function Profiles() {
   const configFiles = useConfigStore((s) => s.configFiles);
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const selectedDisplay = useSettingsStore(

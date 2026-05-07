@@ -6,7 +6,7 @@ export type AppPage =
   | "connections"
   | "logs"
   | "rules"
-  | "config"
+  | "profiles"
   | "custom"
   | "settings";
 
@@ -172,7 +172,7 @@ const APP_PAGES: AppPage[] = [
   "connections",
   "logs",
   "rules",
-  "config",
+  "profiles",
   "custom",
   "settings",
 ];

@@ -11,7 +11,7 @@ export function TitleBar() {
     connections: "Connections",
     logs: "Logs",
     rules: "Rules",
-    config: "Config",
+    profiles: "Profiles",
     custom: "Custom Rules",
     settings: "Settings",
   };

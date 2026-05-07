@@ -14,7 +14,7 @@ import Proxies from "./pages/Proxies";
 import Connections from "./pages/Connections";
 import Logs from "./pages/Logs";
 import Rules from "./pages/Rules";
-import Config from "./pages/Config";
+import Profiles from "./pages/Profiles";
 import Custom from "./pages/Custom";
 import Settings from "./pages/Settings";
 
@@ -43,8 +43,8 @@ function PageContent({ page }: { page: string }) {
       return <Logs />;
     case "rules":
       return <Rules />;
-    case "config":
-      return <Config />;
+    case "profiles":
+      return <Profiles />;
     case "custom":
       return <Custom />;
     case "settings":

@@ -22,7 +22,7 @@ const NAV_ITEMS = [
   { id: "connections" as AppPage, label: "Connections", icon: PlugConnectedRegular },
   { id: "logs" as AppPage, label: "Logs", icon: DocumentTextRegular },
   { id: "rules" as AppPage, label: "Rules", icon: BookNumberRegular },
-  { id: "config" as AppPage, label: "Config", icon: DocumentEditRegular },
+  { id: "profiles" as AppPage, label: "Profiles", icon: DocumentEditRegular },
   { id: "custom" as AppPage, label: "Custom", icon: WrenchRegular },
 ] as const;
 
