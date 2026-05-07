@@ -18,7 +18,7 @@ export const DARK_THEME: Theme = { ...webDarkTheme, ...BASE_OVERRIDES };
 export const LIGHT_THEME: Theme = { ...webLightTheme, ...BASE_OVERRIDES };
 
 export function useTheme(): Theme {
-  const themeMode = useSettingsStore((s) => s.settings.theme_mode);
+  const themeMode = useSettingsStore((s) => s.settings.app.theme_mode);
 
   const [systemIsLight, setSystemIsLight] = useState(
     () => window.matchMedia("(prefers-color-scheme: light)").matches,

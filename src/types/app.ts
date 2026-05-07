@@ -52,6 +52,7 @@ export interface AppSelectionSettings {
   current_page: AppPage;
   selected_config_path: string | null;
   selected_config_display: string | null;
+  theme_mode: ThemeMode;
 }
 
 export interface SingboxCoreSettings {
@@ -62,6 +63,7 @@ export interface SingboxCoreSettings {
 
 export interface ProxyPageSettings {
   collapsed_groups: Record<string, boolean>;
+  test_url: string;
 }
 
 export interface ConnectionPageSettings {
@@ -92,11 +94,9 @@ export interface PageUiSettings {
 
 export interface AppSettings {
   schema_version: number;
-  theme_mode: ThemeMode;
   app: AppSelectionSettings;
   singbox_core: SingboxCoreSettings;
   pages: PageUiSettings;
-  test_url: string;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -125,14 +125,16 @@ export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
   "start",
 ];
 
+export const DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204";
+
 export function createDefaultAppSettings(): AppSettings {
   return {
-    schema_version: 2,
-    theme_mode: "system",
+    schema_version: 3,
     app: {
       current_page: "overview",
       selected_config_path: null,
       selected_config_display: null,
+      theme_mode: "system",
     },
     singbox_core: {
       active_channel: null,
@@ -142,6 +144,7 @@ export function createDefaultAppSettings(): AppSettings {
     pages: {
       proxies: {
         collapsed_groups: {},
+        test_url: DEFAULT_TEST_URL,
       },
       connections: {
         current_tab: "active",
@@ -160,7 +163,6 @@ export function createDefaultAppSettings(): AppSettings {
         current_tab: "rules",
       },
     },
-    test_url: "",
   };
 }
 
@@ -249,19 +251,19 @@ export function normalizeAppSettings(
     schema_version:
       typeof settings.schema_version === "number"
         ? settings.schema_version
-        : 2,
-    theme_mode:
-      settings.theme_mode === "light" ||
-      settings.theme_mode === "dark" ||
-      settings.theme_mode === "system"
-        ? settings.theme_mode
-        : "system",
+        : 3,
     app: {
       current_page: APP_PAGES.includes(settings.app?.current_page)
         ? settings.app.current_page
         : defaults.app.current_page,
       selected_config_path: settings.app?.selected_config_path ?? null,
       selected_config_display: settings.app?.selected_config_display ?? null,
+      theme_mode:
+        settings.app?.theme_mode === "light" ||
+        settings.app?.theme_mode === "dark" ||
+        settings.app?.theme_mode === "system"
+          ? settings.app.theme_mode
+          : "system",
     },
     singbox_core: {
       active_channel:
@@ -278,6 +280,11 @@ export function normalizeAppSettings(
         collapsed_groups: normalizeBooleanRecord(
           settings.pages?.proxies?.collapsed_groups,
         ),
+        test_url:
+          typeof settings.pages?.proxies?.test_url === "string" &&
+          settings.pages.proxies.test_url.trim() !== ""
+            ? settings.pages.proxies.test_url
+            : DEFAULT_TEST_URL,
       },
       connections: {
         current_tab: CONNECTION_TABS.includes(
@@ -322,7 +329,6 @@ export function normalizeAppSettings(
           : defaults.pages.rules.current_tab,
       },
     },
-    test_url: typeof settings.test_url === "string" ? settings.test_url : "",
   };
 }
 

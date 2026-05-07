@@ -50,7 +50,7 @@ export function usePriorityConfig() {
   const [clashApiController, setClashApiController] = useState("");
   const [clashApiSecret, setClashApiSecret] = useState("");
 
-  const testUrl = useSettingsStore((s) => s.settings.test_url);
+  const testUrl = useSettingsStore((s) => s.settings.pages.proxies.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
 
   const selectedConfigPath = useSettingsStore(

@@ -40,15 +40,15 @@ fn get_api_config() -> ApiConfig {
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
     let test_url = app_settings
+        .pages
+        .proxies
         .test_url
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_TEST_URL);
+        .as_str();
 
     ApiConfig {
         base_url: format!("http://{}", controller),
         secret: secret.to_string(),
-        test_url: test_url.to_string(),
+        test_url: if test_url.is_empty() { DEFAULT_TEST_URL.to_string() } else { test_url.to_string() },
     }
 }
 

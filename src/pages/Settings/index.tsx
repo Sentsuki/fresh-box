@@ -24,11 +24,11 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const testUrl = useSettingsStore((s) => s.settings.test_url);
+  const testUrl = useSettingsStore((s) => s.settings.pages.proxies.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
   const [testUrlInput, setTestUrlInput] = useState(testUrl);
 
-  const currentThemeMode = settings.theme_mode;
+  const currentThemeMode = settings.app.theme_mode;
 
   // Process Management
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);

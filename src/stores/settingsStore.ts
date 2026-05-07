@@ -174,13 +174,13 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
-        s.theme_mode = mode;
+        s.app.theme_mode = mode;
       });
     },
 
     setTestUrl: async (url) => {
       await get().updateSettings((s) => {
-        s.test_url = url;
+        s.pages.proxies.test_url = url;
       });
     },
   }),

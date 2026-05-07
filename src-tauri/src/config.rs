@@ -10,7 +10,8 @@ use std::process::Command;
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const FILE_ORDER_KEY: &str = "_file_order";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
-const APP_SETTINGS_SCHEMA_VERSION: u32 = 2;
+const APP_SETTINGS_SCHEMA_VERSION: u32 = 3;
+const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 pub const CORE_CHANNEL_STABLE: &str = "stable";
 pub const CORE_CHANNEL_TESTING: &str = "testing";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
@@ -25,8 +26,6 @@ pub struct AppSettings {
     pub singbox_core: SingboxCoreSettings,
     #[serde(default)]
     pub pages: PageSettings,
-    #[serde(default)]
-    pub test_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -35,6 +34,7 @@ pub struct AppSelectionSettings {
     pub current_page: String,
     pub selected_config_path: Option<String>,
     pub selected_config_display: Option<String>,
+    pub theme_mode: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -58,11 +58,22 @@ pub struct PageSettings {
     pub rules: RulesPageSettings,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct ProxyPageSettings {
     #[serde(default)]
     pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+    #[serde(default = "default_test_url")]
+    pub test_url: String,
+}
+
+impl Default for ProxyPageSettings {
+    fn default() -> Self {
+        Self {
+            collapsed_groups: std::collections::BTreeMap::new(),
+            test_url: DEFAULT_TEST_URL.to_string(),
+        }
+    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -98,7 +109,6 @@ impl Default for AppSettings {
             app: AppSelectionSettings::default(),
             singbox_core: SingboxCoreSettings::default(),
             pages: PageSettings::default(),
-            test_url: None,
         }
     }
 }
@@ -109,6 +119,7 @@ impl Default for AppSelectionSettings {
             current_page: "overview".to_string(),
             selected_config_path: None,
             selected_config_display: None,
+            theme_mode: "system".to_string(),
         }
     }
 }
@@ -174,6 +185,10 @@ fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
 
 fn default_app_settings_schema_version() -> u32 {
     APP_SETTINGS_SCHEMA_VERSION
+}
+
+fn default_test_url() -> String {
+    DEFAULT_TEST_URL.to_string()
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
