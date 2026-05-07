@@ -1,24 +1,24 @@
-import { useEffect, useState } from "react";
 import {
   AddRegular,
-  DeleteRegular,
-  EditRegular,
-  CloudArrowDownRegular,
-  DocumentRegular,
   ArrowClockwiseRegular,
   CheckmarkRegular,
-  OpenRegular,
+  CloudArrowDownRegular,
+  DeleteRegular,
   DismissRegular,
-  SaveRegular,
+  DocumentRegular,
+  EditRegular,
+  OpenRegular,
   PlayCircleRegular,
+  SaveRegular,
 } from "@fluentui/react-icons";
+import { useEffect, useState } from "react";
+import { Button } from "../../components/ui/Button";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { SettingGroup } from "../../components/ui/SettingCard";
+import { useConfigs } from "../../hooks/useConfigs";
+import { formatLastUpdated } from "../../services/utils";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { useConfigs } from "../../hooks/useConfigs";
-import { Button } from "../../components/ui/Button";
-import { SettingGroup } from "../../components/ui/SettingCard";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { formatLastUpdated } from "../../services/utils";
 import type { SubscriptionInfo } from "../../types/app";
 
 export default function Config() {
@@ -49,8 +49,8 @@ export default function Config() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
-      <PageHeader 
-        title="Profiles" 
+      <PageHeader
+        title="Profiles"
         description="Manage local sing-box configurations and remote subscriptions."
       >
         <Button
@@ -213,7 +213,7 @@ function LocalFileCard({
   }
 
   return (
-    <div 
+    <div
       className={[
         "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
@@ -222,7 +222,7 @@ function LocalFileCard({
       ].join(" ")}
     >
       <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-lg flex-shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+        <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
           <DocumentRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
@@ -232,7 +232,7 @@ function LocalFileCard({
           <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5" title={path}>{path}</p>
         </div>
       </div>
-      
+
       <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
         <Button
           size="sm"
@@ -333,7 +333,7 @@ function SubscriptionCard({
   }
 
   return (
-    <div 
+    <div
       className={[
         "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
@@ -342,7 +342,7 @@ function SubscriptionCard({
       ].join(" ")}
     >
       <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-lg flex-shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+        <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
           <CloudArrowDownRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
@@ -359,7 +359,7 @@ function SubscriptionCard({
           )}
         </div>
       </div>
-      
+
       <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
         <Button
           size="sm"

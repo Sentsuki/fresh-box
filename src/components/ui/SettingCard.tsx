@@ -38,7 +38,7 @@ export function SettingCard({
       ].join(" ")}
     >
       {icon && (
-        <div className="flex-shrink-0 text-xl text-(--wb-text-secondary) flex items-center justify-center w-8 h-8">
+        <div className="shrink-0 text-xl text-(--wb-text-secondary) flex items-center justify-center w-8 h-8">
           {icon}
         </div>
       )}
@@ -53,7 +53,7 @@ export function SettingCard({
         )}
       </div>
       {control && (
-        <div className="flex-shrink-0 ml-4" onClick={isClickable ? (e) => e.stopPropagation() : undefined}>
+        <div className="shrink-0 ml-4" onClick={isClickable ? (e) => e.stopPropagation() : undefined}>
           {control}
         </div>
       )}

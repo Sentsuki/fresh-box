@@ -1,15 +1,15 @@
-import { useEffect, useCallback, memo } from "react";
 import {
   ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
-import { useClashStore } from "../../stores/clashStore";
-import { useClash } from "../../hooks/useClash";
-import { useSettingsStore } from "../../stores/settingsStore";
+import { memo, useCallback, useEffect } from "react";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
+import { useClash } from "../../hooks/useClash";
+import { useClashStore } from "../../stores/clashStore";
+import { useSettingsStore } from "../../stores/settingsStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
@@ -41,11 +41,11 @@ function NodeName({ name, className = "" }: { name: string, className?: string }
     const emoji = match[0];
     const code = [...emoji].map(c => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1F1E6 + 97)).join('');
     parts.push(
-      <img 
-        key={`i-${match.index}`} 
-        src={`https://flagcdn.com/24x18/${code}.png`} 
+      <img
+        key={`i-${match.index}`}
+        src={`https://flagcdn.com/24x18/${code}.png`}
         alt={emoji}
-        className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-[1px]"
+        className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-px"
       />
     );
     lastIndex = regex.lastIndex;
@@ -80,8 +80,8 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex w-full justify-between items-start gap-2">
-        <NodeName 
-          name={node.name} 
+        <NodeName
+          name={node.name}
           className="text-sm font-semibold leading-tight text-(--wb-text-primary)"
         />
       </div>
@@ -95,9 +95,8 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
             onTest();
           }}
           title="Test latency"
-          className={`text-xs font-medium tabular-nums rounded px-2 py-0.5 transition-colors border border-transparent ${
-            delayColor(node.delay)
-          } hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)`}
+          className={`text-xs font-medium tabular-nums rounded px-2 py-0.5 transition-colors border border-transparent ${delayColor(node.delay)
+            } hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)`}
         >
           {node.delay ? `${node.delay}ms` : "--"}
         </button>
@@ -120,16 +119,16 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
         <span className="text-base font-semibold text-(--wb-text-primary) truncate">
           {group.name}
         </span>
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) flex-shrink-0 border border-(--wb-border-subtle)">
+        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) shrink-0 border border-(--wb-border-subtle)">
           {group.kind}
         </span>
-        <span className="text-xs text-(--wb-text-disabled) flex-shrink-0">
+        <span className="text-xs text-(--wb-text-disabled) shrink-0">
           {group.options.length} nodes
         </span>
       </div>
       {group.current && (
         <div className="text-sm font-medium text-(--wb-accent) truncate mt-1 flex items-center gap-1">
-          <span className="text-(--wb-text-tertiary) font-normal">Active:</span> 
+          <span className="text-(--wb-text-tertiary) font-normal">Active:</span>
           <NodeName name={group.current} />
         </div>
       )}
@@ -157,10 +156,10 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
             <GroupTrigger group={group} />
           </span>
           <ChevronDownRegular
-            className={`ml-4 flex-shrink-0 text-xl text-(--wb-text-secondary) transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+            className={`ml-4 shrink-0 text-xl text-(--wb-text-secondary) transition-transform duration-300 ${open ? "rotate-180" : ""}`}
           />
         </button>
-        <div className="flex-shrink-0 px-4 bg-transparent border-l border-(--wb-border-subtle) h-full flex items-center">
+        <div className="shrink-0 px-4 bg-transparent border-l border-(--wb-border-subtle) h-full flex items-center">
           <Button
             variant="subtle"
             icon={<TimerRegular />}
@@ -240,8 +239,8 @@ export default function Proxies() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
-      <PageHeader 
-        title="Routing" 
+      <PageHeader
+        title="Routing"
         description={`${groups.length} proxy groups available. Select your preferred outbound routes.`}
       >
         <div className="flex items-center gap-3">

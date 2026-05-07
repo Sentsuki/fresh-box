@@ -1,15 +1,15 @@
-import { useEffect, useCallback } from "react";
 import {
-  PlayRegular,
-  PauseRegular,
-  DismissRegular,
   ArrowDownloadRegular,
+  DismissRegular,
+  PauseRegular,
+  PlayRegular,
   SearchRegular,
 } from "@fluentui/react-icons";
-import { useLogsStream } from "../../hooks/useLogsStream";
+import { useCallback, useEffect } from "react";
 import { Button } from "../../components/ui/Button";
-import { VirtualList } from "../../components/ui/VirtualList";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { VirtualList } from "../../components/ui/VirtualList";
+import { useLogsStream } from "../../hooks/useLogsStream";
 import type { LogEntry } from "../../types/app";
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -56,11 +56,11 @@ export default function Logs() {
         ].join(" ")}
         style={{ height: 28, lineHeight: "20px" }}
       >
-        <span className="flex-shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
+        <span className="shrink-0-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
           {entry.type.toUpperCase().slice(0, 5)}
         </span>
         {entry.time && (
-          <span className="flex-shrink-0 text-(--wb-text-tertiary) w-20">
+          <span className="shrink-0 text-(--wb-text-tertiary) w-20">
             {entry.time}
           </span>
         )}
@@ -74,9 +74,9 @@ export default function Logs() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 pr-2">
-        <PageHeader 
-          title="Logs" 
+      <div className="shrink-0 pr-2">
+        <PageHeader
+          title="Logs"
           description="Real-time core diagnostic output and connection events."
         >
           <div className="flex items-center gap-2">
@@ -99,7 +99,7 @@ export default function Logs() {
 
       <div className="flex flex-col gap-4 h-full min-h-0 pr-2 pb-10">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) shadow-sm w-64">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) w-64">
             <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
             <input
               value={search}
@@ -118,7 +118,7 @@ export default function Logs() {
                   restartStream();
                 });
               }}
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) shadow-sm"
+              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               title="Stream log level"
             >
               {logLevels.map((l) => (
@@ -129,7 +129,7 @@ export default function Logs() {
 
           <div className="flex-1" />
 
-          <div className="flex gap-1.5 bg-(--wb-surface-layer) p-1 rounded-(--wb-radius-md) border border-(--wb-border-subtle) shadow-sm">
+          <div className="flex gap-1.5 bg-(--wb-surface-layer) p-1 rounded-(--wb-radius-md) border border-(--wb-border-subtle) winui-segmented-control">
             {LOG_LEVELS.map((level) => (
               <button
                 key={level}
@@ -157,6 +157,7 @@ export default function Logs() {
               items={visibleLogs}
               itemHeight={28}
               renderItem={renderLogEntry}
+              getItemKey={(item) => item.seq}
               className="h-full w-full custom-scrollbar"
             />
           )}

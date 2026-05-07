@@ -1,13 +1,13 @@
+import { ArrowClockwiseRegular, DismissRegular, SearchRegular } from "@fluentui/react-icons";
 import { useEffect, useMemo } from "react";
-import { ArrowClockwiseRegular, SearchRegular, DismissRegular } from "@fluentui/react-icons";
-import { Tabs, TabContent } from "../../components/ui/Tabs";
-import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
-import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
+import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { TabContent, Tabs } from "../../components/ui/Tabs";
+import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
 import { useRulesPage } from "../../hooks/useRules";
-import type { RuleEntry } from "../../types/app";
 import { formatLastUpdated } from "../../services/utils";
+import type { RuleEntry } from "../../types/app";
 
 export default function Rules() {
   const {
@@ -49,8 +49,8 @@ export default function Rules() {
               row.proxy === "REJECT"
                 ? "error"
                 : row.proxy === "DIRECT"
-                ? "success"
-                : "accent"
+                  ? "success"
+                  : "accent"
             }
           >
             {row.proxy}
@@ -63,13 +63,13 @@ export default function Rules() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 pr-2">
-        <PageHeader 
-          title="Rules" 
+      <div className="shrink-0 pr-2">
+        <PageHeader
+          title="Rules"
           description="View active routing rules and manage external rule providers."
         >
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) shadow-sm min-w-64">
+            <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-64">
               <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
               <input
                 value={search}
@@ -102,29 +102,30 @@ export default function Rules() {
             { value: "rules", label: `Rules (${visibleRules.length})` },
             { value: "providers", label: `Providers (${visibleProviders.length})` },
           ]}
-          onChange={setCurrentTab}
+          onValueChange={(v) => setCurrentTab(v as any)}
           className="flex-1"
         >
           <TabContent value="rules" className="h-full mt-4">
-            <div className="h-full rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden">
+            <div className="h-full rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden">
               <VirtualTable
-                data={visibleRules}
+                rows={visibleRules}
                 columns={tableColumns}
-                itemHeight={40}
+                rowHeight={40}
+                getRowKey={(row) => row.payload + row.type + row.proxy}
               />
             </div>
           </TabContent>
           <TabContent value="providers" className="h-full overflow-y-auto mt-4">
             <div className="flex flex-col gap-4 pb-4">
               {visibleProviders.length === 0 ? (
-                <div className="flex items-center justify-center h-48 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
+                <div className="flex items-center justify-center h-48 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl">
                   No rule providers configured.
                 </div>
               ) : (
                 visibleProviders.map((p) => (
                   <div
                     key={p.name}
-                    className="flex flex-col p-5 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
+                    className="flex flex-col p-5 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer)"
                   >
                     <div className="flex items-start justify-between gap-4">
                       <div>

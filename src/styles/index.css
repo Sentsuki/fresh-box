@@ -61,3 +61,12 @@ body {
 [class*="fui-Toast"] {
   box-shadow: none !important;
 }
+
+/* Global Segmented Control (Tab Switcher) styles */
+.winui-segmented-control {
+  box-shadow: none !important;
+}
+
+.winui-segmented-control button {
+  box-shadow: none !important;
+}

@@ -8,7 +8,7 @@ import {
 
 export interface ColumnDef<T> {
   key: string;
-  label: string;
+  label: React.ReactNode;
   width?: number;
   align?: "start" | "end" | "center";
   sortable?: boolean;

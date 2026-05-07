@@ -174,7 +174,7 @@ export default function Connections() {
       <div className="flex flex-col gap-4 h-full min-h-0 pr-2 pb-10">
         <div className="flex items-center gap-3 flex-wrap">
           {/* Tab switcher */}
-          <div className="flex rounded-(--wb-radius-md) border border-(--wb-border-subtle) overflow-hidden shadow-sm p-0.5 bg-(--wb-surface-layer)">
+          <div className="flex rounded-(--wb-radius-md) border border-(--wb-border-subtle) overflow-hidden winui-segmented-control p-0.5 bg-(--wb-surface-layer)">
             {(["active", "closed"] as const).map((tab) => (
               <button
                 key={tab}
@@ -193,7 +193,7 @@ export default function Connections() {
 
           {/* Grouped-by chip */}
           {groupedColumn && (
-            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-(--wb-accent)/10 text-(--wb-accent) border border-(--wb-accent)/20 shadow-sm">
+            <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-(--wb-accent)/10 text-(--wb-accent) border border-(--wb-accent)/20">
               <span>Grouped: {groupedColumn.label}</span>
               <button
                 onClick={clearGrouping}
@@ -208,7 +208,7 @@ export default function Connections() {
           <div className="flex-1" />
 
           {/* Search */}
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48 shadow-sm">
+          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
             <SearchRegular className="text-(--wb-text-tertiary)" />
             <input
               value={search}
