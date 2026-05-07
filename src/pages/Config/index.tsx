@@ -1,14 +1,12 @@
 import {
   AddRegular,
   ArrowClockwiseRegular,
-  CheckmarkRegular,
   CloudArrowDownRegular,
   DeleteRegular,
   DismissRegular,
   DocumentRegular,
   EditRegular,
   OpenRegular,
-  PlayCircleRegular,
   SaveRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
@@ -309,12 +307,16 @@ function LocalFileCard({
   return (
     <div
       className={[
-        "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
+        "relative overflow-hidden flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
-          ? "border-(--wb-accent) bg-(--wb-surface-selected)"
-          : "border-(--wb-border-subtle) bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)"
+          ? "bg-(--wb-surface-selected) border-(--wb-accent) cursor-default"
+          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer"
       ].join(" ")}
+      onClick={selected ? undefined : onSelect}
     >
+      {selected && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+      )}
       <div className="flex items-start gap-3 mb-4">
         <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
           <DocumentRegular className="text-xl" />
@@ -327,16 +329,7 @@ function LocalFileCard({
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
-        <Button
-          size="sm"
-          variant={selected ? "subtle" : "accent"}
-          icon={selected ? <CheckmarkRegular /> : <PlayCircleRegular />}
-          onClick={selected ? undefined : onSelect}
-          disabled={selected}
-        >
-          {selected ? "Active" : "Activate"}
-        </Button>
+      <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />
           <Button size="sm" variant="ghost" icon={<EditRegular />} onClick={startEdit} title="Rename" />
@@ -425,12 +418,16 @@ function SubscriptionCard({
   return (
     <div
       className={[
-        "flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
+        "relative overflow-hidden flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
-          ? "border-(--wb-accent) bg-(--wb-surface-selected)"
-          : "border-(--wb-border-subtle) bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)"
+          ? "bg-(--wb-surface-selected) border-(--wb-accent) cursor-default"
+          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer"
       ].join(" ")}
+      onClick={selected ? undefined : onSelect}
     >
+      {selected && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+      )}
       <div className="flex items-start gap-3 mb-4">
         <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
           <CloudArrowDownRegular className="text-xl" />
@@ -450,16 +447,7 @@ function SubscriptionCard({
         </div>
       </div>
 
-      <div className="mt-auto flex items-center justify-between pt-3 border-t border-(--wb-border-subtle)">
-        <Button
-          size="sm"
-          variant={selected ? "subtle" : "accent"}
-          icon={selected ? <CheckmarkRegular /> : <PlayCircleRegular />}
-          onClick={selected ? undefined : onSelect}
-          disabled={selected}
-        >
-          {selected ? "Active" : "Activate"}
-        </Button>
+      <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
         <div className="flex gap-1">
           <Button size="sm" variant="ghost" icon={<ArrowClockwiseRegular />} onClick={(e) => { e.stopPropagation(); onUpdate(); }} title="Update" />
           <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />

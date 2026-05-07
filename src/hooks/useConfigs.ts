@@ -28,17 +28,31 @@ function buildConfigEntries(files: string[]): ConfigFileEntry[] {
 
 async function syncConfigFiles(preferredDisplayName?: string | null) {
   const files = await listConfigs();
-  const configFiles = buildConfigEntries(files);
+  const newPathsSet = new Set(files);
+
+  // Maintain stable insertion order: keep existing files in place, append new ones at end
+  const currentFiles = useConfigStore.getState().configFiles;
+  const existingPaths = new Set(currentFiles.map((f) => f.path));
+  const orderedFiles = currentFiles.filter((f) => newPathsSet.has(f.path));
+  const newEntries = files
+    .filter((p) => !existingPaths.has(p))
+    .map((path) => ({ path, displayName: getCleanFileName(path) }));
+  const configFiles = [...orderedFiles, ...newEntries];
+
   useConfigStore.getState().setConfigFiles(configFiles);
 
   const settings = useSettingsStore.getState();
+  const currentPath = settings.settings.app.selected_config_path;
+
+  // Keep current selection if it still exists in the new list
+  if (currentPath && configFiles.find((c) => c.path === currentPath)) {
+    return;
+  }
+
+  // Current selection is gone (deleted/renamed); fall back to preferredDisplayName or first file
   const target =
     (preferredDisplayName &&
       configFiles.find((c) => c.displayName === preferredDisplayName)) ||
-    (settings.settings.app.selected_config_path &&
-      configFiles.find(
-        (c) => c.path === settings.settings.app.selected_config_path,
-      )) ||
     configFiles[0] ||
     null;
 
