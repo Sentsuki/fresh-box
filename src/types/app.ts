@@ -367,11 +367,27 @@ export interface SingboxCoreStatus {
   latest_version: string | null;
   update_available: boolean;
   is_running: boolean;
-  options: SingboxCoreOption[];
+  available_options: SingboxCoreOption[];
 }
 
 export interface SingboxCoreUpdateResult {
   success: boolean;
+  message: string;
+  current_version: string;
+  restart_required: boolean;
+}
+
+export type CoreUpdateStage =
+  | "preparing"
+  | "downloading"
+  | "extracting"
+  | "installing"
+  | "complete"
+  | "error";
+
+export interface CoreUpdateProgressEvent {
+  stage: CoreUpdateStage;
+  percent: number;
   message: string;
 }
 
@@ -391,6 +407,7 @@ export interface ClashProxyGroup {
 
 export interface ClashOverview {
   current_mode: string;
+  available_modes?: string[];
   proxy_groups: ClashProxyGroup[];
   traffic?: {
     upload: number;

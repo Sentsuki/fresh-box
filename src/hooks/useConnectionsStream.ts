@@ -150,12 +150,14 @@ interface ConnectionsState {
   downloadTotal: number;
   uploadTotal: number;
   streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  isPaused: boolean;
 }
 
 interface ConnectionsActions {
   setFrame: (frame: CoreConnectionsFrame) => void;
   addClosed: (entries: ConnectionEntry[]) => void;
   setStreamStatus: (s: ConnectionsState["streamStatus"]) => void;
+  setIsPaused: (paused: boolean) => void;
   clear: () => void;
 }
 
@@ -168,8 +170,10 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
     downloadTotal: 0,
     uploadTotal: 0,
     streamStatus: "disconnected",
+    isPaused: false,
 
     setFrame: (frame) => {
+      if (get().isPaused) return;
       const prevActive = get().active;
       const prevMap = new Map(prevActive.map((c) => [c.id, c]));
 
@@ -204,6 +208,8 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
 
     setStreamStatus: (streamStatus) => set({ streamStatus }),
 
+    setIsPaused: (isPaused) => set({ isPaused }),
+
     clear: () =>
       set({
         active: [],
@@ -211,6 +217,7 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
         downloadTotal: 0,
         uploadTotal: 0,
         streamStatus: "disconnected",
+        isPaused: false,
       }),
   }),
 );
@@ -324,6 +331,7 @@ export function useConnectionsStream() {
   const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
   const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
   const streamStatus = useConnectionsStore((s) => s.streamStatus);
+  const isPaused = useConnectionsStore((s) => s.isPaused);
 
   const settings = useSettingsStore((s) => s.settings.pages.connections);
 
@@ -363,6 +371,10 @@ export function useConnectionsStream() {
     }
   }, []);
 
+  const togglePause = useCallback(() => {
+    useConnectionsStore.getState().setIsPaused(!isPaused);
+  }, [isPaused]);
+
   const closeAll = useCallback(async () => {
     try {
       await coreRequest("connections", { method: "DELETE" });
@@ -379,10 +391,12 @@ export function useConnectionsStream() {
     downloadTotal,
     uploadTotal,
     streamStatus,
+    isPaused,
     visibleColumns,
     allColumns,
     startStream,
     stopStream,
+    togglePause,
     closeAll,
   };
 }

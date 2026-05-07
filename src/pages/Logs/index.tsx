@@ -29,13 +29,17 @@ export default function Logs() {
     isPaused,
     search,
     typeFilter,
+    logLevel,
+    logLevels,
     setSearch,
     setTypeFilter,
     setIsPaused,
+    setLogLevel,
     clearLogs,
     downloadLogs,
     startStream,
     stopStream,
+    restartStream,
   } = useLogsStream();
 
   useEffect(() => {
@@ -65,6 +69,22 @@ export default function Logs() {
           <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Logs</h1>
         </div>
         <div className="flex-1" />
+
+        {/* Log level (stream level) */}
+        <select
+          value={logLevel}
+          onChange={(e) => {
+            void setLogLevel(e.target.value as typeof logLevel).then(() => {
+              restartStream();
+            });
+          }}
+          className="px-2 py-1 text-xs rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+          title="Stream log level"
+        >
+          {logLevels.map((l) => (
+            <option key={l} value={l}>{l}</option>
+          ))}
+        </select>
 
         {/* Level/type filter buttons */}
         <div className="flex gap-1">

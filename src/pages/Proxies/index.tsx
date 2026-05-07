@@ -167,7 +167,10 @@ function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardPr
 export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);
   const overview = useClashStore((s) => s.overview);
-  const { refreshOverview, switchProxy, testDelay, testGroupDelay } = useClash();
+  const { refreshOverview, switchProxy, testDelay, testGroupDelay, changeMode } = useClash();
+
+  const availableModes = overview?.available_modes ?? [];
+  const currentMode = overview?.current_mode ?? "";
 
   useEffect(() => {
     void refreshOverview();
@@ -213,13 +216,28 @@ export default function Proxies() {
             {groups.length} groups · {overview.current_mode}
           </p>
         </div>
-        <Button
-          icon={<ArrowClockwiseRegular />}
-          variant="subtle"
-          onClick={() => void refreshOverview()}
-        >
-          Refresh
-        </Button>
+        <div className="flex items-center gap-2">
+          {availableModes.length > 0 && (
+            <select
+              value={currentMode}
+              onChange={(e) => void changeMode(e.target.value)}
+              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)] capitalize"
+            >
+              {availableModes.map((m) => (
+                <option key={m} value={m}>
+                  {m.charAt(0).toUpperCase() + m.slice(1)}
+                </option>
+              ))}
+            </select>
+          )}
+          <Button
+            icon={<ArrowClockwiseRegular />}
+            variant="subtle"
+            onClick={() => void refreshOverview()}
+          >
+            Refresh
+          </Button>
+        </div>
       </div>
 
       {groups.length === 0 ? (
