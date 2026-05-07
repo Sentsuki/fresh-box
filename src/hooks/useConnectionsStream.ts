@@ -157,6 +157,8 @@ interface ConnectionsState {
   closed: ConnectionEntry[];
   downloadTotal: number;
   uploadTotal: number;
+  totalDownloadSpeed: number;
+  totalUploadSpeed: number;
   streamStatus: "disconnected" | "connecting" | "connected" | "error";
   isPaused: boolean;
 }
@@ -177,6 +179,8 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
     closed: [],
     downloadTotal: 0,
     uploadTotal: 0,
+    totalDownloadSpeed: 0,
+    totalUploadSpeed: 0,
     streamStatus: "disconnected",
     isPaused: false,
 
@@ -194,6 +198,9 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
         };
       });
 
+      const totalDownloadSpeed = newActive.reduce((sum, c) => sum + c.downloadSpeed, 0);
+      const totalUploadSpeed = newActive.reduce((sum, c) => sum + c.uploadSpeed, 0);
+
       const newIds = new Set(frame.connections.map((c) => c.id));
       const disappeared = prevActive.filter((c) => !newIds.has(c.id));
 
@@ -201,6 +208,8 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
         active: newActive,
         downloadTotal: frame.downloadTotal,
         uploadTotal: frame.uploadTotal,
+        totalDownloadSpeed,
+        totalUploadSpeed,
         closed:
           disappeared.length > 0
             ? [...disappeared, ...state.closed].slice(0, MAX_CLOSED)
@@ -224,6 +233,8 @@ export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>
         closed: [],
         downloadTotal: 0,
         uploadTotal: 0,
+        totalDownloadSpeed: 0,
+        totalUploadSpeed: 0,
         streamStatus: "disconnected",
         isPaused: false,
       }),

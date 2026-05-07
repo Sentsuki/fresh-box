@@ -1,4 +1,4 @@
-import { useEffect, useCallback } from "react";
+import { useEffect, useCallback, memo } from "react";
 import {
   ArrowClockwiseRegular,
   TimerRegular,
@@ -36,7 +36,7 @@ interface NodeCardProps {
   onTest: () => void;
 }
 
-function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
+const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
   return (
     <button
       onClick={onSelect}
@@ -81,7 +81,7 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
       </div>
     </button>
   );
-}
+});
 
 interface GroupCardProps {
   group: ClashProxyGroup;
@@ -113,7 +113,7 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   );
 }
 
-function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
+const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
   return (
     <AccordionItem
       value={group.name}
@@ -147,7 +147,7 @@ function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardPr
       </div>
     </AccordionItem>
   );
-}
+});
 
 export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);

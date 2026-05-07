@@ -43,9 +43,14 @@ export class ErrorBoundary extends Component<Props, State> {
               {this.state.error?.message ?? "An unexpected error occurred"}
             </p>
           </div>
-          <Button variant="accent" onClick={() => this.reset()}>
-            Retry
-          </Button>
+          <div className="flex gap-2">
+            <Button variant="accent" onClick={() => this.reset()}>
+              Retry
+            </Button>
+            <Button variant="subtle" onClick={() => window.location.reload()}>
+              Reload Page
+            </Button>
+          </div>
         </div>
       );
     }
