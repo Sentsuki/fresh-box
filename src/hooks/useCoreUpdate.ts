@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateSingboxCore,
+  cancelCoreUpdate,
   getSingboxCoreStatus,
   updateSingboxCore,
 } from "../services/api";
@@ -69,12 +70,11 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     [isRefreshing, selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
   );
 
-  const applySelectedCore = useCallback(async () => {
+  const applySelectedCore = useCallback(async (keyOverride?: string) => {
     if (!coreStatus || isUpdating) return;
     const options = coreStatus.available_options ?? [];
-    const selectedOption = options.find(
-      (o) => toOptionKey(o) === selectedCoreOptionKey,
-    );
+    const key = keyOverride ?? selectedCoreOptionKey;
+    const selectedOption = options.find((o) => toOptionKey(o) === key);
     if (!selectedOption) return;
 
     setIsUpdating(true);
@@ -85,25 +85,12 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       message: "Preparing the sing-box core action...",
     });
     try {
-      if (selectedOption.installed) {
-        await activateSingboxCore(
-          selectedOption.channel,
-          selectedOption.version,
-        );
-        if (!selectedOption.is_active) {
-          success(`Switched to ${selectedOption.label}`);
-        } else {
-          const result: SingboxCoreUpdateResult = await updateSingboxCore(
-            selectedOption.channel,
-            selectedOption.version,
-          );
-          success(
-            result.restart_required
-              ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
-              : `Core updated to ${result.current_version}`,
-          );
-        }
+      if (selectedOption.installed && !selectedOption.is_active) {
+        // Already installed — just activate (no download needed).
+        await activateSingboxCore(selectedOption.channel, selectedOption.version);
+        success(`Switched to ${selectedOption.label}`);
       } else {
+        // Download + install (new version, or reinstall of active version).
         const result: SingboxCoreUpdateResult = await updateSingboxCore(
           selectedOption.channel,
           selectedOption.version,
@@ -114,11 +101,16 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             : `Core updated to ${result.current_version}`,
         );
       }
+      // Re-read backend state — it is the single source of truth for active_channel/active_version.
       await refreshCoreStatus();
     } catch (err) {
       const msg = getErrorMessage(err);
-      setCoreStatusError(msg);
-      toastError(msg);
+      if (msg.toLowerCase().includes("cancelled") || msg.toLowerCase().includes("cancel")) {
+        setCoreStatusError("");
+      } else {
+        setCoreStatusError(msg);
+        toastError(msg);
+      }
     } finally {
       setIsUpdating(false);
       setCoreUpdateProgress(null);
@@ -131,6 +123,15 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     toastError,
     refreshCoreStatus,
   ]);
+
+  const cancelUpdate = useCallback(async () => {
+    if (!isUpdating) return;
+    try {
+      await cancelCoreUpdate();
+    } catch {
+      // Best-effort cancellation; ignore errors.
+    }
+  }, [isUpdating]);
 
   useEffect(() => {
     if (autoRefreshOnMount && !hasAutoRefreshed.current) {
@@ -212,5 +213,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     updateCoreButtonLabel,
     refreshCoreStatus,
     applySelectedCore,
+    cancelUpdate,
   };
 }

@@ -565,7 +565,16 @@ pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
 }
 
 #[tauri::command]
-pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
+pub async fn save_app_settings(mut settings: AppSettings) -> Result<(), CommandError> {
+    // active_channel and active_version are backend-owned fields written exclusively by
+    // activate_singbox_core / update_singbox_core.  Preserve whatever is currently on disk
+    // so that a stale frontend snapshot can never overwrite them.
+    if let Ok(current) = load_app_settings_file() {
+        settings.settings.singbox_core.active_channel =
+            current.settings.singbox_core.active_channel;
+        settings.settings.singbox_core.active_version =
+            current.settings.singbox_core.active_version;
+    }
     save_app_settings_file(&settings)
 }
 

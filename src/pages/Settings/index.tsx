@@ -59,11 +59,13 @@ export default function Settings() {
     coreUpdateProgress,
     selectedCoreOptionKey,
     setSelectedCoreOptionKey,
+    selectedOption,
     currentCoreLabel,
     coreStatusText,
     updateCoreButtonLabel,
     refreshCoreStatus,
     applySelectedCore,
+    cancelUpdate,
   } = useCoreUpdate(true);
   const availableOptions = coreStatus?.available_options ?? [];
 
@@ -171,10 +173,18 @@ export default function Settings() {
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                     <select
                       value={selectedCoreOptionKey}
-                      onChange={(e) =>
-                        void setSelectedCoreOptionKey(e.target.value)
-                      }
-                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+                      disabled={isUpdatingCore}
+                      onChange={(e) => {
+                        const newKey = e.target.value;
+                        void setSelectedCoreOptionKey(newKey);
+                        const opt = availableOptions.find(
+                          (o) => `${o.channel}:${o.version}` === newKey,
+                        );
+                        if (opt && !(opt.installed && opt.is_active)) {
+                          void applySelectedCore(newKey);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                     >
                       {availableOptions.map((opt) => (
                         <option
@@ -186,14 +196,26 @@ export default function Settings() {
                         </option>
                       ))}
                     </select>
-                    <Button
-                      size="sm"
-                      variant="accent"
-                      disabled={isUpdatingCore}
-                      onClick={() => void applySelectedCore()}
-                    >
-                      {updateCoreButtonLabel}
-                    </Button>
+                    {isUpdatingCore && (
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => void cancelUpdate()}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    {!isUpdatingCore &&
+                      selectedOption?.installed &&
+                      selectedOption?.is_active && (
+                        <Button
+                          size="sm"
+                          variant="accent"
+                          onClick={() => void applySelectedCore()}
+                        >
+                          {updateCoreButtonLabel}
+                        </Button>
+                      )}
                   </>
                 )}
               </div>

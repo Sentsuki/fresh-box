@@ -267,3 +267,7 @@ export async function updateSingboxCore(
     version,
   });
 }
+
+export async function cancelCoreUpdate(): Promise<void> {
+  return invokeCommand<void>("cancel_core_update");
+}

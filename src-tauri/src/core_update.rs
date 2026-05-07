@@ -1,7 +1,8 @@
 use crate::config::{
-    get_active_singbox_core_executable, get_active_singbox_core_selection, get_core_channel_dir,
-    get_core_version_dir, get_data_dir, normalize_core_channel, read_json_file,
-    set_active_singbox_core_selection, write_json_file, CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING,
+    get_active_singbox_core_executable, get_active_singbox_core_selection, get_bin_dir,
+    get_core_channel_dir, get_core_version_dir, get_data_dir, normalize_core_channel,
+    read_json_file, set_active_singbox_core_selection, write_json_file, CORE_CHANNEL_STABLE,
+    CORE_CHANNEL_TESTING,
 };
 use crate::errors::CommandError;
 use crate::singbox::SingboxState;
@@ -13,8 +14,40 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
+use std::sync::atomic::{AtomicBool, Ordering};
+use std::sync::Arc;
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
+
+/// Shared cancellation flag for the ongoing core download/install operation.
+#[derive(Clone)]
+pub struct CoreUpdateCancelState(pub Arc<AtomicBool>);
+
+impl CoreUpdateCancelState {
+    pub fn new() -> Self {
+        Self(Arc::new(AtomicBool::new(false)))
+    }
+
+    fn cancel(&self) {
+        self.0.store(true, Ordering::SeqCst);
+    }
+
+    fn reset(&self) {
+        self.0.store(false, Ordering::SeqCst);
+    }
+
+    fn is_cancelled(&self) -> bool {
+        self.0.load(Ordering::SeqCst)
+    }
+}
+
+#[tauri::command]
+pub async fn cancel_core_update(
+    cancel: State<'_, CoreUpdateCancelState>,
+) -> Result<(), CommandError> {
+    cancel.cancel();
+    Ok(())
+}
 
 const GITHUB_RELEASES_API: &str =
     "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=12";
@@ -178,9 +211,11 @@ pub async fn activate_singbox_core(channel: String, version: String) -> Result<(
 pub async fn update_singbox_core(
     app: AppHandle,
     state: State<'_, SingboxState>,
+    cancel: State<'_, CoreUpdateCancelState>,
     channel: String,
     version: String,
 ) -> Result<SingboxCoreUpdateResult, CommandError> {
+    cancel.reset();
     cleanup_staged_core_update_files()?;
     emit_progress(
         &app,
@@ -240,8 +275,14 @@ pub async fn update_singbox_core(
         "Downloading sing-box package...",
         8,
         68,
+        &cancel,
     )
-    .await?;
+    .await
+    .map_err(|err| {
+        // Clean up any partial download on cancellation or error.
+        let _ = cleanup_download_artifacts(&update_paths);
+        err
+    })?;
 
     emit_progress(
         &app,
@@ -307,6 +348,64 @@ pub async fn update_singbox_core(
 
 pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
     cleanup_staged_core_update_files()
+}
+
+/// On first launch (or when no active core is set), scans installed core versions
+/// and automatically selects one so the app can start without internet access.
+pub fn auto_select_installed_core() -> Result<(), CommandError> {
+    // If active selection is already set and the binary is present, nothing to do.
+    if let Ok(Some((channel, version))) = get_active_singbox_core_selection() {
+        if core_version_installed(&channel, &version) {
+            return Ok(());
+        }
+    }
+
+    let bin_dir = get_bin_dir()?;
+
+    // Prefer stable, then testing.
+    for channel in [CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING] {
+        let channel_dir = bin_dir.join(channel);
+        if !channel_dir.exists() {
+            continue;
+        }
+
+        let mut versions: Vec<String> = fs::read_dir(&channel_dir)
+            .map_err(|e| {
+                CommandError::io(
+                    format!("failed to scan {}", channel_dir.display()),
+                    e,
+                )
+            })?
+            .flatten()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".new") {
+                    return None;
+                }
+                if path.join(CORE_EXECUTABLE_NAME).exists() {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Sort descending so the newest version is first.
+        versions.sort_by(|a, b| b.cmp(a));
+
+        if let Some(version) = versions.into_iter().next() {
+            return set_active_singbox_core_selection(
+                Some(channel.to_string()),
+                Some(version),
+            );
+        }
+    }
+
+    Ok(())
 }
 
 fn cleanup_staged_core_update_files() -> Result<(), CommandError> {
@@ -605,6 +704,7 @@ async fn download_file_with_progress(
     message: &str,
     start_percent: u8,
     end_percent: u8,
+    cancel: &CoreUpdateCancelState,
 ) -> Result<(), CommandError> {
     let response = github_client()?
         .get(url)
@@ -643,6 +743,9 @@ async fn download_file_with_progress(
 
     let mut stream = response.bytes_stream();
     while let Some(chunk) = stream.next().await {
+        if cancel.is_cancelled() {
+            return Err(CommandError::Cancelled);
+        }
         let chunk = chunk
             .map_err(|error| map_network_error("The sing-box download was interrupted", error))?;
         file.write_all(&chunk).map_err(|error| {

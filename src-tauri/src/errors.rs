@@ -25,6 +25,8 @@ pub enum CommandError {
     IoError(String),
     #[error("{0}")]
     JsonError(String),
+    #[error("Download cancelled")]
+    Cancelled,
 }
 
 impl CommandError {

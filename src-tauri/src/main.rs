@@ -12,7 +12,7 @@ mod singbox;
 mod tray;
 mod window_utils;
 
-use core_update::cleanup_staged_core_update_files_directly;
+use core_update::{auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState};
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
 use tauri::{Manager, Window};
@@ -30,12 +30,14 @@ fn main() {
     logger::install_panic_hook();
 
     let singbox_state = SingboxState::new();
+    let cancel_state = CoreUpdateCancelState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .manage(singbox_state)
+        .manage(cancel_state)
         .invoke_handler(tauri::generate_handler![
             singbox::start_singbox,
             singbox::stop_singbox,
@@ -47,6 +49,7 @@ fn main() {
             core_update::get_singbox_core_status,
             core_update::activate_singbox_core,
             core_update::update_singbox_core,
+            core_update::cancel_core_update,
             clash_api::get_clash_overview,
             clash_api::update_clash_mode,
             clash_api::select_clash_proxy,
@@ -97,6 +100,10 @@ fn main() {
 
             if let Err(error) = cleanup_staged_core_update_files_directly() {
                 eprintln!("Failed to clean staged sing-box core files: {}", error);
+            }
+
+            if let Err(error) = auto_select_installed_core() {
+                eprintln!("Failed to auto-select installed sing-box core: {}", error);
             }
 
             let state = app.state::<SingboxState>();
