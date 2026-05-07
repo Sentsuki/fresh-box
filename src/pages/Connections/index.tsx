@@ -271,7 +271,7 @@ export default function Connections() {
           </Button>
         </div>
 
-        <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-[rgba(0,0,0,0.15)] shadow-inner overflow-hidden">
+        <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden flex flex-col">
           {groupedEntries ? (
             <GroupedTable
             groups={groupedEntries}
@@ -287,7 +287,7 @@ export default function Connections() {
           <VirtualTable
             columns={tableColumns}
             rows={filteredEntries}
-            rowHeight={32}
+            rowHeight={40}
             getRowKey={(row) => row.id}
             sortKey={sortKey}
             sortDirection={sortDirection}
@@ -342,7 +342,7 @@ function GroupedTable({
                   key={col.key}
                   onClick={isClickable ? () => onSort(col.key) : undefined}
                   className={[
-                    "px-3 py-2 text-xs font-medium text-(--wb-text-secondary)",
+                    "px-4 py-2.5 text-xs font-medium text-(--wb-text-secondary)",
                     "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
                     col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                     isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
@@ -392,18 +392,21 @@ function GroupedTable({
                   </td>
                 </tr>
                 {!collapsed &&
-                  group.items.map((row) => (
+                  group.items.map((row, i) => (
                     <tr
                       key={row.id}
                       onClick={() => onRowClick(row)}
-                      className="border-b border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) transition-colors duration-75 cursor-pointer"
-                      style={{ height: 32 }}
+                      className={[
+                        "border-b border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) transition-colors duration-75 cursor-pointer",
+                        i % 2 === 1 ? "bg-(--wb-surface-active)" : "",
+                      ].join(" ")}
+                      style={{ height: 40 }}
                     >
                       {columns.map((col) => (
                         <td
                           key={col.key}
                           className={[
-                            "px-3 text-xs text-(--wb-text-primary) truncate max-w-0",
+                            "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
                             col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                           ].join(" ")}
                         >

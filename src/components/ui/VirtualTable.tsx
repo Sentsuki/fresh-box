@@ -119,7 +119,7 @@ export function VirtualTable<T>({
                   key={col.key}
                   onClick={isClickable ? () => onSort(col.key) : undefined}
                   className={[
-                    "px-3 py-2 text-xs font-medium text-(--wb-text-secondary)",
+                    "px-4 py-2.5 text-xs font-medium text-(--wb-text-secondary)",
                     "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
                     col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                     isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
@@ -159,6 +159,7 @@ export function VirtualTable<T>({
                   "border-b border-(--wb-border-subtle)",
                   "hover:bg-(--wb-surface-hover) transition-colors duration-75",
                   onRowClick ? "cursor-pointer" : "",
+                  absoluteIndex % 2 === 1 ? "bg-(--wb-surface-active)" : "",
                 ].join(" ")}
                 style={{ height: rowHeight }}
               >
@@ -166,7 +167,7 @@ export function VirtualTable<T>({
                   <td
                     key={col.key}
                     className={[
-                      "px-3 text-xs text-(--wb-text-primary) truncate max-w-0",
+                      "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
                       col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                     ].join(" ")}
                   >
