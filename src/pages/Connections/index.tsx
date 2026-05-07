@@ -161,7 +161,7 @@ export default function Connections() {
                 className={[
                   "px-4 py-1.5 text-sm font-medium capitalize transition-colors rounded",
                   currentTab === tab
-                    ? "bg-(--wb-surface-hover) text-(--wb-text-primary) shadow-sm"
+                    ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
                     : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
                 ].join(" ")}
               >
