@@ -28,17 +28,7 @@ function buildConfigEntries(files: string[]): ConfigFileEntry[] {
 
 async function syncConfigFiles(preferredDisplayName?: string | null) {
   const files = await listConfigs();
-  const newPathsSet = new Set(files);
-
-  // Maintain stable insertion order: keep existing files in place, append new ones at end
-  const currentFiles = useConfigStore.getState().configFiles;
-  const existingPaths = new Set(currentFiles.map((f) => f.path));
-  const orderedFiles = currentFiles.filter((f) => newPathsSet.has(f.path));
-  const newEntries = files
-    .filter((p) => !existingPaths.has(p))
-    .map((path) => ({ path, displayName: getCleanFileName(path) }));
-  const configFiles = [...orderedFiles, ...newEntries];
-
+  const configFiles = buildConfigEntries(files);
   useConfigStore.getState().setConfigFiles(configFiles);
 
   const settings = useSettingsStore.getState();

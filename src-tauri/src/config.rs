@@ -8,6 +8,7 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
+const FILE_ORDER_KEY: &str = "_file_order";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
 const APP_SETTINGS_SCHEMA_VERSION: u32 = 2;
 pub const CORE_CHANNEL_STABLE: &str = "stable";
@@ -423,6 +424,81 @@ pub fn get_data_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
+// --- 文件顺序管理 ---
+
+fn get_subscriptions_path() -> Result<PathBuf, CommandError> {
+    Ok(get_config_dir()?.join(SUBSCRIPTIONS_FILE))
+}
+
+fn load_subscriptions_json() -> Result<serde_json::Map<String, Value>, CommandError> {
+    let path = get_subscriptions_path()?;
+    if !path.exists() {
+        return Ok(serde_json::Map::new());
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|e| CommandError::io("failed to read subscriptions file", e))?;
+    let value: Value = serde_json::from_str(&content)
+        .unwrap_or(Value::Object(serde_json::Map::new()));
+    Ok(value.as_object().cloned().unwrap_or_default())
+}
+
+fn save_subscriptions_json(map: &serde_json::Map<String, Value>) -> Result<(), CommandError> {
+    let path = get_subscriptions_path()?;
+    write_json_file(&path, map)
+}
+
+fn load_file_order() -> Result<Vec<String>, CommandError> {
+    let map = load_subscriptions_json()?;
+    Ok(map
+        .get(FILE_ORDER_KEY)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+fn save_file_order(order: &[String]) -> Result<(), CommandError> {
+    let mut map = load_subscriptions_json()?;
+    map.insert(
+        FILE_ORDER_KEY.to_string(),
+        Value::Array(order.iter().map(|s| Value::String(s.clone())).collect()),
+    );
+    save_subscriptions_json(&map)
+}
+
+fn append_to_file_order(stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    if !order.iter().any(|s| s == stem) {
+        order.push(stem.to_string());
+        save_file_order(&order)?;
+    }
+    Ok(())
+}
+
+fn rename_in_file_order(old_stem: &str, new_stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    for entry in order.iter_mut() {
+        if entry == old_stem {
+            *entry = new_stem.to_string();
+            break;
+        }
+    }
+    save_file_order(&order)
+}
+
+fn remove_from_file_order(stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    order.retain(|s| s != stem);
+    save_file_order(&order)
+}
+
+fn stem_from_filename(file_name: &str) -> &str {
+    file_name.strip_suffix(".json").unwrap_or(file_name)
+}
+
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
     let exe_path = std::env::current_exe()
@@ -484,6 +560,8 @@ pub async fn save_subscription_config(
     fs::write(&target_path, content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
+    append_to_file_order(stem_from_filename(&file_name))?;
+
     Ok(target_path.to_string_lossy().into_owned())
 }
 
@@ -518,6 +596,12 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
     fs::copy(&config_path, &target_config_path)
         .map_err(|e| CommandError::resource_not_found("copied config file", e))?;
 
+    let stem = target_config_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    append_to_file_order(stem)?;
+
     Ok(target_config_path.to_string_lossy().into_owned())
 }
 
@@ -525,19 +609,40 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
 pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
     let sub_dir = get_sub_dir()?;
 
-    let mut config_files = Vec::new();
+    // 收集磁盘上所有 .json 文件
+    let mut on_disk: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in
-        fs::read_dir(sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
+        fs::read_dir(&sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
     {
         let entry = entry.map_err(|e| CommandError::resource_not_found("directory entry", e))?;
         let path = entry.path();
-
-        // sub 目录下只放订阅配置，列出所有 .json 文件
         if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            config_files.push(path.to_string_lossy().into_owned());
+            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                on_disk.insert(name.to_string());
+            }
         }
     }
-    Ok(config_files)
+
+    // 按 _file_order 排序，磁盘上不在 order 中的追加到末尾
+    let order = load_file_order()?;
+    let mut result: Vec<String> = Vec::with_capacity(on_disk.len());
+
+    for stem in &order {
+        let file_name = format!("{}.json", stem);
+        if on_disk.contains(&file_name) {
+            result.push(sub_dir.join(&file_name).to_string_lossy().into_owned());
+        }
+    }
+
+    let ordered_stems: std::collections::HashSet<&str> = order.iter().map(|s| s.as_str()).collect();
+    for name in &on_disk {
+        let stem = stem_from_filename(name);
+        if !ordered_stems.contains(stem) {
+            result.push(sub_dir.join(name).to_string_lossy().into_owned());
+        }
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -552,8 +657,10 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
         ));
     }
 
-    fs::remove_file(rm_full_path)
+    fs::remove_file(&rm_full_path)
         .map_err(|e| CommandError::resource_not_found("config file", e))?;
+
+    remove_from_file_order(stem_from_filename(&config_path))?;
 
     Ok(())
 }
@@ -597,22 +704,37 @@ pub async fn rename_config(old_path: String, new_path: String) -> Result<(), Com
     fs::rename(&old_full_path, &new_full_path)
         .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
 
+    rename_in_file_order(
+        stem_from_filename(&old_path),
+        stem_from_filename(&new_path),
+    )?;
+
     Ok(())
 }
 
 #[tauri::command]
 pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
-    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
-    let parsed: Value = serde_json::from_str(&subscriptions)
+    let mut parsed: serde_json::Map<String, Value> = serde_json::from_str(&subscriptions)
         .map_err(|e| CommandError::json("failed to parse subscriptions payload", e))?;
-    write_json_file(&subscriptions_path, &parsed)
+
+    // 前端不传 _file_order，从磁盘读取现有值并保留
+    if !parsed.contains_key(FILE_ORDER_KEY) {
+        if let Ok(existing) = load_subscriptions_json() {
+            if let Some(order) = existing.get(FILE_ORDER_KEY) {
+                parsed.insert(FILE_ORDER_KEY.to_string(), order.clone());
+            }
+        }
+    }
+
+    save_subscriptions_json(&parsed)
 }
 
 #[tauri::command]
 pub async fn load_subscriptions() -> Result<String, CommandError> {
-    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
-    let subscriptions: Value = load_json_or_default(&subscriptions_path)?;
-    serde_json::to_string(&subscriptions)
+    let mut map = load_subscriptions_json()?;
+    // 不把内部字段暴露给前端
+    map.remove(FILE_ORDER_KEY);
+    serde_json::to_string(&Value::Object(map))
         .map_err(|e| CommandError::json("failed to serialize subscriptions payload", e))
 }
 
