@@ -1,4 +1,4 @@
-import { Suspense, lazy, useEffect } from "react";
+import { useEffect } from "react";
 import { FluentProvider } from "@fluentui/react-components";
 import { useAppStore } from "./stores/appStore";
 import { useInit } from "./hooks/useInit";
@@ -9,15 +9,14 @@ import { PageTransition } from "./components/layout/PageTransition";
 import { GlobalToaster } from "./components/global/GlobalToaster";
 import { ErrorBoundary } from "./components/global/ErrorBoundary";
 import { Spinner } from "./components/ui/Spinner";
-
-const Overview = lazy(() => import("./pages/Overview"));
-const Proxies = lazy(() => import("./pages/Proxies"));
-const Connections = lazy(() => import("./pages/Connections"));
-const Logs = lazy(() => import("./pages/Logs"));
-const Rules = lazy(() => import("./pages/Rules"));
-const Config = lazy(() => import("./pages/Config"));
-const Custom = lazy(() => import("./pages/Custom"));
-const Settings = lazy(() => import("./pages/Settings"));
+import Overview from "./pages/Overview";
+import Proxies from "./pages/Proxies";
+import Connections from "./pages/Connections";
+import Logs from "./pages/Logs";
+import Rules from "./pages/Rules";
+import Config from "./pages/Config";
+import Custom from "./pages/Custom";
+import Settings from "./pages/Settings";
 
 function LoadingScreen() {
   return (
@@ -29,20 +28,6 @@ function LoadingScreen() {
         </span>
       </div>
     </div>
-  );
-}
-
-function PageSuspense({ children }: { children: React.ReactNode }) {
-  return (
-    <Suspense
-      fallback={
-        <div className="flex h-full items-center justify-center">
-          <Spinner />
-        </div>
-      }
-    >
-      {children}
-    </Suspense>
   );
 }
 
@@ -103,9 +88,7 @@ export default function App() {
           <PageTransition pageKey={currentPage}>
             <div className="flex-1 overflow-y-auto p-5">
               <ErrorBoundary key={currentPage}>
-                <PageSuspense>
-                  <PageContent page={currentPage} />
-                </PageSuspense>
+                <PageContent page={currentPage} />
               </ErrorBoundary>
             </div>
           </PageTransition>
