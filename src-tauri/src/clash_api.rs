@@ -6,8 +6,6 @@ use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
 
-const CLASH_API_BASE_URL: &str = "http://127.0.0.1:51385";
-const CLASH_API_SECRET: &str = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 const DEFAULT_TEST_TIMEOUT_MS: u64 = 5_000;
 const GLOBAL_GROUP_NAME: &str = "GLOBAL";
@@ -19,9 +17,8 @@ struct ApiConfig {
 }
 
 fn get_api_config() -> ApiConfig {
-    use crate::priority_config::{PriorityConfig};
+    use crate::priority_config::{PriorityConfig, DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
-    const DEFAULT_CONTROLLER: &str = "127.0.0.1:51385";
 
     let config: PriorityConfig =
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
@@ -32,14 +29,14 @@ fn get_api_config() -> ApiConfig {
         .as_ref()
         .and_then(|c| c.external_controller.as_deref())
         .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CONTROLLER);
+        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
 
     let secret = config
         .clash_api
         .as_ref()
         .and_then(|c| c.secret.as_deref())
         .filter(|s| !s.is_empty())
-        .unwrap_or(CLASH_API_SECRET);
+        .unwrap_or(DEFAULT_CLASH_SECRET);
 
     let test_url = config
         .test_url

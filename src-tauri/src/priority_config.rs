@@ -1,7 +1,10 @@
 use crate::errors::CommandError;
-use serde_json::Value;
+use serde_json::{json, Value};
 use rand::Rng;
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+
+pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:51385";
+pub const DEFAULT_CLASH_SECRET: &str = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ClashApiConfig {
@@ -162,9 +165,7 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
     Ok(result)
 }
 
-// 默认 Clash API 地址和密钥
-const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:51385";
-const DEFAULT_CLASH_SECRET: &str = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
+// 默认 Clash API 地址和密钥（已在文件顶部声明为 pub const）
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 
 #[derive(serde::Serialize)]
@@ -243,10 +244,17 @@ pub fn apply_priority_config(
         apply_log_config(config, log_config)?;
     }
 
-    // 未来可以在这里添加其他配置的应用逻辑
-    // if let Some(dns_config) = &priority_config.dns {
-    //     apply_dns_config(config, dns_config)?;
-    // }
+    // 始终写入 clash_api 配置（使用自定义值或默认值），确保 temp_config 里的值可控
+    let clash_api = priority_config.clash_api.clone().unwrap_or(ClashApiConfig {
+        external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
+        secret: Some(DEFAULT_CLASH_SECRET.to_string()),
+    });
+    if let Err(error) = apply_clash_api_config(config, &clash_api) {
+        eprintln!(
+            "Warning: Failed to apply clash_api configuration: {:?}",
+            error
+        );
+    }
 
     Ok(())
 }
@@ -307,6 +315,55 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
 
     // 应用 level 设置
     log_obj.insert("level".to_string(), Value::String(log_config.level.clone()));
+
+    Ok(())
+}
+
+// 应用 clash_api 配置：无条件覆盖 experimental.clash_api 整节
+pub fn apply_clash_api_config(
+    config: &mut Value,
+    clash_api: &ClashApiConfig,
+) -> Result<(), CommandError> {
+    let controller = clash_api
+        .external_controller
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
+
+    let secret = clash_api
+        .secret
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_CLASH_SECRET);
+
+    // 确保 experimental 对象存在
+    if config.get("experimental").is_none() {
+        config
+            .as_object_mut()
+            .ok_or_else(|| CommandError::ResourceNotFound("Invalid config format".to_string()))?
+            .insert(
+                "experimental".to_string(),
+                Value::Object(serde_json::Map::new()),
+            );
+    }
+
+    let experimental = config
+        .get_mut("experimental")
+        .and_then(|v| v.as_object_mut())
+        .ok_or_else(|| {
+            CommandError::ResourceNotFound("Invalid experimental config format".to_string())
+        })?;
+
+    // 完全替换 clash_api 节，不保留原始配置
+    experimental.insert(
+        "clash_api".to_string(),
+        json!({
+            "access_control_allow_private_network": false,
+            "default_mode": "Rule",
+            "external_controller": controller,
+            "secret": secret
+        }),
+    );
 
     Ok(())
 }
