@@ -196,8 +196,7 @@ pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> 
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
     let test_url = app_settings
-        .pages
-        .proxies
+        .settings
         .test_url
         .as_str();
 

@@ -87,100 +87,100 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     setSelectedConfig: async (path, displayName) => {
       await get().updateSettings((s) => {
-        s.app.selected_config_path = path;
-        s.app.selected_config_display = displayName;
+        s.Profiles.selected_config_path = path;
+        s.Profiles.selected_config_display = displayName;
       });
     },
 
     setActiveSingboxCoreSelection: async (channel, version) => {
       await get().updateSettings((s) => {
-        s.singbox_core.active_channel = channel;
-        s.singbox_core.active_version = version;
+        s.Settings.singbox_core.active_channel = channel;
+        s.Settings.singbox_core.active_version = version;
       });
     },
 
     setSelectedCoreOptionKey: async (value) => {
       await get().updateSettings((s) => {
-        s.singbox_core.selected_option_key = value;
+        s.Settings.singbox_core.selected_option_key = value;
       });
     },
 
     setProxyGroupCollapsed: async (group, collapsed) => {
       await get().updateSettings((s) => {
-        s.pages.proxies.collapsed_groups[group] = collapsed;
+        s.proxies.collapsed_groups[group] = collapsed;
       });
     },
 
     setConnectionsTab: async (tab) => {
       await get().updateSettings((s) => {
-        s.pages.connections.current_tab = tab;
+        s.connections.current_tab = tab;
       });
     },
 
     setConnectionsColumnOrder: async (order) => {
       await get().updateSettings((s) => {
-        s.pages.connections.column_order = order;
+        s.connections.column_order = order;
       });
     },
 
     setConnectionsVisibleColumns: async (columns) => {
       await get().updateSettings((s) => {
-        s.pages.connections.visible_columns = columns;
+        s.connections.visible_columns = columns;
       });
     },
 
     setConnectionsSortKey: async (key) => {
       await get().updateSettings((s) => {
-        s.pages.connections.sort_key = key;
+        s.connections.sort_key = key;
       });
     },
 
     setConnectionsSortDirection: async (direction) => {
       await get().updateSettings((s) => {
-        s.pages.connections.sort_direction = direction;
+        s.connections.sort_direction = direction;
       });
     },
 
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
-        s.pages.connections.grouped_column = column;
-        s.pages.connections.collapsed_groups = {};
+        s.connections.grouped_column = column;
+        s.connections.collapsed_groups = {};
       });
     },
 
     setConnectionGroupCollapsed: async (group, collapsed) => {
       await get().updateSettings((s) => {
-        s.pages.connections.collapsed_groups[group] = collapsed;
+        s.connections.collapsed_groups[group] = collapsed;
       });
     },
 
     setLogLevel: async (level) => {
       await get().updateSettings((s) => {
-        s.pages.logs.log_level = level;
+        s.logs.log_level = level;
       });
     },
 
     setLogTypeFilter: async (filter) => {
       await get().updateSettings((s) => {
-        s.pages.logs.type_filter = filter;
+        s.logs.type_filter = filter;
       });
     },
 
     setRulesTab: async (tab) => {
       await get().updateSettings((s) => {
-        s.pages.rules.current_tab = tab;
+        s.rules.current_tab = tab;
       });
     },
 
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
-        s.app.theme_mode = mode;
+        s.Settings.theme_mode = mode;
       });
     },
 
     setTestUrl: async (url) => {
       await get().updateSettings((s) => {
-        s.pages.proxies.test_url = url;
+        s.Settings.test_url = url;
       });
     },
   }),

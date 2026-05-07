@@ -152,7 +152,7 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
 }
 
 const GroupCard = memo(function GroupCard({ group, isTesting, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
-  const collapsed = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups[group.name] ?? false);
+  const collapsed = useSettingsStore((s) => s.settings.proxies.collapsed_groups[group.name] ?? false);
   const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
   const open = !collapsed;
 

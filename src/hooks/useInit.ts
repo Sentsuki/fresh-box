@@ -45,15 +45,15 @@ export function useInit() {
     config.setSubscriptions(subscriptions);
 
     const savedDisplay =
-      useSettingsStore.getState().settings.app.selected_config_display;
+      useSettingsStore.getState().settings.Profiles.selected_config_display;
     const target =
       (savedDisplay &&
         configFiles.find((c) => c.displayName === savedDisplay)) ||
-      (useSettingsStore.getState().settings.app.selected_config_path &&
+      (useSettingsStore.getState().settings.Profiles.selected_config_path &&
         configFiles.find(
           (c) =>
             c.path ===
-            useSettingsStore.getState().settings.app.selected_config_path,
+            useSettingsStore.getState().settings.Profiles.selected_config_path,
         )) ||
       configFiles[0] ||
       null;

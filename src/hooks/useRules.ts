@@ -57,7 +57,7 @@ export function getRuleToggleKey(rule: RuleEntry, index: number): string {
 export function useRulesPage() {
   const store = useRulesStore();
   const currentTab = useSettingsStore(
-    (s) => s.settings.pages.rules.current_tab,
+    (s) => s.settings.rules.current_tab,
   );
   const setCurrentTab = useSettingsStore((s) => s.setRulesTab);
 

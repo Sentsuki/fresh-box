@@ -1,0 +1,62 @@
+{
+    "app": {
+        "current_page": "proxy"
+    },
+    "proxies": {
+        "collapsed_groups": {
+            "Proxy": true,
+            "Status": true
+        }
+    },
+    "connections": {
+        "current_tab": "active",
+        "column_order": [
+            "host",
+            "destination",
+            "downloadSpeed",
+            "uploadSpeed",
+            "download",
+            "upload",
+            "chain",
+            "rule",
+            "source",
+            "process",
+            "network",
+            "start"
+        ],
+        "visible_columns": [
+            "host",
+            "downloadSpeed",
+            "uploadSpeed",
+            "chain",
+            "rule",
+            "source",
+            "process",
+            "start"
+        ],
+        "sort_key": "downloadSpeed",
+        "sort_direction": "desc",
+        "grouped_column": null,
+        "collapsed_groups": {}
+    },
+    "logs": {
+        "log_level": "info",
+        "type_filter": ""
+    },
+    "rules": {
+        "current_tab": "rules"
+    },
+    "Profiles": {
+        "selected_config_path": "C:\\Users\\codan\\Repositories\\fresh-box\\src-tauri\\target\\debug\\sub\\vrnQozxe.json",
+        "selected_config_display": "vrnQozxe"
+    },
+    "Settings": {
+        "theme_mode": "system",
+        "singbox_core": {
+            "active_channel": null,
+            "active_version": null,
+            "selected_option_key": "stable:1.13.11"
+        },
+        "test_url": "https://www.gstatic.com/generate_204"
+    }
+}

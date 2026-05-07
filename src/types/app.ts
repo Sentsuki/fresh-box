@@ -48,11 +48,19 @@ export interface ConfigFileEntry {
   displayName: string;
 }
 
-export interface AppSelectionSettings {
+export interface AppConfig {
   current_page: AppPage;
+}
+
+export interface ProfilesSettings {
   selected_config_path: string | null;
   selected_config_display: string | null;
+}
+
+export interface AppDisplaySettings {
   theme_mode: ThemeMode;
+  singbox_core: SingboxCoreSettings;
+  test_url: string;
 }
 
 export interface SingboxCoreSettings {
@@ -63,7 +71,6 @@ export interface SingboxCoreSettings {
 
 export interface ProxyPageSettings {
   collapsed_groups: Record<string, boolean>;
-  test_url: string;
 }
 
 export interface ConnectionPageSettings {
@@ -85,18 +92,15 @@ export interface RulesPageSettings {
   current_tab: RulesTab;
 }
 
-export interface PageUiSettings {
+export interface AppSettings {
+  schema_version: number;
+  app: AppConfig;
   proxies: ProxyPageSettings;
   connections: ConnectionPageSettings;
   logs: LogsPageSettings;
   rules: RulesPageSettings;
-}
-
-export interface AppSettings {
-  schema_version: number;
-  app: AppSelectionSettings;
-  singbox_core: SingboxCoreSettings;
-  pages: PageUiSettings;
+  Profiles: ProfilesSettings;
+  Settings: AppDisplaySettings;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -129,39 +133,41 @@ export const DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204";
 
 export function createDefaultAppSettings(): AppSettings {
   return {
-    schema_version: 3,
+    schema_version: 4,
     app: {
       current_page: "overview",
+    },
+    proxies: {
+      collapsed_groups: {},
+    },
+    connections: {
+      current_tab: "active",
+      column_order: [...DEFAULT_CONNECTION_COLUMN_ORDER],
+      visible_columns: [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
+      sort_key: "downloadSpeed",
+      sort_direction: "desc",
+      grouped_column: null,
+      collapsed_groups: {},
+    },
+    logs: {
+      log_level: "info",
+      type_filter: "",
+    },
+    rules: {
+      current_tab: "rules",
+    },
+    Profiles: {
       selected_config_path: null,
       selected_config_display: null,
+    },
+    Settings: {
       theme_mode: "system",
-    },
-    singbox_core: {
-      active_channel: null,
-      active_version: null,
-      selected_option_key: "",
-    },
-    pages: {
-      proxies: {
-        collapsed_groups: {},
-        test_url: DEFAULT_TEST_URL,
+      singbox_core: {
+        active_channel: null,
+        active_version: null,
+        selected_option_key: "",
       },
-      connections: {
-        current_tab: "active",
-        column_order: [...DEFAULT_CONNECTION_COLUMN_ORDER],
-        visible_columns: [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
-        sort_key: "downloadSpeed",
-        sort_direction: "desc",
-        grouped_column: null,
-        collapsed_groups: {},
-      },
-      logs: {
-        log_level: "info",
-        type_filter: "",
-      },
-      rules: {
-        current_tab: "rules",
-      },
+      test_url: DEFAULT_TEST_URL,
     },
   };
 }
@@ -239,11 +245,11 @@ export function normalizeAppSettings(
   if (!settings) return defaults;
 
   const columnOrder = normalizeColumnList(
-    settings.pages?.connections?.column_order,
+    settings.connections?.column_order,
     DEFAULT_CONNECTION_COLUMN_ORDER,
   );
   const visibleColumns = normalizeColumnList(
-    settings.pages?.connections?.visible_columns,
+    settings.connections?.visible_columns,
     DEFAULT_CONNECTION_VISIBLE_COLUMNS,
   ).filter((key) => columnOrder.includes(key));
 
@@ -251,83 +257,84 @@ export function normalizeAppSettings(
     schema_version:
       typeof settings.schema_version === "number"
         ? settings.schema_version
-        : 3,
+        : 4,
     app: {
       current_page: APP_PAGES.includes(settings.app?.current_page)
         ? settings.app.current_page
         : defaults.app.current_page,
-      selected_config_path: settings.app?.selected_config_path ?? null,
-      selected_config_display: settings.app?.selected_config_display ?? null,
+    },
+    proxies: {
+      collapsed_groups: normalizeBooleanRecord(
+        settings.proxies?.collapsed_groups,
+      ),
+    },
+    connections: {
+      current_tab: CONNECTION_TABS.includes(
+        settings.connections?.current_tab,
+      )
+        ? settings.connections.current_tab
+        : defaults.connections.current_tab,
+      column_order: columnOrder,
+      visible_columns:
+        visibleColumns.length > 0
+          ? visibleColumns
+          : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
+      sort_key: CONNECTION_COLUMNS.has(
+        settings.connections?.sort_key,
+      )
+        ? settings.connections.sort_key
+        : defaults.connections.sort_key,
+      sort_direction: SORT_DIRECTIONS.includes(
+        settings.connections?.sort_direction,
+      )
+        ? settings.connections.sort_direction
+        : defaults.connections.sort_direction,
+      grouped_column: CONNECTION_COLUMNS.has(
+        settings.connections?.grouped_column as ConnectionColumnKey,
+      )
+        ? (settings.connections?.grouped_column ?? null)
+        : null,
+      collapsed_groups: normalizeBooleanRecord(
+        settings.connections?.collapsed_groups,
+      ),
+    },
+    logs: {
+      log_level: LOG_LEVELS.includes(settings.logs?.log_level)
+        ? settings.logs.log_level
+        : defaults.logs.log_level,
+      type_filter: settings.logs?.type_filter ?? "",
+    },
+    rules: {
+      current_tab: RULES_TABS.includes(settings.rules?.current_tab)
+        ? settings.rules.current_tab
+        : defaults.rules.current_tab,
+    },
+    Profiles: {
+      selected_config_path: settings.Profiles?.selected_config_path ?? null,
+      selected_config_display: settings.Profiles?.selected_config_display ?? null,
+    },
+    Settings: {
       theme_mode:
-        settings.app?.theme_mode === "light" ||
-        settings.app?.theme_mode === "dark" ||
-        settings.app?.theme_mode === "system"
-          ? settings.app.theme_mode
+        settings.Settings?.theme_mode === "light" ||
+        settings.Settings?.theme_mode === "dark" ||
+        settings.Settings?.theme_mode === "system"
+          ? settings.Settings.theme_mode
           : "system",
-    },
-    singbox_core: {
-      active_channel:
-        settings.singbox_core?.active_channel === "stable" ||
-        settings.singbox_core?.active_channel === "testing"
-          ? settings.singbox_core.active_channel
-          : null,
-      active_version: settings.singbox_core?.active_version ?? null,
-      selected_option_key:
-        settings.singbox_core?.selected_option_key ?? "",
-    },
-    pages: {
-      proxies: {
-        collapsed_groups: normalizeBooleanRecord(
-          settings.pages?.proxies?.collapsed_groups,
-        ),
-        test_url:
-          typeof settings.pages?.proxies?.test_url === "string" &&
-          settings.pages.proxies.test_url.trim() !== ""
-            ? settings.pages.proxies.test_url
-            : DEFAULT_TEST_URL,
+      singbox_core: {
+        active_channel:
+          settings.Settings?.singbox_core?.active_channel === "stable" ||
+          settings.Settings?.singbox_core?.active_channel === "testing"
+            ? settings.Settings.singbox_core.active_channel
+            : null,
+        active_version: settings.Settings?.singbox_core?.active_version ?? null,
+        selected_option_key:
+          settings.Settings?.singbox_core?.selected_option_key ?? "",
       },
-      connections: {
-        current_tab: CONNECTION_TABS.includes(
-          settings.pages?.connections?.current_tab,
-        )
-          ? settings.pages.connections.current_tab
-          : defaults.pages.connections.current_tab,
-        column_order: columnOrder,
-        visible_columns:
-          visibleColumns.length > 0
-            ? visibleColumns
-            : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
-        sort_key: CONNECTION_COLUMNS.has(
-          settings.pages?.connections?.sort_key,
-        )
-          ? settings.pages.connections.sort_key
-          : defaults.pages.connections.sort_key,
-        sort_direction: SORT_DIRECTIONS.includes(
-          settings.pages?.connections?.sort_direction,
-        )
-          ? settings.pages.connections.sort_direction
-          : defaults.pages.connections.sort_direction,
-        grouped_column: CONNECTION_COLUMNS.has(
-          settings.pages?.connections
-            ?.grouped_column as ConnectionColumnKey,
-        )
-          ? (settings.pages?.connections?.grouped_column ?? null)
-          : null,
-        collapsed_groups: normalizeBooleanRecord(
-          settings.pages?.connections?.collapsed_groups,
-        ),
-      },
-      logs: {
-        log_level: LOG_LEVELS.includes(settings.pages?.logs?.log_level)
-          ? settings.pages.logs.log_level
-          : defaults.pages.logs.log_level,
-        type_filter: settings.pages?.logs?.type_filter ?? "",
-      },
-      rules: {
-        current_tab: RULES_TABS.includes(settings.pages?.rules?.current_tab)
-          ? settings.pages.rules.current_tab
-          : defaults.pages.rules.current_tab,
-      },
+      test_url:
+        typeof settings.Settings?.test_url === "string" &&
+        settings.Settings.test_url.trim() !== ""
+          ? settings.Settings.test_url
+          : DEFAULT_TEST_URL,
     },
   };
 }

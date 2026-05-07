@@ -83,7 +83,7 @@ function connect() {
   clearReconnectTimer();
   const store = useLogsStore.getState();
   const logLevel =
-    useSettingsStore.getState().settings.pages.logs.log_level;
+    useSettingsStore.getState().settings.logs.log_level;
 
   store.setStreamStatus("connecting");
   store.setStreamError(null);
@@ -157,10 +157,10 @@ export function useLogsStream() {
   const clearLogsState = useLogsStore((s) => s.clearLogs);
 
   const logLevel = useSettingsStore(
-    (s) => s.settings.pages.logs.log_level,
+    (s) => s.settings.logs.log_level,
   );
   const typeFilter = useSettingsStore(
-    (s) => s.settings.pages.logs.type_filter,
+    (s) => s.settings.logs.type_filter,
   );
   const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setLogTypeFilter = useSettingsStore((s) => s.setLogTypeFilter);

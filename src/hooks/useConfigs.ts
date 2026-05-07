@@ -32,7 +32,7 @@ async function syncConfigFiles(preferredDisplayName?: string | null) {
   useConfigStore.getState().setConfigFiles(configFiles);
 
   const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.app.selected_config_path;
+  const currentPath = settings.settings.Profiles.selected_config_path;
 
   // Keep current selection if it still exists in the new list
   if (currentPath && configFiles.find((c) => c.path === currentPath)) {
@@ -87,13 +87,13 @@ export function useConfigs() {
       config.setSubscriptions(subscriptions);
 
       const settings = useSettingsStore.getState();
-      const savedDisplay = settings.settings.app.selected_config_display;
+      const savedDisplay = settings.settings.Profiles.selected_config_display;
       const target =
         (savedDisplay &&
           configFiles.find((c) => c.displayName === savedDisplay)) ||
-        (settings.settings.app.selected_config_path &&
+        (settings.settings.Profiles.selected_config_path &&
           configFiles.find(
-            (c) => c.path === settings.settings.app.selected_config_path,
+            (c) => c.path === settings.settings.Profiles.selected_config_path,
           )) ||
         configFiles[0] ||
         null;
@@ -270,7 +270,7 @@ export function useConfigs() {
       const cfg = config.configFiles.find((c) => c.displayName === fileName);
       const settings = useSettingsStore.getState();
       if (
-        cfg?.path === settings.settings.app.selected_config_path &&
+        cfg?.path === settings.settings.Profiles.selected_config_path &&
         useSingboxStore.getState().isRunning
       ) {
         toastError("Cannot delete active configuration. Stop the service first.");

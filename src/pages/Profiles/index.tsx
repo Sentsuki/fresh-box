@@ -27,7 +27,7 @@ export default function Profiles() {
   const configFiles = useConfigStore((s) => s.configFiles);
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const selectedDisplay = useSettingsStore(
-    (s) => s.settings.app.selected_config_display,
+    (s) => s.settings.Profiles.selected_config_display,
   );
   const pendingOperation = useConfigStore((s) => s.pendingOperation);
 

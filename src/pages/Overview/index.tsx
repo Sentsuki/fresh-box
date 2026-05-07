@@ -21,10 +21,10 @@ export default function Overview() {
   const isRunning = useSingboxStore((s) => s.isRunning);
   const isPending = useSingboxStore((s) => s.pendingOperation);
   const selectedDisplay = useSettingsStore(
-    (s) => s.settings.app.selected_config_display,
+    (s) => s.settings.Profiles.selected_config_display,
   );
   const selectedPath = useSettingsStore(
-    (s) => s.settings.app.selected_config_path,
+    (s) => s.settings.Profiles.selected_config_path,
   );
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const overview = useClashStore((s) => s.overview);

@@ -10,7 +10,7 @@ use std::process::Command;
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const FILE_ORDER_KEY: &str = "_file_order";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
-const APP_SETTINGS_SCHEMA_VERSION: u32 = 3;
+const APP_SETTINGS_SCHEMA_VERSION: u32 = 4;
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 pub const CORE_CHANNEL_STABLE: &str = "stable";
 pub const CORE_CHANNEL_TESTING: &str = "testing";
@@ -21,20 +21,40 @@ pub struct AppSettings {
     #[serde(default = "default_app_settings_schema_version")]
     pub schema_version: u32,
     #[serde(default)]
-    pub app: AppSelectionSettings,
+    pub app: AppConfig,
     #[serde(default)]
-    pub singbox_core: SingboxCoreSettings,
+    pub proxies: ProxyPageSettings,
     #[serde(default)]
-    pub pages: PageSettings,
+    pub connections: ConnectionPageSettings,
+    #[serde(default)]
+    pub logs: LogsPageSettings,
+    #[serde(default)]
+    pub rules: RulesPageSettings,
+    #[serde(default, rename = "Profiles")]
+    pub profiles: ProfilesSettings,
+    #[serde(default, rename = "Settings")]
+    pub settings: AppDisplaySettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
-pub struct AppSelectionSettings {
+pub struct AppConfig {
     pub current_page: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProfilesSettings {
     pub selected_config_path: Option<String>,
     pub selected_config_display: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppDisplaySettings {
     pub theme_mode: String,
+    pub singbox_core: SingboxCoreSettings,
+    pub test_url: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -47,33 +67,9 @@ pub struct SingboxCoreSettings {
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
-pub struct PageSettings {
-    #[serde(default)]
-    pub proxies: ProxyPageSettings,
-    #[serde(default)]
-    pub connections: ConnectionPageSettings,
-    #[serde(default)]
-    pub logs: LogsPageSettings,
-    #[serde(default)]
-    pub rules: RulesPageSettings,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
 pub struct ProxyPageSettings {
     #[serde(default)]
     pub collapsed_groups: std::collections::BTreeMap<String, bool>,
-    #[serde(default = "default_test_url")]
-    pub test_url: String,
-}
-
-impl Default for ProxyPageSettings {
-    fn default() -> Self {
-        Self {
-            collapsed_groups: std::collections::BTreeMap::new(),
-            test_url: DEFAULT_TEST_URL.to_string(),
-        }
-    }
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -106,20 +102,31 @@ impl Default for AppSettings {
     fn default() -> Self {
         Self {
             schema_version: APP_SETTINGS_SCHEMA_VERSION,
-            app: AppSelectionSettings::default(),
-            singbox_core: SingboxCoreSettings::default(),
-            pages: PageSettings::default(),
+            app: AppConfig::default(),
+            proxies: ProxyPageSettings::default(),
+            connections: ConnectionPageSettings::default(),
+            logs: LogsPageSettings::default(),
+            rules: RulesPageSettings::default(),
+            profiles: ProfilesSettings::default(),
+            settings: AppDisplaySettings::default(),
         }
     }
 }
 
-impl Default for AppSelectionSettings {
+impl Default for AppConfig {
     fn default() -> Self {
         Self {
             current_page: "overview".to_string(),
-            selected_config_path: None,
-            selected_config_display: None,
+        }
+    }
+}
+
+impl Default for AppDisplaySettings {
+    fn default() -> Self {
+        Self {
             theme_mode: "system".to_string(),
+            singbox_core: SingboxCoreSettings::default(),
+            test_url: DEFAULT_TEST_URL.to_string(),
         }
     }
 }
@@ -185,10 +192,6 @@ fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
 
 fn default_app_settings_schema_version() -> u32 {
     APP_SETTINGS_SCHEMA_VERSION
-}
-
-fn default_test_url() -> String {
-    DEFAULT_TEST_URL.to_string()
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
@@ -352,16 +355,16 @@ pub fn set_active_singbox_core_selection(
     }
 
     let mut settings = load_app_settings_file()?;
-    settings.singbox_core.active_channel = channel;
-    settings.singbox_core.active_version = version;
+    settings.settings.singbox_core.active_channel = channel;
+    settings.settings.singbox_core.active_version = version;
     save_app_settings_file(&settings)
 }
 
 pub fn get_active_singbox_core_selection() -> Result<Option<(String, String)>, CommandError> {
     let settings = load_app_settings_file()?;
     match (
-        settings.singbox_core.active_channel,
-        settings.singbox_core.active_version,
+        settings.settings.singbox_core.active_channel,
+        settings.settings.singbox_core.active_version,
     ) {
         (Some(channel), Some(version)) => Ok(Some((normalize_core_channel(&channel)?.to_string(), version))),
         (None, None) => Ok(None),

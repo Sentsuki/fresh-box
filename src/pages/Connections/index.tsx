@@ -35,11 +35,11 @@ export default function Connections() {
     isGroupCollapsed,
   } = useConnectionsStream();
 
-  const currentTab = useSettingsStore((s) => s.settings.pages.connections.current_tab);
-  const visibleColumnKeys = useSettingsStore((s) => s.settings.pages.connections.visible_columns);
-  const columnOrder = useSettingsStore((s) => s.settings.pages.connections.column_order);
-  const sortKey = useSettingsStore((s) => s.settings.pages.connections.sort_key);
-  const sortDirection = useSettingsStore((s) => s.settings.pages.connections.sort_direction);
+  const currentTab = useSettingsStore((s) => s.settings.connections.current_tab);
+  const visibleColumnKeys = useSettingsStore((s) => s.settings.connections.visible_columns);
+  const columnOrder = useSettingsStore((s) => s.settings.connections.column_order);
+  const sortKey = useSettingsStore((s) => s.settings.connections.sort_key);
+  const sortDirection = useSettingsStore((s) => s.settings.connections.sort_direction);
   const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
   const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
   const setConnectionsColumnOrder = useSettingsStore((s) => s.setConnectionsColumnOrder);

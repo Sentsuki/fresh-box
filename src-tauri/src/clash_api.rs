@@ -40,8 +40,7 @@ fn get_api_config() -> ApiConfig {
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
     let test_url = app_settings
-        .pages
-        .proxies
+        .settings
         .test_url
         .as_str();
 

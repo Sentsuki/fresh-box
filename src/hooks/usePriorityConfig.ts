@@ -50,11 +50,11 @@ export function usePriorityConfig() {
   const [clashApiController, setClashApiController] = useState("");
   const [clashApiSecret, setClashApiSecret] = useState("");
 
-  const testUrl = useSettingsStore((s) => s.settings.pages.proxies.test_url);
+  const testUrl = useSettingsStore((s) => s.settings.Settings.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
 
   const selectedConfigPath = useSettingsStore(
-    (s) => s.settings.app.selected_config_path,
+    (s) => s.settings.Profiles.selected_config_path,
   );
   const { success, error: toastError } = useToast();
 

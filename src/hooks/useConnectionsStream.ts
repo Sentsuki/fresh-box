@@ -421,7 +421,7 @@ export function useConnectionsStream() {
   const streamStatus = useConnectionsStore((s) => s.streamStatus);
   const isPaused = useConnectionsStore((s) => s.isPaused);
 
-  const settings = useSettingsStore((s) => s.settings.pages.connections);
+  const settings = useSettingsStore((s) => s.settings.connections);
   const setConnectionsGroupedColumn = useSettingsStore((s) => s.setConnectionsGroupedColumn);
   const setConnectionGroupCollapsed = useSettingsStore((s) => s.setConnectionGroupCollapsed);
 
