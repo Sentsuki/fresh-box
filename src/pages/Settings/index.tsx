@@ -238,56 +238,6 @@ export default function Settings() {
               }
             />
           )}
-        </SettingGroup>
-
-        {/* Application */}
-        <SettingGroup title="Application">
-          <SettingCard
-            icon={<FolderOpenRegular />}
-            title="App Directory"
-            description="Open the folder containing config files, overrides, and logs"
-            control={
-              <Button
-                size="sm"
-                variant="accent"
-                onClick={() => void openAppDirectory()}
-              >
-                Open Folder
-              </Button>
-            }
-          />
-        </SettingGroup>
-
-        {/* Process Management */}
-        <SettingGroup title="Process Management">
-          <SettingCard
-            icon={<SettingsRegular />}
-            title="Sing-box Process Status"
-            description={
-              processStatus ? (
-                <div className="mt-1 text-xs font-mono text-(--wb-text-secondary) whitespace-pre-wrap break-all">
-                  {processStatus}
-                </div>
-              ) : (
-                "Click Refresh to check the current status of the sing-box process."
-              )
-            }
-            control={
-              <Button
-                size="sm"
-                variant="subtle"
-                icon={<ArrowSyncRegular className={isRefreshingStatus ? "animate-spin" : ""} />}
-                disabled={isRefreshingStatus}
-                onClick={() => void refreshProcessStatus()}
-              >
-                Refresh
-              </Button>
-            }
-          />
-        </SettingGroup>
-
-        {/* Clash API Settings */}
-        <SettingGroup title="Clash API">
           <SettingCard
             icon={<LinkRegular />}
             title="API Controller"
@@ -327,7 +277,7 @@ export default function Settings() {
                   value={clashApiSecret}
                   onChange={(e) => setClashApiSecret(e.target.value)}
                   placeholder="secret"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
                 />
                 <Button
                   size="sm"
@@ -342,6 +292,24 @@ export default function Settings() {
                   Random
                 </Button>
               </div>
+            }
+          />
+        </SettingGroup>
+
+        {/* Application */}
+        <SettingGroup title="Application">
+          <SettingCard
+            icon={<FolderOpenRegular />}
+            title="App Directory"
+            description="Open the folder containing config files, overrides, and logs"
+            control={
+              <Button
+                size="sm"
+                variant="accent"
+                onClick={() => void openAppDirectory()}
+              >
+                Open Folder
+              </Button>
             }
           />
           <SettingCard
@@ -360,6 +328,30 @@ export default function Settings() {
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
                 />
               </div>
+            }
+          />
+          <SettingCard
+            icon={<SettingsRegular />}
+            title="Sing-box Process Status"
+            description={
+              processStatus ? (
+                <div className="mt-1 text-xs font-mono text-(--wb-text-secondary) whitespace-pre-wrap break-all">
+                  {processStatus}
+                </div>
+              ) : (
+                "Click Refresh to check the current status of the sing-box process."
+              )
+            }
+            control={
+              <Button
+                size="sm"
+                variant="subtle"
+                icon={<ArrowSyncRegular className={isRefreshingStatus ? "animate-spin" : ""} />}
+                disabled={isRefreshingStatus}
+                onClick={() => void refreshProcessStatus()}
+              >
+                Refresh
+              </Button>
             }
           />
         </SettingGroup>
