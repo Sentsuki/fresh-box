@@ -1,10 +1,10 @@
 use crate::errors::CommandError;
-use serde_json::{json, Value};
 use rand::Rng;
+use serde_json::{json, Value};
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
-pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:51385";
-pub const DEFAULT_CLASH_SECRET: &str = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
+pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:8964";
+pub const DEFAULT_CLASH_SECRET: &str = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ClashApiConfig {
@@ -177,8 +177,7 @@ pub struct CoreClientConfig {
 
 #[tauri::command]
 pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig =
-        super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let config: PriorityConfig = super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
     let app_settings = super::config::load_app_settings_file()?;
 
     let controller = config
@@ -195,16 +194,17 @@ pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> 
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
-    let test_url = app_settings
-        .settings
-        .test_url
-        .as_str();
+    let test_url = app_settings.settings.test_url.as_str();
 
     Ok(CoreClientConfig {
         http_url: format!("http://{}", controller),
         ws_url: format!("ws://{}", controller),
         secret: secret.to_string(),
-        test_url: if test_url.is_empty() { DEFAULT_TEST_URL.to_string() } else { test_url.to_string() },
+        test_url: if test_url.is_empty() {
+            DEFAULT_TEST_URL.to_string()
+        } else {
+            test_url.to_string()
+        },
     })
 }
 
