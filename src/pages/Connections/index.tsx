@@ -27,6 +27,7 @@ export default function Connections() {
     isPaused,
     groupedColumn,
     startStream,
+    stopStream,
     togglePause,
     closeAll,
     toggleGrouping,
@@ -52,7 +53,8 @@ export default function Connections() {
 
   useEffect(() => {
     startStream();
-  }, [startStream]);
+    return () => stopStream(true);
+  }, [startStream, stopStream]);
 
   const filteredEntries = useMemo(() => {
     if (!search) return entries;

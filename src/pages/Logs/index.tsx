@@ -44,7 +44,7 @@ export default function Logs() {
 
   useEffect(() => {
     startStream();
-    return () => stopStream(false);
+    return () => stopStream(true);
   }, [startStream, stopStream]);
 
   const renderLogEntry = useCallback(
