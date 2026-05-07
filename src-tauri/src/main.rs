@@ -70,7 +70,6 @@ fn main() {
             config::save_config_content,
             config::open_url,
             config::get_clash_api_url,
-            config::open_panel_url,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,

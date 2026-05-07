@@ -866,19 +866,7 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
     Ok(())
 }
 
-#[tauri::command]
-pub async fn open_panel_url() -> Result<(), CommandError> {
-    let override_config = crate::config_override::get_override_config_if_enabled().await?;
-    let config = override_config.ok_or_else(|| {
-        CommandError::invalid_state("open panel", "config override is not enabled")
-    })?;
 
-    let url = extract_clash_api_url(&config).ok_or_else(|| {
-        CommandError::invalid_state("open panel", "clash API not configured in override config")
-    })?;
-
-    open_url(url).await
-}
 
 #[tauri::command]
 pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, CommandError> {
