@@ -20,6 +20,10 @@ import { formatLastUpdated } from "../../services/utils";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { SubscriptionInfo } from "../../types/app";
+import { Dialog } from "../../components/ui/Dialog";
+import { Input } from "../../components/ui/Input";
+import { LinkRegular } from "@fluentui/react-icons";
+
 
 export default function Config() {
   const configFiles = useConfigStore((s) => s.configFiles);
@@ -27,6 +31,12 @@ export default function Config() {
   const selectedDisplay = useSettingsStore(
     (s) => s.settings.app.selected_config_display,
   );
+  const pendingOperation = useConfigStore((s) => s.pendingOperation);
+
+  const [isAddSubOpen, setIsAddSubOpen] = useState(false);
+  const [newSubUrl, setNewSubUrl] = useState("");
+  const [urlError, setUrlError] = useState("");
+
 
   const {
     initializeConfigs,
@@ -63,14 +73,97 @@ export default function Config() {
         <Button
           icon={<CloudArrowDownRegular />}
           variant="accent"
-          onClick={() => {
-            const url = prompt("Subscription URL:");
-            if (url) void addSubscription(url);
-          }}
+          onClick={() => setIsAddSubOpen(true)}
         >
           Add Subscription
         </Button>
       </PageHeader>
+
+      <Dialog
+        isOpen={isAddSubOpen}
+        onClose={() => {
+          if (!pendingOperation) {
+            setIsAddSubOpen(false);
+            setNewSubUrl("");
+            setUrlError("");
+          }
+        }}
+        title="Add Subscription"
+        icon={<CloudArrowDownRegular />}
+        description="Enter the URL of your remote sing-box configuration."
+        footer={
+          <>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setIsAddSubOpen(false);
+                setNewSubUrl("");
+                setUrlError("");
+              }}
+              disabled={pendingOperation}
+            >
+              Cancel
+            </Button>
+            <Button
+              variant="accent"
+              onClick={async () => {
+                if (!newSubUrl.trim()) {
+                  setUrlError("URL is required");
+                  return;
+                }
+                try {
+                  new URL(newSubUrl);
+                  await addSubscription(newSubUrl);
+                  setIsAddSubOpen(false);
+                  setNewSubUrl("");
+                  setUrlError("");
+                } catch {
+                  setUrlError("Please enter a valid URL");
+                }
+              }}
+              disabled={pendingOperation}
+            >
+              {pendingOperation ? "Adding..." : "Add"}
+            </Button>
+          </>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          <Input
+            label="Subscription URL"
+            autoFocus
+            leftIcon={<LinkRegular />}
+            value={newSubUrl}
+            onChange={(e) => {
+              setNewSubUrl(e.target.value);
+              if (urlError) setUrlError("");
+            }}
+            error={urlError}
+            placeholder="https://example.com/config.json"
+            onKeyDown={(e) => {
+              if (e.key === "Enter" && !pendingOperation) {
+                void (async () => {
+                  if (!newSubUrl.trim()) {
+                    setUrlError("URL is required");
+                    return;
+                  }
+                  try {
+                    new URL(newSubUrl);
+                    await addSubscription(newSubUrl);
+                    setIsAddSubOpen(false);
+                    setNewSubUrl("");
+                    setUrlError("");
+                  } catch {
+                    setUrlError("Please enter a valid URL");
+                  }
+                })();
+              }
+            }}
+          />
+        </div>
+
+      </Dialog>
+
 
       <div className="flex flex-col gap-8">
         <SettingGroup title="Remote Subscriptions">
@@ -196,13 +289,13 @@ function LocalFileCard({
   if (editing) {
     return (
       <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
-        <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider">Rename File</p>
-        <input
+        <Input
+          label="Rename File"
           autoFocus
           value={nameInput}
           onChange={(e) => setNameInput(e.target.value)}
           onKeyDown={handleKeyDown}
-          className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+          leftIcon={<EditRegular />}
         />
         <div className="flex gap-2 justify-end mt-1">
           <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
@@ -210,6 +303,7 @@ function LocalFileCard({
         </div>
       </div>
     );
+
   }
 
   return (
@@ -304,26 +398,22 @@ function SubscriptionCard({
   if (editing) {
     return (
       <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
-        <div>
-          <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider mb-1">Name</p>
-          <input
-            autoFocus
-            value={nameInput}
-            onChange={(e) => setNameInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-          />
-        </div>
-        <div>
-          <p className="text-xs font-semibold text-(--wb-text-secondary) uppercase tracking-wider mb-1">Subscription URL</p>
-          <input
-            value={urlInput}
-            onChange={(e) => setUrlInput(e.target.value)}
-            onKeyDown={handleKeyDown}
-            placeholder="https://..."
-            className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-          />
-        </div>
+        <Input
+          label="Name"
+          autoFocus
+          value={nameInput}
+          onChange={(e) => setNameInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          leftIcon={<EditRegular />}
+        />
+        <Input
+          label="Subscription URL"
+          value={urlInput}
+          onChange={(e) => setUrlInput(e.target.value)}
+          onKeyDown={handleKeyDown}
+          placeholder="https://..."
+          leftIcon={<LinkRegular />}
+        />
         <div className="flex gap-2 justify-end mt-1">
           <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
           <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>

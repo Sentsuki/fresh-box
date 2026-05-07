@@ -1,11 +1,11 @@
 :root {
   /* Dark mode - let Mica show through */
   --wb-surface-base: transparent;
-  
+
   /* Layer (Card) in dark mode is typically 5.1% white over the background */
   --wb-surface-layer: rgba(255, 255, 255, 0.051);
-  --wb-surface-flyout: rgba(44, 44, 44, 0.96); /* Menus/Flyouts */
-  
+  --wb-surface-flyout: #2c2c2c;
+
   /* Interaction states */
   --wb-surface-hover: rgba(255, 255, 255, 0.0605);
   --wb-surface-active: rgba(255, 255, 255, 0.0326);
@@ -42,7 +42,7 @@
   --wb-error-border: rgba(224, 82, 82, 0.3);
   /* Text color on accent-colored backgrounds */
   --wb-accent-fg: rgba(0, 0, 0, 0.85);
-  
+
   /* Log Levels — dark theme */
   --wb-log-panic: #FF459E;
   --wb-log-fatal: #E05252;
@@ -70,12 +70,12 @@
 /* WinUI 3 light theme tokens */
 .light {
   /* 既然已经开启了真实的 Mica 材质，我们将基础背景色设为透明，让系统原生材质完全透出来 */
-  --wb-surface-base: transparent; 
-  
+  --wb-surface-base: transparent;
+
   /* 层/卡片背景: WinUI3 规范中卡片（CardBackground）通常是纯白，以提供清爽的层次感 */
   --wb-surface-layer: rgba(255, 255, 255, 1);
-  --wb-surface-flyout: rgba(255, 255, 255, 0.95);
-  
+  --wb-surface-flyout: #ffffff;
+
   /* 交互状态: WinUI 3 的悬浮和点击反馈通常比较克制 */
   --wb-surface-hover: rgba(0, 0, 0, 0.0392);
   --wb-surface-active: rgba(0, 0, 0, 0.0241);

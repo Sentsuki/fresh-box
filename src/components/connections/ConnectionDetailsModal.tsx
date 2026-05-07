@@ -21,7 +21,7 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
       onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
     >
       <div 
-        className="flex flex-col w-full max-w-4xl max-h-[90vh] rounded-(--wb-radius-lg) bg-(--wb-surface-flyout) backdrop-blur-xl border border-(--wb-border-default) shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
+        className="flex flex-col w-full max-w-4xl max-h-[90vh] rounded-(--wb-radius-lg) bg-(--wb-surface-flyout) border border-(--wb-border-default) shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         {/* Header */}
