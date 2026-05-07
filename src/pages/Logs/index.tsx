@@ -13,15 +13,17 @@ import { useLogsStream } from "../../hooks/useLogsStream";
 import type { LogEntry } from "../../types/app";
 
 const LEVEL_COLORS: Record<string, string> = {
-  error: "text-(--wb-error)",
-  warn: "text-(--wb-warning)",
-  warning: "text-(--wb-warning)",
-  info: "text-(--wb-text-primary)",
-  debug: "text-(--wb-text-tertiary)",
-  trace: "text-(--wb-text-disabled)",
+  panic: "text-(--wb-log-panic)",
+  fatal: "text-(--wb-log-fatal)",
+  error: "text-(--wb-log-error)",
+  warn: "text-(--wb-log-warn)",
+  warning: "text-(--wb-log-warn)",
+  info: "text-(--wb-log-info)",
+  debug: "text-(--wb-log-debug)",
+  trace: "text-(--wb-log-trace)",
 };
 
-const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
+const LOG_LEVELS = ["panic", "fatal", "error", "warn", "info", "debug", "trace"] as const;
 
 export default function Logs() {
   const {

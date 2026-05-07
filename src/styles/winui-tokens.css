@@ -42,6 +42,15 @@
   --wb-error-border: rgba(224, 82, 82, 0.3);
   /* Text color on accent-colored backgrounds */
   --wb-accent-fg: rgba(0, 0, 0, 0.85);
+  
+  /* Log Levels — dark theme */
+  --wb-log-panic: #FF459E;
+  --wb-log-fatal: #E05252;
+  --wb-log-error: #FF8C6B;
+  --wb-log-warn: #D4A017;
+  --wb-log-info: #60CDFF;
+  --wb-log-debug: #B4B4B4;
+  --wb-log-trace: #808080;
 
   --wb-sidebar-width: 240px;
   --wb-titlebar-height: 36px;
@@ -95,4 +104,13 @@
   --wb-error-border: rgba(196, 43, 28, 0.25);
   /* Text color on accent-colored backgrounds */
   --wb-accent-fg: rgba(255, 255, 255, 0.95);
+
+  /* Log Levels — light theme */
+  --wb-log-panic: #D3106D;
+  --wb-log-fatal: #C42B1C;
+  --wb-log-error: #D85D3B;
+  --wb-log-warn: #8A6014;
+  --wb-log-info: #005FB8;
+  --wb-log-debug: #5D5D5D;
+  --wb-log-trace: #8E8E8E;
 }

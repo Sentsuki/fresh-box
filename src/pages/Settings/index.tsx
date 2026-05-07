@@ -213,24 +213,6 @@ export default function Settings() {
         {/* Application */}
         <SettingGroup title="Application">
           <SettingCard
-            icon={<SettingsRegular />}
-            title="App Log Level"
-            description="Minimum log level displayed in the Logs page"
-            control={
-              <select
-                value={currentAppLogLevel}
-                onChange={(e) => void setLogLevel(e.target.value as AppLogLevel)}
-                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-              >
-                {(["trace", "debug", "info", "warn", "error"] as AppLogLevel[]).map((level) => (
-                  <option key={level} value={level}>
-                    {level}
-                  </option>
-                ))}
-              </select>
-            }
-          />
-          <SettingCard
             icon={<FolderOpenRegular />}
             title="App Directory"
             description="Open the folder containing config files, overrides, and logs"
