@@ -64,6 +64,7 @@ interface NodeCardProps {
 }
 
 const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
+  const isTesting = useClashStore((s) => s.activeDelayNode === node.name);
   return (
     <button
       onClick={onSelect}
@@ -92,13 +93,21 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
         <button
           onClick={(e) => {
             e.stopPropagation();
-            onTest();
+            if (!isTesting) onTest();
           }}
+          disabled={isTesting}
           title="Test latency"
-          className={`text-xs font-medium tabular-nums rounded px-2 py-0.5 transition-colors border border-transparent ${delayColor(node.delay)
-            } hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)`}
+          className={[
+            "text-xs font-medium tabular-nums rounded px-2 py-0.5 transition-colors border border-transparent",
+            isTesting ? "opacity-70 cursor-default" : "hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)",
+            delayColor(node.delay),
+          ].join(" ")}
         >
-          {node.delay ? `${node.delay}ms` : "--"}
+          {isTesting ? (
+            <Spinner size="sm" className="border-t-current" />
+          ) : (
+            node.delay ? `${node.delay}ms` : "--"
+          )}
         </button>
       </div>
     </button>
@@ -107,6 +116,7 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
 
 interface GroupCardProps {
   group: ClashProxyGroup;
+  isTesting: boolean;
   onSelectNode: (node: string) => void;
   onTestNode: (node: string) => void;
   onTestGroup: () => void;
@@ -136,7 +146,7 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   );
 }
 
-const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
+const GroupCard = memo(function GroupCard({ group, isTesting, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
   const collapsed = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups[group.name] ?? false);
   const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
   const open = !collapsed;
@@ -163,6 +173,7 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
           <Button
             variant="subtle"
             icon={<TimerRegular />}
+            loading={isTesting}
             onClick={(e) => {
               e.stopPropagation();
               onTestGroup();
@@ -198,6 +209,9 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
 export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);
   const overview = useClashStore((s) => s.overview);
+  const isRefreshing = useClashStore((s) => s.isRefreshing);
+  const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
+  const activeDelayNode = useClashStore((s) => s.activeDelayNode);
   const { refreshOverview, switchProxy, testDelay, testGroupDelay, changeMode } = useClash();
 
   const availableModes = overview?.available_modes ?? [];
@@ -263,6 +277,7 @@ export default function Proxies() {
           <Button
             icon={<ArrowClockwiseRegular />}
             variant="accent"
+            loading={isRefreshing}
             onClick={() => void refreshOverview()}
           >
             Refresh
@@ -280,6 +295,7 @@ export default function Proxies() {
             <GroupCard
               key={group.name}
               group={group}
+              isTesting={activeGroupDelay === group.name}
               onSelectNode={(node) => void handleSelectNode(group.name, node)}
               onTestNode={(node) => void handleTestNode(node)}
               onTestGroup={() => void handleTestGroup(group.name)}
