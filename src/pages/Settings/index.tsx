@@ -241,14 +241,14 @@ export default function Settings() {
           <SettingCard
             icon={<LinkRegular />}
             title="API Controller"
-            description="The address:port for the Clash API (e.g. 127.0.0.1:51385)"
+            description="The address:port for the Clash API (e.g. 127.0.0.1:8964)"
             control={
               <div className="flex items-center gap-2">
                 <input
                   type="text"
                   value={clashApiController}
                   onChange={(e) => setClashApiController(e.target.value)}
-                  placeholder="127.0.0.1:51385"
+                  placeholder="127.0.0.1:8964"
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
                 />
                 <Button

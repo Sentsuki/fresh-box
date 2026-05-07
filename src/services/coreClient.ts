@@ -1,9 +1,9 @@
 import { fetch } from "@tauri-apps/plugin-http";
 import type { CoreClientConfig } from "../types/app";
 
-let CORE_HTTP_URL = "http://127.0.0.1:51385";
-let CORE_WS_URL = "ws://127.0.0.1:51385";
-let CORE_SECRET = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
+let CORE_HTTP_URL = "http://127.0.0.1:8964";
+let CORE_WS_URL = "ws://127.0.0.1:8964";
+let CORE_SECRET = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
 
 export function updateCoreClientConfig(config: CoreClientConfig) {
   CORE_HTTP_URL = config.http_url;
