@@ -153,7 +153,10 @@ fn clash_client() -> Result<Client, CommandError> {
         .timeout(Duration::from_secs(20))
         .build()
         .map_err(|error| {
-            CommandError::network(format!("Failed to initialize the Clash API client: {}", error))
+            CommandError::network(format!(
+                "Failed to initialize the Clash API client: {}",
+                error
+            ))
         })
 }
 
@@ -337,7 +340,11 @@ fn build_clash_overview(
     } else if !config.modes.is_empty() {
         config.modes
     } else {
-        vec!["rule".to_string(), "global".to_string(), "direct".to_string()]
+        vec![
+            "rule".to_string(),
+            "global".to_string(),
+            "direct".to_string(),
+        ]
     };
 
     let sort_index = proxies
@@ -511,7 +518,11 @@ pub async fn toggle_clash_rule(
     rule_index: Option<usize>,
     disabled: bool,
 ) -> Result<ClashRulesSnapshot, CommandError> {
-    if let Some(uuid) = rule_uuid.as_deref().map(str::trim).filter(|value| !value.is_empty()) {
+    if let Some(uuid) = rule_uuid
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+    {
         clash_put(
             &format!("/rules/{}", urlencoding::encode(uuid)),
             json!({}),
@@ -542,7 +553,9 @@ pub async fn toggle_clash_rule(
 pub async fn update_clash_rule_provider(name: String) -> Result<ClashRulesSnapshot, CommandError> {
     let normalized_name = name.trim();
     if normalized_name.is_empty() {
-        return Err(CommandError::validation("Rule provider name cannot be empty."));
+        return Err(CommandError::validation(
+            "Rule provider name cannot be empty.",
+        ));
     }
 
     clash_put(

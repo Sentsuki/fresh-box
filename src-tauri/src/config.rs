@@ -164,8 +164,7 @@ impl Default for RulesPageSettings {
 }
 
 fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
-    let mut settings = serde_json::from_value::<AppSettings>(value)
-        .unwrap_or_default();
+    let mut settings = serde_json::from_value::<AppSettings>(value).unwrap_or_default();
     settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
     Ok(settings)
 }
@@ -437,8 +436,8 @@ fn load_subscriptions_json() -> Result<serde_json::Map<String, Value>, CommandEr
     }
     let content = fs::read_to_string(&path)
         .map_err(|e| CommandError::io("failed to read subscriptions file", e))?;
-    let value: Value = serde_json::from_str(&content)
-        .unwrap_or(Value::Object(serde_json::Map::new()));
+    let value: Value =
+        serde_json::from_str(&content).unwrap_or(Value::Object(serde_json::Map::new()));
     Ok(value.as_object().cloned().unwrap_or_default())
 }
 
@@ -704,10 +703,7 @@ pub async fn rename_config(old_path: String, new_path: String) -> Result<(), Com
     fs::rename(&old_full_path, &new_full_path)
         .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
 
-    rename_in_file_order(
-        stem_from_filename(&old_path),
-        stem_from_filename(&new_path),
-    )?;
+    rename_in_file_order(stem_from_filename(&old_path), stem_from_filename(&new_path))?;
 
     Ok(())
 }
