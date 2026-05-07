@@ -12,7 +12,7 @@ export function KeyValue({ label, value, className = "" }: KeyValueProps) {
         className,
       ].join(" ")}
     >
-      <span className="text-xs text-(--wb-text-secondary) flex-shrink-0 min-w-0">
+      <span className="text-xs text-(--wb-text-secondary) shrink-0 min-w-0">
         {label}
       </span>
       <span className="text-xs text-(--wb-text-primary) text-right ml-4 truncate">

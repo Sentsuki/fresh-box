@@ -1,98 +1,89 @@
 :root {
-  /* Dark mode - let Mica show through */
+  /* Common */
+  --wb-sidebar-width: 280px;
+  --wb-sidebar-collapsed-width: 48px;
+  --wb-titlebar-height: 32px;
+  --wb-radius-xs: 3px;
+  --wb-radius-sm: 4px;
+  --wb-radius-md: 6px;
+  --wb-radius-lg: 8px;
+  --wb-font-base: "Segoe UI Variable Display", "Segoe UI", system-ui, sans-serif;
+
+  /* Dark mode - WinUI 3 (Mica) */
   --wb-surface-base: transparent;
   
-  /* Layer (Card) in dark mode is typically 5.1% white over the background */
+  /* Layer 1 - Card backgrounds */
   --wb-surface-layer: rgba(255, 255, 255, 0.051);
-  --wb-surface-flyout: rgba(44, 44, 44, 0.96); /* Menus/Flyouts */
+  --wb-surface-layer-alt: rgba(255, 255, 255, 0.035);
+  --wb-surface-flyout: rgba(44, 44, 44, 0.96);
   
   /* Interaction states */
-  --wb-surface-hover: rgba(255, 255, 255, 0.0605);
-  --wb-surface-active: rgba(255, 255, 255, 0.0326);
-  --wb-surface-selected: rgba(255, 255, 255, 0.0605);
+  --wb-surface-hover: rgba(255, 255, 255, 0.08);
+  --wb-surface-active: rgba(255, 255, 255, 0.04);
+  --wb-surface-selected: rgba(255, 255, 255, 0.06);
 
   /* Borders */
-  --wb-border-subtle: rgba(255, 255, 255, 0.05);
-  --wb-border-default: rgba(255, 255, 255, 0.08);
+  --wb-border-subtle: rgba(255, 255, 255, 0.06);
+  --wb-border-default: rgba(255, 255, 255, 0.1);
+  --wb-border-strong: rgba(255, 255, 255, 0.15);
 
-  /* Accent - Windows 11 Dark Mode Default */
+  /* Accent - Win11 Default Blue */
   --wb-accent: #60CDFF;
   --wb-accent-hover: #8CD7FF;
   --wb-accent-pressed: #4DC8FF;
+  --wb-accent-fg: rgba(0, 0, 0, 0.9);
 
-  /* Typography - WinUI 3 Dark Mode standard opacities */
+  /* Typography */
   --wb-text-primary: rgba(255, 255, 255, 1);
-  --wb-text-secondary: rgba(255, 255, 255, 0.786);
-  --wb-text-tertiary: rgba(255, 255, 255, 0.5442);
-  --wb-text-disabled: rgba(255, 255, 255, 0.3628);
+  --wb-text-secondary: rgba(255, 255, 255, 0.78);
+  --wb-text-tertiary: rgba(255, 255, 255, 0.55);
+  --wb-text-disabled: rgba(255, 255, 255, 0.36);
 
   --wb-scrollbar-thumb: rgba(255, 255, 255, 0.2);
   --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
 
-  /* Semantic status colors — dark theme */
+  /* Semantic */
   --wb-success: #6BB44A;
-  --wb-success-bg: rgba(107, 180, 74, 0.15);
-  --wb-success-border: rgba(107, 180, 74, 0.3);
-  --wb-warning: #D4A017;
-  --wb-warning-bg: rgba(212, 160, 23, 0.15);
-  --wb-warning-border: rgba(212, 160, 23, 0.3);
-  --wb-error: #E05252;
-  --wb-error-hover: #c94646;
-  --wb-error-bg: rgba(224, 82, 82, 0.15);
-  --wb-error-border: rgba(224, 82, 82, 0.3);
-  /* Text color on accent-colored backgrounds */
-  --wb-accent-fg: rgba(0, 0, 0, 0.85);
-
-  --wb-sidebar-width: 240px;
-  --wb-titlebar-height: 36px;
-  --wb-radius-sm: 4px;
-  --wb-radius-md: 6px;
-  --wb-radius-lg: 8px;
+  --wb-warning: #FFD335;
+  --wb-error: #FF99A4;
 }
 
-/* WinUI 3 light theme tokens */
 .light {
-  /* 既然已经开启了真实的 Mica 材质，我们将基础背景色设为透明，让系统原生材质完全透出来 */
   --wb-surface-base: transparent; 
   
-  /* 层/卡片背景: WinUI3 规范中卡片（CardBackground）通常是纯白，以提供清爽的层次感 */
-  --wb-surface-layer: rgba(255, 255, 255, 1);
+  /* Layer 1 - Card backgrounds */
+  --wb-surface-layer: rgba(255, 255, 255, 0.7);
+  --wb-surface-layer-alt: rgba(255, 255, 255, 0.5);
   --wb-surface-flyout: rgba(255, 255, 255, 0.95);
   
-  /* 交互状态: WinUI 3 的悬浮和点击反馈通常比较克制 */
-  --wb-surface-hover: rgba(0, 0, 0, 0.0392);
-  --wb-surface-active: rgba(0, 0, 0, 0.0241);
-  --wb-surface-selected: rgba(0, 0, 0, 0.0392);
+  /* Interaction states */
+  --wb-surface-hover: rgba(0, 0, 0, 0.04);
+  --wb-surface-active: rgba(0, 0, 0, 0.02);
+  --wb-surface-selected: rgba(0, 0, 0, 0.04);
 
-  /* 边框: Windows 11 风格的边框非常微妙，通常是 5.78% 的黑色 */
-  --wb-border-subtle: rgba(0, 0, 0, 0.04);
-  --wb-border-default: rgba(0, 0, 0, 0.0578);
+  /* Borders */
+  --wb-border-subtle: rgba(0, 0, 0, 0.06);
+  --wb-border-default: rgba(0, 0, 0, 0.09);
+  --wb-border-strong: rgba(0, 0, 0, 0.2);
 
-  /* 强调色: Windows 11 默认的经典蓝色是 #005FB8 */
+  /* Accent - Win11 Default Blue */
   --wb-accent: #005FB8;
   --wb-accent-hover: #0056A6;
   --wb-accent-pressed: #004C93;
+  --wb-accent-fg: rgba(255, 255, 255, 1);
 
-  /* 文字颜色: 遵循 WinUI3 的标准透明度 */
-  --wb-text-primary: rgba(0, 0, 0, 0.8956);
-  --wb-text-secondary: rgba(0, 0, 0, 0.6063);
-  --wb-text-tertiary: rgba(0, 0, 0, 0.4458);
-  --wb-text-disabled: rgba(0, 0, 0, 0.3628);
+  /* Typography */
+  --wb-text-primary: rgba(0, 0, 0, 0.9);
+  --wb-text-secondary: rgba(0, 0, 0, 0.6);
+  --wb-text-tertiary: rgba(0, 0, 0, 0.45);
+  --wb-text-disabled: rgba(0, 0, 0, 0.36);
 
   --wb-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --wb-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
 
-  /* Semantic status colors — light theme */
-  --wb-success: #2d7d14;
-  --wb-success-bg: rgba(45, 125, 20, 0.1);
-  --wb-success-border: rgba(45, 125, 20, 0.25);
-  --wb-warning: #8a6014;
-  --wb-warning-bg: rgba(138, 96, 20, 0.1);
-  --wb-warning-border: rgba(138, 96, 20, 0.25);
-  --wb-error: #c42b1c;
-  --wb-error-hover: #b02519;
-  --wb-error-bg: rgba(196, 43, 28, 0.1);
-  --wb-error-border: rgba(196, 43, 28, 0.25);
-  /* Text color on accent-colored backgrounds */
-  --wb-accent-fg: rgba(255, 255, 255, 0.95);
+  /* Semantic */
+  --wb-success: #0F7B0F;
+  --wb-warning: #9D5D00;
+  --wb-error: #C42B1C;
 }
+

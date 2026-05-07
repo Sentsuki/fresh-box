@@ -20,7 +20,7 @@ export function Section({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon && (
-            <span className="text-(--wb-text-secondary) text-sm flex-shrink-0">
+            <span className="text-(--wb-text-secondary) text-sm shrink-0">
               {icon}
             </span>
           )}

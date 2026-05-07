@@ -3,12 +3,14 @@ import {
   ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
+  GlobeRegular,
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { Button } from "../../components/ui/Button";
 import { Spinner } from "../../components/ui/Spinner";
+import { Badge } from "../../components/ui/Badge";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
@@ -42,24 +44,27 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
       onClick={onSelect}
       title={node.name}
       className={[
-        "flex flex-col items-start gap-1.5 px-2 py-2 rounded-(--wb-radius-md)",
-        "text-left transition-all duration-100 cursor-pointer w-full min-w-0",
+        "relative flex flex-col items-start gap-1 px-3 py-2.5 rounded-(--wb-radius-md)",
+        "text-left transition-all duration-75 cursor-pointer w-full min-w-0 border",
         selected
-          ? "bg-(--wb-accent) text-white shadow-sm"
-          : "bg-(--wb-surface-base) hover:bg-(--wb-surface-hover) text-(--wb-text-primary)",
+          ? "bg-(--wb-surface-selected) border-(--wb-accent) ring-1 ring-(--wb-accent)/10 shadow-sm"
+          : "bg-(--wb-surface-layer-alt) hover:bg-(--wb-surface-hover) border-(--wb-border-subtle) text-(--wb-text-primary)",
       ].join(" ")}
     >
+      {selected && (
+        <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-r-full" />
+      )}
       <span
-        className={`w-full truncate text-xs font-medium leading-tight ${
-          selected ? "text-white" : "text-(--wb-text-primary)"
+        className={`w-full truncate text-sm font-medium leading-tight ${
+          selected ? "text-(--wb-text-primary)" : "text-(--wb-text-primary)"
         }`}
       >
         {node.name}
       </span>
-      <div className="flex w-full items-center justify-between gap-1">
+      <div className="flex w-full items-center justify-between gap-1 mt-1">
         <span
-          className={`text-[10px] truncate ${
-            selected ? "text-white/70" : "text-(--wb-text-tertiary)"
+          className={`text-[11px] font-medium uppercase tracking-wider ${
+            selected ? "text-(--wb-accent)" : "text-(--wb-text-tertiary)"
           }`}
         >
           {abbreviateType(node.type)}
@@ -70,10 +75,10 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
             onTest();
           }}
           title="Test latency"
-          className={`text-[10px] tabular-nums rounded px-1 transition-colors ${
+          className={`text-[11px] tabular-nums font-semibold rounded px-1.5 py-0.5 transition-colors ${
             selected
-              ? "text-white/80 hover:text-white hover:bg-white/20"
-              : `${delayColor(node.delay)} hover:bg-(--wb-surface-active)`
+              ? "bg-(--wb-accent)/10 text-(--wb-accent) hover:bg-(--wb-accent)/20"
+              : `${delayColor(node.delay)} bg-(--wb-surface-active) hover:bg-(--wb-surface-selected)`
           }`}
         >
           {node.delay ? `${node.delay}ms` : "--"}
@@ -90,70 +95,63 @@ interface GroupCardProps {
   onTestGroup: () => void;
 }
 
-function GroupTrigger({ group }: { group: ClashProxyGroup }) {
-  return (
-    <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-(--wb-text-primary) truncate">
-          {group.name}
-        </span>
-        <span className="text-xs text-(--wb-text-tertiary) flex-shrink-0">
-          {group.type}
-        </span>
-        <span className="text-xs text-(--wb-text-disabled) flex-shrink-0">
-          · {group.options.length}
-        </span>
-      </div>
-      {group.now && (
-        <div className="text-xs text-(--wb-accent) truncate mt-0.5">
-          → {group.now}
-        </div>
-      )}
-    </div>
-  );
-}
-
 const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
   const collapsed = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups[group.name] ?? false);
   const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
   const open = !collapsed;
 
   return (
-    <div className="rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden">
+    <div className="rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden shadow-sm">
       <div className="flex items-center">
         <button
           onClick={() => void setProxyGroupCollapsed(group.name, open)}
           className={[
-            "flex flex-1 items-center justify-between px-4 py-3 min-w-0",
-            "bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)",
+            "flex flex-1 items-center justify-between px-5 py-4 min-w-0",
+            "hover:bg-(--wb-surface-hover) active:bg-(--wb-surface-active)",
             "transition-colors duration-100 text-left",
           ].join(" ")}
         >
-          <span className="flex-1 min-w-0">
-            <GroupTrigger group={group} />
-          </span>
+          <div className="flex-1 min-w-0">
+            <div className="flex items-center gap-2">
+              <span className="text-base font-semibold text-(--wb-text-primary) truncate">
+                {group.name}
+              </span>
+              <Badge variant="subtle" className="text-[10px] uppercase tracking-tighter">
+                {group.type}
+              </Badge>
+              <span className="text-xs text-(--wb-text-tertiary) shrink-0">
+                ({group.options.length} nodes)
+              </span>
+            </div>
+            {group.now && (
+              <div className="text-xs text-(--wb-accent) font-medium truncate mt-1 flex items-center gap-1">
+                <GlobeRegular className="text-xs" />
+                {group.now}
+              </div>
+            )}
+          </div>
           <ChevronDownRegular
-            className={`ml-2 flex-shrink-0 text-(--wb-text-secondary) transition-transform duration-150 ${open ? "rotate-180" : ""}`}
+            className={`ml-4 shrink-0 text-(--wb-text-tertiary) transition-transform duration-200 ${open ? "rotate-180" : ""}`}
           />
         </button>
-        <div className="flex-shrink-0 px-2 bg-(--wb-surface-layer)">
-          <button
+        <div className="shrink-0 px-3 flex items-center border-l border-(--wb-border-subtle) h-12 my-2">
+          <Button
             onClick={(e) => {
               e.stopPropagation();
               onTestGroup();
             }}
-            className="p-1.5 rounded-(--wb-radius-sm) text-(--wb-text-secondary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) transition-colors"
-            title="Test all latencies"
-          >
-            <TimerRegular className="text-sm" />
-          </button>
+            variant="subtle"
+            size="sm"
+            title="Test all nodes"
+            icon={<TimerRegular className="text-base" />}
+          />
         </div>
       </div>
       {open && (
-        <div className="px-4 py-3 bg-(--wb-surface-base)">
+        <div className="px-5 py-4 bg-(--wb-surface-layer-alt)/30 border-t border-(--wb-border-subtle)">
           <div
-            className="grid gap-1.5"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 100%), 1fr))" }}
+            className="grid gap-2"
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(160px, 100%), 1fr))" }}
           >
             {group.options.map((node) => (
               <NodeCard
@@ -206,53 +204,60 @@ export default function Proxies() {
 
   if (!overview) {
     return (
-      <div className="flex flex-col items-center justify-center h-48 gap-3">
-        <Spinner />
-        <p className="text-sm text-(--wb-text-secondary)">Loading proxies...</p>
+      <div className="flex flex-col items-center justify-center h-64 gap-4">
+        <Spinner size="lg" />
+        <p className="text-sm font-medium text-(--wb-text-secondary)">Loading proxies...</p>
       </div>
     );
   }
 
   return (
-    <div className="flex flex-col gap-4">
-      {/* Page header */}
-      <div className="flex items-center justify-between">
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
         <div>
-          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Proxies</h1>
-          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
-            {groups.length} groups · {overview.current_mode}
+          <h1 className="text-3xl font-bold text-(--wb-text-primary) tracking-tight">Proxies</h1>
+          <p className="text-sm text-(--wb-text-secondary) mt-1">
+            {groups.length} groups · Mode: <span className="font-semibold text-(--wb-accent) capitalize">{currentMode}</span>
           </p>
         </div>
+        
         <div className="flex items-center gap-2">
           {availableModes.length > 0 && (
-            <select
-              value={currentMode}
-              onChange={(e) => void changeMode(e.target.value)}
-              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
-            >
+            <div className="flex items-center gap-2 bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) p-1">
               {availableModes.map((m) => (
-                <option key={m} value={m}>
-                  {m.charAt(0).toUpperCase() + m.slice(1)}
-                </option>
+                <button
+                  key={m}
+                  onClick={() => void changeMode(m)}
+                  className={[
+                    "px-3 py-1 text-xs font-medium rounded-(--wb-radius-sm) transition-all capitalize",
+                    currentMode === m
+                      ? "bg-(--wb-accent) text-(--wb-accent-fg) shadow-sm"
+                      : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover) hover:text-(--wb-text-primary)"
+                  ].join(" ")}
+                >
+                  {m}
+                </button>
               ))}
-            </select>
+            </div>
           )}
           <Button
             icon={<ArrowClockwiseRegular />}
-            variant="subtle"
+            variant="default"
+            size="md"
             onClick={() => void refreshOverview()}
           >
             Refresh
           </Button>
         </div>
-      </div>
+      </header>
 
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-32 text-sm text-(--wb-text-secondary)">
-          No proxy groups found
+        <div className="flex flex-col items-center justify-center py-20 bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-dashed border-(--wb-border-subtle)">
+          <GlobeRegular className="text-4xl text-(--wb-text-disabled) mb-2" />
+          <p className="text-sm font-medium text-(--wb-text-secondary)">No proxy groups found</p>
         </div>
       ) : (
-        <div className="flex flex-col gap-2">
+        <div className="flex flex-col gap-3">
           {groups.map((group) => (
             <GroupCard
               key={group.name}
@@ -267,3 +272,4 @@ export default function Proxies() {
     </div>
   );
 }
+

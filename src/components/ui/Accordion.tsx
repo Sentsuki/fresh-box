@@ -38,13 +38,13 @@ export function AccordionItem({
             <span className="flex-1 min-w-0">{trigger}</span>
             <ChevronDownRegular
               className={[
-                "ml-2 flex-shrink-0 text-(--wb-text-secondary) transition-transform duration-150",
+                "ml-2 shrink-0 text-(--wb-text-secondary) transition-transform duration-150",
                 "group-data-[state=open]:rotate-180",
               ].join(" ")}
             />
           </RadixAccordion.Trigger>
           {actions && (
-            <div className="flex-shrink-0 px-2 bg-(--wb-surface-layer)">
+            <div className="shrink-0 px-2 bg-(--wb-surface-layer)">
               {actions}
             </div>
           )}

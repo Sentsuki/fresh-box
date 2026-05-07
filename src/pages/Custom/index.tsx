@@ -204,7 +204,7 @@ export default function Custom() {
 
       {/* Config Override Section */}
       <div className="flex items-center gap-3 p-3 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer)">
-        <InfoRegular className="text-(--wb-accent) flex-shrink-0" />
+        <InfoRegular className="text-(--wb-accent) shrink-0" />
         <p className="text-xs text-(--wb-text-secondary) flex-1">
           These overrides are merged into the selected config file at startup.
         </p>
@@ -212,7 +212,7 @@ export default function Custom() {
           onClick={() => void toggleOverrideEnabled()}
           disabled={togglingOverride}
           className={[
-            "flex-shrink-0 px-3 py-1 text-sm rounded-(--wb-radius-md) border transition-colors",
+            "shrink-0 px-3 py-1 text-sm rounded-(--wb-radius-md) border transition-colors",
             overrideEnabled
               ? "border-(--wb-accent) bg-(--wb-accent) text-white"
               : "border-(--wb-border-default) text-(--wb-text-secondary) hover:border-(--wb-border-default)",
