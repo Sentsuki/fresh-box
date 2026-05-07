@@ -23,6 +23,13 @@ export interface ConnectionColumnOption {
   defaultDirection: SortDirection;
 }
 
+export interface ConnectionGroup {
+  id: string;
+  label: string;
+  column: ConnectionColumnOption;
+  items: ConnectionEntry[];
+}
+
 interface ConnectionColumnDefinition extends ConnectionColumnOption {
   defaultDirection: SortDirection;
   getValue: (c: ConnectionEntry) => number | string;
@@ -293,6 +300,53 @@ function sortEntries(
   });
 }
 
+function compareValues(a: number | string, b: number | string): number {
+  if (typeof a === "number" && typeof b === "number") return a - b;
+  return String(a).localeCompare(String(b));
+}
+
+export function groupConnections(
+  entries: ConnectionEntry[],
+  groupedColKey: ConnectionColumnKey,
+  sortKey: ConnectionColumnKey,
+  sortDirection: SortDirection,
+): ConnectionGroup[] {
+  const col = columnDefinitions[groupedColKey];
+  if (!col) return [];
+
+  const groups = new Map<
+    string,
+    { id: string; label: string; rawValue: number | string; items: ConnectionEntry[] }
+  >();
+
+  for (const conn of entries) {
+    const rawValue = col.getValue(conn);
+    const label = String(rawValue || "--");
+    const id = `${col.key}:${label}`;
+    const existing = groups.get(id);
+    if (existing) {
+      existing.items.push(conn);
+    } else {
+      groups.set(id, { id, label, rawValue, items: [conn] });
+    }
+  }
+
+  const groupDirection = sortKey === col.key ? sortDirection : "asc";
+
+  return Array.from(groups.values())
+    .sort((a, b) => {
+      const result = compareValues(a.rawValue, b.rawValue);
+      if (result !== 0) return groupDirection === "asc" ? result : -result;
+      return a.id.localeCompare(b.id);
+    })
+    .map((group) => ({
+      id: group.id,
+      label: group.label,
+      column: col,
+      items: sortEntries(group.items, sortKey, sortDirection),
+    }));
+}
+
 export function formatConnectionValue(
   key: ConnectionColumnKey,
   entry: ConnectionEntry,
@@ -335,6 +389,8 @@ export function useConnectionsStream() {
   const isPaused = useConnectionsStore((s) => s.isPaused);
 
   const settings = useSettingsStore((s) => s.settings.pages.connections);
+  const setConnectionsGroupedColumn = useSettingsStore((s) => s.setConnectionsGroupedColumn);
+  const setConnectionGroupCollapsed = useSettingsStore((s) => s.setConnectionGroupCollapsed);
 
   const visibleColumns = useMemo(
     () =>
@@ -350,6 +406,10 @@ export function useConnectionsStream() {
     () => sortEntries(entries, settings.sort_key, settings.sort_direction),
     [entries, settings.sort_key, settings.sort_direction],
   );
+
+  const groupedColumn: ConnectionColumnOption | null = settings.grouped_column
+    ? (columnDefinitions[settings.grouped_column] ?? null)
+    : null;
 
   const startStream = useCallback(() => {
     if (shouldReconnect) return;
@@ -385,19 +445,45 @@ export function useConnectionsStream() {
     }
   }, [success, error]);
 
+  const toggleGrouping = useCallback((key: ConnectionColumnKey) => {
+    const col = columnDefinitions[key];
+    if (!col?.groupable) return;
+    const next = settings.grouped_column === key ? null : key;
+    void setConnectionsGroupedColumn(next);
+  }, [settings.grouped_column, setConnectionsGroupedColumn]);
+
+  const clearGrouping = useCallback(() => {
+    void setConnectionsGroupedColumn(null);
+  }, [setConnectionsGroupedColumn]);
+
+  const toggleGroupCollapsed = useCallback((groupId: string) => {
+    const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
+    void setConnectionGroupCollapsed(groupId, !isCollapsed);
+  }, [settings.collapsed_groups, setConnectionGroupCollapsed]);
+
+  const isGroupCollapsed = useCallback((groupId: string) => {
+    return Boolean(settings.collapsed_groups[groupId]);
+  }, [settings.collapsed_groups]);
+
   return {
     active,
     closed,
     entries: sortedEntries,
+    rawEntries: entries,
     downloadTotal,
     uploadTotal,
     streamStatus,
     isPaused,
     visibleColumns,
     allColumns,
+    groupedColumn,
     startStream,
     stopStream,
     togglePause,
     closeAll,
+    toggleGrouping,
+    clearGrouping,
+    toggleGroupCollapsed,
+    isGroupCollapsed,
   };
 }

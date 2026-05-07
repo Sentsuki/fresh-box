@@ -2,9 +2,11 @@ import { useEffect, useState, useMemo, useCallback } from "react";
 import { DismissRegular, SearchRegular, PauseRegular, PlayRegular, ColumnRegular } from "@fluentui/react-icons";
 import {
   useConnectionsStream,
+  groupConnections,
   formatConnectionValue,
   allColumns,
 } from "../../hooks/useConnectionsStream";
+import type { ConnectionGroup } from "../../hooks/useConnectionsStream";
 import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
@@ -16,12 +18,18 @@ export default function Connections() {
     active,
     closed,
     entries,
+    rawEntries,
     visibleColumns,
     isPaused,
+    groupedColumn,
     startStream,
     stopStream,
     togglePause,
     closeAll,
+    toggleGrouping,
+    clearGrouping,
+    toggleGroupCollapsed,
+    isGroupCollapsed,
   } = useConnectionsStream();
 
   const currentTab = useSettingsStore((s) => s.settings.pages.connections.current_tab);
@@ -52,6 +60,21 @@ export default function Connections() {
       ),
     );
   }, [entries, visibleColumns, search]);
+
+  const filteredRawEntries = useMemo(() => {
+    if (!search) return rawEntries;
+    const q = search.toLowerCase();
+    return rawEntries.filter((e) =>
+      visibleColumns.some((col) =>
+        formatConnectionValue(col.key, e).toLowerCase().includes(q),
+      ),
+    );
+  }, [rawEntries, visibleColumns, search]);
+
+  const groupedEntries = useMemo<ConnectionGroup[] | null>(() => {
+    if (!groupedColumn) return null;
+    return groupConnections(filteredRawEntries, groupedColumn.key, sortKey, sortDirection);
+  }, [filteredRawEntries, groupedColumn, sortKey, sortDirection]);
 
   const tableColumns: ColumnDef<ConnectionEntry>[] = useMemo(
     () =>
@@ -136,6 +159,20 @@ export default function Connections() {
           ))}
         </div>
 
+        {/* Grouped-by chip */}
+        {groupedColumn && (
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--wb-accent)]/15 text-[var(--wb-accent)] border border-[var(--wb-accent)]/30">
+            <span>Grouped by {groupedColumn.label}</span>
+            <button
+              onClick={clearGrouping}
+              className="hover:opacity-70 transition-opacity leading-none"
+              title="Clear grouping"
+            >
+              ✕
+            </button>
+          </div>
+        )}
+
         <div className="flex-1" />
 
         {/* Search */}
@@ -173,7 +210,7 @@ export default function Connections() {
             Columns
           </Button>
           {showColumns && (
-            <div className="absolute right-0 top-full mt-1 z-20 min-w-48 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-base)] shadow-lg p-2 flex flex-col gap-0.5">
+            <div className="absolute right-0 top-full mt-1 z-20 min-w-52 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-base)] shadow-lg p-2 flex flex-col gap-0.5">
               {allColumns.map((col) => (
                 <div key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--wb-surface-hover)]">
                   <input
@@ -186,6 +223,20 @@ export default function Connections() {
                   <label htmlFor={`col-${col.key}`} className="flex-1 text-sm text-[var(--wb-text-primary)] cursor-pointer">
                     {col.label}
                   </label>
+                  {col.groupable && (
+                    <button
+                      onClick={() => toggleGrouping(col.key)}
+                      title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
+                      className={[
+                        "px-1.5 py-0.5 text-xs rounded transition-colors",
+                        groupedColumn?.key === col.key
+                          ? "bg-[var(--wb-accent)] text-white"
+                          : "text-[var(--wb-text-tertiary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]",
+                      ].join(" ")}
+                    >
+                      {groupedColumn?.key === col.key ? "Grouped" : "Group"}
+                    </button>
+                  )}
                   <div className="flex gap-0.5">
                     <button
                       onClick={() => moveColumn(col.key, -1)}
@@ -210,16 +261,138 @@ export default function Connections() {
       </div>
 
       <div className="flex-1 min-h-0 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] overflow-hidden">
-        <VirtualTable
-          columns={tableColumns}
-          rows={filteredEntries}
-          rowHeight={32}
-          getRowKey={(row) => row.id}
-          sortKey={sortKey}
-          sortDirection={sortDirection}
-          onSort={handleSort}
-        />
+        {groupedEntries ? (
+          <GroupedTable
+            groups={groupedEntries}
+            columns={tableColumns}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+            isGroupCollapsed={isGroupCollapsed}
+            onToggleGroupCollapsed={toggleGroupCollapsed}
+          />
+        ) : (
+          <VirtualTable
+            columns={tableColumns}
+            rows={filteredEntries}
+            rowHeight={32}
+            getRowKey={(row) => row.id}
+            sortKey={sortKey}
+            sortDirection={sortDirection}
+            onSort={handleSort}
+          />
+        )}
       </div>
+    </div>
+  );
+}
+
+interface GroupedTableProps {
+  groups: ConnectionGroup[];
+  columns: ColumnDef<ConnectionEntry>[];
+  sortKey: ConnectionColumnKey;
+  sortDirection: "asc" | "desc";
+  onSort: (key: string) => void;
+  isGroupCollapsed: (id: string) => boolean;
+  onToggleGroupCollapsed: (id: string) => void;
+}
+
+function GroupedTable({
+  groups,
+  columns,
+  sortKey,
+  sortDirection,
+  onSort,
+  isGroupCollapsed,
+  onToggleGroupCollapsed,
+}: GroupedTableProps) {
+  return (
+    <div className="h-full overflow-auto">
+      <table className="w-full border-collapse">
+        <thead className="sticky top-0 z-10 bg-[var(--wb-surface-layer)]">
+          <tr>
+            {columns.map((col) => {
+              const isSorted = sortKey === col.key;
+              const isClickable = col.sortable;
+              return (
+                <th
+                  key={col.key}
+                  onClick={isClickable ? () => onSort(col.key) : undefined}
+                  className={[
+                    "px-3 py-2 text-xs font-medium text-[var(--wb-text-secondary)]",
+                    "border-b border-[var(--wb-border-subtle)] whitespace-nowrap select-none",
+                    col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                    isClickable ? "cursor-pointer hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]" : "",
+                    isSorted ? "text-[var(--wb-text-primary)]" : "",
+                  ].join(" ")}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {isSorted && (
+                      <span className="text-[var(--wb-accent)]">
+                        {sortDirection === "asc" ? "↑" : "↓"}
+                      </span>
+                    )}
+                  </span>
+                </th>
+              );
+            })}
+          </tr>
+        </thead>
+        <tbody>
+          {groups.map((group) => {
+            const collapsed = isGroupCollapsed(group.id);
+            return (
+              <>
+                <tr
+                  key={`group-${group.id}`}
+                  onClick={() => onToggleGroupCollapsed(group.id)}
+                  className="cursor-pointer bg-[var(--wb-surface-layer)] hover:bg-[var(--wb-surface-hover)] transition-colors"
+                >
+                  <td
+                    colSpan={columns.length}
+                    className="border-b border-[var(--wb-border-subtle)] px-3 py-2"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <div className="flex items-center gap-2 min-w-0">
+                        <span className="text-[var(--wb-text-secondary)] text-xs shrink-0">
+                          {collapsed ? "▶" : "▼"}
+                        </span>
+                        <span className="text-xs font-semibold text-[var(--wb-text-primary)] truncate">
+                          {group.column.label}: {group.label}
+                        </span>
+                      </div>
+                      <span className="shrink-0 text-xs text-[var(--wb-text-secondary)] bg-[var(--wb-surface-base)] px-2 py-0.5 rounded-full border border-[var(--wb-border-subtle)]">
+                        {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                      </span>
+                    </div>
+                  </td>
+                </tr>
+                {!collapsed &&
+                  group.items.map((row) => (
+                    <tr
+                      key={row.id}
+                      className="border-b border-[var(--wb-border-subtle)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-75"
+                      style={{ height: 32 }}
+                    >
+                      {columns.map((col) => (
+                        <td
+                          key={col.key}
+                          className={[
+                            "px-3 text-xs text-[var(--wb-text-primary)] truncate max-w-0",
+                            col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                          ].join(" ")}
+                        >
+                          {col.render ? col.render(row, 0) : null}
+                        </td>
+                      ))}
+                    </tr>
+                  ))}
+              </>
+            );
+          })}
+        </tbody>
+      </table>
     </div>
   );
 }

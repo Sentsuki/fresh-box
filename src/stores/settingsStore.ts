@@ -143,6 +143,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
         s.pages.connections.grouped_column = column;
+        s.pages.connections.collapsed_groups = {};
       });
     },
 
