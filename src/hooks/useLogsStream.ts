@@ -167,21 +167,21 @@ export function useLogsStream() {
 
   const { success, info } = useToast();
 
-  // rAF flush: drain logBuffer into store at most once per frame
+  // Flush logBuffer into store every 100ms; skip when app is hidden (minimized/unfocused)
   useEffect(() => {
-    let rafId: number;
+    let timerId: ReturnType<typeof setTimeout>;
     const flush = () => {
-      if (logBuffer.length > 0) {
+      if (!document.hidden && logBuffer.length > 0) {
         const batch = logBuffer.splice(0);
         useLogsStore.setState((state) => {
           const next = [...state.logs, ...batch];
           return { logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next };
         });
       }
-      rafId = requestAnimationFrame(flush);
+      timerId = setTimeout(flush, 100);
     };
-    rafId = requestAnimationFrame(flush);
-    return () => cancelAnimationFrame(rafId);
+    timerId = setTimeout(flush, 100);
+    return () => clearTimeout(timerId);
   }, []);
 
   const visibleLogs = useMemo(
