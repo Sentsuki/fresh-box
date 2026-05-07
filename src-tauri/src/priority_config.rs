@@ -1,5 +1,5 @@
 use crate::errors::CommandError;
-use rand::Rng;
+use rand::RngExt as _;
 use serde_json::{json, Value};
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
@@ -210,17 +210,17 @@ pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> 
 
 #[tauri::command]
 pub async fn generate_random_port() -> Result<u16, CommandError> {
-    let port: u16 = rand::thread_rng().gen_range(10000..=65535);
+    let port: u16 = rand::rng().random_range(10000..=65535);
     Ok(port)
 }
 
 #[tauri::command]
 pub async fn generate_random_secret() -> Result<String, CommandError> {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-    let mut rng = rand::thread_rng();
+    let mut rng = rand::rng();
     let secret: String = (0..32)
         .map(|_| {
-            let idx = rng.gen_range(0..CHARS.len());
+            let idx = rng.random_range(0..CHARS.len());
             CHARS[idx] as char
         })
         .collect();

@@ -2,6 +2,7 @@ import { useEffect, useCallback, useState, useRef } from "react";
 import { listen } from "@tauri-apps/api/event";
 import {
   activateSingboxCore,
+  cancelCoreUpdate,
   getSingboxCoreStatus,
   updateSingboxCore,
 } from "../services/api";
@@ -13,6 +14,7 @@ import type {
   SingboxCoreOption,
   SingboxCoreStatus,
   SingboxCoreUpdateResult,
+  SingboxCoreChannel,
 } from "../types/app";
 
 function toOptionKey(option: Pick<SingboxCoreOption, "channel" | "version">) {
@@ -34,6 +36,9 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   );
   const setSelectedCoreOptionKey = useSettingsStore(
     (s) => s.setSelectedCoreOptionKey,
+  );
+  const setActiveSingboxCoreSelection = useSettingsStore(
+    (s) => s.setActiveSingboxCoreSelection,
   );
 
   const { success, error: toastError } = useToast();
@@ -69,11 +74,12 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     [isRefreshing, selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
   );
 
-  const applySelectedCore = useCallback(async () => {
+  const applySelectedCore = useCallback(async (keyOverride?: string) => {
     if (!coreStatus || isUpdating) return;
     const options = coreStatus.available_options ?? [];
+    const key = keyOverride ?? selectedCoreOptionKey;
     const selectedOption = options.find(
-      (o) => toOptionKey(o) === selectedCoreOptionKey,
+      (o) => toOptionKey(o) === key,
     );
     if (!selectedOption) return;
 
@@ -90,11 +96,19 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
           selectedOption.channel,
           selectedOption.version,
         );
+        await setActiveSingboxCoreSelection(
+          selectedOption.channel as SingboxCoreChannel,
+          selectedOption.version,
+        );
         if (!selectedOption.is_active) {
           success(`Switched to ${selectedOption.label}`);
         } else {
           const result: SingboxCoreUpdateResult = await updateSingboxCore(
             selectedOption.channel,
+            selectedOption.version,
+          );
+          await setActiveSingboxCoreSelection(
+            selectedOption.channel as SingboxCoreChannel,
             selectedOption.version,
           );
           success(
@@ -108,6 +122,10 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
           selectedOption.channel,
           selectedOption.version,
         );
+        await setActiveSingboxCoreSelection(
+          selectedOption.channel as SingboxCoreChannel,
+          selectedOption.version,
+        );
         success(
           result.restart_required
             ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
@@ -117,8 +135,13 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       await refreshCoreStatus();
     } catch (err) {
       const msg = getErrorMessage(err);
-      setCoreStatusError(msg);
-      toastError(msg);
+      // Cancelled by user — clear state silently without showing an error toast.
+      if (msg.toLowerCase().includes("cancelled") || msg.toLowerCase().includes("cancel")) {
+        setCoreStatusError("");
+      } else {
+        setCoreStatusError(msg);
+        toastError(msg);
+      }
     } finally {
       setIsUpdating(false);
       setCoreUpdateProgress(null);
@@ -130,7 +153,17 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     success,
     toastError,
     refreshCoreStatus,
+    setActiveSingboxCoreSelection,
   ]);
+
+  const cancelUpdate = useCallback(async () => {
+    if (!isUpdating) return;
+    try {
+      await cancelCoreUpdate();
+    } catch {
+      // Best-effort cancellation; ignore errors.
+    }
+  }, [isUpdating]);
 
   useEffect(() => {
     if (autoRefreshOnMount && !hasAutoRefreshed.current) {
@@ -212,5 +245,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     updateCoreButtonLabel,
     refreshCoreStatus,
     applySelectedCore,
+    cancelUpdate,
   };
 }
