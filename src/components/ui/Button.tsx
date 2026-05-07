@@ -10,7 +10,7 @@ const variantClasses = {
   default:
     "bg-[var(--wb-surface-hover)] hover:bg-[var(--wb-surface-active)] border border-[var(--wb-border-default)] text-[var(--wb-text-primary)]",
   accent:
-    "bg-[var(--wb-accent)] hover:bg-[var(--wb-accent-hover)] active:bg-[var(--wb-accent-pressed)] text-[#000] border border-transparent font-medium",
+    "bg-[var(--wb-accent)] hover:bg-[var(--wb-accent-hover)] active:bg-[var(--wb-accent-pressed)] text-[var(--wb-accent-fg)] border border-transparent font-medium",
   subtle:
     "bg-[var(--wb-surface-hover)] hover:bg-[var(--wb-surface-active)] border border-transparent text-[var(--wb-text-primary)]",
   ghost:

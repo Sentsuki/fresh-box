@@ -1,4 +1,4 @@
-import { useEffect, useRef, useCallback } from "react";
+import { useEffect, useCallback } from "react";
 import {
   PlayRegular,
   PauseRegular,
@@ -8,11 +8,13 @@ import {
 } from "@fluentui/react-icons";
 import { useLogsStream } from "../../hooks/useLogsStream";
 import { Button } from "../../components/ui/Button";
+import { VirtualList } from "../../components/ui/VirtualList";
+import type { LogEntry } from "../../types/app";
 
 const LEVEL_COLORS: Record<string, string> = {
-  error: "text-[#FF6B6B]",
-  warn: "text-[#FFD700]",
-  warning: "text-[#FFD700]",
+  error: "text-[var(--wb-error)]",
+  warn: "text-[var(--wb-warning)]",
+  warning: "text-[var(--wb-warning)]",
   info: "text-[var(--wb-text-primary)]",
   debug: "text-[var(--wb-text-tertiary)]",
   trace: "text-[var(--wb-text-disabled)]",
@@ -21,9 +23,6 @@ const LEVEL_COLORS: Record<string, string> = {
 const LOG_LEVELS = ["error", "warn", "info", "debug", "trace"] as const;
 
 export default function Logs() {
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const atBottomRef = useRef(true);
-
   const {
     visibleLogs,
     isPaused,
@@ -47,19 +46,30 @@ export default function Logs() {
     return () => stopStream(false);
   }, [startStream, stopStream]);
 
-  // Auto scroll to bottom
-  useEffect(() => {
-    if (!atBottomRef.current) return;
-    const el = scrollRef.current;
-    if (el) el.scrollTop = el.scrollHeight;
-  }, [visibleLogs]);
-
-  const handleScroll = useCallback(() => {
-    const el = scrollRef.current;
-    if (!el) return;
-    atBottomRef.current =
-      el.scrollHeight - el.scrollTop - el.clientHeight < 40;
-  }, []);
+  const renderLogEntry = useCallback(
+    (entry: LogEntry, _i: number) => (
+      <div
+        className={[
+          "flex items-start gap-2 py-0.5 px-1 hover:bg-[rgba(255,255,255,0.03)] rounded group",
+          LEVEL_COLORS[entry.type] ?? "text-[var(--wb-text-primary)]",
+        ].join(" ")}
+        style={{ height: 20, lineHeight: "20px" }}
+      >
+        <span className="flex-shrink-0 text-[var(--wb-text-disabled)] w-12 text-right">
+          {entry.type.toUpperCase().slice(0, 4)}
+        </span>
+        {entry.time && (
+          <span className="flex-shrink-0 text-[var(--wb-text-disabled)] w-20">
+            {entry.time}
+          </span>
+        )}
+        <span className="flex-1 min-w-0 truncate">
+          {entry.payload}
+        </span>
+      </div>
+    ),
+    [],
+  );
 
   return (
     <div className="flex flex-col h-full gap-3">
@@ -95,7 +105,7 @@ export default function Logs() {
               className={[
                 "px-2 py-0.5 text-xs rounded border transition-colors",
                 typeFilter === level
-                  ? "border-[var(--wb-accent)] bg-[var(--wb-accent)] text-white"
+                  ? "border-[var(--wb-accent)] bg-[var(--wb-accent)] text-[var(--wb-accent-fg)]"
                   : "border-[var(--wb-border-subtle)] text-[var(--wb-text-secondary)] hover:border-[var(--wb-border-default)]",
               ].join(" ")}
             >
@@ -130,38 +140,20 @@ export default function Logs() {
         </Button>
       </div>
 
-      {/* Log list */}
-      <div
-        ref={scrollRef}
-        onScroll={handleScroll}
-        className="flex-1 min-h-0 overflow-y-auto rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] p-2 font-mono text-xs"
-      >
+      {/* Log list — virtualized */}
+      <div className="flex-1 min-h-0 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] p-2 font-mono text-xs">
         {visibleLogs.length === 0 ? (
           <div className="flex items-center justify-center h-full text-[var(--wb-text-disabled)]">
             No logs
           </div>
         ) : (
-          visibleLogs.map((entry, i) => (
-            <div
-              key={entry.seq ?? i}
-              className={[
-                "flex items-start gap-2 py-0.5 px-1 hover:bg-[rgba(255,255,255,0.03)] rounded group",
-                LEVEL_COLORS[entry.type] ?? "text-[var(--wb-text-primary)]",
-              ].join(" ")}
-            >
-              <span className="flex-shrink-0 text-[var(--wb-text-disabled)] w-12 text-right">
-                {entry.type.toUpperCase().slice(0, 4)}
-              </span>
-              {entry.time && (
-                <span className="flex-shrink-0 text-[var(--wb-text-disabled)] w-20">
-                  {entry.time}
-                </span>
-              )}
-              <span className="flex-1 min-w-0 break-all whitespace-pre-wrap">
-                {entry.payload}
-              </span>
-            </div>
-          ))
+          <VirtualList
+            items={visibleLogs}
+            itemHeight={20}
+            getItemKey={(entry, i) => entry.seq ?? i}
+            renderItem={renderLogEntry}
+            autoScrollToEnd
+          />
         )}
       </div>
     </div>

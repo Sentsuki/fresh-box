@@ -60,7 +60,7 @@ export default function Overview() {
             className={[
               "text-3xl flex-shrink-0 mt-0.5",
               isRunning
-                ? "text-[#6BB44A]"
+                ? "text-[var(--wb-success)]"
                 : "text-[var(--wb-text-disabled)]",
             ].join(" ")}
           >

@@ -288,7 +288,7 @@ export default function Custom() {
                   />
                   <button
                     onClick={() => removeEntry(i)}
-                    className="p-1.5 text-[var(--wb-text-secondary)] hover:text-[#FF6B6B] transition-colors rounded"
+                    className="p-1.5 text-[var(--wb-text-secondary)] hover:text-[var(--wb-error)] transition-colors rounded"
                   >
                     <DeleteRegular />
                   </button>

@@ -29,7 +29,7 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
           </div>
           <div className="flex items-center gap-2">
             <button
-              className="rounded-lg bg-red-600 px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-red-700"
+              className="rounded-lg bg-[var(--wb-error)] px-4 py-2 text-sm font-medium text-white transition-colors hover:bg-[var(--wb-error-hover)]"
               onClick={() => { onDisconnect(connection.id); onClose(); }}
             >
               Disconnect

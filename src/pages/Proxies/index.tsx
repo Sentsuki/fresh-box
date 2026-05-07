@@ -2,20 +2,20 @@ import { useEffect, useCallback } from "react";
 import {
   ArrowClockwiseRegular,
   TimerRegular,
-  ChevronDownRegular,
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { Button } from "../../components/ui/Button";
 import { Spinner } from "../../components/ui/Spinner";
+import { Accordion, AccordionItem } from "../../components/ui/Accordion";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
   if (!delay) return "text-[var(--wb-text-disabled)]";
-  if (delay < 200) return "text-[#6BB44A]";
-  if (delay < 500) return "text-[#D4A017]";
-  return "text-[#E05252]";
+  if (delay < 200) return "text-[var(--wb-success)]";
+  if (delay < 500) return "text-[var(--wb-warning)]";
+  return "text-[var(--wb-error)]";
 }
 
 
@@ -90,77 +90,62 @@ interface GroupCardProps {
   onTestGroup: () => void;
 }
 
-function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
-  const collapsedGroups = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups);
-  const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
-  const open = !(collapsedGroups[group.name] ?? false);
-  const toggleOpen = () => void setProxyGroupCollapsed(group.name, open);
-
+function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   return (
-    <div className="rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] overflow-hidden">
-      {/* Header */}
-      <button
-        onClick={() => toggleOpen()}
-        className="w-full flex items-center gap-3 px-4 py-3 hover:bg-[var(--wb-surface-hover)] transition-colors"
-      >
-        <ChevronDownRegular
-          className={`text-[var(--wb-text-secondary)] transition-transform duration-200 flex-shrink-0 ${
-            open ? "rotate-0" : "-rotate-90"
-          }`}
-        />
-        <div className="flex-1 min-w-0 text-left">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-[var(--wb-text-primary)] truncate">
-              {group.name}
-            </span>
-            <span className="text-xs text-[var(--wb-text-tertiary)] flex-shrink-0">
-              {group.type}
-            </span>
-            <span className="text-xs text-[var(--wb-text-disabled)] flex-shrink-0">
-              · {group.options.length}
-            </span>
-          </div>
-          {group.now && (
-            <div className="text-xs text-[var(--wb-accent)] truncate mt-0.5">
-              → {group.now}
-            </div>
-          )}
+    <div className="flex-1 min-w-0">
+      <div className="flex items-center gap-2">
+        <span className="text-sm font-semibold text-[var(--wb-text-primary)] truncate">
+          {group.name}
+        </span>
+        <span className="text-xs text-[var(--wb-text-tertiary)] flex-shrink-0">
+          {group.type}
+        </span>
+        <span className="text-xs text-[var(--wb-text-disabled)] flex-shrink-0">
+          · {group.options.length}
+        </span>
+      </div>
+      {group.now && (
+        <div className="text-xs text-[var(--wb-accent)] truncate mt-0.5">
+          → {group.now}
         </div>
+      )}
+    </div>
+  );
+}
+
+function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
+  return (
+    <AccordionItem
+      value={group.name}
+      trigger={<GroupTrigger group={group} />}
+      actions={
         <button
           onClick={(e) => {
             e.stopPropagation();
             onTestGroup();
           }}
-          className="flex-shrink-0 p-1.5 rounded-[var(--wb-radius-sm)] text-[var(--wb-text-secondary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-active)] transition-colors"
+          className="p-1.5 rounded-[var(--wb-radius-sm)] text-[var(--wb-text-secondary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-active)] transition-colors"
           title="Test all latencies"
         >
           <TimerRegular className="text-sm" />
         </button>
-      </button>
-
-      {/* Node grid */}
-      {open && (
-        <div className="px-3 pb-3">
-          <div
-            className="grid gap-1.5"
-            style={{
-              gridTemplateColumns:
-                "repeat(auto-fill, minmax(min(140px, 100%), 1fr))",
-            }}
-          >
-            {group.options.map((node) => (
-              <NodeCard
-                key={node.name}
-                node={node}
-                selected={group.now === node.name}
-                onSelect={() => onSelectNode(node.name)}
-                onTest={() => onTestNode(node.name)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+      }
+    >
+      <div
+        className="grid gap-1.5"
+        style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 100%), 1fr))" }}
+      >
+        {group.options.map((node) => (
+          <NodeCard
+            key={node.name}
+            node={node}
+            selected={group.now === node.name}
+            onSelect={() => onSelectNode(node.name)}
+            onTest={() => onTestNode(node.name)}
+          />
+        ))}
+      </div>
+    </AccordionItem>
   );
 }
 
@@ -168,9 +153,29 @@ export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);
   const overview = useClashStore((s) => s.overview);
   const { refreshOverview, switchProxy, testDelay, testGroupDelay, changeMode } = useClash();
+  const collapsedGroups = useSettingsStore((s) => s.settings.pages.proxies.collapsed_groups);
+  const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
+
+  // Compute the list of open (non-collapsed) accordion values
+  const openGroups = groups
+    .filter((g) => !(collapsedGroups[g.name] ?? false))
+    .map((g) => g.name);
+
+  const handleAccordionChange = useCallback(
+    (newOpen: string[]) => {
+      for (const g of groups) {
+        const wasOpen = openGroups.includes(g.name);
+        const isNowOpen = newOpen.includes(g.name);
+        if (wasOpen !== isNowOpen) {
+          void setProxyGroupCollapsed(g.name, !isNowOpen);
+        }
+      }
+    },
+    [groups, openGroups, setProxyGroupCollapsed],
+  );
 
   useEffect(() => {
     void refreshOverview();
@@ -245,19 +250,21 @@ export default function Proxies() {
           No proxy groups found
         </div>
       ) : (
-        <div className="flex flex-col gap-3">
+        <Accordion
+          type="multiple"
+          value={openGroups}
+          onValueChange={handleAccordionChange as (v: string | string[]) => void}
+        >
           {groups.map((group) => (
             <GroupCard
               key={group.name}
               group={group}
-              onSelectNode={(node) =>
-                void handleSelectNode(group.name, node)
-              }
+              onSelectNode={(node) => void handleSelectNode(group.name, node)}
               onTestNode={(node) => void handleTestNode(node)}
               onTestGroup={() => void handleTestGroup(group.name)}
             />
           ))}
-        </div>
+        </Accordion>
       )}
     </div>
   );

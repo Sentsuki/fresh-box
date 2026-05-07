@@ -28,21 +28,21 @@ export default function StatusCards({ overview }: StatusCardsProps) {
       label: "Download",
       value: formatSpeed(downloadSpeed),
       sub: `Total: ${formatBytes(downloadTotal)}`,
-      color: "text-[#60CDFF]",
+      color: "text-[var(--wb-accent)]",
     },
     {
       icon: <ArrowUpRegular />,
       label: "Upload",
       value: formatSpeed(uploadSpeed),
       sub: `Total: ${formatBytes(uploadTotal)}`,
-      color: "text-[#8CD7FF]",
+      color: "text-[var(--wb-accent-hover)]",
     },
     {
       icon: <PlugConnectedRegular />,
       label: "Connections",
       value: String(connectionsCount),
       sub: `Mode: ${overview.current_mode}`,
-      color: "text-[#6BB44A]",
+      color: "text-[var(--wb-success)]",
     },
     ...(overview.memory_usage !== undefined
       ? [
@@ -51,7 +51,7 @@ export default function StatusCards({ overview }: StatusCardsProps) {
             label: "Memory",
             value: formatBytes(overview.memory_usage),
             sub: "In use",
-            color: "text-[#FFD700]",
+            color: "text-[var(--wb-warning)]",
           },
         ]
       : []),

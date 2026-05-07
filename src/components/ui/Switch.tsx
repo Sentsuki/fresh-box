@@ -41,7 +41,7 @@ export function Switch({
             "pointer-events-none block h-3.5 w-3.5 rounded-full shadow-sm",
             "transition-transform duration-100",
             checked
-              ? "translate-x-4 bg-[#000]"
+              ? "translate-x-4 bg-[var(--wb-accent-fg)]"
               : "translate-x-0.5 bg-[var(--wb-text-secondary)]",
           ].join(" ")}
         />

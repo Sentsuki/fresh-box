@@ -50,8 +50,8 @@ export default function Settings() {
   const processStatusColor = (() => {
     if (!processStatus) return "text-[var(--wb-text-secondary)]";
     const n = processStatus.toLowerCase();
-    if (n.includes("running") || n.includes("detected")) return "text-[#6BB44A]";
-    if (n.includes("failed") || n.includes("error")) return "text-[#E05252]";
+    if (n.includes("running") || n.includes("detected")) return "text-[var(--wb-success)]";
+    if (n.includes("failed") || n.includes("error")) return "text-[var(--wb-error)]";
     return "text-[var(--wb-accent)]";
   })();
 
@@ -147,7 +147,7 @@ export default function Settings() {
       >
         <div className="flex flex-col gap-3">
           {coreStatusError && (
-            <p className="text-xs text-[#E05252]">{coreStatusError}</p>
+            <p className="text-xs text-[var(--wb-error)]">{coreStatusError}</p>
           )}
           <KeyValue label="Status" value={coreStatusText} />
           <KeyValue label="Current" value={currentCoreLabel} />

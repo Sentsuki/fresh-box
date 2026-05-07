@@ -29,6 +29,20 @@
   --wb-scrollbar-thumb: rgba(255, 255, 255, 0.2);
   --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
 
+  /* Semantic status colors — dark theme */
+  --wb-success: #6BB44A;
+  --wb-success-bg: rgba(107, 180, 74, 0.15);
+  --wb-success-border: rgba(107, 180, 74, 0.3);
+  --wb-warning: #D4A017;
+  --wb-warning-bg: rgba(212, 160, 23, 0.15);
+  --wb-warning-border: rgba(212, 160, 23, 0.3);
+  --wb-error: #E05252;
+  --wb-error-hover: #c94646;
+  --wb-error-bg: rgba(224, 82, 82, 0.15);
+  --wb-error-border: rgba(224, 82, 82, 0.3);
+  /* Text color on accent-colored backgrounds */
+  --wb-accent-fg: rgba(0, 0, 0, 0.85);
+
   --wb-sidebar-width: 240px;
   --wb-titlebar-height: 36px;
   --wb-radius-sm: 4px;
@@ -67,4 +81,18 @@
 
   --wb-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --wb-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Semantic status colors — light theme */
+  --wb-success: #2d7d14;
+  --wb-success-bg: rgba(45, 125, 20, 0.1);
+  --wb-success-border: rgba(45, 125, 20, 0.25);
+  --wb-warning: #8a6014;
+  --wb-warning-bg: rgba(138, 96, 20, 0.1);
+  --wb-warning-border: rgba(138, 96, 20, 0.25);
+  --wb-error: #c42b1c;
+  --wb-error-hover: #b02519;
+  --wb-error-bg: rgba(196, 43, 28, 0.1);
+  --wb-error-border: rgba(196, 43, 28, 0.25);
+  /* Text color on accent-colored backgrounds */
+  --wb-accent-fg: rgba(255, 255, 255, 0.95);
 }

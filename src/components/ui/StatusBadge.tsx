@@ -9,7 +9,7 @@ export function StatusBadge({ running, className = "" }: StatusBadgeProps) {
       className={[
         "inline-flex items-center gap-1.5 px-2 py-0.5 text-xs font-medium rounded-full",
         running
-          ? "bg-[rgba(107,180,74,0.15)] text-[#6BB44A] border border-[rgba(107,180,74,0.3)]"
+          ? "bg-[var(--wb-success-bg)] text-[var(--wb-success)] border border-[var(--wb-success-border)]"
           : "bg-[var(--wb-surface-hover)] text-[var(--wb-text-tertiary)] border border-[var(--wb-border-subtle)]",
         className,
       ].join(" ")}
@@ -17,7 +17,7 @@ export function StatusBadge({ running, className = "" }: StatusBadgeProps) {
       <span
         className={[
           "w-1.5 h-1.5 rounded-full",
-          running ? "bg-[#6BB44A] animate-pulse" : "bg-[var(--wb-text-disabled)]",
+          running ? "bg-[var(--wb-success)] animate-pulse" : "bg-[var(--wb-text-disabled)]",
         ].join(" ")}
       />
       {running ? "Running" : "Stopped"}

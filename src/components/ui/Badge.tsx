@@ -10,11 +10,11 @@ const variantClasses = {
   accent:
     "bg-[rgba(96,205,255,0.15)] text-[var(--wb-accent)] border border-[rgba(96,205,255,0.3)]",
   success:
-    "bg-[rgba(107,180,74,0.15)] text-[#6BB44A] border border-[rgba(107,180,74,0.3)]",
+    "bg-[var(--wb-success-bg)] text-[var(--wb-success)] border border-[var(--wb-success-border)]",
   warning:
-    "bg-[rgba(255,200,0,0.15)] text-[#FFD700] border border-[rgba(255,200,0,0.3)]",
+    "bg-[var(--wb-warning-bg)] text-[var(--wb-warning)] border border-[var(--wb-warning-border)]",
   error:
-    "bg-[rgba(232,17,35,0.15)] text-[#F1707A] border border-[rgba(232,17,35,0.3)]",
+    "bg-[var(--wb-error-bg)] text-[var(--wb-error)] border border-[var(--wb-error-border)]",
   subtle:
     "bg-transparent text-[var(--wb-text-tertiary)] border border-[var(--wb-border-subtle)]",
 };

@@ -1,4 +1,4 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { buildCoreWebSocketUrl } from "../services/coreClient";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
@@ -33,6 +33,7 @@ interface LogsState {
 }
 
 let logSeq = 1;
+const logBuffer: LogEntry[] = [];
 
 export const useLogsStore = create<LogsState>((set) => ({
   logs: [],
@@ -46,6 +47,7 @@ export const useLogsStore = create<LogsState>((set) => ({
   setStreamError: (streamError) => set({ streamError }),
   clearLogs: () => {
     logSeq = 1;
+    logBuffer.length = 0;
     set({ logs: [] });
   },
 }));
@@ -113,10 +115,8 @@ function connect() {
         }),
         category: extractCategory(msg.payload),
       };
-      useLogsStore.setState((state) => {
-        const next = [entry, ...state.logs];
-        return { logs: next.length > LOG_LIMIT ? next.slice(0, LOG_LIMIT) : next };
-      });
+      // Buffer the entry — flushed via rAF in useLogsStream hook
+      logBuffer.push(entry);
     } catch {
       // ignore parse errors
     }
@@ -166,6 +166,23 @@ export function useLogsStream() {
   const setLogTypeFilter = useSettingsStore((s) => s.setLogTypeFilter);
 
   const { success, info } = useToast();
+
+  // rAF flush: drain logBuffer into store at most once per frame
+  useEffect(() => {
+    let rafId: number;
+    const flush = () => {
+      if (logBuffer.length > 0) {
+        const batch = logBuffer.splice(0);
+        useLogsStore.setState((state) => {
+          const next = [...state.logs, ...batch];
+          return { logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next };
+        });
+      }
+      rafId = requestAnimationFrame(flush);
+    };
+    rafId = requestAnimationFrame(flush);
+    return () => cancelAnimationFrame(rafId);
+  }, []);
 
   const visibleLogs = useMemo(
     () =>
