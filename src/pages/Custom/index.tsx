@@ -159,7 +159,7 @@ export default function Custom() {
               className={[
                 "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium",
                 !useRaw
-                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary) shadow-sm"
+                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
                   : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
               ].join(" ")}
             >
@@ -170,7 +170,7 @@ export default function Custom() {
               className={[
                 "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium",
                 useRaw
-                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary) shadow-sm"
+                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
                   : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
               ].join(" ")}
             >
