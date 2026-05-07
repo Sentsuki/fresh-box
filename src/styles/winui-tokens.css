@@ -53,6 +53,13 @@
   --wb-log-trace: #808080;
   --wb-log-bg: rgba(0, 0, 0, 0.2);
 
+  /* Solid Badge Backgrounds — dark theme (to block Mica) */
+  --wb-badge-default-bg: #2d2d2d;
+  --wb-badge-accent-bg: #1c323d;
+  --wb-badge-success-bg: #20311a;
+  --wb-badge-warning-bg: #332b12;
+  --wb-badge-error-bg: #361d1d;
+
   --wb-sidebar-width: 240px;
   --wb-titlebar-height: 36px;
   --wb-radius-sm: 4px;
@@ -115,4 +122,11 @@
   --wb-log-debug: #5D5D5D;
   --wb-log-trace: #8E8E8E;
   --wb-log-bg: rgba(0, 0, 0, 0.03);
+
+  /* Solid Badge Backgrounds — light theme */
+  --wb-badge-default-bg: #f3f3f3;
+  --wb-badge-accent-bg: #e5f1fb;
+  --wb-badge-success-bg: #e7f3e5;
+  --wb-badge-warning-bg: #fff4ce;
+  --wb-badge-error-bg: #fdecec;
 }

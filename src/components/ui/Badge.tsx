@@ -6,15 +6,15 @@ interface BadgeProps {
 
 const variantClasses = {
   default:
-    "bg-(--wb-surface-hover) text-(--wb-text-secondary) border border-(--wb-border-subtle)",
+    "bg-(--wb-badge-default-bg) text-(--wb-text-secondary) border border-(--wb-border-subtle)",
   accent:
-    "bg-[rgba(96,205,255,0.15)] text-(--wb-accent) border border-[rgba(96,205,255,0.3)]",
+    "bg-(--wb-badge-accent-bg) text-(--wb-accent) border border-(--wb-accent)/20",
   success:
-    "bg-(--wb-success-bg) text-(--wb-success) border border-(--wb-success-border)",
+    "bg-(--wb-badge-success-bg) text-(--wb-success) border border-(--wb-success-border)",
   warning:
-    "bg-(--wb-warning-bg) text-(--wb-warning) border border-(--wb-warning-border)",
+    "bg-(--wb-badge-warning-bg) text-(--wb-warning) border border-(--wb-warning-border)",
   error:
-    "bg-(--wb-error-bg) text-(--wb-error) border border-(--wb-error-border)",
+    "bg-(--wb-badge-error-bg) text-(--wb-error) border border-(--wb-error-border)",
   subtle:
     "bg-transparent text-(--wb-text-tertiary) border border-(--wb-border-subtle)",
 };
