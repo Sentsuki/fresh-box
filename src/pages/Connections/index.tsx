@@ -83,16 +83,37 @@ export default function Connections() {
     () =>
       visibleColumns.map((col) => ({
         key: col.key,
-        label: col.label,
+        label: (
+          <div className="flex items-center gap-1.5 group/header">
+            <span className="flex-1 truncate">{col.label}</span>
+            {col.groupable && (
+              <button
+                onClick={(e) => {
+                  e.stopPropagation();
+                  toggleGrouping(col.key as ConnectionColumnKey);
+                }}
+                className={[
+                  "p-0.5 rounded transition-all flex items-center justify-center",
+                  groupedColumn?.key === col.key
+                    ? "bg-(--wb-accent) text-(--wb-accent-fg) opacity-100"
+                    : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) opacity-0 group-hover/header:opacity-100"
+                ].join(" ")}
+                title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
+              >
+                <ColumnRegular className="w-3.5 h-3.5" />
+              </button>
+            )}
+          </div>
+        ),
         align: col.align,
         sortable: col.sortable,
-        render: (row) => (
+        render: (row: ConnectionEntry) => (
           <span className="truncate text-[13px]">
             {formatConnectionValue(col.key as ConnectionColumnKey, row)}
           </span>
         ),
       })),
-    [visibleColumns],
+    [visibleColumns, groupedColumn, toggleGrouping],
   );
 
   const handleSort = useCallback(
@@ -138,7 +159,7 @@ export default function Connections() {
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
-      <div className="flex-shrink-0 pr-2">
+      <div className="shrink-0 pr-2">
         <PageHeader 
           title="Connections" 
           description="Monitor and manage active network streams routed through sing-box."
@@ -221,47 +242,40 @@ export default function Connections() {
               Columns
             </Button>
             {showColumns && (
-              <div className="absolute right-0 top-full mt-2 z-20 min-w-64 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-lg p-3 flex flex-col gap-1.5">
-                {allColumns.map((col) => (
-                  <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-(--wb-surface-hover) transition-colors">
-                    <input
-                      type="checkbox"
-                      id={`col-${col.key}`}
-                      checked={visibleColumnKeys.includes(col.key)}
-                      onChange={() => toggleColumnVisible(col.key)}
-                      className="accent-(--wb-accent)"
-                    />
-                    <label htmlFor={`col-${col.key}`} className="flex-1 text-sm font-medium text-(--wb-text-primary) cursor-pointer select-none">
-                      {col.label}
-                    </label>
-                    {col.groupable && (
-                      <button
-                        onClick={() => toggleGrouping(col.key)}
-                        title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
-                        className={[
-                          "px-2 py-0.5 text-[11px] font-semibold uppercase tracking-wider rounded transition-colors border",
-                          groupedColumn?.key === col.key
-                            ? "bg-(--wb-accent)/20 text-(--wb-accent) border-(--wb-accent)/30"
-                            : "bg-transparent border-(--wb-border-subtle) text-(--wb-text-secondary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)",
-                        ].join(" ")}
-                      >
-                        {groupedColumn?.key === col.key ? "Grouped" : "Group"}
-                      </button>
-                    )}
-                    <div className="flex gap-1 ml-1">
-                      <button
-                        onClick={() => moveColumn(col.key, -1)}
-                        className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) rounded px-1.5 py-0.5 text-xs transition-colors"
-                        title="Move up"
-                      >↑</button>
-                      <button
-                        onClick={() => moveColumn(col.key, 1)}
-                        className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) rounded px-1.5 py-0.5 text-xs transition-colors"
-                        title="Move down"
-                      >↓</button>
+              <div className="absolute right-0 top-full mt-2 z-50 min-w-64 rounded-xl border border-(--wb-border-default) bg-(--wb-surface-flyout) backdrop-blur-xl p-2 flex flex-col gap-0.5">
+                <div className="px-3 py-2 text-xs font-semibold text-(--wb-text-tertiary) uppercase tracking-wider">Visible Columns</div>
+                <div className="max-h-[60vh] overflow-y-auto px-1">
+                  {allColumns.map((col) => (
+                    <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-(--wb-surface-hover) transition-colors">
+                      <input
+                        type="checkbox"
+                        id={`col-${col.key}`}
+                        checked={visibleColumnKeys.includes(col.key)}
+                        onChange={() => toggleColumnVisible(col.key)}
+                        className="w-4 h-4 rounded border-(--wb-border-default) accent-(--wb-accent) cursor-pointer"
+                      />
+                      <label htmlFor={`col-${col.key}`} className="flex-1 text-sm font-medium text-(--wb-text-primary) cursor-pointer select-none">
+                        {col.label}
+                      </label>
+                      
+                      <div className="flex items-center gap-1">
+                        <div className="flex bg-(--wb-surface-active) rounded-md p-0.5 border border-(--wb-border-subtle)">
+                          <button
+                            onClick={() => moveColumn(col.key, -1)}
+                            className="w-6 h-6 flex items-center justify-center text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover) rounded transition-colors"
+                            title="Move up"
+                          >↑</button>
+                          <div className="w-px h-3 bg-(--wb-border-subtle) self-center" />
+                          <button
+                            onClick={() => moveColumn(col.key, 1)}
+                            className="w-6 h-6 flex items-center justify-center text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover) rounded transition-colors"
+                            title="Move down"
+                          >↓</button>
+                        </div>
+                      </div>
                     </div>
-                  </div>
-                ))}
+                  ))}
+                </div>
               </div>
             )}
           </div>
