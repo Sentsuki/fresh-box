@@ -10,7 +10,7 @@ use std::process::Command;
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
 const FILE_ORDER_KEY: &str = "_file_order";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
-const APP_SETTINGS_SCHEMA_VERSION: u32 = 4;
+const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 pub const CORE_CHANNEL_STABLE: &str = "stable";
 pub const CORE_CHANNEL_TESTING: &str = "testing";
