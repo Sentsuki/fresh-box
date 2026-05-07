@@ -1,4 +1,8 @@
-import { ArrowMinimizeRegular, DismissRegular, MaximizeRegular } from "@fluentui/react-icons";
+import {
+  ArrowMinimizeRegular,
+  DismissRegular,
+  MaximizeRegular,
+} from "@fluentui/react-icons";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { useAppStore } from "../../stores/appStore";
 
@@ -29,7 +33,9 @@ export function TitleBar() {
         <span className="text-sm font-semibold text-(--wb-text-primary) pointer-events-none">
           Fresh Box
         </span>
-        <span className="text-(--wb-text-tertiary) text-sm pointer-events-none">·</span>
+        <span className="text-(--wb-text-tertiary) text-sm pointer-events-none">
+          ·
+        </span>
         <span className="text-sm text-(--wb-text-secondary) truncate pointer-events-none">
           {pageTitle[currentPage] ?? currentPage}
         </span>
@@ -37,21 +43,27 @@ export function TitleBar() {
 
       <div className="flex items-center shrink-0 h-full">
         <button
-          onClick={() => { void getCurrentWindow().minimize(); }}
+          onClick={() => {
+            void getCurrentWindow().minimize();
+          }}
           className="flex items-center justify-center w-11 h-full text-(--wb-text-secondary) hover:bg-(--wb-surface-hover) transition-colors duration-100 focus-visible:outline-none"
           aria-label="Minimize"
         >
           <ArrowMinimizeRegular className="text-base" />
         </button>
         <button
-          onClick={() => { void getCurrentWindow().toggleMaximize(); }}
+          onClick={() => {
+            void getCurrentWindow().toggleMaximize();
+          }}
           className="flex items-center justify-center w-11 h-full text-(--wb-text-secondary) hover:bg-(--wb-surface-hover) transition-colors duration-100 focus-visible:outline-none"
           aria-label="Maximize"
         >
           <MaximizeRegular className="text-base" />
         </button>
         <button
-          onClick={() => { void getCurrentWindow().close(); }}
+          onClick={() => {
+            void getCurrentWindow().close();
+          }}
           className="flex items-center justify-center w-12 h-full text-(--wb-text-secondary) hover:bg-red-600 hover:text-white transition-colors duration-100 focus-visible:outline-none"
           aria-label="Close"
         >

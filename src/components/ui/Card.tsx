@@ -26,9 +26,7 @@ export function Card({
       className={[
         "rounded-(--wb-radius-lg) border p-4",
         "bg-(--wb-surface-layer)",
-        selected
-          ? "border-(--wb-accent)"
-          : "border-(--wb-border-subtle)",
+        selected ? "border-(--wb-accent)" : "border-(--wb-border-subtle)",
         onClick
           ? "cursor-pointer hover:bg-(--wb-surface-hover) transition-colors duration-100"
           : "",

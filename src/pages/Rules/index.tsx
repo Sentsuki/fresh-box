@@ -1,4 +1,8 @@
-import { ArrowClockwiseRegular, DismissRegular, SearchRegular } from "@fluentui/react-icons";
+import {
+  ArrowClockwiseRegular,
+  DismissRegular,
+  SearchRegular,
+} from "@fluentui/react-icons";
 import { useEffect, useMemo } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -78,7 +82,10 @@ export default function Rules() {
                 className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
               />
               {search && (
-                <button onClick={() => setSearch("")} className="hover:bg-(--wb-surface-hover) rounded p-0.5">
+                <button
+                  onClick={() => setSearch("")}
+                  className="hover:bg-(--wb-surface-hover) rounded p-0.5"
+                >
                   <DismissRegular className="text-xs text-(--wb-text-tertiary)" />
                 </button>
               )}
@@ -100,7 +107,10 @@ export default function Rules() {
           value={currentTab}
           tabs={[
             { value: "rules", label: `Rules (${visibleRules.length})` },
-            { value: "providers", label: `Providers (${visibleProviders.length})` },
+            {
+              value: "providers",
+              label: `Providers (${visibleProviders.length})`,
+            },
           ]}
           onValueChange={(v) => setCurrentTab(v as RulesTab)}
           className="flex-1"
@@ -133,7 +143,10 @@ export default function Rules() {
                           <p className="text-base font-semibold text-(--wb-text-primary)">
                             {p.name}
                           </p>
-                          <Badge variant="subtle" className="uppercase tracking-wider text-[10px]">
+                          <Badge
+                            variant="subtle"
+                            className="uppercase tracking-wider text-[10px]"
+                          >
                             {p.vehicleType}
                           </Badge>
                         </div>

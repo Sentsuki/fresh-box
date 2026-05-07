@@ -54,9 +54,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
           );
           if (!currentExists) {
             const active = options.find((o) => o.is_active);
-            void setSelectedCoreOptionKey(
-              toOptionKey(active ?? options[0]),
-            );
+            void setSelectedCoreOptionKey(toOptionKey(active ?? options[0]));
           }
         }
       } catch (err) {
@@ -88,7 +86,10 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     });
     try {
       if (selectedOption.installed) {
-        await activateSingboxCore(selectedOption.channel, selectedOption.version);
+        await activateSingboxCore(
+          selectedOption.channel,
+          selectedOption.version,
+        );
         if (!selectedOption.is_active) {
           success(`Switched to ${selectedOption.label}`);
         } else {

@@ -82,15 +82,12 @@ function scheduleReconnect() {
 function connect() {
   clearReconnectTimer();
   const store = useLogsStore.getState();
-  const logLevel =
-    useSettingsStore.getState().settings.logs.log_level;
+  const logLevel = useSettingsStore.getState().settings.logs.log_level;
 
   store.setStreamStatus("connecting");
   store.setStreamError(null);
 
-  socket = new WebSocket(
-    buildCoreWebSocketUrl("logs", { level: logLevel }),
-  );
+  socket = new WebSocket(buildCoreWebSocketUrl("logs", { level: logLevel }));
 
   socket.onopen = () => {
     store.setStreamStatus("connected");
@@ -156,12 +153,8 @@ export function useLogsStream() {
   const setIsPaused = useLogsStore((s) => s.setIsPaused);
   const clearLogsState = useLogsStore((s) => s.clearLogs);
 
-  const logLevel = useSettingsStore(
-    (s) => s.settings.logs.log_level,
-  );
-  const typeFilter = useSettingsStore(
-    (s) => s.settings.logs.type_filter,
-  );
+  const logLevel = useSettingsStore((s) => s.settings.logs.log_level);
+  const typeFilter = useSettingsStore((s) => s.settings.logs.type_filter);
   const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setLogTypeFilter = useSettingsStore((s) => s.setLogTypeFilter);
 
@@ -175,7 +168,9 @@ export function useLogsStream() {
         const batch = logBuffer.splice(0);
         useLogsStore.setState((state) => {
           const next = [...state.logs, ...batch];
-          return { logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next };
+          return {
+            logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next,
+          };
         });
       }
       timerId = setTimeout(flush, 100);

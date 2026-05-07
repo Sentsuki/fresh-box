@@ -101,7 +101,9 @@ export function usePriorityConfig() {
         }
       }
 
-      setClashApiController(priorityConfig.clash_api?.external_controller ?? "");
+      setClashApiController(
+        priorityConfig.clash_api?.external_controller ?? "",
+      );
       setClashApiSecret(priorityConfig.clash_api?.secret ?? "");
     } catch (err) {
       setHasStackField(false);
@@ -112,13 +114,10 @@ export function usePriorityConfig() {
     }
   }, [selectedConfigPath, toastError]);
 
-  const updatePriorityConfig = useCallback(
-    async (partial: PriorityConfig) => {
-      const current = await loadPriorityConfig();
-      await savePriorityConfig({ ...current, ...partial });
-    },
-    [],
-  );
+  const updatePriorityConfig = useCallback(async (partial: PriorityConfig) => {
+    const current = await loadPriorityConfig();
+    await savePriorityConfig({ ...current, ...partial });
+  }, []);
 
   const setStackOption = useCallback(
     async (option: StackOption) => {
@@ -160,7 +159,9 @@ export function usePriorityConfig() {
         updateCoreClientConfig(coreConfig);
         success("Clash API settings saved.");
       } catch (err) {
-        toastError(`Failed to update Clash API config: ${getErrorMessage(err)}`);
+        toastError(
+          `Failed to update Clash API config: ${getErrorMessage(err)}`,
+        );
       }
     },
     [success, toastError],

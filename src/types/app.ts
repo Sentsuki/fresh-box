@@ -255,9 +255,7 @@ export function normalizeAppSettings(
 
   return {
     schema_version:
-      typeof settings.schema_version === "number"
-        ? settings.schema_version
-        : 1,
+      typeof settings.schema_version === "number" ? settings.schema_version : 1,
     app: {
       current_page: APP_PAGES.includes(settings.app?.current_page)
         ? settings.app.current_page
@@ -269,9 +267,7 @@ export function normalizeAppSettings(
       ),
     },
     connections: {
-      current_tab: CONNECTION_TABS.includes(
-        settings.connections?.current_tab,
-      )
+      current_tab: CONNECTION_TABS.includes(settings.connections?.current_tab)
         ? settings.connections.current_tab
         : defaults.connections.current_tab,
       column_order: columnOrder,
@@ -279,9 +275,7 @@ export function normalizeAppSettings(
         visibleColumns.length > 0
           ? visibleColumns
           : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
-      sort_key: CONNECTION_COLUMNS.has(
-        settings.connections?.sort_key,
-      )
+      sort_key: CONNECTION_COLUMNS.has(settings.connections?.sort_key)
         ? settings.connections.sort_key
         : defaults.connections.sort_key,
       sort_direction: SORT_DIRECTIONS.includes(
@@ -311,7 +305,8 @@ export function normalizeAppSettings(
     },
     Profiles: {
       selected_config_path: settings.Profiles?.selected_config_path ?? null,
-      selected_config_display: settings.Profiles?.selected_config_display ?? null,
+      selected_config_display:
+        settings.Profiles?.selected_config_display ?? null,
     },
     Settings: {
       theme_mode:

@@ -57,9 +57,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {loading ? (
           <Spinner size="sm" className="mr-0.5 border-t-current" />
         ) : (
-          icon && (
-            <span className="flex-shrink-0 text-[1.1em]">{icon}</span>
-          )
+          icon && <span className="flex-shrink-0 text-[1.1em]">{icon}</span>
         )}
         {children}
       </button>

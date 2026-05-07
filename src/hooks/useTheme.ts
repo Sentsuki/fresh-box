@@ -36,7 +36,9 @@ export function useTheme(): Theme {
 
   useEffect(() => {
     document.documentElement.classList.toggle("light", isLight);
-    getCurrentWindow().setTheme(isLight ? "light" : "dark").catch(console.error);
+    getCurrentWindow()
+      .setTheme(isLight ? "light" : "dark")
+      .catch(console.error);
     invoke("update_mica_theme", { isLight }).catch(console.error);
   }, [isLight]);
 

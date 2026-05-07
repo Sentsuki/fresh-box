@@ -43,25 +43,29 @@ export default function Overview() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
-      <PageHeader 
-        title="Overview" 
+      <PageHeader
+        title="Overview"
         description="Monitor traffic and control the sing-box core service."
       />
 
       <div className="flex flex-col gap-8">
-        
         {/* Dashboard Hero Card - Clean & Minimal */}
         <div className="rounded-2xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm">
           <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
-            
             <div className="flex items-start sm:items-center gap-5 sm:gap-6">
               {/* Status Icon */}
-              <div className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-2xl transition-colors duration-300 ${
-                isRunning 
-                  ? 'bg-(--wb-badge-success-bg) text-(--wb-success) border-2 border-(--wb-success-border)' 
-                  : 'bg-(--wb-badge-default-bg) text-(--wb-text-tertiary) border-2 border-(--wb-border-default)'
-              }`}>
-                {isRunning ? <ShieldCheckmarkRegular className="text-3xl sm:text-4xl" /> : <ShieldErrorRegular className="text-3xl sm:text-4xl" />}
+              <div
+                className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-2xl transition-colors duration-300 ${
+                  isRunning
+                    ? "bg-(--wb-badge-success-bg) text-(--wb-success) border-2 border-(--wb-success-border)"
+                    : "bg-(--wb-badge-default-bg) text-(--wb-text-tertiary) border-2 border-(--wb-border-default)"
+                }`}
+              >
+                {isRunning ? (
+                  <ShieldCheckmarkRegular className="text-3xl sm:text-4xl" />
+                ) : (
+                  <ShieldErrorRegular className="text-3xl sm:text-4xl" />
+                )}
               </div>
 
               {/* Status Text & Profile */}
@@ -74,16 +78,20 @@ export default function Overview() {
                     {isRunning ? "Active" : "Inactive"}
                   </Badge>
                 </div>
-                
+
                 <p className="text-sm text-(--wb-text-secondary) mb-3 max-w-md leading-relaxed">
-                  {isRunning 
-                    ? "Network traffic is securely encrypted and routed." 
+                  {isRunning
+                    ? "Network traffic is securely encrypted and routed."
                     : "Traffic is currently bypassing the proxy. Connect to secure."}
                 </p>
 
                 {selectedDisplay ? (
                   <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-(--wb-surface-hover) border border-(--wb-border-subtle) text-xs text-(--wb-text-primary)">
-                    {isSubscription ? <CloudArrowDownRegular className="text-(--wb-accent)" /> : <DocumentRegular className="text-(--wb-accent)" />}
+                    {isSubscription ? (
+                      <CloudArrowDownRegular className="text-(--wb-accent)" />
+                    ) : (
+                      <DocumentRegular className="text-(--wb-accent)" />
+                    )}
                     <span className="font-medium">{selectedDisplay}</span>
                   </div>
                 ) : (
@@ -102,28 +110,37 @@ export default function Overview() {
                 onClick={isRunning ? stopService : startService}
                 className={`
                   flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${(isPending || !selectedPath) ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
-                  ${isRunning 
-                    ? "bg-(--wb-error) text-white hover:bg-[#ff6666]" 
-                    : "bg-(--wb-accent) text-white hover:bg-(--wb-accent-hover)"
+                  ${isPending || !selectedPath ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
+                  ${
+                    isRunning
+                      ? "bg-(--wb-error) text-white hover:bg-[#ff6666]"
+                      : "bg-(--wb-accent) text-white hover:bg-(--wb-accent-hover)"
                   }
                 `}
               >
                 {isPending ? (
-                  <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"/> Processing</>
+                  <>
+                    <div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin" />{" "}
+                    Processing
+                  </>
                 ) : isRunning ? (
-                  <><StopRegular className="text-lg" /> Disconnect</>
+                  <>
+                    <StopRegular className="text-lg" /> Disconnect
+                  </>
                 ) : (
-                  <><PlayRegular className="text-lg" /> Connect</>
+                  <>
+                    <PlayRegular className="text-lg" /> Connect
+                  </>
                 )}
               </button>
             </div>
-
           </div>
         </div>
 
         {/* Dynamic Status / Traffic Sections */}
-        <div className={`transition-all duration-700 ease-in-out origin-top ${isRunning ? 'opacity-100 scale-y-100' : 'opacity-50 grayscale pointer-events-none'}`}>
+        <div
+          className={`transition-all duration-700 ease-in-out origin-top ${isRunning ? "opacity-100 scale-y-100" : "opacity-50 grayscale pointer-events-none"}`}
+        >
           {overview ? (
             <div className="flex flex-col gap-6">
               <StatusCards overview={overview} />
@@ -135,7 +152,10 @@ export default function Overview() {
             <div className="flex flex-col gap-6">
               <div className="flex flex-wrap gap-4">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />
+                  <div
+                    key={i}
+                    className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
+                  />
                 ))}
               </div>
               <div className="h-64 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />

@@ -26,23 +26,34 @@ export function Dialog({
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 bg-black/50 animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div 
+      <div
         className="flex flex-col w-full max-w-md rounded-(--wb-radius-lg) bg-(--wb-surface-flyout) border border-(--wb-border-default) shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between px-6 py-4 bg-black/5 border-b border-(--wb-border-subtle)">
           <div className="flex items-center gap-2">
             {icon && <span className="text-(--wb-accent) text-lg">{icon}</span>}
-            <h3 className="text-base font-semibold text-(--wb-text-primary)">{title}</h3>
+            <h3 className="text-base font-semibold text-(--wb-text-primary)">
+              {title}
+            </h3>
           </div>
-          <Button variant="ghost" size="sm" onClick={onClose} icon={<DismissRegular />} />
+          <Button
+            variant="ghost"
+            size="sm"
+            onClick={onClose}
+            icon={<DismissRegular />}
+          />
         </div>
-        
+
         <div className="px-6 py-4">
           {description && (
-            <p className="text-sm text-(--wb-text-secondary) mb-4">{description}</p>
+            <p className="text-sm text-(--wb-text-secondary) mb-4">
+              {description}
+            </p>
           )}
           {children}
         </div>

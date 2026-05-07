@@ -31,7 +31,13 @@ function abbreviateType(type: string | undefined): string {
     .toLowerCase();
 }
 
-function NodeName({ name, className = "" }: { name: string, className?: string }) {
+function NodeName({
+  name,
+  className = "",
+}: {
+  name: string;
+  className?: string;
+}) {
   const parts = [];
   let lastIndex = 0;
   const regex = /[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g;
@@ -41,21 +47,27 @@ function NodeName({ name, className = "" }: { name: string, className?: string }
       parts.push(name.substring(lastIndex, match.index));
     }
     const emoji = match[0];
-    const code = [...emoji].map(c => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1F1E6 + 97)).join('');
+    const code = [...emoji]
+      .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 97))
+      .join("");
     parts.push(
       <img
         key={`i-${match.index}`}
         src={`https://flagcdn.com/24x18/${code}.png`}
         alt={emoji}
         className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-px"
-      />
+      />,
     );
     lastIndex = regex.lastIndex;
   }
   if (lastIndex < name.length) {
     parts.push(name.substring(lastIndex));
   }
-  return <span className={`truncate ${className}`} title={name}>{parts}</span>;
+  return (
+    <span className={`truncate ${className}`} title={name}>
+      {parts}
+    </span>
+  );
 }
 
 interface NodeCardProps {
@@ -65,9 +77,15 @@ interface NodeCardProps {
   onTest: () => void;
 }
 
-const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
+const NodeCard = memo(function NodeCard({
+  node,
+  selected,
+  onSelect,
+  onTest,
+}: NodeCardProps) {
   const isTesting = useClashStore(
-    (s) => s.activeDelayNode === node.name || s.groupTestingNodes.has(node.name)
+    (s) =>
+      s.activeDelayNode === node.name || s.groupTestingNodes.has(node.name),
   );
   return (
     <button
@@ -103,16 +121,22 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
           title="Test latency"
           className={[
             "text-xs font-medium tabular-nums rounded px-2 py-0.5 h-5 flex items-center transition-colors border border-transparent",
-            isTesting ? "opacity-70 cursor-default" : "hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)",
+            isTesting
+              ? "opacity-70 cursor-default"
+              : "hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)",
             delayColor(node.delay),
           ].join(" ")}
         >
           {isTesting ? (
             <JumpingDots className="mx-1" />
+          ) : node.delay !== null && node.delay !== undefined ? (
+            node.delay <= 0 ? (
+              "timeout"
+            ) : (
+              `${node.delay}ms`
+            )
           ) : (
-            node.delay !== null && node.delay !== undefined
-              ? (node.delay <= 0 ? "timeout" : `${node.delay}ms`)
-              : "--"
+            "--"
           )}
         </button>
       </div>
@@ -152,9 +176,19 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   );
 }
 
-const GroupCard = memo(function GroupCard({ group, isTesting, onSelectNode, onTestNode, onTestGroup }: GroupCardProps) {
-  const collapsed = useSettingsStore((s) => s.settings.proxies.collapsed_groups[group.name] ?? false);
-  const setProxyGroupCollapsed = useSettingsStore((s) => s.setProxyGroupCollapsed);
+const GroupCard = memo(function GroupCard({
+  group,
+  isTesting,
+  onSelectNode,
+  onTestNode,
+  onTestGroup,
+}: GroupCardProps) {
+  const collapsed = useSettingsStore(
+    (s) => s.settings.proxies.collapsed_groups[group.name] ?? false,
+  );
+  const setProxyGroupCollapsed = useSettingsStore(
+    (s) => s.setProxyGroupCollapsed,
+  );
   const open = !collapsed;
 
   return (
@@ -194,7 +228,9 @@ const GroupCard = memo(function GroupCard({ group, isTesting, onSelectNode, onTe
         <div className="p-5 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
           <div
             className="grid gap-3"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))" }}
+            style={{
+              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+            }}
           >
             {group.options.map((node) => (
               <NodeCard
@@ -217,7 +253,13 @@ export default function Proxies() {
   const overview = useClashStore((s) => s.overview);
   const isRefreshing = useClashStore((s) => s.isRefreshing);
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
-  const { refreshOverview, switchProxy, testDelay, testGroupDelay, changeMode } = useClash();
+  const {
+    refreshOverview,
+    switchProxy,
+    testDelay,
+    testGroupDelay,
+    changeMode,
+  } = useClash();
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
@@ -251,7 +293,9 @@ export default function Proxies() {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
         <Spinner size="lg" />
-        <p className="text-sm font-medium text-(--wb-text-secondary)">Loading routing information...</p>
+        <p className="text-sm font-medium text-(--wb-text-secondary)">
+          Loading routing information...
+        </p>
       </div>
     );
   }
@@ -265,7 +309,9 @@ export default function Proxies() {
         <div className="flex items-center gap-3">
           {availableModes.length > 0 && (
             <div className="flex items-center gap-2">
-              <span className="text-sm text-(--wb-text-secondary) font-medium">Mode:</span>
+              <span className="text-sm text-(--wb-text-secondary) font-medium">
+                Mode:
+              </span>
               <select
                 value={currentMode}
                 onChange={(e) => void changeMode(e.target.value)}

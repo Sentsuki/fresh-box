@@ -37,7 +37,10 @@ export async function saveSubscriptionConfig(
   fileName: string,
   content: string,
 ): Promise<string> {
-  return invokeCommand<string>("save_subscription_config", { fileName, content });
+  return invokeCommand<string>("save_subscription_config", {
+    fileName,
+    content,
+  });
 }
 
 export async function renameConfigFile(
@@ -122,7 +125,10 @@ export async function selectClashProxy(
   proxyGroup: string,
   name: string,
 ): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("select_clash_proxy", { proxyGroup, name });
+  return invokeCommand<ClashOverview>("select_clash_proxy", {
+    proxyGroup,
+    name,
+  });
 }
 
 export async function testClashProxyDelay(
@@ -168,7 +174,9 @@ export async function toggleClashRule(
 export async function updateClashRuleProvider(
   name: string,
 ): Promise<ClashRulesSnapshot> {
-  return invokeCommand<ClashRulesSnapshot>("update_clash_rule_provider", { name });
+  return invokeCommand<ClashRulesSnapshot>("update_clash_rule_provider", {
+    name,
+  });
 }
 
 export async function enableConfigOverride(): Promise<void> {
@@ -210,11 +218,17 @@ export async function savePriorityConfig(
 export async function checkConfigFields(
   configPath: string,
 ): Promise<ConfigFieldsCheck> {
-  return invokeCommand<ConfigFieldsCheck>("check_config_fields", { configPath });
+  return invokeCommand<ConfigFieldsCheck>("check_config_fields", {
+    configPath,
+  });
 }
 
-export async function getCoreClientConfig(): Promise<import("../types/app").CoreClientConfig> {
-  return invokeCommand<import("../types/app").CoreClientConfig>("get_core_client_config");
+export async function getCoreClientConfig(): Promise<
+  import("../types/app").CoreClientConfig
+> {
+  return invokeCommand<import("../types/app").CoreClientConfig>(
+    "get_core_client_config",
+  );
 }
 
 export async function generateRandomPort(): Promise<number> {

@@ -23,7 +23,15 @@ const LEVEL_COLORS: Record<string, string> = {
   trace: "text-(--wb-log-trace)",
 };
 
-const LOG_LEVELS = ["panic", "fatal", "error", "warn", "info", "debug", "trace"] as const;
+const LOG_LEVELS = [
+  "panic",
+  "fatal",
+  "error",
+  "warn",
+  "info",
+  "debug",
+  "trace",
+] as const;
 
 export default function Logs() {
   const {
@@ -65,7 +73,10 @@ export default function Logs() {
             {entry.time}
           </span>
         )}
-        <span className="flex-1 whitespace-nowrap text-[13px]" title={entry.payload}>
+        <span
+          className="flex-1 whitespace-nowrap text-[13px]"
+          title={entry.payload}
+        >
           {entry.payload}
         </span>
       </div>
@@ -88,10 +99,18 @@ export default function Logs() {
             >
               {isPaused ? "Resume" : "Pause"}
             </Button>
-            <Button icon={<ArrowDownloadRegular />} variant="subtle" onClick={downloadLogs}>
+            <Button
+              icon={<ArrowDownloadRegular />}
+              variant="subtle"
+              onClick={downloadLogs}
+            >
               Export
             </Button>
-            <Button icon={<DismissRegular />} variant="subtle" onClick={clearLogs}>
+            <Button
+              icon={<DismissRegular />}
+              variant="subtle"
+              onClick={clearLogs}
+            >
               Clear
             </Button>
           </div>
@@ -111,7 +130,9 @@ export default function Logs() {
           </div>
 
           <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-(--wb-text-secondary)">Stream Level:</span>
+            <span className="text-sm font-medium text-(--wb-text-secondary)">
+              Stream Level:
+            </span>
             <select
               value={logLevel}
               onChange={(e) => {
@@ -123,7 +144,9 @@ export default function Logs() {
               title="Stream log level"
             >
               {logLevels.map((l) => (
-                <option key={l} value={l}>{l}</option>
+                <option key={l} value={l}>
+                  {l}
+                </option>
               ))}
             </select>
           </div>

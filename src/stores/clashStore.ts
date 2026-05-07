@@ -132,9 +132,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       set({ overview, errorMessage: null });
       onSuccess?.(`Switched ${proxyGroup} to ${proxyName}`);
     } catch (error) {
-      onError?.(
-        `Failed to switch proxy node: ${getErrorMessage(error)}`,
-      );
+      onError?.(`Failed to switch proxy node: ${getErrorMessage(error)}`);
     } finally {
       set({ activeSelectionKey: null });
     }
@@ -190,15 +188,19 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
               set((s) => ({
                 overview: updated,
                 errorMessage: null,
-                groupTestingNodes: new Set([...s.groupTestingNodes].filter((n) => n !== name)),
+                groupTestingNodes: new Set(
+                  [...s.groupTestingNodes].filter((n) => n !== name),
+                ),
               }));
             } catch {
               set((s) => ({
-                groupTestingNodes: new Set([...s.groupTestingNodes].filter((n) => n !== name)),
+                groupTestingNodes: new Set(
+                  [...s.groupTestingNodes].filter((n) => n !== name),
+                ),
               }));
             }
             testedCount++;
-          })
+          }),
         );
       }
 

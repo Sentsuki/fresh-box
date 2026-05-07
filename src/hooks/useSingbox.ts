@@ -1,16 +1,19 @@
 import { useCallback } from "react";
-import {
-  isSingboxRunning,
-  startSingbox,
-  stopSingbox,
-} from "../services/api";
+import { isSingboxRunning, startSingbox, stopSingbox } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useClashStore } from "../stores/clashStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import { startConnectionsStream, stopConnectionsStream } from "./useConnectionsStream";
-import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+import {
+  startConnectionsStream,
+  stopConnectionsStream,
+} from "./useConnectionsStream";
+import {
+  isPermissionGranted,
+  requestPermission,
+  sendNotification,
+} from "@tauri-apps/plugin-notification";
 
 async function notifySingboxStatus(body: string) {
   try {
@@ -58,8 +61,11 @@ function startPolling(onUnexpectedStop: () => void) {
 }
 
 export function useSingbox() {
-  const { error: toastError, success: toastSuccess, info: toastInfo } =
-    useToast();
+  const {
+    error: toastError,
+    success: toastSuccess,
+    info: toastInfo,
+  } = useToast();
 
   const startService = useCallback(async () => {
     const singbox = useSingboxStore.getState();

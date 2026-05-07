@@ -17,7 +17,11 @@ import { useConfigStore } from "../stores/configStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useToast } from "./useToast";
-import type { ConfigFileEntry, SubscriptionInfo, SubscriptionRecord } from "../types/app";
+import type {
+  ConfigFileEntry,
+  SubscriptionInfo,
+  SubscriptionRecord,
+} from "../types/app";
 
 function buildConfigEntries(files: string[]): ConfigFileEntry[] {
   return files.map((path) => ({
@@ -234,8 +238,7 @@ export function useConfigs() {
       if (config.pendingOperation) return;
 
       const duplicate = config.configFiles.some(
-        (c) =>
-          c.displayName === newFileName && c.displayName !== oldFileName,
+        (c) => c.displayName === newFileName && c.displayName !== oldFileName,
       );
       if (duplicate) {
         toastError("A config with this name already exists");
@@ -273,7 +276,9 @@ export function useConfigs() {
         cfg?.path === settings.settings.Profiles.selected_config_path &&
         useSingboxStore.getState().isRunning
       ) {
-        toastError("Cannot delete active configuration. Stop the service first.");
+        toastError(
+          "Cannot delete active configuration. Stop the service first.",
+        );
         return;
       }
 

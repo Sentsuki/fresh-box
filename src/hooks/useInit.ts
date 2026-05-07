@@ -31,12 +31,14 @@ export function useInit() {
 
     await settings.hydrate();
 
-    const [files, subscriptions, running, coreClientConfig] = await Promise.all([
-      listConfigs(),
-      loadSubscriptions(),
-      isSingboxRunning(),
-      getCoreClientConfig(),
-    ]);
+    const [files, subscriptions, running, coreClientConfig] = await Promise.all(
+      [
+        listConfigs(),
+        loadSubscriptions(),
+        isSingboxRunning(),
+        getCoreClientConfig(),
+      ],
+    );
 
     updateCoreClientConfig(coreClientConfig);
 
@@ -70,8 +72,7 @@ export function useInit() {
     }
 
     // sync currentPage from persisted settings
-    const savedPage =
-      useSettingsStore.getState().settings.app.current_page;
+    const savedPage = useSettingsStore.getState().settings.app.current_page;
     app.setCurrentPage(savedPage);
     app.markInitialized();
   }

@@ -53,7 +53,10 @@ export function SettingCard({
         )}
       </div>
       {control && (
-        <div className="shrink-0 ml-4" onClick={isClickable ? (e) => e.stopPropagation() : undefined}>
+        <div
+          className="shrink-0 ml-4"
+          onClick={isClickable ? (e) => e.stopPropagation() : undefined}
+        >
           {control}
         </div>
       )}
@@ -67,7 +70,11 @@ interface SettingGroupProps {
   className?: string;
 }
 
-export function SettingGroup({ title, children, className = "" }: SettingGroupProps) {
+export function SettingGroup({
+  title,
+  children,
+  className = "",
+}: SettingGroupProps) {
   return (
     <div className={`flex flex-col gap-2 ${className}`}>
       {title && (
@@ -75,9 +82,7 @@ export function SettingGroup({ title, children, className = "" }: SettingGroupPr
           {title}
         </h2>
       )}
-      <div className="flex flex-col gap-1">
-        {children}
-      </div>
+      <div className="flex flex-col gap-1">{children}</div>
     </div>
   );
 }

@@ -1,5 +1,16 @@
-import { DismissRegular, InfoRegular, GlobeRegular, ArrowRightRegular, DeleteRegular, DocumentRegular } from "@fluentui/react-icons";
-import { formatBytes, formatRelativeDuration, formatSpeed } from "../../services/utils";
+import {
+  DismissRegular,
+  InfoRegular,
+  GlobeRegular,
+  ArrowRightRegular,
+  DeleteRegular,
+  DocumentRegular,
+} from "@fluentui/react-icons";
+import {
+  formatBytes,
+  formatRelativeDuration,
+  formatSpeed,
+} from "../../services/utils";
 import type { ConnectionEntry } from "../../types/app";
 import { Button } from "../ui/Button";
 
@@ -10,7 +21,12 @@ interface Props {
   onDisconnect: (id: string) => void;
 }
 
-export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect }: Props) {
+export function ConnectionDetailsModal({
+  connection,
+  open,
+  onClose,
+  onDisconnect,
+}: Props) {
   if (!open || !connection) return null;
 
   const { metadata } = connection;
@@ -18,9 +34,11 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
   return (
     <div
       className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200"
-      onClick={(e) => { if (e.target === e.currentTarget) onClose(); }}
+      onClick={(e) => {
+        if (e.target === e.currentTarget) onClose();
+      }}
     >
-      <div 
+      <div
         className="flex flex-col w-full max-w-4xl max-h-[90vh] rounded-(--wb-radius-lg) bg-(--wb-surface-flyout) border border-(--wb-border-default) shadow-2xl overflow-hidden animate-in zoom-in-95 duration-200"
         onClick={(e) => e.stopPropagation()}
       >
@@ -31,13 +49,15 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
               <GlobeRegular className="text-xl" />
             </div>
             <div>
-              <h3 className="text-lg font-semibold text-(--wb-text-primary) leading-tight">Connection Details</h3>
+              <h3 className="text-lg font-semibold text-(--wb-text-primary) leading-tight">
+                Connection Details
+              </h3>
               <p className="text-sm text-(--wb-text-secondary) truncate max-w-[300px] sm:max-w-md">
                 {metadata.host || metadata.destinationIP}
               </p>
             </div>
           </div>
-          <button 
+          <button
             onClick={onClose}
             className="p-2 rounded-md hover:bg-(--wb-surface-hover) text-(--wb-text-tertiary) hover:text-(--wb-text-primary) transition-colors"
           >
@@ -57,17 +77,43 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
                 </h4>
                 <div className="grid gap-px bg-(--wb-border-subtle) rounded-lg border border-(--wb-border-subtle) overflow-hidden shadow-sm">
                   <PropertyRow label="Host" value={metadata.host || "--"} />
-                  <PropertyRow label="Destination" value={`${metadata.destinationIP}:${metadata.destinationPort}`} />
-                  <PropertyRow label="Source" value={`${metadata.sourceIP}:${metadata.sourcePort}`} />
-                  <PropertyRow label="Network" value={`${metadata.network.toUpperCase()} (${metadata.type})`} />
-                  <PropertyRow label="Duration" value={formatRelativeDuration(connection.start)} />
-                  <PropertyRow 
-                    label="Download" 
-                    value={<span className="flex items-center gap-1.5">{formatBytes(connection.download)} <span className="text-[11px] opacity-60 font-normal">({formatSpeed(connection.downloadSpeed)})</span></span>} 
+                  <PropertyRow
+                    label="Destination"
+                    value={`${metadata.destinationIP}:${metadata.destinationPort}`}
                   />
-                  <PropertyRow 
-                    label="Upload" 
-                    value={<span className="flex items-center gap-1.5">{formatBytes(connection.upload)} <span className="text-[11px] opacity-60 font-normal">({formatSpeed(connection.uploadSpeed)})</span></span>} 
+                  <PropertyRow
+                    label="Source"
+                    value={`${metadata.sourceIP}:${metadata.sourcePort}`}
+                  />
+                  <PropertyRow
+                    label="Network"
+                    value={`${metadata.network.toUpperCase()} (${metadata.type})`}
+                  />
+                  <PropertyRow
+                    label="Duration"
+                    value={formatRelativeDuration(connection.start)}
+                  />
+                  <PropertyRow
+                    label="Download"
+                    value={
+                      <span className="flex items-center gap-1.5">
+                        {formatBytes(connection.download)}{" "}
+                        <span className="text-[11px] opacity-60 font-normal">
+                          ({formatSpeed(connection.downloadSpeed)})
+                        </span>
+                      </span>
+                    }
+                  />
+                  <PropertyRow
+                    label="Upload"
+                    value={
+                      <span className="flex items-center gap-1.5">
+                        {formatBytes(connection.upload)}{" "}
+                        <span className="text-[11px] opacity-60 font-normal">
+                          ({formatSpeed(connection.uploadSpeed)})
+                        </span>
+                      </span>
+                    }
                   />
                 </div>
               </section>
@@ -79,27 +125,41 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
                 </h4>
                 <div className="space-y-3">
                   <div className="p-4 rounded-lg bg-(--wb-surface-layer) border border-(--wb-border-subtle) shadow-sm">
-                    <p className="text-[11px] font-bold text-(--wb-text-tertiary) uppercase tracking-tighter mb-1.5">Chain</p>
+                    <p className="text-[11px] font-bold text-(--wb-text-tertiary) uppercase tracking-tighter mb-1.5">
+                      Chain
+                    </p>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {connection.chains.length > 0 ? (
                         connection.chains.map((node, i) => (
                           <div key={i} className="flex items-center gap-1.5">
-                            <span className="px-2 py-0.5 rounded bg-(--wb-surface-active) text-xs font-medium border border-(--wb-border-subtle)">{node}</span>
-                            {i < connection.chains.length - 1 && <ArrowRightRegular className="text-(--wb-text-tertiary) text-xs" />}
+                            <span className="px-2 py-0.5 rounded bg-(--wb-surface-active) text-xs font-medium border border-(--wb-border-subtle)">
+                              {node}
+                            </span>
+                            {i < connection.chains.length - 1 && (
+                              <ArrowRightRegular className="text-(--wb-text-tertiary) text-xs" />
+                            )}
                           </div>
                         ))
                       ) : (
-                        <span className="text-sm italic text-(--wb-text-disabled)">No chain information</span>
+                        <span className="text-sm italic text-(--wb-text-disabled)">
+                          No chain information
+                        </span>
                       )}
                     </div>
                   </div>
 
                   <div className="p-4 rounded-lg bg-(--wb-surface-layer) border border-(--wb-border-subtle) shadow-sm">
-                    <p className="text-[11px] font-bold text-(--wb-text-tertiary) uppercase tracking-tighter mb-1.5">Rule</p>
+                    <p className="text-[11px] font-bold text-(--wb-text-tertiary) uppercase tracking-tighter mb-1.5">
+                      Rule
+                    </p>
                     <div className="space-y-1">
-                      <p className="text-sm font-semibold text-(--wb-accent)">{connection.rule || "--"}</p>
+                      <p className="text-sm font-semibold text-(--wb-accent)">
+                        {connection.rule || "--"}
+                      </p>
                       {connection.rulePayload && (
-                        <p className="text-xs text-(--wb-text-secondary) font-mono break-all">{connection.rulePayload}</p>
+                        <p className="text-xs text-(--wb-text-secondary) font-mono break-all">
+                          {connection.rulePayload}
+                        </p>
                       )}
                     </div>
                   </div>
@@ -127,22 +187,22 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
         {/* Footer */}
         <div className="px-6 py-4 bg-black/10 flex items-center justify-between border-t border-(--wb-border-default)">
           <div className="text-[11px] text-(--wb-text-tertiary) font-medium">
-            Connection ID: <span className="font-mono text-[10px]">{connection.id}</span>
+            Connection ID:{" "}
+            <span className="font-mono text-[10px]">{connection.id}</span>
           </div>
           <div className="flex items-center gap-3">
-            <Button 
+            <Button
               variant="accent"
-              onClick={() => { onDisconnect(connection.id); onClose(); }}
+              onClick={() => {
+                onDisconnect(connection.id);
+                onClose();
+              }}
               className="min-w-24 bg-(--wb-error) hover:bg-(--wb-error-hover) active:bg-(--wb-error-hover) border-none text-white flex items-center gap-2"
             >
               <DeleteRegular className="text-lg" />
               Disconnect
             </Button>
-            <Button 
-              variant="subtle"
-              onClick={onClose}
-              className="min-w-24"
-            >
+            <Button variant="subtle" onClick={onClose} className="min-w-24">
               Close
             </Button>
           </div>
@@ -152,12 +212,21 @@ export function ConnectionDetailsModal({ connection, open, onClose, onDisconnect
   );
 }
 
-function PropertyRow({ label, value }: { label: string; value: React.ReactNode }) {
+function PropertyRow({
+  label,
+  value,
+}: {
+  label: string;
+  value: React.ReactNode;
+}) {
   return (
     <div className="flex items-center justify-between px-4 py-2.5 bg-(--wb-surface-layer) group hover:bg-(--wb-surface-hover) transition-colors">
-      <dt className="text-xs font-medium text-(--wb-text-secondary)">{label}</dt>
-      <dd className="text-xs font-semibold text-(--wb-text-primary) text-right truncate ml-4">{value}</dd>
+      <dt className="text-xs font-medium text-(--wb-text-secondary)">
+        {label}
+      </dt>
+      <dd className="text-xs font-semibold text-(--wb-text-primary) text-right truncate ml-4">
+        {value}
+      </dd>
     </div>
   );
 }
-

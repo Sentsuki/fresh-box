@@ -54,5 +54,11 @@ export function useClash() {
     [success, error],
   );
 
-  return { refreshOverview, changeMode, switchProxy, testDelay, testGroupDelay };
+  return {
+    refreshOverview,
+    changeMode,
+    switchProxy,
+    testDelay,
+    testGroupDelay,
+  };
 }

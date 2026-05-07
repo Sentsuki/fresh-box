@@ -4,7 +4,11 @@ interface StatusBadgeProps {
   showLabel?: boolean;
 }
 
-export function StatusBadge({ running, className = "", showLabel = true }: StatusBadgeProps) {
+export function StatusBadge({
+  running,
+  className = "",
+  showLabel = true,
+}: StatusBadgeProps) {
   return (
     <span
       className={[
@@ -20,7 +24,9 @@ export function StatusBadge({ running, className = "", showLabel = true }: Statu
       <span
         className={[
           "w-1.5 h-1.5 rounded-full flex-shrink-0",
-          running ? "bg-(--wb-success) animate-pulse" : "bg-(--wb-text-disabled)",
+          running
+            ? "bg-(--wb-success) animate-pulse"
+            : "bg-(--wb-text-disabled)",
         ].join(" ")}
       />
       {showLabel && <span>{running ? "Running" : "Stopped"}</span>}

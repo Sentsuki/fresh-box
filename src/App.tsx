@@ -23,9 +23,7 @@ function LoadingScreen() {
     <div className="flex h-full w-full items-center justify-center bg-(--wb-surface-base)">
       <div className="flex flex-col items-center gap-3">
         <Spinner size="lg" />
-        <span className="text-sm text-(--wb-text-secondary)">
-          Loading...
-        </span>
+        <span className="text-sm text-(--wb-text-secondary)">Loading...</span>
       </div>
     </div>
   );
@@ -69,14 +67,20 @@ export default function App() {
 
   if (!initialized) {
     return (
-      <FluentProvider theme={fluentTheme} style={{ height: "100%", background: "transparent" }}>
+      <FluentProvider
+        theme={fluentTheme}
+        style={{ height: "100%", background: "transparent" }}
+      >
         <LoadingScreen />
       </FluentProvider>
     );
   }
 
   return (
-    <FluentProvider theme={fluentTheme} style={{ height: "100%", background: "transparent" }}>
+    <FluentProvider
+      theme={fluentTheme}
+      style={{ height: "100%", background: "transparent" }}
+    >
       <div
         className="flex flex-col h-full w-full overflow-hidden"
         style={{ background: "var(--wb-surface-base)" }}

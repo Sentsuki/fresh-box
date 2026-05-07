@@ -1,5 +1,11 @@
 import { useEffect, useState, useMemo, useCallback } from "react";
-import { DismissRegular, SearchRegular, PauseRegular, PlayRegular, ColumnRegular } from "@fluentui/react-icons";
+import {
+  DismissRegular,
+  SearchRegular,
+  PauseRegular,
+  PlayRegular,
+  ColumnRegular,
+} from "@fluentui/react-icons";
 import {
   useConnectionsStream,
   groupConnections,
@@ -35,20 +41,37 @@ export default function Connections() {
     isGroupCollapsed,
   } = useConnectionsStream();
 
-  const currentTab = useSettingsStore((s) => s.settings.connections.current_tab);
-  const visibleColumnKeys = useSettingsStore((s) => s.settings.connections.visible_columns);
-  const columnOrder = useSettingsStore((s) => s.settings.connections.column_order);
+  const currentTab = useSettingsStore(
+    (s) => s.settings.connections.current_tab,
+  );
+  const visibleColumnKeys = useSettingsStore(
+    (s) => s.settings.connections.visible_columns,
+  );
+  const columnOrder = useSettingsStore(
+    (s) => s.settings.connections.column_order,
+  );
   const sortKey = useSettingsStore((s) => s.settings.connections.sort_key);
-  const sortDirection = useSettingsStore((s) => s.settings.connections.sort_direction);
+  const sortDirection = useSettingsStore(
+    (s) => s.settings.connections.sort_direction,
+  );
   const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
-  const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
-  const setConnectionsColumnOrder = useSettingsStore((s) => s.setConnectionsColumnOrder);
-  const setConnectionsSortKey = useSettingsStore((s) => s.setConnectionsSortKey);
-  const setConnectionsSortDirection = useSettingsStore((s) => s.setConnectionsSortDirection);
+  const setConnectionsVisibleColumns = useSettingsStore(
+    (s) => s.setConnectionsVisibleColumns,
+  );
+  const setConnectionsColumnOrder = useSettingsStore(
+    (s) => s.setConnectionsColumnOrder,
+  );
+  const setConnectionsSortKey = useSettingsStore(
+    (s) => s.setConnectionsSortKey,
+  );
+  const setConnectionsSortDirection = useSettingsStore(
+    (s) => s.setConnectionsSortDirection,
+  );
 
   const [search, setSearch] = useState("");
   const [showColumns, setShowColumns] = useState(false);
-  const [selectedConnection, setSelectedConnection] = useState<ConnectionEntry | null>(null);
+  const [selectedConnection, setSelectedConnection] =
+    useState<ConnectionEntry | null>(null);
 
   useEffect(() => {
     startStream();
@@ -76,7 +99,12 @@ export default function Connections() {
 
   const groupedEntries = useMemo<ConnectionGroup[] | null>(() => {
     if (!groupedColumn) return null;
-    return groupConnections(filteredRawEntries, groupedColumn.key, sortKey, sortDirection);
+    return groupConnections(
+      filteredRawEntries,
+      groupedColumn.key,
+      sortKey,
+      sortDirection,
+    );
   }, [filteredRawEntries, groupedColumn, sortKey, sortDirection]);
 
   const tableColumns: ColumnDef<ConnectionEntry>[] = useMemo(
@@ -96,9 +124,13 @@ export default function Connections() {
                   "p-0.5 rounded transition-all flex items-center justify-center shrink-0",
                   groupedColumn?.key === col.key
                     ? "bg-(--wb-accent) text-(--wb-accent-fg)"
-                    : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active)"
+                    : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active)",
                 ].join(" ")}
-                title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
+                title={
+                  groupedColumn?.key === col.key
+                    ? "Ungroup"
+                    : `Group by ${col.label}`
+                }
               >
                 <ColumnRegular className="w-3.5 h-3.5" />
               </button>
@@ -120,14 +152,22 @@ export default function Connections() {
     (key: string) => {
       const colKey = key as ConnectionColumnKey;
       if (colKey === sortKey) {
-        void setConnectionsSortDirection(sortDirection === "asc" ? "desc" : "asc");
+        void setConnectionsSortDirection(
+          sortDirection === "asc" ? "desc" : "asc",
+        );
       } else {
         const col = visibleColumns.find((c) => c.key === colKey);
         void setConnectionsSortKey(colKey);
         void setConnectionsSortDirection(col?.defaultDirection ?? "asc");
       }
     },
-    [sortKey, sortDirection, visibleColumns, setConnectionsSortKey, setConnectionsSortDirection],
+    [
+      sortKey,
+      sortDirection,
+      visibleColumns,
+      setConnectionsSortKey,
+      setConnectionsSortDirection,
+    ],
   );
 
   const toggleColumnVisible = useCallback(
@@ -154,19 +194,25 @@ export default function Connections() {
   );
 
   const disconnectConnection = useCallback(async (id: string) => {
-    await coreRequest(`connections/${encodeURIComponent(id)}`, { method: "DELETE" });
+    await coreRequest(`connections/${encodeURIComponent(id)}`, {
+      method: "DELETE",
+    });
   }, []);
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 pr-2">
-        <PageHeader 
-          title="Connections" 
+        <PageHeader
+          title="Connections"
           description="Monitor and manage active network streams routed through sing-box."
         >
           <div className="flex items-center gap-2">
-            <Badge variant="success" className="px-3 py-1 font-medium">{active.length} active</Badge>
-            <Badge variant="subtle" className="px-3 py-1">{closed.length} closed</Badge>
+            <Badge variant="success" className="px-3 py-1 font-medium">
+              {active.length} active
+            </Badge>
+            <Badge variant="subtle" className="px-3 py-1">
+              {closed.length} closed
+            </Badge>
           </div>
         </PageHeader>
       </div>
@@ -217,7 +263,10 @@ export default function Connections() {
               className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
             />
             {search && (
-              <button onClick={() => setSearch("")} className="hover:bg-(--wb-surface-hover) rounded p-0.5">
+              <button
+                onClick={() => setSearch("")}
+                className="hover:bg-(--wb-surface-hover) rounded p-0.5"
+              >
                 <DismissRegular className="text-(--wb-text-tertiary) text-xs" />
               </button>
             )}
@@ -243,10 +292,15 @@ export default function Connections() {
             </Button>
             {showColumns && (
               <div className="absolute right-0 top-full mt-2 z-50 min-w-64 rounded-xl border border-(--wb-border-default) bg-(--wb-surface-flyout) backdrop-blur-xl p-2 flex flex-col gap-0.5">
-                <div className="px-3 py-2 text-xs font-semibold text-(--wb-text-tertiary) uppercase tracking-wider">Visible Columns</div>
+                <div className="px-3 py-2 text-xs font-semibold text-(--wb-text-tertiary) uppercase tracking-wider">
+                  Visible Columns
+                </div>
                 <div className="max-h-[60vh] overflow-y-auto px-1">
                   {allColumns.map((col) => (
-                    <div key={col.key} className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-(--wb-surface-hover) transition-colors">
+                    <div
+                      key={col.key}
+                      className="flex items-center gap-2 px-2 py-1.5 rounded-md hover:bg-(--wb-surface-hover) transition-colors"
+                    >
                       <input
                         type="checkbox"
                         id={`col-${col.key}`}
@@ -254,23 +308,30 @@ export default function Connections() {
                         onChange={() => toggleColumnVisible(col.key)}
                         className="w-4 h-4 rounded border-(--wb-border-default) accent-(--wb-accent) cursor-pointer"
                       />
-                      <label htmlFor={`col-${col.key}`} className="flex-1 text-sm font-medium text-(--wb-text-primary) cursor-pointer select-none">
+                      <label
+                        htmlFor={`col-${col.key}`}
+                        className="flex-1 text-sm font-medium text-(--wb-text-primary) cursor-pointer select-none"
+                      >
                         {col.label}
                       </label>
-                      
+
                       <div className="flex items-center gap-1">
                         <div className="flex bg-(--wb-surface-active) rounded-md p-0.5 border border-(--wb-border-subtle)">
                           <button
                             onClick={() => moveColumn(col.key, -1)}
                             className="w-6 h-6 flex items-center justify-center text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover) rounded transition-colors"
                             title="Move up"
-                          >↑</button>
+                          >
+                            ↑
+                          </button>
                           <div className="w-px h-3 bg-(--wb-border-subtle) self-center" />
                           <button
                             onClick={() => moveColumn(col.key, 1)}
                             className="w-6 h-6 flex items-center justify-center text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover) rounded transition-colors"
                             title="Move down"
-                          >↓</button>
+                          >
+                            ↓
+                          </button>
                         </div>
                       </div>
                     </div>
@@ -288,35 +349,35 @@ export default function Connections() {
         <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden flex flex-col">
           {groupedEntries ? (
             <GroupedTable
-            groups={groupedEntries}
-            columns={tableColumns}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            isGroupCollapsed={isGroupCollapsed}
-            onToggleGroupCollapsed={toggleGroupCollapsed}
-            onRowClick={setSelectedConnection}
-          />
-        ) : (
-          <VirtualTable
-            columns={tableColumns}
-            rows={filteredEntries}
-            rowHeight={40}
-            getRowKey={(row) => row.id}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            onSort={handleSort}
-            onRowClick={setSelectedConnection}
-          />
-        )}
-      </div>
+              groups={groupedEntries}
+              columns={tableColumns}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              isGroupCollapsed={isGroupCollapsed}
+              onToggleGroupCollapsed={toggleGroupCollapsed}
+              onRowClick={setSelectedConnection}
+            />
+          ) : (
+            <VirtualTable
+              columns={tableColumns}
+              rows={filteredEntries}
+              rowHeight={40}
+              getRowKey={(row) => row.id}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              onSort={handleSort}
+              onRowClick={setSelectedConnection}
+            />
+          )}
+        </div>
 
-      <ConnectionDetailsModal
-        connection={selectedConnection}
-        open={selectedConnection !== null}
-        onClose={() => setSelectedConnection(null)}
-        onDisconnect={disconnectConnection}
-      />
+        <ConnectionDetailsModal
+          connection={selectedConnection}
+          open={selectedConnection !== null}
+          onClose={() => setSelectedConnection(null)}
+          onDisconnect={disconnectConnection}
+        />
       </div>
     </div>
   );
@@ -358,8 +419,14 @@ function GroupedTable({
                   className={[
                     "px-4 py-2.5 text-xs font-medium text-(--wb-text-secondary)",
                     "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
-                    col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
-                    isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
+                    col.align === "end"
+                      ? "text-right"
+                      : col.align === "center"
+                        ? "text-center"
+                        : "text-left",
+                    isClickable
+                      ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)"
+                      : "",
                     isSorted ? "text-(--wb-text-primary)" : "",
                   ].join(" ")}
                 >
@@ -400,7 +467,8 @@ function GroupedTable({
                         </span>
                       </div>
                       <span className="shrink-0 text-xs text-(--wb-text-secondary) bg-(--wb-surface-base) px-2 py-0.5 rounded-full border border-(--wb-border-subtle)">
-                        {group.items.length} {group.items.length === 1 ? "item" : "items"}
+                        {group.items.length}{" "}
+                        {group.items.length === 1 ? "item" : "items"}
                       </span>
                     </div>
                   </td>
@@ -421,7 +489,11 @@ function GroupedTable({
                           key={col.key}
                           className={[
                             "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
-                            col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                            col.align === "end"
+                              ? "text-right"
+                              : col.align === "center"
+                                ? "text-center"
+                                : "text-left",
                           ].join(" ")}
                         >
                           {col.render ? col.render(row, 0) : null}

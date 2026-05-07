@@ -34,8 +34,7 @@ export const useRulesStore = create<RulesState>((set) => ({
 function matchesRuleSearch(rule: RuleEntry, filter: string): boolean {
   if (!filter.trim()) return true;
   const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
-  const haystack =
-    `${rule.type} ${rule.payload} ${rule.proxy}`.toLowerCase();
+  const haystack = `${rule.type} ${rule.payload} ${rule.proxy}`.toLowerCase();
   return tokens.every((t) => haystack.includes(t));
 }
 
@@ -56,24 +55,18 @@ export function getRuleToggleKey(rule: RuleEntry, index: number): string {
 
 export function useRulesPage() {
   const store = useRulesStore();
-  const currentTab = useSettingsStore(
-    (s) => s.settings.rules.current_tab,
-  );
+  const currentTab = useSettingsStore((s) => s.settings.rules.current_tab);
   const setCurrentTab = useSettingsStore((s) => s.setRulesTab);
 
   const { success, error } = useToast();
 
   const visibleRules = useMemo(
-    () =>
-      store.rules.filter((rule) => matchesRuleSearch(rule, store.search)),
+    () => store.rules.filter((rule) => matchesRuleSearch(rule, store.search)),
     [store.rules, store.search],
   );
 
   const visibleProviders = useMemo(
-    () =>
-      store.providers.filter((p) =>
-        matchesProviderSearch(p, store.search),
-      ),
+    () => store.providers.filter((p) => matchesProviderSearch(p, store.search)),
     [store.providers, store.search],
   );
 

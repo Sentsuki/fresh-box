@@ -8,9 +8,7 @@ import type {
   CoreConnectionsFrame,
   SortDirection,
 } from "../types/app";
-import {
-  DEFAULT_CONNECTION_COLUMN_ORDER,
-} from "../types/app";
+import { DEFAULT_CONNECTION_COLUMN_ORDER } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 
@@ -119,8 +117,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) =>
-      `${c.metadata.sourceIP}:${c.metadata.sourcePort}`,
+    getValue: (c) => `${c.metadata.sourceIP}:${c.metadata.sourcePort}`,
   },
   process: {
     key: "process",
@@ -128,8 +125,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) =>
-      c.metadata.processPath?.split(/[/\\]/).pop() ?? "",
+    getValue: (c) => c.metadata.processPath?.split(/[/\\]/).pop() ?? "",
   },
   network: {
     key: "network",
@@ -173,73 +169,79 @@ interface ConnectionsActions {
 
 const MAX_CLOSED = 1000;
 
-export const useConnectionsStore = create<ConnectionsState & ConnectionsActions>(
-  (set, get) => ({
-    active: [],
-    closed: [],
-    downloadTotal: 0,
-    uploadTotal: 0,
-    totalDownloadSpeed: 0,
-    totalUploadSpeed: 0,
-    streamStatus: "disconnected",
-    isPaused: false,
+export const useConnectionsStore = create<
+  ConnectionsState & ConnectionsActions
+>((set, get) => ({
+  active: [],
+  closed: [],
+  downloadTotal: 0,
+  uploadTotal: 0,
+  totalDownloadSpeed: 0,
+  totalUploadSpeed: 0,
+  streamStatus: "disconnected",
+  isPaused: false,
 
-    setFrame: (frame) => {
-      if (get().isPaused) return;
-      const prevActive = get().active;
-      const prevMap = new Map(prevActive.map((c) => [c.id, c]));
+  setFrame: (frame) => {
+    if (get().isPaused) return;
+    const prevActive = get().active;
+    const prevMap = new Map(prevActive.map((c) => [c.id, c]));
 
-      const newActive: ConnectionEntry[] = frame.connections.map((snap) => {
-        const prev = prevMap.get(snap.id);
-        return {
-          ...snap,
-          downloadSpeed: prev ? snap.download - prev.download : 0,
-          uploadSpeed: prev ? snap.upload - prev.upload : 0,
-        };
-      });
+    const newActive: ConnectionEntry[] = frame.connections.map((snap) => {
+      const prev = prevMap.get(snap.id);
+      return {
+        ...snap,
+        downloadSpeed: prev ? snap.download - prev.download : 0,
+        uploadSpeed: prev ? snap.upload - prev.upload : 0,
+      };
+    });
 
-      const totalDownloadSpeed = newActive.reduce((sum, c) => sum + c.downloadSpeed, 0);
-      const totalUploadSpeed = newActive.reduce((sum, c) => sum + c.uploadSpeed, 0);
+    const totalDownloadSpeed = newActive.reduce(
+      (sum, c) => sum + c.downloadSpeed,
+      0,
+    );
+    const totalUploadSpeed = newActive.reduce(
+      (sum, c) => sum + c.uploadSpeed,
+      0,
+    );
 
-      const newIds = new Set(frame.connections.map((c) => c.id));
-      const disappeared = prevActive.filter((c) => !newIds.has(c.id));
+    const newIds = new Set(frame.connections.map((c) => c.id));
+    const disappeared = prevActive.filter((c) => !newIds.has(c.id));
 
-      set((state) => ({
-        active: newActive,
-        downloadTotal: frame.downloadTotal,
-        uploadTotal: frame.uploadTotal,
-        totalDownloadSpeed,
-        totalUploadSpeed,
-        closed:
-          disappeared.length > 0
-            ? [...disappeared, ...state.closed].slice(0, MAX_CLOSED)
-            : state.closed,
-      }));
-    },
+    set((state) => ({
+      active: newActive,
+      downloadTotal: frame.downloadTotal,
+      uploadTotal: frame.uploadTotal,
+      totalDownloadSpeed,
+      totalUploadSpeed,
+      closed:
+        disappeared.length > 0
+          ? [...disappeared, ...state.closed].slice(0, MAX_CLOSED)
+          : state.closed,
+    }));
+  },
 
-    addClosed: (entries) => {
-      set((state) => ({
-        closed: [...entries, ...state.closed].slice(0, MAX_CLOSED),
-      }));
-    },
+  addClosed: (entries) => {
+    set((state) => ({
+      closed: [...entries, ...state.closed].slice(0, MAX_CLOSED),
+    }));
+  },
 
-    setStreamStatus: (streamStatus) => set({ streamStatus }),
+  setStreamStatus: (streamStatus) => set({ streamStatus }),
 
-    setIsPaused: (isPaused) => set({ isPaused }),
+  setIsPaused: (isPaused) => set({ isPaused }),
 
-    clear: () =>
-      set({
-        active: [],
-        closed: [],
-        downloadTotal: 0,
-        uploadTotal: 0,
-        totalDownloadSpeed: 0,
-        totalUploadSpeed: 0,
-        streamStatus: "disconnected",
-        isPaused: false,
-      }),
-  }),
-);
+  clear: () =>
+    set({
+      active: [],
+      closed: [],
+      downloadTotal: 0,
+      uploadTotal: 0,
+      totalDownloadSpeed: 0,
+      totalUploadSpeed: 0,
+      streamStatus: "disconnected",
+      isPaused: false,
+    }),
+}));
 
 let ws: WebSocket | null = null;
 let reconnectTimer: number | null = null;
@@ -328,7 +330,12 @@ export function groupConnections(
 
   const groups = new Map<
     string,
-    { id: string; label: string; rawValue: number | string; items: ConnectionEntry[] }
+    {
+      id: string;
+      label: string;
+      rawValue: number | string;
+      items: ConnectionEntry[];
+    }
   >();
 
   for (const conn of entries) {
@@ -422,8 +429,12 @@ export function useConnectionsStream() {
   const isPaused = useConnectionsStore((s) => s.isPaused);
 
   const settings = useSettingsStore((s) => s.settings.connections);
-  const setConnectionsGroupedColumn = useSettingsStore((s) => s.setConnectionsGroupedColumn);
-  const setConnectionGroupCollapsed = useSettingsStore((s) => s.setConnectionGroupCollapsed);
+  const setConnectionsGroupedColumn = useSettingsStore(
+    (s) => s.setConnectionsGroupedColumn,
+  );
+  const setConnectionGroupCollapsed = useSettingsStore(
+    (s) => s.setConnectionGroupCollapsed,
+  );
 
   const visibleColumns = useMemo(
     () =>
@@ -478,25 +489,34 @@ export function useConnectionsStream() {
     }
   }, [success, error]);
 
-  const toggleGrouping = useCallback((key: ConnectionColumnKey) => {
-    const col = columnDefinitions[key];
-    if (!col?.groupable) return;
-    const next = settings.grouped_column === key ? null : key;
-    void setConnectionsGroupedColumn(next);
-  }, [settings.grouped_column, setConnectionsGroupedColumn]);
+  const toggleGrouping = useCallback(
+    (key: ConnectionColumnKey) => {
+      const col = columnDefinitions[key];
+      if (!col?.groupable) return;
+      const next = settings.grouped_column === key ? null : key;
+      void setConnectionsGroupedColumn(next);
+    },
+    [settings.grouped_column, setConnectionsGroupedColumn],
+  );
 
   const clearGrouping = useCallback(() => {
     void setConnectionsGroupedColumn(null);
   }, [setConnectionsGroupedColumn]);
 
-  const toggleGroupCollapsed = useCallback((groupId: string) => {
-    const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
-    void setConnectionGroupCollapsed(groupId, !isCollapsed);
-  }, [settings.collapsed_groups, setConnectionGroupCollapsed]);
+  const toggleGroupCollapsed = useCallback(
+    (groupId: string) => {
+      const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
+      void setConnectionGroupCollapsed(groupId, !isCollapsed);
+    },
+    [settings.collapsed_groups, setConnectionGroupCollapsed],
+  );
 
-  const isGroupCollapsed = useCallback((groupId: string) => {
-    return Boolean(settings.collapsed_groups[groupId]);
-  }, [settings.collapsed_groups]);
+  const isGroupCollapsed = useCallback(
+    (groupId: string) => {
+      return Boolean(settings.collapsed_groups[groupId]);
+    },
+    [settings.collapsed_groups],
+  );
 
   return {
     active,

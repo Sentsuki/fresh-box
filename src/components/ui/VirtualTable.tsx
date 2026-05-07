@@ -103,12 +103,12 @@ export function VirtualTable<T>({
   return (
     <div
       ref={containerRef}
-      className={[
-        "h-full overflow-auto",
-        className,
-      ].join(" ")}
+      className={["h-full overflow-auto", className].join(" ")}
     >
-      <table className="w-full border-collapse" style={{ minHeight: totalHeight }}>
+      <table
+        className="w-full border-collapse"
+        style={{ minHeight: totalHeight }}
+      >
         <thead className="sticky top-0 z-10 bg-(--wb-surface-layer)">
           <tr>
             {columns.map((col) => {
@@ -121,8 +121,14 @@ export function VirtualTable<T>({
                   className={[
                     "px-4 py-2.5 text-xs font-medium text-(--wb-text-secondary)",
                     "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
-                    col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
-                    isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
+                    col.align === "end"
+                      ? "text-right"
+                      : col.align === "center"
+                        ? "text-center"
+                        : "text-left",
+                    isClickable
+                      ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)"
+                      : "",
                     isSorted ? "text-(--wb-text-primary)" : "",
                   ].join(" ")}
                   style={col.width ? { width: col.width } : undefined}
@@ -168,7 +174,11 @@ export function VirtualTable<T>({
                     key={col.key}
                     className={[
                       "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
-                      col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                      col.align === "end"
+                        ? "text-right"
+                        : col.align === "center"
+                          ? "text-center"
+                          : "text-left",
                     ].join(" ")}
                   >
                     {col.render

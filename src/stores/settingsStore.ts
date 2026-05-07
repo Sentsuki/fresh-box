@@ -31,10 +31,7 @@ interface SettingsActions {
     version: string | null,
   ) => Promise<void>;
   setSelectedCoreOptionKey: (value: string) => Promise<void>;
-  setProxyGroupCollapsed: (
-    group: string,
-    collapsed: boolean,
-  ) => Promise<void>;
+  setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
   setConnectionsColumnOrder: (order: ConnectionColumnKey[]) => Promise<void>;
   setConnectionsVisibleColumns: (

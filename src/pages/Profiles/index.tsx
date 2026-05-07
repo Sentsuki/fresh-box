@@ -22,7 +22,6 @@ import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { SubscriptionInfo } from "../../types/app";
 
-
 export default function Profiles() {
   const configFiles = useConfigStore((s) => s.configFiles);
   const subscriptions = useConfigStore((s) => s.subscriptions);
@@ -34,7 +33,6 @@ export default function Profiles() {
   const [isAddSubOpen, setIsAddSubOpen] = useState(false);
   const [newSubUrl, setNewSubUrl] = useState("");
   const [urlError, setUrlError] = useState("");
-
 
   const {
     initializeConfigs,
@@ -53,7 +51,9 @@ export default function Profiles() {
   }, [initializeConfigs]);
 
   const localFiles = configFiles.filter((f) => !subscriptions[f.displayName]);
-  const subscriptionFiles = configFiles.filter((f) => !!subscriptions[f.displayName]);
+  const subscriptionFiles = configFiles.filter(
+    (f) => !!subscriptions[f.displayName],
+  );
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
@@ -159,9 +159,7 @@ export default function Profiles() {
             }}
           />
         </div>
-
       </Dialog>
-
 
       <div className="flex flex-col gap-8">
         <SettingGroup title="Remote Subscriptions">
@@ -184,7 +182,13 @@ export default function Profiles() {
                     onOpen={() => void openConfigFile(file.displayName)}
                     onDelete={() => void deleteConfig(file.displayName)}
                     onRename={(newName, newUrl) =>
-                      void renameAndEditSub(file.displayName, newName, newUrl, renameConfig, editSubscription)
+                      void renameAndEditSub(
+                        file.displayName,
+                        newName,
+                        newUrl,
+                        renameConfig,
+                        editSubscription,
+                      )
                     }
                   />
                 );
@@ -286,7 +290,10 @@ function LocalFileCard({
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Input
           label="Rename File"
           autoFocus
@@ -296,12 +303,28 @@ function LocalFileCard({
           leftIcon={<EditRegular />}
         />
         <div className="flex gap-2 justify-end mt-1">
-          <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
-          <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<DismissRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              cancel();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            variant="accent"
+            icon={<SaveRegular />}
+            onClick={save}
+          >
+            Save
+          </Button>
         </div>
       </div>
     );
-
   }
 
   return (
@@ -310,7 +333,7 @@ function LocalFileCard({
         "relative overflow-hidden flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
           ? "bg-(--wb-surface-selected) border-(--wb-accent) cursor-default"
-          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer"
+          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer",
       ].join(" ")}
       onClick={selected ? undefined : onSelect}
     >
@@ -318,22 +341,53 @@ function LocalFileCard({
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-22 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+        <div
+          className={`p-2 rounded-lg shrink-0 ${selected ? "bg-(--wb-accent) text-white" : "bg-(--wb-surface-base) text-(--wb-text-secondary)"}`}
+        >
           <DocumentRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="text-sm font-semibold truncate text-(--wb-text-primary)">
             {name}
           </p>
-          <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5" title={path}>{path}</p>
+          <p
+            className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
+            title={path}
+          >
+            {path}
+          </p>
         </div>
       </div>
 
       <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
         <div className="flex gap-1">
-          <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />
-          <Button size="sm" variant="ghost" icon={<EditRegular />} onClick={startEdit} title="Rename" />
-          <Button size="sm" variant="ghost" icon={<DeleteRegular />} onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete" />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<OpenRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen();
+            }}
+            title="Open in editor"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<EditRegular />}
+            onClick={startEdit}
+            title="Rename"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<DeleteRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            title="Delete"
+          />
         </div>
       </div>
     </div>
@@ -390,7 +444,10 @@ function SubscriptionCard({
 
   if (editing) {
     return (
-      <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm" onClick={(e) => e.stopPropagation()}>
+      <div
+        className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
+        onClick={(e) => e.stopPropagation()}
+      >
         <Input
           label="Name"
           autoFocus
@@ -408,8 +465,25 @@ function SubscriptionCard({
           leftIcon={<LinkRegular />}
         />
         <div className="flex gap-2 justify-end mt-1">
-          <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
-          <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<DismissRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              cancel();
+            }}
+          >
+            Cancel
+          </Button>
+          <Button
+            size="sm"
+            variant="accent"
+            icon={<SaveRegular />}
+            onClick={save}
+          >
+            Save
+          </Button>
         </div>
       </div>
     );
@@ -421,7 +495,7 @@ function SubscriptionCard({
         "relative overflow-hidden flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
         selected
           ? "bg-(--wb-surface-selected) border-(--wb-accent) cursor-default"
-          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer"
+          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer",
       ].join(" ")}
       onClick={selected ? undefined : onSelect}
     >
@@ -429,14 +503,19 @@ function SubscriptionCard({
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
-        <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
+        <div
+          className={`p-2 rounded-lg shrink-0 ${selected ? "bg-(--wb-accent) text-white" : "bg-(--wb-surface-base) text-(--wb-text-secondary)"}`}
+        >
           <CloudArrowDownRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           <p className="text-sm font-semibold text-(--wb-text-primary) truncate">
             {name}
           </p>
-          <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5" title={sub.url}>
+          <p
+            className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
+            title={sub.url}
+          >
             {sub.url}
           </p>
           {sub.lastUpdated && (
@@ -449,10 +528,43 @@ function SubscriptionCard({
 
       <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
         <div className="flex gap-1">
-          <Button size="sm" variant="ghost" icon={<ArrowClockwiseRegular />} onClick={(e) => { e.stopPropagation(); onUpdate(); }} title="Update" />
-          <Button size="sm" variant="ghost" icon={<OpenRegular />} onClick={(e) => { e.stopPropagation(); onOpen(); }} title="Open in editor" />
-          <Button size="sm" variant="ghost" icon={<EditRegular />} onClick={startEdit} title="Edit" />
-          <Button size="sm" variant="ghost" icon={<DeleteRegular />} onClick={(e) => { e.stopPropagation(); onDelete(); }} title="Delete" />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ArrowClockwiseRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onUpdate();
+            }}
+            title="Update"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<OpenRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onOpen();
+            }}
+            title="Open in editor"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<EditRegular />}
+            onClick={startEdit}
+            title="Edit"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<DeleteRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onDelete();
+            }}
+            title="Delete"
+          />
         </div>
       </div>
     </div>

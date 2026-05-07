@@ -17,9 +17,17 @@ import type { AppPage } from "../../types/app";
 import { StatusBadge } from "../ui/StatusBadge";
 
 const NAV_ITEMS = [
-  { id: "overview" as AppPage, label: "Overview", icon: DataBarVerticalRegular },
+  {
+    id: "overview" as AppPage,
+    label: "Overview",
+    icon: DataBarVerticalRegular,
+  },
   { id: "proxy" as AppPage, label: "Proxies", icon: GlobeRegular },
-  { id: "connections" as AppPage, label: "Connections", icon: PlugConnectedRegular },
+  {
+    id: "connections" as AppPage,
+    label: "Connections",
+    icon: PlugConnectedRegular,
+  },
   { id: "logs" as AppPage, label: "Logs", icon: DocumentTextRegular },
   { id: "rules" as AppPage, label: "Rules", icon: BookNumberRegular },
   { id: "profiles" as AppPage, label: "Profiles", icon: DocumentEditRegular },
@@ -57,8 +65,12 @@ export function Sidebar() {
         </button>
         {isExpanded && (
           <div className="ml-2 flex flex-col justify-center overflow-hidden whitespace-nowrap">
-            <span className="text-sm font-semibold text-(--wb-text-primary) leading-tight">Fresh Box</span>
-            <span className="text-[10px] text-(--wb-text-secondary) leading-tight">sing-box client</span>
+            <span className="text-sm font-semibold text-(--wb-text-primary) leading-tight">
+              Fresh Box
+            </span>
+            <span className="text-[10px] text-(--wb-text-secondary) leading-tight">
+              sing-box client
+            </span>
           </div>
         )}
       </div>
@@ -85,7 +97,9 @@ export function Sidebar() {
                 <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
               )}
               <Icon className="shrink-0 text-xl" />
-              {isExpanded && <span className="truncate text-sm">{item.label}</span>}
+              {isExpanded && (
+                <span className="truncate text-sm">{item.label}</span>
+              )}
             </button>
           );
         })}

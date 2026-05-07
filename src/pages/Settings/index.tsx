@@ -16,7 +16,11 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
-import { LOG_LEVELS, STACK_OPTIONS, usePriorityConfig } from "../../hooks/usePriorityConfig";
+import {
+  LOG_LEVELS,
+  STACK_OPTIONS,
+  usePriorityConfig,
+} from "../../hooks/usePriorityConfig";
 import { getSingboxStatus, openAppDirectory } from "../../services/api";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
@@ -97,7 +101,6 @@ export default function Settings() {
       />
 
       <div className="flex flex-col gap-8">
-
         {/* Appearance */}
         <SettingGroup title="Appearance">
           <SettingCard
@@ -125,8 +128,12 @@ export default function Settings() {
             title="Core Version"
             description={
               <div className="flex flex-col gap-1 mt-1">
-                <span>{coreStatusText} (Current: {currentCoreLabel})</span>
-                {coreStatusError && <span className="text-(--wb-error)">{coreStatusError}</span>}
+                <span>
+                  {coreStatusText} (Current: {currentCoreLabel})
+                </span>
+                {coreStatusError && (
+                  <span className="text-(--wb-error)">{coreStatusError}</span>
+                )}
                 {coreUpdateProgress && (
                   <div className="flex flex-col gap-1 w-48 mt-1">
                     <div className="flex justify-between text-[10px] text-(--wb-text-tertiary)">
@@ -148,7 +155,11 @@ export default function Settings() {
                 <Button
                   size="sm"
                   variant="subtle"
-                  icon={<ArrowSyncRegular className={isRefreshingCoreStatus ? "animate-spin" : ""} />}
+                  icon={
+                    <ArrowSyncRegular
+                      className={isRefreshingCoreStatus ? "animate-spin" : ""}
+                    />
+                  }
                   disabled={isRefreshingCoreStatus}
                   onClick={() => void refreshCoreStatus(true, true)}
                 >
@@ -160,12 +171,18 @@ export default function Settings() {
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                     <select
                       value={selectedCoreOptionKey}
-                      onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
+                      onChange={(e) =>
+                        void setSelectedCoreOptionKey(e.target.value)
+                      }
                       className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                     >
                       {availableOptions.map((opt) => (
-                        <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
-                          {opt.label}{opt.installed ? (opt.is_active ? " ✓" : "") : ""}
+                        <option
+                          key={`${opt.channel}:${opt.version}`}
+                          value={`${opt.channel}:${opt.version}`}
+                        >
+                          {opt.label}
+                          {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
                         </option>
                       ))}
                     </select>
@@ -191,11 +208,17 @@ export default function Settings() {
               control={
                 <select
                   value={selectedStack}
-                  onChange={(e) => void setStackOption(e.target.value as typeof STACK_OPTIONS[number])}
+                  onChange={(e) =>
+                    void setStackOption(
+                      e.target.value as (typeof STACK_OPTIONS)[number],
+                    )
+                  }
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                 >
                   {STACK_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>{opt}</option>
+                    <option key={opt} value={opt}>
+                      {opt}
+                    </option>
                   ))}
                 </select>
               }
@@ -212,7 +235,8 @@ export default function Settings() {
                   <select
                     value={selectedLogLevel}
                     onChange={(e) => {
-                      const level = e.target.value as typeof LOG_LEVELS[number];
+                      const level = e.target
+                        .value as (typeof LOG_LEVELS)[number];
                       setSelectedLogLevel(level);
                       void updateLogConfiguration(logDisabled, level);
                     }}
@@ -220,12 +244,16 @@ export default function Settings() {
                     className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                   >
                     {LOG_LEVELS.map((l) => (
-                      <option key={l} value={l}>{l}</option>
+                      <option key={l} value={l}>
+                        {l}
+                      </option>
                     ))}
                   </select>
                   <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                   <div className="flex items-center gap-2.5">
-                    <span className="text-sm text-(--wb-text-secondary)">Disable</span>
+                    <span className="text-sm text-(--wb-text-secondary)">
+                      Disable
+                    </span>
                     <Switch
                       checked={logDisabled}
                       onCheckedChange={(checked) => {
@@ -257,7 +285,10 @@ export default function Settings() {
                   onClick={async () => {
                     const controller = await genRandomPort();
                     if (controller) {
-                      await updateClashApiConfig({ external_controller: controller, secret: clashApiSecret });
+                      await updateClashApiConfig({
+                        external_controller: controller,
+                        secret: clashApiSecret,
+                      });
                     }
                   }}
                 >
@@ -285,7 +316,10 @@ export default function Settings() {
                   onClick={async () => {
                     const secret = await genRandomSecret();
                     if (secret) {
-                      await updateClashApiConfig({ external_controller: clashApiController, secret });
+                      await updateClashApiConfig({
+                        external_controller: clashApiController,
+                        secret,
+                      });
                     }
                   }}
                 >
@@ -323,7 +357,9 @@ export default function Settings() {
                   value={testUrlInput}
                   onChange={(e) => setTestUrlInput(e.target.value)}
                   onBlur={() => void setTestUrl(testUrlInput)}
-                  onKeyDown={(e) => { if (e.key === "Enter") void setTestUrl(testUrlInput); }}
+                  onKeyDown={(e) => {
+                    if (e.key === "Enter") void setTestUrl(testUrlInput);
+                  }}
                   placeholder="https://www.gstatic.com/generate_204"
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
                 />
@@ -346,7 +382,11 @@ export default function Settings() {
               <Button
                 size="sm"
                 variant="subtle"
-                icon={<ArrowSyncRegular className={isRefreshingStatus ? "animate-spin" : ""} />}
+                icon={
+                  <ArrowSyncRegular
+                    className={isRefreshingStatus ? "animate-spin" : ""}
+                  />
+                }
                 disabled={isRefreshingStatus}
                 onClick={() => void refreshProcessStatus()}
               >

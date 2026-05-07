@@ -17,9 +17,9 @@
   --wb-border-default: rgba(255, 255, 255, 0.08);
 
   /* Accent - Windows 11 Dark Mode Default */
-  --wb-accent: #60CDFF;
-  --wb-accent-hover: #8CD7FF;
-  --wb-accent-pressed: #4DC8FF;
+  --wb-accent: #60cdff;
+  --wb-accent-hover: #8cd7ff;
+  --wb-accent-pressed: #4dc8ff;
 
   /* Typography - WinUI 3 Dark Mode standard opacities */
   --wb-text-primary: rgba(255, 255, 255, 1);
@@ -31,13 +31,13 @@
   --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
 
   /* Semantic status colors — dark theme */
-  --wb-success: #6BB44A;
+  --wb-success: #6bb44a;
   --wb-success-bg: rgba(107, 180, 74, 0.15);
   --wb-success-border: rgba(107, 180, 74, 0.3);
-  --wb-warning: #D4A017;
+  --wb-warning: #d4a017;
   --wb-warning-bg: rgba(212, 160, 23, 0.15);
   --wb-warning-border: rgba(212, 160, 23, 0.3);
-  --wb-error: #E05252;
+  --wb-error: #e05252;
   --wb-error-hover: #c94646;
   --wb-error-bg: rgba(224, 82, 82, 0.15);
   --wb-error-border: rgba(224, 82, 82, 0.3);
@@ -45,12 +45,12 @@
   --wb-accent-fg: rgba(0, 0, 0, 0.85);
 
   /* Log Levels — dark theme */
-  --wb-log-panic: #FF459E;
-  --wb-log-fatal: #E05252;
-  --wb-log-error: #FF8C6B;
-  --wb-log-warn: #D4A017;
-  --wb-log-info: #60CDFF;
-  --wb-log-debug: #B4B4B4;
+  --wb-log-panic: #ff459e;
+  --wb-log-fatal: #e05252;
+  --wb-log-error: #ff8c6b;
+  --wb-log-warn: #d4a017;
+  --wb-log-info: #60cdff;
+  --wb-log-debug: #b4b4b4;
   --wb-log-trace: #808080;
   --wb-log-bg: rgba(0, 0, 0, 0.2);
 
@@ -88,9 +88,9 @@
   --wb-border-default: rgba(0, 0, 0, 0.12);
 
   /* 强调色: Windows 11 默认的经典蓝色是 #005FB8 */
-  --wb-accent: #005FB8;
-  --wb-accent-hover: #0056A6;
-  --wb-accent-pressed: #004C93;
+  --wb-accent: #005fb8;
+  --wb-accent-hover: #0056a6;
+  --wb-accent-pressed: #004c93;
 
   /* 文字颜色: 遵循 WinUI3 的标准透明度 */
   --wb-text-primary: rgba(0, 0, 0, 0.8956);
@@ -116,13 +116,13 @@
   --wb-accent-fg: rgba(255, 255, 255, 0.95);
 
   /* Log Levels — light theme */
-  --wb-log-panic: #D3106D;
-  --wb-log-fatal: #C42B1C;
-  --wb-log-error: #D85D3B;
-  --wb-log-warn: #8A6014;
-  --wb-log-info: #005FB8;
-  --wb-log-debug: #5D5D5D;
-  --wb-log-trace: #8E8E8E;
+  --wb-log-panic: #d3106d;
+  --wb-log-fatal: #c42b1c;
+  --wb-log-error: #d85d3b;
+  --wb-log-warn: #8a6014;
+  --wb-log-info: #005fb8;
+  --wb-log-debug: #5d5d5d;
+  --wb-log-trace: #8e8e8e;
   --wb-log-bg: rgba(0, 0, 0, 0.03);
 
   /* Solid Badge Backgrounds — light theme */

@@ -1,5 +1,11 @@
 import { useState, useEffect } from "react";
-import { AddRegular, DeleteRegular, SaveRegular, InfoRegular, CodeRegular } from "@fluentui/react-icons";
+import {
+  AddRegular,
+  DeleteRegular,
+  SaveRegular,
+  InfoRegular,
+  CodeRegular,
+} from "@fluentui/react-icons";
 import { Button } from "../../components/ui/Button";
 import { SettingGroup, SettingCard } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -45,10 +51,14 @@ export default function Custom() {
     ]).catch(() => {});
   }, []);
 
-  const addEntry = () => setOverrides((prev) => [...prev, { key: "", value: "" }]);
-  const removeEntry = (i: number) => setOverrides((prev) => prev.filter((_, idx) => idx !== i));
+  const addEntry = () =>
+    setOverrides((prev) => [...prev, { key: "", value: "" }]);
+  const removeEntry = (i: number) =>
+    setOverrides((prev) => prev.filter((_, idx) => idx !== i));
   const updateEntry = (i: number, field: "key" | "value", val: string) =>
-    setOverrides((prev) => prev.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)));
+    setOverrides((prev) =>
+      prev.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)),
+    );
 
   const toggleOverrideEnabled = async () => {
     setTogglingOverride(true);
@@ -63,7 +73,9 @@ export default function Custom() {
         toast.success("Config override enabled");
       }
     } catch (err) {
-      toast.error(`Failed: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(
+        `Failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setTogglingOverride(false);
     }
@@ -90,7 +102,9 @@ export default function Custom() {
       await saveConfigOverride(payload);
       toast.success("Config overrides saved");
     } catch (err) {
-      toast.error(`Failed to save: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(
+        `Failed to save: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setSaving(false);
     }
@@ -103,20 +117,19 @@ export default function Custom() {
       setRawJson("");
       toast.success("Config override cleared");
     } catch (err) {
-      toast.error(`Failed to clear: ${err instanceof Error ? err.message : String(err)}`);
+      toast.error(
+        `Failed to clear: ${err instanceof Error ? err.message : String(err)}`,
+      );
     }
   };
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
-      <PageHeader 
-        title="Advanced" 
+      <PageHeader
+        title="Advanced"
         description="Write custom JSON rules and fields to override the active sing-box configuration."
       >
-        <Button
-          variant="subtle"
-          onClick={() => void handleClearOverride()}
-        >
+        <Button variant="subtle" onClick={() => void handleClearOverride()}>
           Clear
         </Button>
         <Button
@@ -146,7 +159,11 @@ export default function Custom() {
                     : "bg-transparent border-(--wb-border-default) text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
                 ].join(" ")}
               >
-                {togglingOverride ? "..." : overrideEnabled ? "Injection Enabled" : "Injection Disabled"}
+                {togglingOverride
+                  ? "..."
+                  : overrideEnabled
+                    ? "Injection Enabled"
+                    : "Injection Disabled"}
               </button>
             }
           />
@@ -190,7 +207,12 @@ export default function Custom() {
             ) : (
               <div className="p-4 flex flex-col gap-3">
                 <div className="flex justify-end mb-2">
-                  <Button icon={<AddRegular />} size="sm" variant="subtle" onClick={addEntry}>
+                  <Button
+                    icon={<AddRegular />}
+                    size="sm"
+                    variant="subtle"
+                    onClick={addEntry}
+                  >
                     Add Field
                   </Button>
                 </div>
@@ -205,13 +227,17 @@ export default function Custom() {
                       <div key={i} className="flex items-center gap-2 group">
                         <input
                           value={entry.key}
-                          onChange={(e) => updateEntry(i, "key", e.target.value)}
+                          onChange={(e) =>
+                            updateEntry(i, "key", e.target.value)
+                          }
                           placeholder="Field path (e.g. log.level)"
                           className="w-1/3 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                         />
                         <input
                           value={entry.value}
-                          onChange={(e) => updateEntry(i, "value", e.target.value)}
+                          onChange={(e) =>
+                            updateEntry(i, "value", e.target.value)
+                          }
                           placeholder="Value (JSON or string)"
                           className="flex-1 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                         />

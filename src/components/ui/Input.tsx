@@ -38,7 +38,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
         {error && <p className="text-xs text-red-500 mt-0.5">{error}</p>}
       </div>
     );
-  }
+  },
 );
 
 Input.displayName = "Input";

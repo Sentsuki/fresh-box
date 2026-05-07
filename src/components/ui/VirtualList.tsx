@@ -47,8 +47,7 @@ export function VirtualList<T>({
     });
     // Track if user is scrolled to the bottom
     if (autoScrollToEnd) {
-      const atEnd =
-        el.scrollHeight - scrollTop - clientHeight < itemHeight * 2;
+      const atEnd = el.scrollHeight - scrollTop - clientHeight < itemHeight * 2;
       isAtEndRef.current = atEnd;
     }
   }, [items.length, itemHeight, overscan, autoScrollToEnd]);
@@ -105,9 +104,7 @@ export function VirtualList<T>({
           {visibleItems.map((item, i) => {
             const idx = visibleRange.start + i;
             return (
-              <div key={getItemKey(item, idx)}>
-                {renderItem(item, idx)}
-              </div>
+              <div key={getItemKey(item, idx)}>{renderItem(item, idx)}</div>
             );
           })}
         </div>
