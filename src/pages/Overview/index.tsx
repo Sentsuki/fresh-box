@@ -15,6 +15,7 @@ import { useSingbox } from "../../hooks/useSingbox";
 import StatusCards from "./StatusCards";
 import TrafficChart from "./TrafficChart";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Badge } from "../../components/ui/Badge";
 
 export default function Overview() {
   const isRunning = useSingboxStore((s) => s.isRunning);
@@ -49,66 +50,75 @@ export default function Overview() {
 
       <div className="flex flex-col gap-8">
         
-        {/* Dashboard Hero Card */}
-        <div className="relative overflow-hidden rounded-2xl bg-(--wb-surface-layer) border border-(--wb-border-subtle) shadow-sm p-8 flex flex-col items-center justify-center text-center">
-          {/* Subtle Background Glow based on status */}
-          <div 
-            className={`absolute top-1/2 left-1/2 -translate-x-1/2 -translate-y-1/2 w-96 h-96 blur-3xl rounded-full opacity-20 pointer-events-none transition-colors duration-1000 ${isRunning ? 'bg-(--wb-success)' : 'bg-(--wb-text-disabled)'}`} 
-          />
-
-          <div className="relative z-10 flex flex-col items-center gap-4">
-            <div className={`w-20 h-20 flex items-center justify-center rounded-full transition-all duration-500 ${isRunning ? 'bg-(--wb-success-bg) text-(--wb-success) shadow-[0_0_20px_rgba(107,180,74,0.3)]' : 'bg-(--wb-surface-hover) text-(--wb-text-tertiary)'}`}>
-              {isRunning ? <ShieldCheckmarkRegular className="text-4xl" /> : <ShieldErrorRegular className="text-4xl" />}
-            </div>
-
-            <div>
-              <h2 className="text-2xl font-bold text-(--wb-text-primary)">
-                {isRunning ? "System Protected" : "Protection Disabled"}
-              </h2>
-              <p className="text-sm text-(--wb-text-secondary) mt-1">
-                {isRunning ? "All traffic is being routed securely." : "Network traffic is currently bypassing the proxy."}
-              </p>
-            </div>
-
-            {selectedDisplay && (
-              <div className="flex items-center gap-2 mt-2 px-4 py-2 rounded-full bg-(--wb-surface-base) border border-(--wb-border-default)">
-                {isSubscription ? (
-                  <CloudArrowDownRegular className="text-(--wb-accent) text-lg" />
-                ) : (
-                  <DocumentRegular className="text-(--wb-accent) text-lg" />
-                )}
-                <span className="text-sm font-medium text-(--wb-text-primary)">
-                  {selectedDisplay}
-                </span>
+        {/* Dashboard Hero Card - Clean & Minimal */}
+        <div className="rounded-2xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm">
+          <div className="p-6 sm:p-8 flex flex-col sm:flex-row items-start sm:items-center justify-between gap-6">
+            
+            <div className="flex items-start sm:items-center gap-5 sm:gap-6">
+              {/* Status Icon */}
+              <div className={`shrink-0 w-14 h-14 sm:w-16 sm:h-16 flex items-center justify-center rounded-2xl transition-colors duration-300 ${
+                isRunning 
+                  ? 'bg-(--wb-badge-success-bg) text-(--wb-success) border-2 border-(--wb-success-border)' 
+                  : 'bg-(--wb-badge-default-bg) text-(--wb-text-tertiary) border-2 border-(--wb-border-default)'
+              }`}>
+                {isRunning ? <ShieldCheckmarkRegular className="text-3xl sm:text-4xl" /> : <ShieldErrorRegular className="text-3xl sm:text-4xl" />}
               </div>
-            )}
 
-            <div className="mt-4">
+              {/* Status Text & Profile */}
+              <div>
+                <div className="flex items-center gap-3 mb-1">
+                  <h2 className="text-xl sm:text-2xl font-semibold text-(--wb-text-primary) tracking-tight">
+                    {isRunning ? "System Protected" : "Protection Disabled"}
+                  </h2>
+                  <Badge variant={isRunning ? "success" : "default"}>
+                    {isRunning ? "Active" : "Inactive"}
+                  </Badge>
+                </div>
+                
+                <p className="text-sm text-(--wb-text-secondary) mb-3 max-w-md leading-relaxed">
+                  {isRunning 
+                    ? "Network traffic is securely encrypted and routed." 
+                    : "Traffic is currently bypassing the proxy. Connect to secure."}
+                </p>
+
+                {selectedDisplay ? (
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-(--wb-surface-hover) border border-(--wb-border-subtle) text-xs text-(--wb-text-primary)">
+                    {isSubscription ? <CloudArrowDownRegular className="text-(--wb-accent)" /> : <DocumentRegular className="text-(--wb-accent)" />}
+                    <span className="font-medium">{selectedDisplay}</span>
+                  </div>
+                ) : (
+                  <div className="inline-flex items-center gap-2 px-2.5 py-1.5 rounded-lg bg-(--wb-error)/10 text-xs text-(--wb-error)">
+                    <ShieldErrorRegular />
+                    <span className="font-medium">No profile selected</span>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Action Button */}
+            <div className="w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
               <button
                 disabled={isPending || !selectedPath}
                 onClick={isRunning ? stopService : startService}
-                className={[
-                  "flex items-center justify-center gap-2 px-12 py-3 rounded-full text-base font-bold transition-all duration-200 shadow-md",
-                  isRunning 
-                    ? "bg-(--wb-surface-base) border-2 border-(--wb-border-default) text-(--wb-text-primary) hover:bg-(--wb-surface-hover)"
-                    : "bg-(--wb-accent) border-2 border-(--wb-accent) text-white hover:bg-(--wb-accent-hover) hover:border-(--wb-accent-hover)",
-                  (isPending || !selectedPath) ? "opacity-50 cursor-not-allowed transform-none" : "hover:scale-105 active:scale-95"
-                ].join(" ")}
+                className={`
+                  flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                  ${(isPending || !selectedPath) ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
+                  ${isRunning 
+                    ? "bg-(--wb-surface-hover) border border-(--wb-border-default) text-(--wb-text-primary) hover:bg-(--wb-surface-active)" 
+                    : "bg-(--wb-accent) text-white shadow-md hover:bg-(--wb-accent-hover)"
+                  }
+                `}
               >
                 {isPending ? (
-                  <span className="flex items-center gap-2"><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"/> Processing...</span>
+                  <><div className="w-4 h-4 border-2 border-current border-t-transparent rounded-full animate-spin"/> Processing</>
                 ) : isRunning ? (
-                  <><StopRegular className="text-xl" /> Stop Service</>
+                  <><StopRegular className="text-lg" /> Disconnect</>
                 ) : (
-                  <><PlayRegular className="text-xl" /> Start Service</>
+                  <><PlayRegular className="text-lg" /> Connect</>
                 )}
               </button>
-              {!selectedPath && !isRunning && (
-                <p className="text-xs text-(--wb-error) mt-3">
-                  Please select a config profile first.
-                </p>
-              )}
             </div>
+
           </div>
         </div>
 
