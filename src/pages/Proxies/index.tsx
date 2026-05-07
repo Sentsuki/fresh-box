@@ -73,7 +73,7 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
         "text-left transition-all duration-200 cursor-pointer w-full min-w-0 border",
         selected
           ? "bg-(--wb-surface-base) border-(--wb-accent)"
-          : "bg-(--wb-surface-base) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) hover:border-(--wb-border-default)",
+          : "bg-(--wb-surface-base) border-(--wb-border-default) hover:bg-(--wb-surface-hover) hover:border-(--wb-border-default)",
       ].join(" ")}
     >
       {selected && (

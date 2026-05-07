@@ -64,9 +64,9 @@
   --wb-surface-active: rgba(0, 0, 0, 0.0241);
   --wb-surface-selected: rgba(0, 0, 0, 0.0392);
 
-  /* 边框: Windows 11 风格的边框非常微妙，通常是 5.78% 的黑色 */
-  --wb-border-subtle: rgba(0, 0, 0, 0.04);
-  --wb-border-default: rgba(0, 0, 0, 0.0578);
+  /* 边框: 适度增加不透明度以提高亮色模式下的辨识度 */
+  --wb-border-subtle: rgba(0, 0, 0, 0.08);
+  --wb-border-default: rgba(0, 0, 0, 0.12);
 
   /* 强调色: Windows 11 默认的经典蓝色是 #005FB8 */
   --wb-accent: #005FB8;
