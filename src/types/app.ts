@@ -133,7 +133,7 @@ export const DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204";
 
 export function createDefaultAppSettings(): AppSettings {
   return {
-    schema_version: 4,
+    schema_version: 1,
     app: {
       current_page: "overview",
     },
@@ -257,7 +257,7 @@ export function normalizeAppSettings(
     schema_version:
       typeof settings.schema_version === "number"
         ? settings.schema_version
-        : 4,
+        : 1,
     app: {
       current_page: APP_PAGES.includes(settings.app?.current_page)
         ? settings.app.current_page
