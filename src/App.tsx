@@ -21,10 +21,10 @@ const Settings = lazy(() => import("./pages/Settings"));
 
 function LoadingScreen() {
   return (
-    <div className="flex h-full w-full items-center justify-center bg-[var(--wb-surface-base)]">
+    <div className="flex h-full w-full items-center justify-center bg-(--wb-surface-base)">
       <div className="flex flex-col items-center gap-3">
         <Spinner size="lg" />
-        <span className="text-sm text-[var(--wb-text-secondary)]">
+        <span className="text-sm text-(--wb-text-secondary)">
           Loading...
         </span>
       </div>
@@ -99,7 +99,7 @@ export default function App() {
       <TitleBar />
       <div className="flex flex-1 min-h-0 overflow-hidden">
         <Sidebar />
-        <main className="flex-1 min-w-0 overflow-hidden flex flex-col bg-[var(--wb-surface-base)] border-t border-l border-[var(--wb-border-subtle)]">
+        <main className="flex-1 min-w-0 overflow-hidden flex flex-col bg-(--wb-surface-base) border-t border-l border-(--wb-border-subtle)">
           <PageTransition pageKey={currentPage}>
             <div className="flex-1 overflow-y-auto p-5">
               <ErrorBoundary key={currentPage}>

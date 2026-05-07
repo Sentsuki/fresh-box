@@ -24,13 +24,13 @@ export function Card({
           : undefined
       }
       className={[
-        "rounded-[var(--wb-radius-lg)] border p-4",
-        "bg-[var(--wb-surface-layer)]",
+        "rounded-(--wb-radius-lg) border p-4",
+        "bg-(--wb-surface-layer)",
         selected
-          ? "border-[var(--wb-accent)]"
-          : "border-[var(--wb-border-subtle)]",
+          ? "border-(--wb-accent)"
+          : "border-(--wb-border-subtle)",
         onClick
-          ? "cursor-pointer hover:bg-[var(--wb-surface-hover)] transition-colors duration-100"
+          ? "cursor-pointer hover:bg-(--wb-surface-hover) transition-colors duration-100"
           : "",
         className,
       ].join(" ")}

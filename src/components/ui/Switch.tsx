@@ -27,13 +27,13 @@ export function Switch({
         disabled={disabled}
         className={[
           "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center",
-          "rounded-full border border-[var(--wb-border-default)]",
+          "rounded-full border border-(--wb-border-default)",
           "transition-colors duration-100",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-[var(--wb-accent)]",
+          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-(--wb-accent)",
           "disabled:opacity-40 disabled:cursor-not-allowed",
           checked
-            ? "bg-[var(--wb-accent)] border-[var(--wb-accent)]"
-            : "bg-[var(--wb-surface-hover)]",
+            ? "bg-(--wb-accent) border-(--wb-accent)"
+            : "bg-(--wb-surface-hover)",
         ].join(" ")}
       >
         <RadixSwitch.Thumb
@@ -41,13 +41,13 @@ export function Switch({
             "pointer-events-none block h-3.5 w-3.5 rounded-full shadow-sm",
             "transition-transform duration-100",
             checked
-              ? "translate-x-4 bg-[var(--wb-accent-fg)]"
-              : "translate-x-0.5 bg-[var(--wb-text-secondary)]",
+              ? "translate-x-4 bg-(--wb-accent-fg)"
+              : "translate-x-0.5 bg-(--wb-text-secondary)",
           ].join(" ")}
         />
       </RadixSwitch.Root>
       {label && (
-        <span className="text-sm text-[var(--wb-text-primary)]">{label}</span>
+        <span className="text-sm text-(--wb-text-primary)">{label}</span>
       )}
     </label>
   );

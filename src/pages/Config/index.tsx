@@ -49,8 +49,8 @@ export default function Config() {
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Config</h1>
-        <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Config</h1>
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
           Manage sing-box configuration files
         </p>
       </div>
@@ -72,7 +72,7 @@ export default function Config() {
         }
       >
         {subscriptionFiles.length === 0 ? (
-          <p className="text-sm text-[var(--wb-text-secondary)] px-1">
+          <p className="text-sm text-(--wb-text-secondary) px-1">
             No subscriptions. Click Add to add one.
           </p>
         ) : (
@@ -113,7 +113,7 @@ export default function Config() {
         }
       >
         {localFiles.length === 0 ? (
-          <p className="text-sm text-[var(--wb-text-secondary)] px-1">
+          <p className="text-sm text-(--wb-text-secondary) px-1">
             No local config files. Click Import to add one.
           </p>
         ) : (
@@ -208,13 +208,13 @@ function LocalFileCard({
     return (
       <Card selected={selected}>
         <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
-          <p className="text-xs font-medium text-[var(--wb-text-secondary)]">File Name</p>
+          <p className="text-xs font-medium text-(--wb-text-secondary)">File Name</p>
           <input
             autoFocus
             value={nameInput}
             onChange={(e) => setNameInput(e.target.value)}
             onKeyDown={handleKeyDown}
-            className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+            className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
           />
           <div className="flex gap-1 justify-end">
             <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
@@ -228,15 +228,15 @@ function LocalFileCard({
   return (
     <Card selected={selected} onClick={onSelect}>
       <div className="flex items-start gap-2">
-        <DocumentRegular className="flex-shrink-0 text-[var(--wb-text-secondary)] mt-0.5" />
+        <DocumentRegular className="flex-shrink-0 text-(--wb-text-secondary) mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-medium truncate text-[var(--wb-text-primary)]">
+          <p className="text-sm font-medium truncate text-(--wb-text-primary)">
             {name}
           </p>
-          <p className="text-xs text-[var(--wb-text-tertiary)] truncate">{path}</p>
+          <p className="text-xs text-(--wb-text-tertiary) truncate">{path}</p>
         </div>
         {selected && (
-          <CheckmarkRegular className="flex-shrink-0 text-[var(--wb-accent)] text-sm" />
+          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
         )}
       </div>
       <div className="mt-2 flex gap-1 justify-end">
@@ -323,23 +323,23 @@ function SubscriptionCard({
       <Card selected={selected}>
         <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
           <div>
-            <p className="text-xs font-medium text-[var(--wb-text-secondary)] mb-1">Name</p>
+            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Name</p>
             <input
               autoFocus
               value={nameInput}
               onChange={(e) => setNameInput(e.target.value)}
               onKeyDown={handleKeyDown}
-              className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             />
           </div>
           <div>
-            <p className="text-xs font-medium text-[var(--wb-text-secondary)] mb-1">Subscription URL</p>
+            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Subscription URL</p>
             <input
               value={urlInput}
               onChange={(e) => setUrlInput(e.target.value)}
               onKeyDown={handleKeyDown}
               placeholder="https://..."
-              className="w-full rounded-[var(--wb-radius-sm)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-base)] px-2 py-1.5 text-sm text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             />
           </div>
           <div className="flex gap-1 justify-end">
@@ -355,23 +355,23 @@ function SubscriptionCard({
     <Card selected={selected} onClick={onSelect}>
       <div className="flex items-start justify-between gap-3">
         <div className="flex items-start gap-2 min-w-0 flex-1">
-          <CloudArrowDownRegular className="flex-shrink-0 text-[var(--wb-accent)] mt-0.5" />
+          <CloudArrowDownRegular className="flex-shrink-0 text-(--wb-accent) mt-0.5" />
           <div className="min-w-0">
-            <p className="text-sm font-medium text-[var(--wb-text-primary)] truncate">
+            <p className="text-sm font-medium text-(--wb-text-primary) truncate">
               {name}
             </p>
-            <p className="text-xs text-[var(--wb-text-tertiary)] truncate max-w-xs">
+            <p className="text-xs text-(--wb-text-tertiary) truncate max-w-xs">
               {sub.url}
             </p>
             {sub.lastUpdated && (
-              <p className="text-xs text-[var(--wb-text-disabled)] mt-0.5">
+              <p className="text-xs text-(--wb-text-disabled) mt-0.5">
                 Updated {formatLastUpdated(sub.lastUpdated)}
               </p>
             )}
           </div>
         </div>
         {selected && (
-          <CheckmarkRegular className="flex-shrink-0 text-[var(--wb-accent)] text-sm" />
+          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
         )}
       </div>
       <div className="flex gap-1 mt-2 justify-end">

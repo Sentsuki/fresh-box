@@ -34,12 +34,12 @@ export class ErrorBoundary extends Component<Props, State> {
       if (this.props.fallback) return this.props.fallback;
       return (
         <div className="flex flex-col items-center justify-center h-full gap-4 p-8 text-center">
-          <div className="text-4xl text-[var(--wb-text-disabled)]">⚠</div>
+          <div className="text-4xl text-(--wb-text-disabled)">⚠</div>
           <div>
-            <p className="text-sm font-medium text-[var(--wb-text-primary)]">
+            <p className="text-sm font-medium text-(--wb-text-primary)">
               Something went wrong
             </p>
-            <p className="text-xs text-[var(--wb-text-secondary)] mt-1 max-w-xs">
+            <p className="text-xs text-(--wb-text-secondary) mt-1 max-w-xs">
               {this.state.error?.message ?? "An unexpected error occurred"}
             </p>
           </div>

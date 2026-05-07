@@ -13,7 +13,7 @@ export function Spinner({ size = "md", className = "" }: SpinnerProps) {
   return (
     <span
       className={[
-        "inline-block rounded-full border-[var(--wb-border-default)] border-t-[var(--wb-accent)] animate-spin",
+        "inline-block rounded-full border-(--wb-border-default) border-t-(--wb-accent) animate-spin",
         sizeClasses[size],
         className,
       ].join(" ")}

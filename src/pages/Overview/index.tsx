@@ -45,10 +45,10 @@ export default function Overview() {
   return (
     <div className="flex flex-col gap-5 max-w-2xl">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">
           Overview
         </h1>
-        <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
           Service control and status
         </p>
       </div>
@@ -60,8 +60,8 @@ export default function Overview() {
             className={[
               "text-3xl flex-shrink-0 mt-0.5",
               isRunning
-                ? "text-[var(--wb-success)]"
-                : "text-[var(--wb-text-disabled)]",
+                ? "text-(--wb-success)"
+                : "text-(--wb-text-disabled)",
             ].join(" ")}
           >
             {isRunning ? (
@@ -72,10 +72,10 @@ export default function Overview() {
           </div>
           <div className="flex-1 min-w-0">
             <div>
-                <p className="text-sm font-semibold text-[var(--wb-text-primary)]">
+                <p className="text-sm font-semibold text-(--wb-text-primary)">
                   {isRunning ? "Service Running" : "Service Stopped"}
                 </p>
-                <p className="text-xs text-[var(--wb-text-secondary)] mt-0.5">
+                <p className="text-xs text-(--wb-text-secondary) mt-0.5">
                   {isRunning
                     ? "Sing-box is active and ready"
                     : "Select a config and click Start"}
@@ -83,14 +83,14 @@ export default function Overview() {
               </div>
 
             {selectedDisplay && (
-              <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-[var(--wb-radius-md)] bg-[rgba(0,0,0,0.2)] border border-[var(--wb-border-subtle)]">
+              <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-(--wb-radius-md) bg-[rgba(0,0,0,0.2)] border border-(--wb-border-subtle)">
                 <div className="flex items-center gap-2 min-w-0">
                   {isSubscription ? (
-                    <CloudArrowDownRegular className="flex-shrink-0 text-sm text-[var(--wb-text-secondary)]" />
+                    <CloudArrowDownRegular className="flex-shrink-0 text-sm text-(--wb-text-secondary)" />
                   ) : (
-                    <DocumentRegular className="flex-shrink-0 text-sm text-[var(--wb-text-secondary)]" />
+                    <DocumentRegular className="flex-shrink-0 text-sm text-(--wb-text-secondary)" />
                   )}
-                  <span className="text-xs text-[var(--wb-text-primary)] truncate">
+                  <span className="text-xs text-(--wb-text-primary) truncate">
                     {selectedDisplay}
                   </span>
                 </div>

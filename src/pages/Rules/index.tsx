@@ -64,23 +64,23 @@ export default function Rules() {
     <div className="flex flex-col h-full gap-3">
       <div className="flex items-center gap-3 flex-shrink-0">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Rules</h1>
-          <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Rules</h1>
+          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
             {visibleRules.length} rules · {visibleProviders.length} providers
           </p>
         </div>
         <div className="flex-1" />
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] min-w-48">
-          <SearchRegular className="text-[var(--wb-text-tertiary)] text-sm" />
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
+          <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter rules..."
-            className="flex-1 bg-transparent text-sm outline-none text-[var(--wb-text-primary)] placeholder:text-[var(--wb-text-disabled)]"
+            className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
           />
           {search && (
             <button onClick={() => setSearch("")}>
-              <DismissRegular className="text-xs text-[var(--wb-text-tertiary)]" />
+              <DismissRegular className="text-xs text-(--wb-text-tertiary)" />
             </button>
           )}
         </div>
@@ -103,7 +103,7 @@ export default function Rules() {
         onValueChange={(v) => void setCurrentTab(v as "rules" | "providers")}
       >
         <TabContent value="rules">
-          <div className="h-full min-h-[400px] rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] overflow-hidden">
+          <div className="h-full min-h-[400px] rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden">
             <VirtualTable
               columns={tableColumns}
               rows={visibleRules}
@@ -116,20 +116,20 @@ export default function Rules() {
         <TabContent value="providers">
           <div className="flex flex-col gap-2">
             {visibleProviders.length === 0 ? (
-              <p className="text-sm text-[var(--wb-text-secondary)] p-4">
+              <p className="text-sm text-(--wb-text-secondary) p-4">
                 No rule providers configured
               </p>
             ) : (
               visibleProviders.map((prov) => (
                 <div
                   key={prov.name}
-                  className="flex items-center justify-between px-4 py-3 rounded-[var(--wb-radius-md)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)]"
+                  className="flex items-center justify-between px-4 py-3 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer)"
                 >
                   <div>
-                    <p className="text-sm font-medium text-[var(--wb-text-primary)]">
+                    <p className="text-sm font-medium text-(--wb-text-primary)">
                       {prov.name}
                     </p>
-                    <p className="text-xs text-[var(--wb-text-secondary)]">
+                    <p className="text-xs text-(--wb-text-secondary)">
                       {prov.ruleCount ?? 0} rules ·{" "}
                       {prov.vehicleType} ·{" "}
                       {prov.updatedAt ? formatLastUpdated(prov.updatedAt) : "never"}

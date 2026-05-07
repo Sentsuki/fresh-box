@@ -28,21 +28,21 @@ export default function StatusCards({ overview }: StatusCardsProps) {
       label: "Download",
       value: formatSpeed(downloadSpeed),
       sub: `Total: ${formatBytes(downloadTotal)}`,
-      color: "text-[var(--wb-accent)]",
+      color: "text-(--wb-accent)",
     },
     {
       icon: <ArrowUpRegular />,
       label: "Upload",
       value: formatSpeed(uploadSpeed),
       sub: `Total: ${formatBytes(uploadTotal)}`,
-      color: "text-[var(--wb-accent-hover)]",
+      color: "text-(--wb-accent-hover)",
     },
     {
       icon: <PlugConnectedRegular />,
       label: "Connections",
       value: String(connectionsCount),
       sub: `Mode: ${overview.current_mode}`,
-      color: "text-[var(--wb-success)]",
+      color: "text-(--wb-success)",
     },
     ...(overview.memory_usage !== undefined
       ? [
@@ -51,7 +51,7 @@ export default function StatusCards({ overview }: StatusCardsProps) {
             label: "Memory",
             value: formatBytes(overview.memory_usage),
             sub: "In use",
-            color: "text-[var(--wb-warning)]",
+            color: "text-(--wb-warning)",
           },
         ]
       : []),
@@ -66,14 +66,14 @@ export default function StatusCards({ overview }: StatusCardsProps) {
               {stat.icon}
             </div>
             <div className="min-w-0">
-              <p className="text-xs text-[var(--wb-text-secondary)]">
+              <p className="text-xs text-(--wb-text-secondary)">
                 {stat.label}
               </p>
-              <p className="text-lg font-semibold text-[var(--wb-text-primary)] leading-tight">
+              <p className="text-lg font-semibold text-(--wb-text-primary) leading-tight">
                 {stat.value}
               </p>
               {stat.sub && (
-                <p className="text-[11px] text-[var(--wb-text-tertiary)]">
+                <p className="text-[11px] text-(--wb-text-tertiary)">
                   {stat.sub}
                 </p>
               )}

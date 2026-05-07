@@ -41,14 +41,14 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col bg-[var(--wb-surface-base)] border-r border-[var(--wb-border-subtle)] flex-shrink-0"
+      className="flex flex-col bg-(--wb-surface-base) border-r border-(--wb-border-subtle) flex-shrink-0"
       style={{ width: "var(--wb-sidebar-width)" }}
     >
-      <div className="px-4 py-4 border-b border-[var(--wb-border-subtle)]">
-        <div className="text-base font-semibold text-[var(--wb-text-primary)]">
+      <div className="px-4 py-4 border-b border-(--wb-border-subtle)">
+        <div className="text-base font-semibold text-(--wb-text-primary)">
           Fresh Box
         </div>
-        <div className="text-xs text-[var(--wb-text-secondary)] mt-0.5">
+        <div className="text-xs text-(--wb-text-secondary) mt-0.5">
           sing-box client
         </div>
       </div>
@@ -62,16 +62,16 @@ export function Sidebar() {
               key={item.id}
               onClick={() => void navigate(item.id)}
               className={[
-                "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-[var(--wb-radius-md)] mb-0.5",
+                "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-(--wb-radius-md) mb-0.5",
                 "transition-colors duration-100 text-left relative",
-                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--wb-accent)]",
+                "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
                 active
-                  ? "bg-[var(--wb-surface-selected)] text-[var(--wb-text-primary)]"
-                  : "text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] hover:text-[var(--wb-text-primary)]",
+                  ? "bg-(--wb-surface-selected) text-(--wb-text-primary)"
+                  : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover) hover:text-(--wb-text-primary)",
               ].join(" ")}
             >
               {active && (
-                <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-[var(--wb-accent)] rounded-full" />
+                <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-(--wb-accent) rounded-full" />
               )}
               <Icon className="flex-shrink-0 text-base" />
               <span className="truncate">{item.label}</span>
@@ -80,23 +80,23 @@ export function Sidebar() {
         })}
       </nav>
 
-      <div className="px-2 py-2 border-t border-[var(--wb-border-subtle)]">
+      <div className="px-2 py-2 border-t border-(--wb-border-subtle)">
         <div className="px-3 py-2 mb-1">
           <StatusBadge running={isRunning} />
         </div>
         <button
           onClick={() => void navigate("settings")}
           className={[
-            "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-[var(--wb-radius-md)]",
+            "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-(--wb-radius-md)",
             "transition-colors duration-100 text-left relative",
-            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--wb-accent)]",
+            "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
             currentPage === "settings"
-              ? "bg-[var(--wb-surface-selected)] text-[var(--wb-text-primary)]"
-              : "text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)] hover:text-[var(--wb-text-primary)]",
+              ? "bg-(--wb-surface-selected) text-(--wb-text-primary)"
+              : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover) hover:text-(--wb-text-primary)",
           ].join(" ")}
         >
           {currentPage === "settings" && (
-            <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-[var(--wb-accent)] rounded-full" />
+            <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-(--wb-accent) rounded-full" />
           )}
           <SettingsRegular className="flex-shrink-0 text-base" />
           <span className="truncate">Settings</span>

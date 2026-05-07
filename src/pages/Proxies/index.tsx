@@ -12,10 +12,10 @@ import { Accordion, AccordionItem } from "../../components/ui/Accordion";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
-  if (!delay) return "text-[var(--wb-text-disabled)]";
-  if (delay < 200) return "text-[var(--wb-success)]";
-  if (delay < 500) return "text-[var(--wb-warning)]";
-  return "text-[var(--wb-error)]";
+  if (!delay) return "text-(--wb-text-disabled)";
+  if (delay < 200) return "text-(--wb-success)";
+  if (delay < 500) return "text-(--wb-warning)";
+  return "text-(--wb-error)";
 }
 
 
@@ -42,16 +42,16 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
       onClick={onSelect}
       title={node.name}
       className={[
-        "flex flex-col items-start gap-1.5 px-2 py-2 rounded-[var(--wb-radius-md)]",
+        "flex flex-col items-start gap-1.5 px-2 py-2 rounded-(--wb-radius-md)",
         "text-left transition-all duration-100 cursor-pointer w-full min-w-0",
         selected
-          ? "bg-[var(--wb-accent)] text-white shadow-sm"
-          : "bg-[var(--wb-surface-base)] hover:bg-[var(--wb-surface-hover)] text-[var(--wb-text-primary)]",
+          ? "bg-(--wb-accent) text-white shadow-sm"
+          : "bg-(--wb-surface-base) hover:bg-(--wb-surface-hover) text-(--wb-text-primary)",
       ].join(" ")}
     >
       <span
         className={`w-full truncate text-xs font-medium leading-tight ${
-          selected ? "text-white" : "text-[var(--wb-text-primary)]"
+          selected ? "text-white" : "text-(--wb-text-primary)"
         }`}
       >
         {node.name}
@@ -59,7 +59,7 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
       <div className="flex w-full items-center justify-between gap-1">
         <span
           className={`text-[10px] truncate ${
-            selected ? "text-white/70" : "text-[var(--wb-text-tertiary)]"
+            selected ? "text-white/70" : "text-(--wb-text-tertiary)"
           }`}
         >
           {abbreviateType(node.type)}
@@ -73,7 +73,7 @@ function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
           className={`text-[10px] tabular-nums rounded px-1 transition-colors ${
             selected
               ? "text-white/80 hover:text-white hover:bg-white/20"
-              : `${delayColor(node.delay)} hover:bg-[var(--wb-surface-active)]`
+              : `${delayColor(node.delay)} hover:bg-(--wb-surface-active)`
           }`}
         >
           {node.delay ? `${node.delay}ms` : "--"}
@@ -94,18 +94,18 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-2">
-        <span className="text-sm font-semibold text-[var(--wb-text-primary)] truncate">
+        <span className="text-sm font-semibold text-(--wb-text-primary) truncate">
           {group.name}
         </span>
-        <span className="text-xs text-[var(--wb-text-tertiary)] flex-shrink-0">
+        <span className="text-xs text-(--wb-text-tertiary) flex-shrink-0">
           {group.type}
         </span>
-        <span className="text-xs text-[var(--wb-text-disabled)] flex-shrink-0">
+        <span className="text-xs text-(--wb-text-disabled) flex-shrink-0">
           · {group.options.length}
         </span>
       </div>
       {group.now && (
-        <div className="text-xs text-[var(--wb-accent)] truncate mt-0.5">
+        <div className="text-xs text-(--wb-accent) truncate mt-0.5">
           → {group.now}
         </div>
       )}
@@ -124,7 +124,7 @@ function GroupCard({ group, onSelectNode, onTestNode, onTestGroup }: GroupCardPr
             e.stopPropagation();
             onTestGroup();
           }}
-          className="p-1.5 rounded-[var(--wb-radius-sm)] text-[var(--wb-text-secondary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-active)] transition-colors"
+          className="p-1.5 rounded-(--wb-radius-sm) text-(--wb-text-secondary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) transition-colors"
           title="Test all latencies"
         >
           <TimerRegular className="text-sm" />
@@ -206,7 +206,7 @@ export default function Proxies() {
     return (
       <div className="flex flex-col items-center justify-center h-48 gap-3">
         <Spinner />
-        <p className="text-sm text-[var(--wb-text-secondary)]">Loading proxies...</p>
+        <p className="text-sm text-(--wb-text-secondary)">Loading proxies...</p>
       </div>
     );
   }
@@ -216,8 +216,8 @@ export default function Proxies() {
       {/* Page header */}
       <div className="flex items-center justify-between">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Proxies</h1>
-          <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Proxies</h1>
+          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
             {groups.length} groups · {overview.current_mode}
           </p>
         </div>
@@ -226,7 +226,7 @@ export default function Proxies() {
             <select
               value={currentMode}
               onChange={(e) => void changeMode(e.target.value)}
-              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)] capitalize"
+              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
             >
               {availableModes.map((m) => (
                 <option key={m} value={m}>
@@ -246,7 +246,7 @@ export default function Proxies() {
       </div>
 
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-32 text-sm text-[var(--wb-text-secondary)]">
+        <div className="flex flex-col items-center justify-center h-32 text-sm text-(--wb-text-secondary)">
           No proxy groups found
         </div>
       ) : (

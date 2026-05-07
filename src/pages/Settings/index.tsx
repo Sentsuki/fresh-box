@@ -48,11 +48,11 @@ export default function Settings() {
   }, [isRefreshingStatus, toastError]);
 
   const processStatusColor = (() => {
-    if (!processStatus) return "text-[var(--wb-text-secondary)]";
+    if (!processStatus) return "text-(--wb-text-secondary)";
     const n = processStatus.toLowerCase();
-    if (n.includes("running") || n.includes("detected")) return "text-[var(--wb-success)]";
-    if (n.includes("failed") || n.includes("error")) return "text-[var(--wb-error)]";
-    return "text-[var(--wb-accent)]";
+    if (n.includes("running") || n.includes("detected")) return "text-(--wb-success)";
+    if (n.includes("failed") || n.includes("error")) return "text-(--wb-error)";
+    return "text-(--wb-accent)";
   })();
 
   const {
@@ -75,8 +75,8 @@ export default function Settings() {
   return (
     <div className="flex flex-col gap-5 max-w-lg">
       <div>
-        <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Settings</h1>
-        <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Settings</h1>
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
           Application and core settings
         </p>
       </div>
@@ -93,7 +93,7 @@ export default function Settings() {
               onChange={(e) =>
                 void setThemeMode(e.target.value as ThemeMode)
               }
-              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             >
               <option value="system">Follow system</option>
               <option value="dark">Dark</option>
@@ -111,8 +111,8 @@ export default function Settings() {
         <div className="flex flex-col gap-3">
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-[var(--wb-text-primary)]">Core status</p>
-              <p className="text-xs text-[var(--wb-text-secondary)]">
+              <p className="text-sm text-(--wb-text-primary)">Core status</p>
+              <p className="text-xs text-(--wb-text-secondary)">
                 {isRunning ? "Running" : "Stopped"}
               </p>
             </div>
@@ -147,7 +147,7 @@ export default function Settings() {
       >
         <div className="flex flex-col gap-3">
           {coreStatusError && (
-            <p className="text-xs text-[var(--wb-error)]">{coreStatusError}</p>
+            <p className="text-xs text-(--wb-error)">{coreStatusError}</p>
           )}
           <KeyValue label="Status" value={coreStatusText} />
           <KeyValue label="Current" value={currentCoreLabel} />
@@ -155,11 +155,11 @@ export default function Settings() {
           {availableOptions.length > 0 && (
             <>
               <div className="flex items-center justify-between gap-4">
-                <p className="text-sm text-[var(--wb-text-primary)]">Target</p>
+                <p className="text-sm text-(--wb-text-primary)">Target</p>
                 <select
                   value={selectedCoreOptionKey}
                   onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
-                  className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+                  className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                 >
                   {availableOptions.map((opt) => (
                     <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
@@ -171,13 +171,13 @@ export default function Settings() {
 
               {coreUpdateProgress && (
                 <div className="flex flex-col gap-1">
-                  <div className="flex justify-between text-xs text-[var(--wb-text-secondary)]">
+                  <div className="flex justify-between text-xs text-(--wb-text-secondary)">
                     <span>{coreUpdateProgress.message}</span>
                     <span>{coreUpdateProgress.percent}%</span>
                   </div>
-                  <div className="h-1 rounded-full bg-[var(--wb-border-default)] overflow-hidden">
+                  <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
                     <div
-                      className="h-full bg-[var(--wb-accent)] transition-all duration-200"
+                      className="h-full bg-(--wb-accent) transition-all duration-200"
                       style={{ width: `${coreUpdateProgress.percent}%` }}
                     />
                   </div>
@@ -217,7 +217,7 @@ export default function Settings() {
         {processStatus ? (
           <p className={`text-sm font-mono ${processStatusColor}`}>{processStatus}</p>
         ) : (
-          <p className="text-sm text-[var(--wb-text-secondary)]">
+          <p className="text-sm text-(--wb-text-secondary)">
             Click "Refresh Status" to check the sing-box process state.
           </p>
         )}
@@ -235,7 +235,7 @@ export default function Settings() {
               onChange={(e) =>
                 void setLogLevel(e.target.value as LogLevel)
               }
-              className="px-2 py-1 text-sm rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] text-[var(--wb-text-primary)] outline-none focus:border-[var(--wb-accent)]"
+              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             >
               {(["trace", "debug", "info", "warn", "error"] as LogLevel[]).map((level) => (
                 <option key={level} value={level}>
@@ -282,9 +282,9 @@ function SettingRow({
   return (
     <div className="flex items-center justify-between gap-4">
       <div className="flex-1 min-w-0">
-        <p className="text-sm text-[var(--wb-text-primary)]">{label}</p>
+        <p className="text-sm text-(--wb-text-primary)">{label}</p>
         {description && (
-          <p className="text-xs text-[var(--wb-text-secondary)] mt-0.5">
+          <p className="text-xs text-(--wb-text-secondary) mt-0.5">
             {description}
           </p>
         )}

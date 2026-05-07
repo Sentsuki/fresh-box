@@ -109,7 +109,7 @@ export function VirtualTable<T>({
       ].join(" ")}
     >
       <table className="w-full border-collapse" style={{ minHeight: totalHeight }}>
-        <thead className="sticky top-0 z-10 bg-[var(--wb-surface-layer)]">
+        <thead className="sticky top-0 z-10 bg-(--wb-surface-layer)">
           <tr>
             {columns.map((col) => {
               const isSorted = sortKey === col.key;
@@ -119,18 +119,18 @@ export function VirtualTable<T>({
                   key={col.key}
                   onClick={isClickable ? () => onSort(col.key) : undefined}
                   className={[
-                    "px-3 py-2 text-xs font-medium text-[var(--wb-text-secondary)]",
-                    "border-b border-[var(--wb-border-subtle)] whitespace-nowrap select-none",
+                    "px-3 py-2 text-xs font-medium text-(--wb-text-secondary)",
+                    "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
                     col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
-                    isClickable ? "cursor-pointer hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]" : "",
-                    isSorted ? "text-[var(--wb-text-primary)]" : "",
+                    isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
+                    isSorted ? "text-(--wb-text-primary)" : "",
                   ].join(" ")}
                   style={col.width ? { width: col.width } : undefined}
                 >
                   <span className="inline-flex items-center gap-1">
                     {col.label}
                     {isSorted && (
-                      <span className="text-[var(--wb-accent)]">
+                      <span className="text-(--wb-accent)">
                         {sortDirection === "asc" ? "↑" : "↓"}
                       </span>
                     )}
@@ -156,8 +156,8 @@ export function VirtualTable<T>({
                 key={getRowKey(row, absoluteIndex)}
                 onClick={onRowClick ? () => onRowClick(row) : undefined}
                 className={[
-                  "border-b border-[var(--wb-border-subtle)]",
-                  "hover:bg-[var(--wb-surface-hover)] transition-colors duration-75",
+                  "border-b border-(--wb-border-subtle)",
+                  "hover:bg-(--wb-surface-hover) transition-colors duration-75",
                   onRowClick ? "cursor-pointer" : "",
                 ].join(" ")}
                 style={{ height: rowHeight }}
@@ -166,7 +166,7 @@ export function VirtualTable<T>({
                   <td
                     key={col.key}
                     className={[
-                      "px-3 text-xs text-[var(--wb-text-primary)] truncate max-w-0",
+                      "px-3 text-xs text-(--wb-text-primary) truncate max-w-0",
                       col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                     ].join(" ")}
                   >

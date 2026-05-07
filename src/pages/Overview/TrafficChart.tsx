@@ -89,8 +89,8 @@ export default function TrafficChart() {
   }, [downloadSpeed, uploadSpeed]);
 
   return (
-    <div className="rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] bg-[var(--wb-surface-layer)] p-3">
-      <p className="text-xs text-[var(--wb-text-secondary)] mb-2">
+    <div className="rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer) p-3">
+      <p className="text-xs text-(--wb-text-secondary) mb-2">
         Traffic (last 60s)
       </p>
       <canvas

@@ -20,16 +20,16 @@ export function Section({
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon && (
-            <span className="text-[var(--wb-text-secondary)] text-sm flex-shrink-0">
+            <span className="text-(--wb-text-secondary) text-sm flex-shrink-0">
               {icon}
             </span>
           )}
           <div>
-            <h3 className="text-sm font-semibold text-[var(--wb-text-primary)]">
+            <h3 className="text-sm font-semibold text-(--wb-text-primary)">
               {title}
             </h3>
             {description && (
-              <p className="text-xs text-[var(--wb-text-secondary)] mt-0.5">
+              <p className="text-xs text-(--wb-text-secondary) mt-0.5">
                 {description}
               </p>
             )}

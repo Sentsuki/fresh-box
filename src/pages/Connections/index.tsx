@@ -138,8 +138,8 @@ export default function Connections() {
     <div className="flex flex-col h-full gap-3">
       <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
         <div>
-          <h1 className="text-xl font-semibold text-[var(--wb-text-primary)]">Connections</h1>
-          <p className="text-sm text-[var(--wb-text-secondary)] mt-0.5">
+          <h1 className="text-xl font-semibold text-(--wb-text-primary)">Connections</h1>
+          <p className="text-sm text-(--wb-text-secondary) mt-0.5">
             <Badge variant="success">{active.length} active</Badge>
             {" "}
             <Badge variant="subtle">{closed.length} closed</Badge>
@@ -147,7 +147,7 @@ export default function Connections() {
         </div>
 
         {/* Tab switcher */}
-        <div className="flex rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] overflow-hidden">
+        <div className="flex rounded-(--wb-radius-md) border border-(--wb-border-default) overflow-hidden">
           {(["active", "closed"] as const).map((tab) => (
             <button
               key={tab}
@@ -155,8 +155,8 @@ export default function Connections() {
               className={[
                 "px-3 py-1 text-sm capitalize transition-colors",
                 currentTab === tab
-                  ? "bg-[var(--wb-accent)] text-white"
-                  : "text-[var(--wb-text-secondary)] hover:bg-[var(--wb-surface-hover)]",
+                  ? "bg-(--wb-accent) text-white"
+                  : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
               ].join(" ")}
             >
               {tab}
@@ -166,7 +166,7 @@ export default function Connections() {
 
         {/* Grouped-by chip */}
         {groupedColumn && (
-          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-[var(--wb-accent)]/15 text-[var(--wb-accent)] border border-[var(--wb-accent)]/30">
+          <div className="flex items-center gap-1.5 px-2.5 py-1 rounded-full text-xs font-medium bg-(--wb-accent)/15 text-(--wb-accent) border border-(--wb-accent)/30">
             <span>Grouped by {groupedColumn.label}</span>
             <button
               onClick={clearGrouping}
@@ -181,17 +181,17 @@ export default function Connections() {
         <div className="flex-1" />
 
         {/* Search */}
-        <div className="flex items-center gap-2 px-2 py-1.5 rounded-[var(--wb-radius-md)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-layer)] min-w-48">
-          <SearchRegular className="text-[var(--wb-text-tertiary)]" />
+        <div className="flex items-center gap-2 px-2 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
+          <SearchRegular className="text-(--wb-text-tertiary)" />
           <input
             value={search}
             onChange={(e) => setSearch(e.target.value)}
             placeholder="Filter..."
-            className="flex-1 bg-transparent text-sm outline-none text-[var(--wb-text-primary)] placeholder:text-[var(--wb-text-disabled)]"
+            className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
           />
           {search && (
             <button onClick={() => setSearch("")}>
-              <DismissRegular className="text-[var(--wb-text-tertiary)] text-xs" />
+              <DismissRegular className="text-(--wb-text-tertiary) text-xs" />
             </button>
           )}
         </div>
@@ -215,17 +215,17 @@ export default function Connections() {
             Columns
           </Button>
           {showColumns && (
-            <div className="absolute right-0 top-full mt-1 z-20 min-w-52 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-default)] bg-[var(--wb-surface-base)] shadow-lg p-2 flex flex-col gap-0.5">
+            <div className="absolute right-0 top-full mt-1 z-20 min-w-52 rounded-(--wb-radius-lg) border border-(--wb-border-default) bg-(--wb-surface-base) shadow-lg p-2 flex flex-col gap-0.5">
               {allColumns.map((col) => (
-                <div key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-[var(--wb-surface-hover)]">
+                <div key={col.key} className="flex items-center gap-2 px-2 py-1 rounded hover:bg-(--wb-surface-hover)">
                   <input
                     type="checkbox"
                     id={`col-${col.key}`}
                     checked={visibleColumnKeys.includes(col.key)}
                     onChange={() => toggleColumnVisible(col.key)}
-                    className="accent-[var(--wb-accent)]"
+                    className="accent-(--wb-accent)"
                   />
-                  <label htmlFor={`col-${col.key}`} className="flex-1 text-sm text-[var(--wb-text-primary)] cursor-pointer">
+                  <label htmlFor={`col-${col.key}`} className="flex-1 text-sm text-(--wb-text-primary) cursor-pointer">
                     {col.label}
                   </label>
                   {col.groupable && (
@@ -235,8 +235,8 @@ export default function Connections() {
                       className={[
                         "px-1.5 py-0.5 text-xs rounded transition-colors",
                         groupedColumn?.key === col.key
-                          ? "bg-[var(--wb-accent)] text-white"
-                          : "text-[var(--wb-text-tertiary)] hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]",
+                          ? "bg-(--wb-accent) text-white"
+                          : "text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)",
                       ].join(" ")}
                     >
                       {groupedColumn?.key === col.key ? "Grouped" : "Group"}
@@ -245,12 +245,12 @@ export default function Connections() {
                   <div className="flex gap-0.5">
                     <button
                       onClick={() => moveColumn(col.key, -1)}
-                      className="text-[var(--wb-text-tertiary)] hover:text-[var(--wb-text-primary)] px-1 text-xs"
+                      className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) px-1 text-xs"
                       title="Move up"
                     >↑</button>
                     <button
                       onClick={() => moveColumn(col.key, 1)}
-                      className="text-[var(--wb-text-tertiary)] hover:text-[var(--wb-text-primary)] px-1 text-xs"
+                      className="text-(--wb-text-tertiary) hover:text-(--wb-text-primary) px-1 text-xs"
                       title="Move down"
                     >↓</button>
                   </div>
@@ -265,7 +265,7 @@ export default function Connections() {
         </Button>
       </div>
 
-      <div className="flex-1 min-h-0 rounded-[var(--wb-radius-lg)] border border-[var(--wb-border-subtle)] overflow-hidden">
+      <div className="flex-1 min-h-0 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden">
         {groupedEntries ? (
           <GroupedTable
             groups={groupedEntries}
@@ -325,7 +325,7 @@ function GroupedTable({
   return (
     <div className="h-full overflow-auto">
       <table className="w-full border-collapse">
-        <thead className="sticky top-0 z-10 bg-[var(--wb-surface-layer)]">
+        <thead className="sticky top-0 z-10 bg-(--wb-surface-layer)">
           <tr>
             {columns.map((col) => {
               const isSorted = sortKey === col.key;
@@ -335,17 +335,17 @@ function GroupedTable({
                   key={col.key}
                   onClick={isClickable ? () => onSort(col.key) : undefined}
                   className={[
-                    "px-3 py-2 text-xs font-medium text-[var(--wb-text-secondary)]",
-                    "border-b border-[var(--wb-border-subtle)] whitespace-nowrap select-none",
+                    "px-3 py-2 text-xs font-medium text-(--wb-text-secondary)",
+                    "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
                     col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
-                    isClickable ? "cursor-pointer hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]" : "",
-                    isSorted ? "text-[var(--wb-text-primary)]" : "",
+                    isClickable ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)" : "",
+                    isSorted ? "text-(--wb-text-primary)" : "",
                   ].join(" ")}
                 >
                   <span className="inline-flex items-center gap-1">
                     {col.label}
                     {isSorted && (
-                      <span className="text-[var(--wb-accent)]">
+                      <span className="text-(--wb-accent)">
                         {sortDirection === "asc" ? "↑" : "↓"}
                       </span>
                     )}
@@ -363,22 +363,22 @@ function GroupedTable({
                 <tr
                   key={`group-${group.id}`}
                   onClick={() => onToggleGroupCollapsed(group.id)}
-                  className="cursor-pointer bg-[var(--wb-surface-layer)] hover:bg-[var(--wb-surface-hover)] transition-colors"
+                  className="cursor-pointer bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover) transition-colors"
                 >
                   <td
                     colSpan={columns.length}
-                    className="border-b border-[var(--wb-border-subtle)] px-3 py-2"
+                    className="border-b border-(--wb-border-subtle) px-3 py-2"
                   >
                     <div className="flex items-center justify-between gap-3">
                       <div className="flex items-center gap-2 min-w-0">
-                        <span className="text-[var(--wb-text-secondary)] text-xs shrink-0">
+                        <span className="text-(--wb-text-secondary) text-xs shrink-0">
                           {collapsed ? "▶" : "▼"}
                         </span>
-                        <span className="text-xs font-semibold text-[var(--wb-text-primary)] truncate">
+                        <span className="text-xs font-semibold text-(--wb-text-primary) truncate">
                           {group.column.label}: {group.label}
                         </span>
                       </div>
-                      <span className="shrink-0 text-xs text-[var(--wb-text-secondary)] bg-[var(--wb-surface-base)] px-2 py-0.5 rounded-full border border-[var(--wb-border-subtle)]">
+                      <span className="shrink-0 text-xs text-(--wb-text-secondary) bg-(--wb-surface-base) px-2 py-0.5 rounded-full border border-(--wb-border-subtle)">
                         {group.items.length} {group.items.length === 1 ? "item" : "items"}
                       </span>
                     </div>
@@ -389,14 +389,14 @@ function GroupedTable({
                     <tr
                       key={row.id}
                       onClick={() => onRowClick(row)}
-                      className="border-b border-[var(--wb-border-subtle)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-75 cursor-pointer"
+                      className="border-b border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) transition-colors duration-75 cursor-pointer"
                       style={{ height: 32 }}
                     >
                       {columns.map((col) => (
                         <td
                           key={col.key}
                           className={[
-                            "px-3 text-xs text-[var(--wb-text-primary)] truncate max-w-0",
+                            "px-3 text-xs text-(--wb-text-primary) truncate max-w-0",
                             col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
                           ].join(" ")}
                         >

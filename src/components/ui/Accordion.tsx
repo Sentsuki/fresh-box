@@ -20,7 +20,7 @@ export function AccordionItem({
     <RadixAccordion.Item
       value={value}
       className={[
-        "border border-[var(--wb-border-subtle)] rounded-[var(--wb-radius-md)] overflow-hidden",
+        "border border-(--wb-border-subtle) rounded-(--wb-radius-md) overflow-hidden",
         className,
       ].join(" ")}
     >
@@ -29,22 +29,22 @@ export function AccordionItem({
           <RadixAccordion.Trigger
             className={[
               "flex flex-1 items-center justify-between px-4 py-3 min-w-0",
-              "bg-[var(--wb-surface-layer)] hover:bg-[var(--wb-surface-hover)]",
+              "bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover)",
               "transition-colors duration-100 text-left",
-              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-[var(--wb-accent)]",
+              "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
               "group",
             ].join(" ")}
           >
             <span className="flex-1 min-w-0">{trigger}</span>
             <ChevronDownRegular
               className={[
-                "ml-2 flex-shrink-0 text-[var(--wb-text-secondary)] transition-transform duration-150",
+                "ml-2 flex-shrink-0 text-(--wb-text-secondary) transition-transform duration-150",
                 "group-data-[state=open]:rotate-180",
               ].join(" ")}
             />
           </RadixAccordion.Trigger>
           {actions && (
-            <div className="flex-shrink-0 px-2 bg-[var(--wb-surface-layer)]">
+            <div className="flex-shrink-0 px-2 bg-(--wb-surface-layer)">
               {actions}
             </div>
           )}
@@ -57,7 +57,7 @@ export function AccordionItem({
           "data-[state=closed]:animate-[accordionClose_0.15s_ease]",
         ].join(" ")}
       >
-        <div className="px-4 py-3 bg-[var(--wb-surface-base)]">{children}</div>
+        <div className="px-4 py-3 bg-(--wb-surface-base)">{children}</div>
       </RadixAccordion.Content>
     </RadixAccordion.Item>
   );
