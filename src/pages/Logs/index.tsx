@@ -53,12 +53,12 @@ export default function Logs() {
     (entry: LogEntry, _i: number) => (
       <div
         className={[
-          "flex items-start gap-3 py-1 px-2 hover:bg-[rgba(255,255,255,0.03)] rounded group transition-colors min-w-max",
+          "flex items-start gap-3 py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors min-w-max",
           LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
         ].join(" ")}
         style={{ height: 28, lineHeight: "20px" }}
       >
-        <span className="shrink-0-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
+        <span className="shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
           {entry.type.toUpperCase().slice(0, 5)}
         </span>
         {entry.time && (
@@ -149,7 +149,7 @@ export default function Logs() {
           </div>
         </div>
 
-        <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-[rgba(0,0,0,0.2)] shadow-inner p-3 font-mono">
+        <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-log-bg) shadow-inner p-3 font-mono">
           {visibleLogs.length === 0 ? (
             <div className="flex items-center justify-center h-full text-(--wb-text-disabled) text-sm font-medium">
               No logs available

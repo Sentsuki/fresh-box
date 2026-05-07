@@ -51,6 +51,7 @@
   --wb-log-info: #60CDFF;
   --wb-log-debug: #B4B4B4;
   --wb-log-trace: #808080;
+  --wb-log-bg: rgba(0, 0, 0, 0.2);
 
   --wb-sidebar-width: 240px;
   --wb-titlebar-height: 36px;
@@ -113,4 +114,5 @@
   --wb-log-info: #005FB8;
   --wb-log-debug: #5D5D5D;
   --wb-log-trace: #8E8E8E;
+  --wb-log-bg: rgba(0, 0, 0, 0.03);
 }
