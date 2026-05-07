@@ -20,6 +20,7 @@ export interface ConnectionColumnOption {
   sortable: boolean;
   groupable: boolean;
   align?: "start" | "end";
+  defaultDirection: SortDirection;
 }
 
 interface ConnectionColumnDefinition extends ConnectionColumnOption {

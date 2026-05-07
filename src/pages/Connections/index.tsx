@@ -27,9 +27,13 @@ export default function Connections() {
   const currentTab = useSettingsStore((s) => s.settings.pages.connections.current_tab);
   const visibleColumnKeys = useSettingsStore((s) => s.settings.pages.connections.visible_columns);
   const columnOrder = useSettingsStore((s) => s.settings.pages.connections.column_order);
+  const sortKey = useSettingsStore((s) => s.settings.pages.connections.sort_key);
+  const sortDirection = useSettingsStore((s) => s.settings.pages.connections.sort_direction);
   const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
   const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
   const setConnectionsColumnOrder = useSettingsStore((s) => s.setConnectionsColumnOrder);
+  const setConnectionsSortKey = useSettingsStore((s) => s.setConnectionsSortKey);
+  const setConnectionsSortDirection = useSettingsStore((s) => s.setConnectionsSortDirection);
 
   const [search, setSearch] = useState("");
   const [showColumns, setShowColumns] = useState(false);
@@ -55,6 +59,7 @@ export default function Connections() {
         key: col.key,
         label: col.label,
         align: col.align,
+        sortable: col.sortable,
         render: (row) => (
           <span className="truncate text-xs">
             {formatConnectionValue(col.key as ConnectionColumnKey, row)}
@@ -62,6 +67,20 @@ export default function Connections() {
         ),
       })),
     [visibleColumns],
+  );
+
+  const handleSort = useCallback(
+    (key: string) => {
+      const colKey = key as ConnectionColumnKey;
+      if (colKey === sortKey) {
+        void setConnectionsSortDirection(sortDirection === "asc" ? "desc" : "asc");
+      } else {
+        const col = visibleColumns.find((c) => c.key === colKey);
+        void setConnectionsSortKey(colKey);
+        void setConnectionsSortDirection(col?.defaultDirection ?? "asc");
+      }
+    },
+    [sortKey, sortDirection, visibleColumns, setConnectionsSortKey, setConnectionsSortDirection],
   );
 
   const toggleColumnVisible = useCallback(
@@ -196,6 +215,9 @@ export default function Connections() {
           rows={filteredEntries}
           rowHeight={32}
           getRowKey={(row) => row.id}
+          sortKey={sortKey}
+          sortDirection={sortDirection}
+          onSort={handleSort}
         />
       </div>
     </div>

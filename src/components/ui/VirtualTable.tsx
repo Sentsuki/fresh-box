@@ -11,6 +11,7 @@ export interface ColumnDef<T> {
   label: string;
   width?: number;
   align?: "start" | "end" | "center";
+  sortable?: boolean;
   render?: (row: T, index: number) => React.ReactNode;
   getValue?: (row: T) => string | number;
 }
@@ -23,6 +24,9 @@ interface VirtualTableProps<T> {
   className?: string;
   onRowClick?: (row: T) => void;
   getRowKey: (row: T, index: number) => string;
+  sortKey?: string;
+  sortDirection?: "asc" | "desc";
+  onSort?: (key: string) => void;
 }
 
 const DEFAULT_ROW_HEIGHT = 32;
@@ -36,6 +40,9 @@ export function VirtualTable<T>({
   className = "",
   onRowClick,
   getRowKey,
+  sortKey,
+  sortDirection,
+  onSort,
 }: VirtualTableProps<T>) {
   const containerRef = useRef<HTMLDivElement>(null);
   const [visibleRange, setVisibleRange] = useState({ start: 0, end: 50 });
@@ -104,19 +111,33 @@ export function VirtualTable<T>({
       <table className="w-full border-collapse" style={{ minHeight: totalHeight }}>
         <thead className="sticky top-0 z-10 bg-[var(--wb-surface-layer)]">
           <tr>
-            {columns.map((col) => (
-              <th
-                key={col.key}
-                className={[
-                  "px-3 py-2 text-xs font-medium text-[var(--wb-text-secondary)]",
-                  "border-b border-[var(--wb-border-subtle)] whitespace-nowrap",
-                  col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
-                ].join(" ")}
-                style={col.width ? { width: col.width } : undefined}
-              >
-                {col.label}
-              </th>
-            ))}
+            {columns.map((col) => {
+              const isSorted = sortKey === col.key;
+              const isClickable = col.sortable && onSort;
+              return (
+                <th
+                  key={col.key}
+                  onClick={isClickable ? () => onSort(col.key) : undefined}
+                  className={[
+                    "px-3 py-2 text-xs font-medium text-[var(--wb-text-secondary)]",
+                    "border-b border-[var(--wb-border-subtle)] whitespace-nowrap select-none",
+                    col.align === "end" ? "text-right" : col.align === "center" ? "text-center" : "text-left",
+                    isClickable ? "cursor-pointer hover:text-[var(--wb-text-primary)] hover:bg-[var(--wb-surface-hover)]" : "",
+                    isSorted ? "text-[var(--wb-text-primary)]" : "",
+                  ].join(" ")}
+                  style={col.width ? { width: col.width } : undefined}
+                >
+                  <span className="inline-flex items-center gap-1">
+                    {col.label}
+                    {isSorted && (
+                      <span className="text-[var(--wb-accent)]">
+                        {sortDirection === "asc" ? "↑" : "↓"}
+                      </span>
+                    )}
+                  </span>
+                </th>
+              );
+            })}
           </tr>
         </thead>
         <tbody>
