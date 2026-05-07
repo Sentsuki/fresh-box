@@ -53,7 +53,7 @@ export default function Logs() {
     (entry: LogEntry, _i: number) => (
       <div
         className={[
-          "flex items-start gap-3 py-1 px-2 hover:bg-[rgba(255,255,255,0.03)] rounded group transition-colors",
+          "flex items-start gap-3 py-1 px-2 hover:bg-[rgba(255,255,255,0.03)] rounded group transition-colors min-w-max",
           LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
         ].join(" ")}
         style={{ height: 28, lineHeight: "20px" }}
@@ -66,7 +66,7 @@ export default function Logs() {
             {entry.time}
           </span>
         )}
-        <span className="flex-1 min-w-0 truncate text-[13px]">
+        <span className="flex-1 whitespace-nowrap text-[13px]" title={entry.payload}>
           {entry.payload}
         </span>
       </div>
