@@ -21,8 +21,7 @@ fn get_api_config() -> ApiConfig {
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
     let config: PriorityConfig =
-        crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
-            .unwrap_or_default();
+        crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
     let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
     let controller = config
@@ -39,15 +38,16 @@ fn get_api_config() -> ApiConfig {
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
-    let test_url = app_settings
-        .settings
-        .test_url
-        .as_str();
+    let test_url = app_settings.settings.test_url.as_str();
 
     ApiConfig {
         base_url: format!("http://{}", controller),
         secret: secret.to_string(),
-        test_url: if test_url.is_empty() { DEFAULT_TEST_URL.to_string() } else { test_url.to_string() },
+        test_url: if test_url.is_empty() {
+            DEFAULT_TEST_URL.to_string()
+        } else {
+            test_url.to_string()
+        },
     }
 }
 

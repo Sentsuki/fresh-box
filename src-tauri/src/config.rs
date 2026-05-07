@@ -866,8 +866,6 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
     Ok(())
 }
 
-
-
 #[tauri::command]
 pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, CommandError> {
     let sub_dir = get_sub_dir()?;
