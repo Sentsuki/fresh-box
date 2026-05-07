@@ -291,7 +291,7 @@ export default function Settings() {
           <SettingCard
             icon={<LinkRegular />}
             title="API Controller"
-            description="The address:port for the Clash API (e.g. 127.0.0.1:8964)"
+            description="The address:port for the Clash API"
             control={
               <div className="flex items-center gap-2">
                 <input

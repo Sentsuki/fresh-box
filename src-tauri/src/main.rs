@@ -12,7 +12,9 @@ mod singbox;
 mod tray;
 mod window_utils;
 
-use core_update::{auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState};
+use core_update::{
+    auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState,
+};
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
 use tauri::{Manager, Window};

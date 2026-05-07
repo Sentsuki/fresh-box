@@ -70,59 +70,68 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     [isRefreshing, selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
   );
 
-  const applySelectedCore = useCallback(async (keyOverride?: string) => {
-    if (!coreStatus || isUpdating) return;
-    const options = coreStatus.available_options ?? [];
-    const key = keyOverride ?? selectedCoreOptionKey;
-    const selectedOption = options.find((o) => toOptionKey(o) === key);
-    if (!selectedOption) return;
+  const applySelectedCore = useCallback(
+    async (keyOverride?: string) => {
+      if (!coreStatus || isUpdating) return;
+      const options = coreStatus.available_options ?? [];
+      const key = keyOverride ?? selectedCoreOptionKey;
+      const selectedOption = options.find((o) => toOptionKey(o) === key);
+      if (!selectedOption) return;
 
-    setIsUpdating(true);
-    setCoreStatusError("");
-    setCoreUpdateProgress({
-      stage: "preparing",
-      percent: 0,
-      message: "Preparing the sing-box core action...",
-    });
-    try {
-      if (selectedOption.installed && !selectedOption.is_active) {
-        // Already installed — just activate (no download needed).
-        await activateSingboxCore(selectedOption.channel, selectedOption.version);
-        success(`Switched to ${selectedOption.label}`);
-      } else {
-        // Download + install (new version, or reinstall of active version).
-        const result: SingboxCoreUpdateResult = await updateSingboxCore(
-          selectedOption.channel,
-          selectedOption.version,
-        );
-        success(
-          result.restart_required
-            ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
-            : `Core updated to ${result.current_version}`,
-        );
+      setIsUpdating(true);
+      setCoreStatusError("");
+      setCoreUpdateProgress({
+        stage: "preparing",
+        percent: 0,
+        message: "Preparing the sing-box core action...",
+      });
+      try {
+        if (selectedOption.installed && !selectedOption.is_active) {
+          // Already installed — just activate (no download needed).
+          await activateSingboxCore(
+            selectedOption.channel,
+            selectedOption.version,
+          );
+          success(`Switched to ${selectedOption.label}`);
+        } else {
+          // Download + install (new version, or reinstall of active version).
+          const result: SingboxCoreUpdateResult = await updateSingboxCore(
+            selectedOption.channel,
+            selectedOption.version,
+          );
+          success(
+            result.restart_required
+              ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
+              : `Core updated to ${result.current_version}`,
+          );
+        }
+        // Re-read backend state — it is the single source of truth for active_channel/active_version.
+        await refreshCoreStatus();
+      } catch (err) {
+        const msg = getErrorMessage(err);
+        if (
+          msg.toLowerCase().includes("cancelled") ||
+          msg.toLowerCase().includes("cancel")
+        ) {
+          setCoreStatusError("");
+        } else {
+          setCoreStatusError(msg);
+          toastError(msg);
+        }
+      } finally {
+        setIsUpdating(false);
+        setCoreUpdateProgress(null);
       }
-      // Re-read backend state — it is the single source of truth for active_channel/active_version.
-      await refreshCoreStatus();
-    } catch (err) {
-      const msg = getErrorMessage(err);
-      if (msg.toLowerCase().includes("cancelled") || msg.toLowerCase().includes("cancel")) {
-        setCoreStatusError("");
-      } else {
-        setCoreStatusError(msg);
-        toastError(msg);
-      }
-    } finally {
-      setIsUpdating(false);
-      setCoreUpdateProgress(null);
-    }
-  }, [
-    coreStatus,
-    isUpdating,
-    selectedCoreOptionKey,
-    success,
-    toastError,
-    refreshCoreStatus,
-  ]);
+    },
+    [
+      coreStatus,
+      isUpdating,
+      selectedCoreOptionKey,
+      success,
+      toastError,
+      refreshCoreStatus,
+    ],
+  );
 
   const cancelUpdate = useCallback(async () => {
     if (!isUpdating) return;

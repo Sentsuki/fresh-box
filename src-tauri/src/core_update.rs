@@ -23,6 +23,12 @@ use tauri::{AppHandle, Emitter, State};
 #[derive(Clone)]
 pub struct CoreUpdateCancelState(pub Arc<AtomicBool>);
 
+impl Default for CoreUpdateCancelState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 impl CoreUpdateCancelState {
     pub fn new() -> Self {
         Self(Arc::new(AtomicBool::new(false)))
@@ -278,10 +284,9 @@ pub async fn update_singbox_core(
         &cancel,
     )
     .await
-    .map_err(|err| {
+    .inspect_err(|_| {
         // Clean up any partial download on cancellation or error.
         let _ = cleanup_download_artifacts(&update_paths);
-        err
     })?;
 
     emit_progress(
@@ -370,12 +375,7 @@ pub fn auto_select_installed_core() -> Result<(), CommandError> {
         }
 
         let mut versions: Vec<String> = fs::read_dir(&channel_dir)
-            .map_err(|e| {
-                CommandError::io(
-                    format!("failed to scan {}", channel_dir.display()),
-                    e,
-                )
-            })?
+            .map_err(|e| CommandError::io(format!("failed to scan {}", channel_dir.display()), e))?
             .flatten()
             .filter_map(|entry| {
                 let path = entry.path();
@@ -398,10 +398,7 @@ pub fn auto_select_installed_core() -> Result<(), CommandError> {
         versions.sort_by(|a, b| b.cmp(a));
 
         if let Some(version) = versions.into_iter().next() {
-            return set_active_singbox_core_selection(
-                Some(channel.to_string()),
-                Some(version),
-            );
+            return set_active_singbox_core_selection(Some(channel.to_string()), Some(version));
         }
     }
 
