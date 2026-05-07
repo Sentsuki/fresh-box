@@ -81,7 +81,7 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
       ].join(" ")}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex w-full justify-between items-start gap-2">
         <NodeName
