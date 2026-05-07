@@ -47,7 +47,7 @@ export default function Config() {
   const subscriptionFiles = configFiles.filter((f) => !!subscriptions[f.displayName]);
 
   return (
-    <div className="flex flex-col gap-5 max-w-2xl">
+    <div className="flex flex-col gap-5">
       <div>
         <h1 className="text-xl font-semibold text-(--wb-text-primary)">Config</h1>
         <p className="text-sm text-(--wb-text-secondary) mt-0.5">

@@ -3,6 +3,7 @@ import {
   ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
+  CheckmarkCircleFilled,
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
@@ -42,26 +43,27 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
       onClick={onSelect}
       title={node.name}
       className={[
-        "flex flex-col items-start gap-1.5 px-2 py-2 rounded-(--wb-radius-md)",
-        "text-left transition-all duration-100 cursor-pointer w-full min-w-0",
+        "relative flex flex-col items-start gap-1.5 px-3 py-2.5 rounded-(--wb-radius-md)",
+        "text-left transition-all duration-100 cursor-pointer w-full min-w-0 border",
         selected
-          ? "bg-(--wb-accent) text-white shadow-sm"
-          : "bg-(--wb-surface-base) hover:bg-(--wb-surface-hover) text-(--wb-text-primary)",
+          ? "bg-(--wb-surface-selected) border-(--wb-accent) shadow-sm"
+          : "bg-(--wb-surface-base) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover)",
       ].join(" ")}
     >
-      <span
-        className={`w-full truncate text-xs font-medium leading-tight ${
-          selected ? "text-white" : "text-(--wb-text-primary)"
-        }`}
-      >
-        {node.name}
-      </span>
-      <div className="flex w-full items-center justify-between gap-1">
+      <div className="flex w-full justify-between items-start gap-2">
         <span
-          className={`text-[10px] truncate ${
-            selected ? "text-white/70" : "text-(--wb-text-tertiary)"
+          className={`truncate text-sm font-medium leading-tight ${
+            selected ? "text-(--wb-accent)" : "text-(--wb-text-primary)"
           }`}
         >
+          {node.name}
+        </span>
+        {selected && (
+          <CheckmarkCircleFilled className="text-(--wb-accent) flex-shrink-0 text-base" />
+        )}
+      </div>
+      <div className="flex w-full items-center justify-between gap-1 mt-auto">
+        <span className="text-xs truncate text-(--wb-text-tertiary)">
           {abbreviateType(node.type)}
         </span>
         <button
@@ -70,11 +72,9 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
             onTest();
           }}
           title="Test latency"
-          className={`text-[10px] tabular-nums rounded px-1 transition-colors ${
-            selected
-              ? "text-white/80 hover:text-white hover:bg-white/20"
-              : `${delayColor(node.delay)} hover:bg-(--wb-surface-active)`
-          }`}
+          className={`text-xs tabular-nums rounded px-1.5 py-0.5 transition-colors ${
+            delayColor(node.delay)
+          } hover:bg-(--wb-surface-active)`}
         >
           {node.delay ? `${node.delay}ms` : "--"}
         </button>
@@ -119,7 +119,7 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
   const open = !collapsed;
 
   return (
-    <div className="rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden">
+    <div className="rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden shadow-sm">
       <div className="flex items-center">
         <button
           onClick={() => void setProxyGroupCollapsed(group.name, open)}
@@ -150,10 +150,10 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
         </div>
       </div>
       {open && (
-        <div className="px-4 py-3 bg-(--wb-surface-base)">
+        <div className="px-4 py-4 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
           <div
-            className="grid gap-1.5"
-            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(min(140px, 100%), 1fr))" }}
+            className="grid gap-2"
+            style={{ gridTemplateColumns: "repeat(auto-fill, minmax(200px, 1fr))" }}
           >
             {group.options.map((node) => (
               <NodeCard

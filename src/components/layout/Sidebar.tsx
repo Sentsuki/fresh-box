@@ -1,4 +1,4 @@
-import { useCallback } from "react";
+import { useCallback, useState } from "react";
 import {
   DataBarVerticalRegular,
   GlobeRegular,
@@ -8,6 +8,7 @@ import {
   DocumentEditRegular,
   WrenchRegular,
   SettingsRegular,
+  NavigationRegular,
 } from "@fluentui/react-icons";
 import { useAppStore } from "../../stores/appStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -30,6 +31,8 @@ export function Sidebar() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setSettingsPage = useSettingsStore((s) => s.setCurrentPage);
   const isRunning = useSingboxStore((s) => s.isRunning);
+  
+  const [isExpanded, setIsExpanded] = useState(true);
 
   const navigate = useCallback(
     async (page: AppPage) => {
@@ -41,19 +44,26 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col bg-(--wb-surface-base) border-r border-(--wb-border-subtle) flex-shrink-0"
-      style={{ width: "var(--wb-sidebar-width)" }}
+      className="flex flex-col bg-(--wb-surface-base) border-r border-(--wb-border-subtle) flex-shrink-0 transition-[width] duration-200 ease-in-out"
+      style={{ width: isExpanded ? "var(--wb-sidebar-width)" : "60px" }}
     >
-      <div className="px-4 py-4 border-b border-(--wb-border-subtle)">
-        <div className="text-base font-semibold text-(--wb-text-primary)">
-          Fresh Box
-        </div>
-        <div className="text-xs text-(--wb-text-secondary) mt-0.5">
-          sing-box client
-        </div>
+      <div className="px-2 py-3 border-b border-(--wb-border-subtle) flex items-center h-[52px]">
+        <button
+          onClick={() => setIsExpanded(!isExpanded)}
+          className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-(--wb-radius-md) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) transition-colors"
+          title="Toggle Navigation"
+        >
+          <NavigationRegular className="text-xl" />
+        </button>
+        {isExpanded && (
+          <div className="ml-2 flex flex-col justify-center overflow-hidden whitespace-nowrap">
+            <span className="text-sm font-semibold text-(--wb-text-primary) leading-tight">Fresh Box</span>
+            <span className="text-[10px] text-(--wb-text-secondary) leading-tight">sing-box client</span>
+          </div>
+        )}
       </div>
 
-      <nav className="flex-1 px-2 py-2 overflow-y-auto">
+      <nav className="flex-1 px-2 py-2 overflow-y-auto overflow-x-hidden">
         {NAV_ITEMS.map((item) => {
           const Icon = item.icon;
           const active = currentPage === item.id;
@@ -61,8 +71,9 @@ export function Sidebar() {
             <button
               key={item.id}
               onClick={() => void navigate(item.id)}
+              title={!isExpanded ? item.label : undefined}
               className={[
-                "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-(--wb-radius-md) mb-0.5",
+                "w-full flex items-center gap-3 px-3 py-2 h-10 rounded-(--wb-radius-md) mb-0.5",
                 "transition-colors duration-100 text-left relative",
                 "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
                 active
@@ -71,23 +82,24 @@ export function Sidebar() {
               ].join(" ")}
             >
               {active && (
-                <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-(--wb-accent) rounded-full" />
+                <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
               )}
-              <Icon className="flex-shrink-0 text-base" />
-              <span className="truncate">{item.label}</span>
+              <Icon className="flex-shrink-0 text-xl" />
+              {isExpanded && <span className="truncate text-sm">{item.label}</span>}
             </button>
           );
         })}
       </nav>
 
-      <div className="px-2 py-2 border-t border-(--wb-border-subtle)">
-        <div className="px-3 py-2 mb-1">
-          <StatusBadge running={isRunning} />
+      <div className="px-2 py-2 border-t border-(--wb-border-subtle) overflow-x-hidden">
+        <div className={`px-2 mb-2 flex ${isExpanded ? "justify-start" : "justify-center"}`}>
+          <StatusBadge running={isRunning} showLabel={isExpanded} />
         </div>
         <button
           onClick={() => void navigate("settings")}
+          title={!isExpanded ? "Settings" : undefined}
           className={[
-            "w-full flex items-center gap-3 px-3 py-2 text-sm rounded-(--wb-radius-md)",
+            "w-full flex items-center gap-3 px-3 py-2 h-10 rounded-(--wb-radius-md)",
             "transition-colors duration-100 text-left relative",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
             currentPage === "settings"
@@ -96,10 +108,10 @@ export function Sidebar() {
           ].join(" ")}
         >
           {currentPage === "settings" && (
-            <span className="absolute left-0 top-1 bottom-1 w-0.5 bg-(--wb-accent) rounded-full" />
+            <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
           )}
-          <SettingsRegular className="flex-shrink-0 text-base" />
-          <span className="truncate">Settings</span>
+          <SettingsRegular className="flex-shrink-0 text-xl" />
+          {isExpanded && <span className="truncate text-sm">Settings</span>}
         </button>
       </div>
     </aside>

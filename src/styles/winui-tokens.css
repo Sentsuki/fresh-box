@@ -23,8 +23,8 @@
   /* Typography - WinUI 3 Dark Mode standard opacities */
   --wb-text-primary: rgba(255, 255, 255, 1);
   --wb-text-secondary: rgba(255, 255, 255, 0.786);
-  --wb-text-tertiary: rgba(255, 255, 255, 0.5442);
-  --wb-text-disabled: rgba(255, 255, 255, 0.3628);
+  --wb-text-tertiary: rgba(255, 255, 255, 0.65);
+  --wb-text-disabled: rgba(255, 255, 255, 0.5);
 
   --wb-scrollbar-thumb: rgba(255, 255, 255, 0.2);
   --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
@@ -76,8 +76,8 @@
   /* 文字颜色: 遵循 WinUI3 的标准透明度 */
   --wb-text-primary: rgba(0, 0, 0, 0.8956);
   --wb-text-secondary: rgba(0, 0, 0, 0.6063);
-  --wb-text-tertiary: rgba(0, 0, 0, 0.4458);
-  --wb-text-disabled: rgba(0, 0, 0, 0.3628);
+  --wb-text-tertiary: rgba(0, 0, 0, 0.65);
+  --wb-text-disabled: rgba(0, 0, 0, 0.5);
 
   --wb-scrollbar-thumb: rgba(0, 0, 0, 0.2);
   --wb-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);

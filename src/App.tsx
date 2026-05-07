@@ -86,10 +86,12 @@ export default function App() {
         <Sidebar />
         <main className="flex-1 min-w-0 overflow-hidden flex flex-col bg-(--wb-surface-base) border-t border-l border-(--wb-border-subtle)">
           <PageTransition pageKey={currentPage}>
-            <div className="flex-1 overflow-y-auto p-5">
-              <ErrorBoundary key={currentPage}>
-                <PageContent page={currentPage} />
-              </ErrorBoundary>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-screen-xl mx-auto w-full p-5">
+                <ErrorBoundary key={currentPage}>
+                  <PageContent page={currentPage} />
+                </ErrorBoundary>
+              </div>
             </div>
           </PageTransition>
         </main>
