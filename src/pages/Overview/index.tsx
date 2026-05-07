@@ -101,11 +101,11 @@ export default function Overview() {
                 disabled={isPending || !selectedPath}
                 onClick={isRunning ? stopService : startService}
                 className={`
-                  flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-medium transition-all duration-200
+                  flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-200
                   ${(isPending || !selectedPath) ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
                   ${isRunning 
-                    ? "bg-(--wb-surface-hover) border border-(--wb-border-default) text-(--wb-text-primary) hover:bg-(--wb-surface-active)" 
-                    : "bg-(--wb-accent) text-white shadow-md hover:bg-(--wb-accent-hover)"
+                    ? "bg-(--wb-error) text-white hover:bg-[#ff6666]" 
+                    : "bg-(--wb-accent) text-white hover:bg-(--wb-accent-hover)"
                   }
                 `}
               >
