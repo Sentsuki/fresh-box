@@ -1,0 +1,134 @@
+:root {
+  color-scheme: dark;
+  /* Dark mode - let Mica show through */
+  --wb-surface-base: transparent;
+
+  /* Layer (Card) in dark mode is typically 5.1% white over the background */
+  --wb-surface-layer: rgba(255, 255, 255, 0.051);
+  --wb-surface-flyout: #2c2c2c;
+
+  /* Interaction states */
+  --wb-surface-hover: rgba(255, 255, 255, 0.0605);
+  --wb-surface-active: rgba(255, 255, 255, 0.0326);
+  --wb-surface-selected: rgba(255, 255, 255, 0.0605);
+
+  /* Borders */
+  --wb-border-subtle: rgba(255, 255, 255, 0.05);
+  --wb-border-default: rgba(255, 255, 255, 0.08);
+
+  /* Accent - Windows 11 Dark Mode Default */
+  --wb-accent: #60CDFF;
+  --wb-accent-hover: #8CD7FF;
+  --wb-accent-pressed: #4DC8FF;
+
+  /* Typography - WinUI 3 Dark Mode standard opacities */
+  --wb-text-primary: rgba(255, 255, 255, 1);
+  --wb-text-secondary: rgba(255, 255, 255, 0.786);
+  --wb-text-tertiary: rgba(255, 255, 255, 0.65);
+  --wb-text-disabled: rgba(255, 255, 255, 0.5);
+
+  --wb-scrollbar-thumb: rgba(255, 255, 255, 0.2);
+  --wb-scrollbar-thumb-hover: rgba(255, 255, 255, 0.3);
+
+  /* Semantic status colors — dark theme */
+  --wb-success: #6BB44A;
+  --wb-success-bg: rgba(107, 180, 74, 0.15);
+  --wb-success-border: rgba(107, 180, 74, 0.3);
+  --wb-warning: #D4A017;
+  --wb-warning-bg: rgba(212, 160, 23, 0.15);
+  --wb-warning-border: rgba(212, 160, 23, 0.3);
+  --wb-error: #E05252;
+  --wb-error-hover: #c94646;
+  --wb-error-bg: rgba(224, 82, 82, 0.15);
+  --wb-error-border: rgba(224, 82, 82, 0.3);
+  /* Text color on accent-colored backgrounds */
+  --wb-accent-fg: rgba(0, 0, 0, 0.85);
+
+  /* Log Levels — dark theme */
+  --wb-log-panic: #FF459E;
+  --wb-log-fatal: #E05252;
+  --wb-log-error: #FF8C6B;
+  --wb-log-warn: #D4A017;
+  --wb-log-info: #60CDFF;
+  --wb-log-debug: #B4B4B4;
+  --wb-log-trace: #808080;
+  --wb-log-bg: rgba(0, 0, 0, 0.2);
+
+  /* Solid Badge Backgrounds — dark theme (to block Mica) */
+  --wb-badge-default-bg: #2d2d2d;
+  --wb-badge-accent-bg: #1c323d;
+  --wb-badge-success-bg: #20311a;
+  --wb-badge-warning-bg: #332b12;
+  --wb-badge-error-bg: #361d1d;
+
+  --wb-sidebar-width: 240px;
+  --wb-titlebar-height: 36px;
+  --wb-radius-sm: 4px;
+  --wb-radius-md: 6px;
+  --wb-radius-lg: 8px;
+}
+
+/* WinUI 3 light theme tokens */
+.light {
+  color-scheme: light;
+  /* 既然已经开启了真实的 Mica 材质，我们将基础背景色设为透明，让系统原生材质完全透出来 */
+  --wb-surface-base: transparent;
+
+  /* 层/卡片背景: WinUI3 规范中卡片（CardBackground）通常是纯白，以提供清爽的层次感 */
+  --wb-surface-layer: rgba(255, 255, 255, 1);
+  --wb-surface-flyout: #ffffff;
+
+  /* 交互状态: WinUI 3 的悬浮和点击反馈通常比较克制 */
+  --wb-surface-hover: rgba(0, 0, 0, 0.0392);
+  --wb-surface-active: rgba(0, 0, 0, 0.0241);
+  --wb-surface-selected: rgba(0, 0, 0, 0.0392);
+
+  /* 边框: 适度增加不透明度以提高亮色模式下的辨识度 */
+  --wb-border-subtle: rgba(0, 0, 0, 0.08);
+  --wb-border-default: rgba(0, 0, 0, 0.12);
+
+  /* 强调色: Windows 11 默认的经典蓝色是 #005FB8 */
+  --wb-accent: #005FB8;
+  --wb-accent-hover: #0056A6;
+  --wb-accent-pressed: #004C93;
+
+  /* 文字颜色: 遵循 WinUI3 的标准透明度 */
+  --wb-text-primary: rgba(0, 0, 0, 0.8956);
+  --wb-text-secondary: rgba(0, 0, 0, 0.6063);
+  --wb-text-tertiary: rgba(0, 0, 0, 0.65);
+  --wb-text-disabled: rgba(0, 0, 0, 0.5);
+
+  --wb-scrollbar-thumb: rgba(0, 0, 0, 0.2);
+  --wb-scrollbar-thumb-hover: rgba(0, 0, 0, 0.3);
+
+  /* Semantic status colors — light theme */
+  --wb-success: #2d7d14;
+  --wb-success-bg: rgba(45, 125, 20, 0.1);
+  --wb-success-border: rgba(45, 125, 20, 0.25);
+  --wb-warning: #8a6014;
+  --wb-warning-bg: rgba(138, 96, 20, 0.1);
+  --wb-warning-border: rgba(138, 96, 20, 0.25);
+  --wb-error: #c42b1c;
+  --wb-error-hover: #b02519;
+  --wb-error-bg: rgba(196, 43, 28, 0.1);
+  --wb-error-border: rgba(196, 43, 28, 0.25);
+  /* Text color on accent-colored backgrounds */
+  --wb-accent-fg: rgba(255, 255, 255, 0.95);
+
+  /* Log Levels — light theme */
+  --wb-log-panic: #D3106D;
+  --wb-log-fatal: #C42B1C;
+  --wb-log-error: #D85D3B;
+  --wb-log-warn: #8A6014;
+  --wb-log-info: #005FB8;
+  --wb-log-debug: #5D5D5D;
+  --wb-log-trace: #8E8E8E;
+  --wb-log-bg: rgba(0, 0, 0, 0.03);
+
+  /* Solid Badge Backgrounds — light theme */
+  --wb-badge-default-bg: #f3f3f3;
+  --wb-badge-accent-bg: #e5f1fb;
+  --wb-badge-success-bg: #e7f3e5;
+  --wb-badge-warning-bg: #fff4ce;
+  --wb-badge-error-bg: #fdecec;
+}

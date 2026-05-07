@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod clash_api;
 mod config;
 mod config_override;
 mod core_update;
@@ -14,7 +15,16 @@ mod window_utils;
 use core_update::cleanup_staged_core_update_files_directly;
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
-use tauri::Manager;
+use tauri::{Manager, Window};
+
+#[tauri::command]
+fn update_mica_theme(window: Window, is_light: bool) {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::apply_mica;
+        let _ = apply_mica(&window, Some(!is_light));
+    }
+}
 
 fn main() {
     logger::install_panic_hook();
@@ -22,6 +32,7 @@ fn main() {
     let singbox_state = SingboxState::new();
 
     tauri::Builder::default()
+        .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .plugin(tauri_plugin_http::init())
         .manage(singbox_state)
@@ -36,6 +47,14 @@ fn main() {
             core_update::get_singbox_core_status,
             core_update::activate_singbox_core,
             core_update::update_singbox_core,
+            clash_api::get_clash_overview,
+            clash_api::update_clash_mode,
+            clash_api::select_clash_proxy,
+            clash_api::test_clash_proxy_delay,
+            clash_api::test_clash_proxy_group_delay,
+            clash_api::get_clash_rules,
+            clash_api::toggle_clash_rule,
+            clash_api::update_clash_rule_provider,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
@@ -51,7 +70,6 @@ fn main() {
             config::save_config_content,
             config::open_url,
             config::get_clash_api_url,
-            config::open_panel_url,
             config_override::enable_config_override,
             config_override::disable_config_override,
             config_override::save_config_override,
@@ -62,9 +80,20 @@ fn main() {
             priority_config::load_priority_config,
             priority_config::clear_priority_config,
             priority_config::check_config_fields,
+            priority_config::get_core_client_config,
+            priority_config::generate_random_port,
+            priority_config::generate_random_secret,
+            update_mica_theme,
         ])
         .setup(|app| {
             tray::setup_system_tray(app)?;
+
+            let window = app.get_webview_window("main").unwrap();
+            #[cfg(target_os = "windows")]
+            {
+                use window_vibrancy::apply_mica;
+                let _ = apply_mica(&window, None);
+            }
 
             if let Err(error) = cleanup_staged_core_update_files_directly() {
                 eprintln!("Failed to clean staged sing-box core files: {}", error);

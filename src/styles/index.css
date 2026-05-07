@@ -1,0 +1,93 @@
+@import "tailwindcss";
+@import "./winui-tokens.css";
+
+@theme {
+  --color-wb-surface-base: var(--wb-surface-base);
+  --color-wb-surface-layer: var(--wb-surface-layer);
+  --color-wb-surface-flyout: var(--wb-surface-flyout);
+  --color-wb-surface-hover: var(--wb-surface-hover);
+  --color-wb-surface-active: var(--wb-surface-active);
+  --color-wb-surface-selected: var(--wb-surface-selected);
+  --color-wb-border: var(--wb-border-default);
+  --color-wb-border-subtle: var(--wb-border-subtle);
+  --color-wb-accent: var(--wb-accent);
+  --color-wb-accent-hover: var(--wb-accent-hover);
+  --color-wb-accent-pressed: var(--wb-accent-pressed);
+  --color-wb-text: var(--wb-text-primary);
+  --color-wb-text-muted: var(--wb-text-secondary);
+  --color-wb-text-tertiary: var(--wb-text-tertiary);
+  --color-wb-text-disabled: var(--wb-text-disabled);
+}
+
+* {
+  box-sizing: border-box;
+  scroll-behavior: auto;
+}
+
+html,
+body,
+#app {
+  height: 100%;
+  overflow: hidden;
+}
+
+body {
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, -apple-system, sans-serif;
+  font-feature-settings: "kern" 1, "liga" 1;
+  -webkit-font-smoothing: antialiased;
+  background: transparent;
+  color: var(--wb-text-primary);
+}
+
+::-webkit-scrollbar {
+  width: 6px;
+  height: 6px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--wb-scrollbar-thumb);
+  border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--wb-scrollbar-thumb-hover);
+}
+
+/* Simply remove Toast shadows globally */
+[class*="fui-Toast"] {
+  box-shadow: none !important;
+}
+
+/* Global Segmented Control (Tab Switcher) styles */
+.winui-segmented-control {
+  box-shadow: none !important;
+}
+
+.winui-segmented-control button {
+  box-shadow: none !important;
+}
+
+/* Fix native select dropdown styling in dark mode */
+select {
+  background-color: var(--wb-surface-base);
+  color: var(--wb-text-primary);
+}
+
+option {
+  background-color: var(--wb-surface-flyout);
+  color: var(--wb-text-primary);
+}
+
+/* Ensure selected option in dark mode is readable */
+select:focus option:checked {
+  background-color: var(--wb-accent) !important;
+  color: var(--wb-accent-fg) !important;
+}
+@keyframes jumping {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}

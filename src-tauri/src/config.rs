@@ -8,18 +8,190 @@ use std::path::{Path, PathBuf};
 use std::process::Command;
 
 const SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
+const FILE_ORDER_KEY: &str = "_file_order";
 const APP_SETTINGS_FILE: &str = "app_settings.json";
+const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
+const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 pub const CORE_CHANNEL_STABLE: &str = "stable";
 pub const CORE_CHANNEL_TESTING: &str = "testing";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
-    pub selected_config: Option<String>,
+    #[serde(default = "default_app_settings_schema_version")]
+    pub schema_version: u32,
+    #[serde(default)]
+    pub app: AppConfig,
+    #[serde(default)]
+    pub proxies: ProxyPageSettings,
+    #[serde(default)]
+    pub connections: ConnectionPageSettings,
+    #[serde(default)]
+    pub logs: LogsPageSettings,
+    #[serde(default)]
+    pub rules: RulesPageSettings,
+    #[serde(default, rename = "Profiles")]
+    pub profiles: ProfilesSettings,
+    #[serde(default, rename = "Settings")]
+    pub settings: AppDisplaySettings,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppConfig {
+    pub current_page: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProfilesSettings {
+    pub selected_config_path: Option<String>,
     pub selected_config_display: Option<String>,
-    pub current_page: Option<String>,
-    pub active_singbox_core_channel: Option<String>,
-    pub active_singbox_core_version: Option<String>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AppDisplaySettings {
+    pub theme_mode: String,
+    pub singbox_core: SingboxCoreSettings,
+    pub test_url: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct SingboxCoreSettings {
+    pub active_channel: Option<String>,
+    pub active_version: Option<String>,
+    pub selected_option_key: String,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ProxyPageSettings {
+    #[serde(default)]
+    pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct ConnectionPageSettings {
+    pub current_tab: String,
+    pub column_order: Vec<String>,
+    pub visible_columns: Vec<String>,
+    pub sort_key: String,
+    pub sort_direction: String,
+    pub grouped_column: Option<String>,
+    #[serde(default)]
+    pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct LogsPageSettings {
+    pub log_level: String,
+    pub type_filter: String,
+}
+
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct RulesPageSettings {
+    pub current_tab: String,
+}
+
+impl Default for AppSettings {
+    fn default() -> Self {
+        Self {
+            schema_version: APP_SETTINGS_SCHEMA_VERSION,
+            app: AppConfig::default(),
+            proxies: ProxyPageSettings::default(),
+            connections: ConnectionPageSettings::default(),
+            logs: LogsPageSettings::default(),
+            rules: RulesPageSettings::default(),
+            profiles: ProfilesSettings::default(),
+            settings: AppDisplaySettings::default(),
+        }
+    }
+}
+
+impl Default for AppConfig {
+    fn default() -> Self {
+        Self {
+            current_page: "overview".to_string(),
+        }
+    }
+}
+
+impl Default for AppDisplaySettings {
+    fn default() -> Self {
+        Self {
+            theme_mode: "system".to_string(),
+            singbox_core: SingboxCoreSettings::default(),
+            test_url: DEFAULT_TEST_URL.to_string(),
+        }
+    }
+}
+
+impl Default for ConnectionPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "active".to_string(),
+            column_order: vec![
+                "host".to_string(),
+                "destination".to_string(),
+                "downloadSpeed".to_string(),
+                "uploadSpeed".to_string(),
+                "download".to_string(),
+                "upload".to_string(),
+                "chain".to_string(),
+                "rule".to_string(),
+                "source".to_string(),
+                "process".to_string(),
+                "network".to_string(),
+                "start".to_string(),
+            ],
+            visible_columns: vec![
+                "host".to_string(),
+                "downloadSpeed".to_string(),
+                "uploadSpeed".to_string(),
+                "chain".to_string(),
+                "rule".to_string(),
+                "source".to_string(),
+                "process".to_string(),
+                "start".to_string(),
+            ],
+            sort_key: "downloadSpeed".to_string(),
+            sort_direction: "desc".to_string(),
+            grouped_column: None,
+            collapsed_groups: std::collections::BTreeMap::new(),
+        }
+    }
+}
+
+impl Default for LogsPageSettings {
+    fn default() -> Self {
+        Self {
+            log_level: "info".to_string(),
+            type_filter: String::new(),
+        }
+    }
+}
+
+impl Default for RulesPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "rules".to_string(),
+        }
+    }
+}
+
+fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
+    let mut settings = serde_json::from_value::<AppSettings>(value).unwrap_or_default();
+    settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
+    Ok(settings)
+}
+
+fn default_app_settings_schema_version() -> u32 {
+    APP_SETTINGS_SCHEMA_VERSION
 }
 
 pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
@@ -93,7 +265,13 @@ fn get_app_settings_path() -> Result<PathBuf, CommandError> {
 }
 
 pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
-    load_json_or_default(&get_app_settings_path()?)
+    let path = get_app_settings_path()?;
+    if !path.exists() {
+        return Ok(AppSettings::default());
+    }
+
+    let value: Value = read_json_file(&path)?;
+    normalize_app_settings(value)
 }
 
 pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
@@ -177,22 +355,22 @@ pub fn set_active_singbox_core_selection(
     }
 
     let mut settings = load_app_settings_file()?;
-    settings.active_singbox_core_channel = channel;
-    settings.active_singbox_core_version = version;
+    settings.settings.singbox_core.active_channel = channel;
+    settings.settings.singbox_core.active_version = version;
     save_app_settings_file(&settings)
 }
 
 pub fn get_active_singbox_core_selection() -> Result<Option<(String, String)>, CommandError> {
     let settings = load_app_settings_file()?;
     match (
-        settings.active_singbox_core_channel,
-        settings.active_singbox_core_version,
+        settings.settings.singbox_core.active_channel,
+        settings.settings.singbox_core.active_version,
     ) {
         (Some(channel), Some(version)) => Ok(Some((normalize_core_channel(&channel)?.to_string(), version))),
         (None, None) => Ok(None),
         _ => Err(CommandError::invalid_state(
             "get_active_singbox_core_selection",
-            "app_settings.json must store both active_singbox_core_channel and active_singbox_core_version together",
+            "app_settings.json must store both singbox_core.active_channel and singbox_core.active_version together",
         )),
     }
 }
@@ -266,6 +444,81 @@ pub fn get_data_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
+// --- 文件顺序管理 ---
+
+fn get_subscriptions_path() -> Result<PathBuf, CommandError> {
+    Ok(get_config_dir()?.join(SUBSCRIPTIONS_FILE))
+}
+
+fn load_subscriptions_json() -> Result<serde_json::Map<String, Value>, CommandError> {
+    let path = get_subscriptions_path()?;
+    if !path.exists() {
+        return Ok(serde_json::Map::new());
+    }
+    let content = fs::read_to_string(&path)
+        .map_err(|e| CommandError::io("failed to read subscriptions file", e))?;
+    let value: Value =
+        serde_json::from_str(&content).unwrap_or(Value::Object(serde_json::Map::new()));
+    Ok(value.as_object().cloned().unwrap_or_default())
+}
+
+fn save_subscriptions_json(map: &serde_json::Map<String, Value>) -> Result<(), CommandError> {
+    let path = get_subscriptions_path()?;
+    write_json_file(&path, map)
+}
+
+fn load_file_order() -> Result<Vec<String>, CommandError> {
+    let map = load_subscriptions_json()?;
+    Ok(map
+        .get(FILE_ORDER_KEY)
+        .and_then(|v| v.as_array())
+        .map(|arr| {
+            arr.iter()
+                .filter_map(|v| v.as_str().map(|s| s.to_string()))
+                .collect()
+        })
+        .unwrap_or_default())
+}
+
+fn save_file_order(order: &[String]) -> Result<(), CommandError> {
+    let mut map = load_subscriptions_json()?;
+    map.insert(
+        FILE_ORDER_KEY.to_string(),
+        Value::Array(order.iter().map(|s| Value::String(s.clone())).collect()),
+    );
+    save_subscriptions_json(&map)
+}
+
+fn append_to_file_order(stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    if !order.iter().any(|s| s == stem) {
+        order.push(stem.to_string());
+        save_file_order(&order)?;
+    }
+    Ok(())
+}
+
+fn rename_in_file_order(old_stem: &str, new_stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    for entry in order.iter_mut() {
+        if entry == old_stem {
+            *entry = new_stem.to_string();
+            break;
+        }
+    }
+    save_file_order(&order)
+}
+
+fn remove_from_file_order(stem: &str) -> Result<(), CommandError> {
+    let mut order = load_file_order()?;
+    order.retain(|s| s != stem);
+    save_file_order(&order)
+}
+
+fn stem_from_filename(file_name: &str) -> &str {
+    file_name.strip_suffix(".json").unwrap_or(file_name)
+}
+
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
     let exe_path = std::env::current_exe()
@@ -327,6 +580,8 @@ pub async fn save_subscription_config(
     fs::write(&target_path, content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
+    append_to_file_order(stem_from_filename(&file_name))?;
+
     Ok(target_path.to_string_lossy().into_owned())
 }
 
@@ -361,6 +616,12 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
     fs::copy(&config_path, &target_config_path)
         .map_err(|e| CommandError::resource_not_found("copied config file", e))?;
 
+    let stem = target_config_path
+        .file_stem()
+        .and_then(|s| s.to_str())
+        .unwrap_or("");
+    append_to_file_order(stem)?;
+
     Ok(target_config_path.to_string_lossy().into_owned())
 }
 
@@ -368,19 +629,40 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
 pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
     let sub_dir = get_sub_dir()?;
 
-    let mut config_files = Vec::new();
+    // 收集磁盘上所有 .json 文件
+    let mut on_disk: std::collections::HashSet<String> = std::collections::HashSet::new();
     for entry in
-        fs::read_dir(sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
+        fs::read_dir(&sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
     {
         let entry = entry.map_err(|e| CommandError::resource_not_found("directory entry", e))?;
         let path = entry.path();
-
-        // sub 目录下只放订阅配置，列出所有 .json 文件
         if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            config_files.push(path.to_string_lossy().into_owned());
+            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
+                on_disk.insert(name.to_string());
+            }
         }
     }
-    Ok(config_files)
+
+    // 按 _file_order 排序，磁盘上不在 order 中的追加到末尾
+    let order = load_file_order()?;
+    let mut result: Vec<String> = Vec::with_capacity(on_disk.len());
+
+    for stem in &order {
+        let file_name = format!("{}.json", stem);
+        if on_disk.contains(&file_name) {
+            result.push(sub_dir.join(&file_name).to_string_lossy().into_owned());
+        }
+    }
+
+    let ordered_stems: std::collections::HashSet<&str> = order.iter().map(|s| s.as_str()).collect();
+    for name in &on_disk {
+        let stem = stem_from_filename(name);
+        if !ordered_stems.contains(stem) {
+            result.push(sub_dir.join(name).to_string_lossy().into_owned());
+        }
+    }
+
+    Ok(result)
 }
 
 #[tauri::command]
@@ -395,8 +677,10 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
         ));
     }
 
-    fs::remove_file(rm_full_path)
+    fs::remove_file(&rm_full_path)
         .map_err(|e| CommandError::resource_not_found("config file", e))?;
+
+    remove_from_file_order(stem_from_filename(&config_path))?;
 
     Ok(())
 }
@@ -440,22 +724,34 @@ pub async fn rename_config(old_path: String, new_path: String) -> Result<(), Com
     fs::rename(&old_full_path, &new_full_path)
         .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
 
+    rename_in_file_order(stem_from_filename(&old_path), stem_from_filename(&new_path))?;
+
     Ok(())
 }
 
 #[tauri::command]
 pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
-    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
-    let parsed: Value = serde_json::from_str(&subscriptions)
+    let mut parsed: serde_json::Map<String, Value> = serde_json::from_str(&subscriptions)
         .map_err(|e| CommandError::json("failed to parse subscriptions payload", e))?;
-    write_json_file(&subscriptions_path, &parsed)
+
+    // 前端不传 _file_order，从磁盘读取现有值并保留
+    if !parsed.contains_key(FILE_ORDER_KEY) {
+        if let Ok(existing) = load_subscriptions_json() {
+            if let Some(order) = existing.get(FILE_ORDER_KEY) {
+                parsed.insert(FILE_ORDER_KEY.to_string(), order.clone());
+            }
+        }
+    }
+
+    save_subscriptions_json(&parsed)
 }
 
 #[tauri::command]
 pub async fn load_subscriptions() -> Result<String, CommandError> {
-    let subscriptions_path = get_config_dir()?.join(SUBSCRIPTIONS_FILE);
-    let subscriptions: Value = load_json_or_default(&subscriptions_path)?;
-    serde_json::to_string(&subscriptions)
+    let mut map = load_subscriptions_json()?;
+    // 不把内部字段暴露给前端
+    map.remove(FILE_ORDER_KEY);
+    serde_json::to_string(&Value::Object(map))
         .map_err(|e| CommandError::json("failed to serialize subscriptions payload", e))
 }
 
@@ -568,20 +864,6 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
     }
 
     Ok(())
-}
-
-#[tauri::command]
-pub async fn open_panel_url() -> Result<(), CommandError> {
-    let override_config = crate::config_override::get_override_config_if_enabled().await?;
-    let config = override_config.ok_or_else(|| {
-        CommandError::invalid_state("open panel", "config override is not enabled")
-    })?;
-
-    let url = extract_clash_api_url(&config).ok_or_else(|| {
-        CommandError::invalid_state("open panel", "clash API not configured in override config")
-    })?;
-
-    open_url(url).await
 }
 
 #[tauri::command]

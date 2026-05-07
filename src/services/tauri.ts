@@ -6,27 +6,19 @@ function isCommandErrorPayload(value: unknown): value is CommandErrorPayload {
 }
 
 export function getErrorMessage(error: unknown): string {
-  if (typeof error === "string" && error.trim()) {
-    return error;
-  }
+  if (typeof error === "string" && error.trim()) return error;
 
   if (isCommandErrorPayload(error)) {
     if (typeof error.message === "string" && error.message.trim()) {
       return error.message;
     }
-
     const firstString = Object.values(error).find(
-      (value) => typeof value === "string" && value.trim(),
+      (value) => typeof value === "string" && (value as string).trim(),
     );
-
-    if (typeof firstString === "string") {
-      return firstString;
-    }
+    if (typeof firstString === "string") return firstString;
   }
 
-  if (error instanceof Error && error.message.trim()) {
-    return error.message;
-  }
+  if (error instanceof Error && error.message.trim()) return error.message;
 
   if (
     error instanceof Error &&
@@ -38,25 +30,6 @@ export function getErrorMessage(error: unknown): string {
   }
 
   return "Unknown error";
-}
-
-export function getCommandErrorPayload(
-  error: unknown,
-): CommandErrorPayload | undefined {
-  if (isCommandErrorPayload(error)) {
-    return error;
-  }
-
-  if (
-    error instanceof Error &&
-    "cause" in error &&
-    error.cause !== undefined &&
-    error.cause !== error
-  ) {
-    return getCommandErrorPayload(error.cause);
-  }
-
-  return undefined;
 }
 
 export async function invokeCommand<T>(

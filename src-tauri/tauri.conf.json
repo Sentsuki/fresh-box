@@ -13,8 +13,11 @@
     "windows": [
       {
         "title": "fresh-box",
-        "width": 800,
-        "height": 600
+        "width": 1200,
+        "height": 750,
+        "decorations": false,
+        "transparent": true,
+        "center": true
       }
     ],
     "security": {

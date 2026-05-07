@@ -1,6 +1,8 @@
 import { invokeCommand } from "./tauri";
 import type {
   AppSettings,
+  ClashOverview,
+  ClashRulesSnapshot,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
@@ -10,6 +12,7 @@ import type {
   SubscriptionInfo,
   SubscriptionRecord,
 } from "../types/app";
+import { normalizeAppSettings } from "../types/app";
 
 function normalizeSubscriptions(
   parsed: Record<string, SubscriptionInfo | string>,
@@ -34,10 +37,7 @@ export async function saveSubscriptionConfig(
   fileName: string,
   content: string,
 ): Promise<string> {
-  return invokeCommand<string>("save_subscription_config", {
-    fileName,
-    content,
-  });
+  return invokeCommand<string>("save_subscription_config", { fileName, content });
 }
 
 export async function renameConfigFile(
@@ -57,10 +57,7 @@ export async function openConfigFile(configPath: string): Promise<void> {
 
 export async function loadSubscriptions(): Promise<SubscriptionRecord> {
   const raw = await invokeCommand<string>("load_subscriptions");
-  if (!raw) {
-    return {};
-  }
-
+  if (!raw) return {};
   return normalizeSubscriptions(
     JSON.parse(raw) as Record<string, SubscriptionInfo | string>,
   );
@@ -75,16 +72,8 @@ export async function saveSubscriptions(
 }
 
 export async function loadAppSettings(): Promise<AppSettings> {
-  const settings =
-    await invokeCommand<Partial<AppSettings>>("load_app_settings");
-
-  return {
-    selected_config: settings.selected_config ?? null,
-    selected_config_display: settings.selected_config_display ?? null,
-    current_page: settings.current_page ?? null,
-    active_singbox_core_channel: settings.active_singbox_core_channel ?? null,
-    active_singbox_core_version: settings.active_singbox_core_version ?? null,
-  };
+  const settings = await invokeCommand<AppSettings>("load_app_settings");
+  return normalizeAppSettings(settings);
 }
 
 export async function saveAppSettings(settings: AppSettings): Promise<void> {
@@ -119,6 +108,67 @@ export async function getClashApiUrl(
 
 export async function openUrl(url: string): Promise<void> {
   return invokeCommand<void>("open_url", { url });
+}
+
+export async function getClashOverview(): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("get_clash_overview");
+}
+
+export async function updateClashMode(mode: string): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("update_clash_mode", { mode });
+}
+
+export async function selectClashProxy(
+  proxyGroup: string,
+  name: string,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("select_clash_proxy", { proxyGroup, name });
+}
+
+export async function testClashProxyDelay(
+  proxyName: string,
+  url?: string,
+  timeoutMs?: number,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("test_clash_proxy_delay", {
+    proxyName,
+    url,
+    timeoutMs,
+  });
+}
+
+export async function testClashProxyGroupDelay(
+  proxyGroup: string,
+  url?: string,
+  timeoutMs?: number,
+): Promise<ClashOverview> {
+  return invokeCommand<ClashOverview>("test_clash_proxy_group_delay", {
+    proxyGroup,
+    url,
+    timeoutMs,
+  });
+}
+
+export async function getClashRules(): Promise<ClashRulesSnapshot> {
+  return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
+}
+
+export async function toggleClashRule(
+  ruleUuid?: string,
+  ruleIndex?: number,
+  disabled = false,
+): Promise<ClashRulesSnapshot> {
+  return invokeCommand<ClashRulesSnapshot>("toggle_clash_rule", {
+    ruleUuid,
+    ruleIndex,
+    disabled,
+  });
+}
+
+export async function updateClashRuleProvider(
+  name: string,
+): Promise<ClashRulesSnapshot> {
+  return invokeCommand<ClashRulesSnapshot>("update_clash_rule_provider", { name });
 }
 
 export async function enableConfigOverride(): Promise<void> {
@@ -160,9 +210,19 @@ export async function savePriorityConfig(
 export async function checkConfigFields(
   configPath: string,
 ): Promise<ConfigFieldsCheck> {
-  return invokeCommand<ConfigFieldsCheck>("check_config_fields", {
-    configPath,
-  });
+  return invokeCommand<ConfigFieldsCheck>("check_config_fields", { configPath });
+}
+
+export async function getCoreClientConfig(): Promise<import("../types/app").CoreClientConfig> {
+  return invokeCommand<import("../types/app").CoreClientConfig>("get_core_client_config");
+}
+
+export async function generateRandomPort(): Promise<number> {
+  return invokeCommand<number>("generate_random_port");
+}
+
+export async function generateRandomSecret(): Promise<string> {
+  return invokeCommand<string>("generate_random_secret");
 }
 
 export async function openAppDirectory(): Promise<void> {

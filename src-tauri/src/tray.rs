@@ -8,17 +8,10 @@ use tauri::{
     Manager,
 };
 
-async fn open_panel_from_tray() -> Result<(), String> {
-    crate::config::open_panel_url()
-        .await
-        .map_err(|error| error.to_string())
-}
-
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let panel_i = MenuItem::with_id(app, "panel", "Open Panel", true, None::<&str>)?;
     let show_i = MenuItem::with_id(app, "show", "Show", true, None::<&str>)?;
     let quit_i = MenuItem::with_id(app, "quit", "Quit", true, None::<&str>)?;
-    let menu = Menu::with_items(app, &[&panel_i, &show_i, &quit_i])?;
+    let menu = Menu::with_items(app, &[&show_i, &quit_i])?;
 
     let tray_builder = TrayIconBuilder::new().menu(&menu).tooltip("fresh-box");
     let tray_builder = if let Some(icon) = app.default_window_icon() {
@@ -69,16 +62,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     }
                 });
             }
-            "panel" => {
-                crate::window_utils::spawn_async_after_delay(
-                    Duration::from_millis(10),
-                    move || async move {
-                        if let Err(e) = open_panel_from_tray().await {
-                            eprintln!("Failed to open panel: {}", e);
-                        }
-                    },
-                );
-            }
+
             _ => {}
         })
         .build(app)?;
