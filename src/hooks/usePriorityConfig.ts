@@ -49,7 +49,9 @@ export function usePriorityConfig() {
   const [selectedLogLevel, setSelectedLogLevel] = useState<LogLevel>("info");
   const [clashApiController, setClashApiController] = useState("");
   const [clashApiSecret, setClashApiSecret] = useState("");
-  const [testUrl, setTestUrl] = useState("");
+
+  const testUrl = useSettingsStore((s) => s.settings.test_url);
+  const setTestUrl = useSettingsStore((s) => s.setTestUrl);
 
   const selectedConfigPath = useSettingsStore(
     (s) => s.settings.app.selected_config_path,
@@ -101,7 +103,6 @@ export function usePriorityConfig() {
 
       setClashApiController(priorityConfig.clash_api?.external_controller ?? "");
       setClashApiSecret(priorityConfig.clash_api?.secret ?? "");
-      setTestUrl(priorityConfig.test_url ?? "");
     } catch (err) {
       setHasStackField(false);
       setHasLogField(false);
@@ -147,13 +148,12 @@ export function usePriorityConfig() {
   );
 
   const updateClashApiConfig = useCallback(
-    async (config: ClashApiConfig, newTestUrl?: string) => {
+    async (config: ClashApiConfig) => {
       try {
         const current = await loadPriorityConfig();
         const updated: PriorityConfig = {
           ...current,
           clash_api: config,
-          ...(newTestUrl !== undefined ? { test_url: newTestUrl } : {}),
         };
         await savePriorityConfig(updated);
         const coreConfig = await getCoreClientConfig();

@@ -23,6 +23,7 @@ fn get_api_config() -> ApiConfig {
     let config: PriorityConfig =
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
             .unwrap_or_default();
+    let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
     let controller = config
         .clash_api
@@ -38,7 +39,7 @@ fn get_api_config() -> ApiConfig {
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
-    let test_url = config
+    let test_url = app_settings
         .test_url
         .as_deref()
         .filter(|s| !s.is_empty())

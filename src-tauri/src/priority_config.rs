@@ -17,7 +17,6 @@ pub struct PriorityConfig {
     pub stack: Option<String>, // 直接存储 stack 值: "mixed", "gvisor", "system"
     pub log: Option<LogConfig>,
     pub clash_api: Option<ClashApiConfig>,
-    pub test_url: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -180,6 +179,7 @@ pub struct CoreClientConfig {
 pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
     let config: PriorityConfig =
         super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let app_settings = super::config::load_app_settings_file()?;
 
     let controller = config
         .clash_api
@@ -195,7 +195,7 @@ pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> 
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
-    let test_url = config
+    let test_url = app_settings
         .test_url
         .as_deref()
         .filter(|s| !s.is_empty())

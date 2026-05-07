@@ -216,7 +216,6 @@ export default function Proxies() {
   const overview = useClashStore((s) => s.overview);
   const isRefreshing = useClashStore((s) => s.isRefreshing);
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
-  const activeDelayNode = useClashStore((s) => s.activeDelayNode);
   const { refreshOverview, switchProxy, testDelay, testGroupDelay, changeMode } = useClash();
 
   const availableModes = overview?.available_modes ?? [];

@@ -25,6 +25,8 @@ pub struct AppSettings {
     pub singbox_core: SingboxCoreSettings,
     #[serde(default)]
     pub pages: PageSettings,
+    #[serde(default)]
+    pub test_url: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -96,6 +98,7 @@ impl Default for AppSettings {
             app: AppSelectionSettings::default(),
             singbox_core: SingboxCoreSettings::default(),
             pages: PageSettings::default(),
+            test_url: None,
         }
     }
 }

@@ -53,6 +53,7 @@ interface SettingsActions {
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
+  setTestUrl: (url: string) => Promise<void>;
 }
 
 function cloneSettings(s: AppSettings): AppSettings {
@@ -174,6 +175,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
         s.theme_mode = mode;
+      });
+    },
+
+    setTestUrl: async (url) => {
+      await get().updateSettings((s) => {
+        s.test_url = url;
       });
     },
   }),

@@ -19,14 +19,15 @@ import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Switch } from "../../components/ui/Switch";
 import { openAppDirectory, getSingboxStatus } from "../../services/api";
-import type { LogLevel as AppLogLevel, ThemeMode } from "../../types/app";
+import type { ThemeMode } from "../../types/app";
 
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
-  const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
+  const testUrl = useSettingsStore((s) => s.settings.test_url);
+  const setTestUrl = useSettingsStore((s) => s.setTestUrl);
+  const [testUrlInput, setTestUrlInput] = useState(testUrl);
 
-  const currentAppLogLevel = settings.pages.logs.log_level;
   const currentThemeMode = settings.theme_mode;
 
   // Process Management
@@ -76,8 +77,6 @@ export default function Settings() {
     setClashApiController,
     clashApiSecret,
     setClashApiSecret,
-    testUrl,
-    setTestUrl,
     loadConfiguration,
     setStackOption,
     updateLogConfiguration,
@@ -308,7 +307,7 @@ export default function Settings() {
                   onClick={async () => {
                     const controller = await genRandomPort();
                     if (controller) {
-                      await updateClashApiConfig({ external_controller: controller, secret: clashApiSecret }, testUrl);
+                      await updateClashApiConfig({ external_controller: controller, secret: clashApiSecret });
                     }
                   }}
                 >
@@ -336,7 +335,7 @@ export default function Settings() {
                   onClick={async () => {
                     const secret = await genRandomSecret();
                     if (secret) {
-                      await updateClashApiConfig({ external_controller: clashApiController, secret }, testUrl);
+                      await updateClashApiConfig({ external_controller: clashApiController, secret });
                     }
                   }}
                 >
@@ -353,18 +352,13 @@ export default function Settings() {
               <div className="flex items-center gap-2">
                 <input
                   type="text"
-                  value={testUrl}
-                  onChange={(e) => setTestUrl(e.target.value)}
+                  value={testUrlInput}
+                  onChange={(e) => setTestUrlInput(e.target.value)}
+                  onBlur={() => void setTestUrl(testUrlInput)}
+                  onKeyDown={(e) => { if (e.key === "Enter") void setTestUrl(testUrlInput); }}
                   placeholder="https://www.gstatic.com/generate_204"
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
                 />
-                <Button
-                  size="sm"
-                  variant="accent"
-                  onClick={() => void updateClashApiConfig({ external_controller: clashApiController, secret: clashApiSecret }, testUrl)}
-                >
-                  Save
-                </Button>
               </div>
             }
           />

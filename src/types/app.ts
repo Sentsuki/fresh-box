@@ -96,6 +96,7 @@ export interface AppSettings {
   app: AppSelectionSettings;
   singbox_core: SingboxCoreSettings;
   pages: PageUiSettings;
+  test_url: string;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -159,6 +160,7 @@ export function createDefaultAppSettings(): AppSettings {
         current_tab: "rules",
       },
     },
+    test_url: "",
   };
 }
 
@@ -320,6 +322,7 @@ export function normalizeAppSettings(
           : defaults.pages.rules.current_tab,
       },
     },
+    test_url: typeof settings.test_url === "string" ? settings.test_url : "",
   };
 }
 
@@ -343,7 +346,6 @@ export interface PriorityConfig {
   stack?: string;
   log?: LogConfig;
   clash_api?: ClashApiConfig;
-  test_url?: string;
 }
 
 export interface ClashApiConfig {
