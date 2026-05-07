@@ -7,6 +7,7 @@ import { memo, useCallback, useEffect } from "react";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
+import { JumpingDots } from "../../components/ui/JumpingDots";
 import { useClash } from "../../hooks/useClash";
 import { useClashStore } from "../../stores/clashStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -101,13 +102,13 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
           disabled={isTesting}
           title="Test latency"
           className={[
-            "text-xs font-medium tabular-nums rounded px-2 py-0.5 transition-colors border border-transparent",
+            "text-xs font-medium tabular-nums rounded px-2 py-0.5 h-5 flex items-center transition-colors border border-transparent",
             isTesting ? "opacity-70 cursor-default" : "hover:bg-(--wb-surface-active) hover:border-(--wb-border-subtle)",
             delayColor(node.delay),
           ].join(" ")}
         >
           {isTesting ? (
-            <Spinner size="sm" className="border-t-current" />
+            <JumpingDots className="mx-1" />
           ) : (
             node.delay !== null && node.delay !== undefined
               ? (node.delay <= 0 ? "timeout" : `${node.delay}ms`)

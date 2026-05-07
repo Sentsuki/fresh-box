@@ -87,3 +87,7 @@ select:focus option:checked {
   background-color: var(--wb-accent) !important;
   color: var(--wb-accent-fg) !important;
 }
+@keyframes jumping {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-3px); }
+}
