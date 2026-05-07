@@ -93,10 +93,10 @@ export default function Connections() {
                   toggleGrouping(col.key as ConnectionColumnKey);
                 }}
                 className={[
-                  "p-0.5 rounded transition-all flex items-center justify-center",
+                  "p-0.5 rounded transition-all flex items-center justify-center shrink-0",
                   groupedColumn?.key === col.key
-                    ? "bg-(--wb-accent) text-(--wb-accent-fg) opacity-100"
-                    : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active) opacity-0 group-hover/header:opacity-100"
+                    ? "bg-(--wb-accent) text-(--wb-accent-fg)"
+                    : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active)"
                 ].join(" ")}
                 title={groupedColumn?.key === col.key ? "Ungroup" : `Group by ${col.label}`}
               >
@@ -105,7 +105,7 @@ export default function Connections() {
             )}
           </div>
         ),
-        align: col.align,
+        align: "start", // Force left alignment
         sortable: col.sortable,
         render: (row: ConnectionEntry) => (
           <span className="truncate text-[13px]">
