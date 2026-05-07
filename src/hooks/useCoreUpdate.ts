@@ -14,7 +14,6 @@ import type {
   SingboxCoreOption,
   SingboxCoreStatus,
   SingboxCoreUpdateResult,
-  SingboxCoreChannel,
 } from "../types/app";
 
 function toOptionKey(option: Pick<SingboxCoreOption, "channel" | "version">) {
@@ -36,9 +35,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   );
   const setSelectedCoreOptionKey = useSettingsStore(
     (s) => s.setSelectedCoreOptionKey,
-  );
-  const setActiveSingboxCoreSelection = useSettingsStore(
-    (s) => s.setActiveSingboxCoreSelection,
   );
 
   const { success, error: toastError } = useToast();
@@ -78,9 +74,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     if (!coreStatus || isUpdating) return;
     const options = coreStatus.available_options ?? [];
     const key = keyOverride ?? selectedCoreOptionKey;
-    const selectedOption = options.find(
-      (o) => toOptionKey(o) === key,
-    );
+    const selectedOption = options.find((o) => toOptionKey(o) === key);
     if (!selectedOption) return;
 
     setIsUpdating(true);
@@ -91,39 +85,14 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       message: "Preparing the sing-box core action...",
     });
     try {
-      if (selectedOption.installed) {
-        await activateSingboxCore(
-          selectedOption.channel,
-          selectedOption.version,
-        );
-        await setActiveSingboxCoreSelection(
-          selectedOption.channel as SingboxCoreChannel,
-          selectedOption.version,
-        );
-        if (!selectedOption.is_active) {
-          success(`Switched to ${selectedOption.label}`);
-        } else {
-          const result: SingboxCoreUpdateResult = await updateSingboxCore(
-            selectedOption.channel,
-            selectedOption.version,
-          );
-          await setActiveSingboxCoreSelection(
-            selectedOption.channel as SingboxCoreChannel,
-            selectedOption.version,
-          );
-          success(
-            result.restart_required
-              ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
-              : `Core updated to ${result.current_version}`,
-          );
-        }
+      if (selectedOption.installed && !selectedOption.is_active) {
+        // Already installed — just activate (no download needed).
+        await activateSingboxCore(selectedOption.channel, selectedOption.version);
+        success(`Switched to ${selectedOption.label}`);
       } else {
+        // Download + install (new version, or reinstall of active version).
         const result: SingboxCoreUpdateResult = await updateSingboxCore(
           selectedOption.channel,
-          selectedOption.version,
-        );
-        await setActiveSingboxCoreSelection(
-          selectedOption.channel as SingboxCoreChannel,
           selectedOption.version,
         );
         success(
@@ -132,10 +101,10 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             : `Core updated to ${result.current_version}`,
         );
       }
+      // Re-read backend state — it is the single source of truth for active_channel/active_version.
       await refreshCoreStatus();
     } catch (err) {
       const msg = getErrorMessage(err);
-      // Cancelled by user — clear state silently without showing an error toast.
       if (msg.toLowerCase().includes("cancelled") || msg.toLowerCase().includes("cancel")) {
         setCoreStatusError("");
       } else {
@@ -153,7 +122,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     success,
     toastError,
     refreshCoreStatus,
-    setActiveSingboxCoreSelection,
   ]);
 
   const cancelUpdate = useCallback(async () => {

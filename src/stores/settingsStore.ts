@@ -7,7 +7,6 @@ import type {
   ConnectionPageTab,
   LogLevel,
   RulesTab,
-  SingboxCoreChannel,
   SortDirection,
   ThemeMode,
 } from "../types/app";
@@ -25,10 +24,6 @@ interface SettingsActions {
   setSelectedConfig: (
     path: string | null,
     displayName: string | null,
-  ) => Promise<void>;
-  setActiveSingboxCoreSelection: (
-    channel: SingboxCoreChannel | null,
-    version: string | null,
   ) => Promise<void>;
   setSelectedCoreOptionKey: (value: string) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
@@ -86,13 +81,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       await get().updateSettings((s) => {
         s.Profiles.selected_config_path = path;
         s.Profiles.selected_config_display = displayName;
-      });
-    },
-
-    setActiveSingboxCoreSelection: async (channel, version) => {
-      await get().updateSettings((s) => {
-        s.Settings.singbox_core.active_channel = channel;
-        s.Settings.singbox_core.active_version = version;
       });
     },
 
