@@ -6,11 +6,14 @@ import {
   DismissRegular,
   DocumentRegular,
   EditRegular,
+  LinkRegular,
   OpenRegular,
   SaveRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { Dialog } from "../../components/ui/Dialog";
+import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SettingGroup } from "../../components/ui/SettingCard";
 import { useConfigs } from "../../hooks/useConfigs";
@@ -18,9 +21,6 @@ import { formatLastUpdated } from "../../services/utils";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { SubscriptionInfo } from "../../types/app";
-import { Dialog } from "../../components/ui/Dialog";
-import { Input } from "../../components/ui/Input";
-import { LinkRegular } from "@fluentui/react-icons";
 
 
 export default function Profiles() {
@@ -315,7 +315,7 @@ function LocalFileCard({
       onClick={selected ? undefined : onSelect}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-22 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
         <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
@@ -426,7 +426,7 @@ function SubscriptionCard({
       onClick={selected ? undefined : onSelect}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
         <div className={`p-2 rounded-lg shrink-0 ${selected ? 'bg-(--wb-accent) text-white' : 'bg-(--wb-surface-base) text-(--wb-text-secondary)'}`}>
