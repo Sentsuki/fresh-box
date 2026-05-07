@@ -1,20 +1,20 @@
-import { useCallback, useState } from "react";
 import {
-  DataBarVerticalRegular,
-  GlobeRegular,
-  PlugConnectedRegular,
-  DocumentTextRegular,
   BookNumberRegular,
+  DataBarVerticalRegular,
   DocumentEditRegular,
-  WrenchRegular,
-  SettingsRegular,
+  DocumentTextRegular,
+  GlobeRegular,
   NavigationRegular,
+  PlugConnectedRegular,
+  SettingsRegular,
+  WrenchRegular,
 } from "@fluentui/react-icons";
+import { useCallback, useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
-import { StatusBadge } from "../ui/StatusBadge";
 import type { AppPage } from "../../types/app";
+import { StatusBadge } from "../ui/StatusBadge";
 
 const NAV_ITEMS = [
   { id: "overview" as AppPage, label: "Overview", icon: DataBarVerticalRegular },
@@ -31,7 +31,7 @@ export function Sidebar() {
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
   const setSettingsPage = useSettingsStore((s) => s.setCurrentPage);
   const isRunning = useSingboxStore((s) => s.isRunning);
-  
+
   const [isExpanded, setIsExpanded] = useState(true);
 
   const navigate = useCallback(
@@ -44,13 +44,13 @@ export function Sidebar() {
 
   return (
     <aside
-      className="flex flex-col bg-(--wb-surface-base) border-r border-(--wb-border-subtle) flex-shrink-0 transition-[width] duration-200 ease-in-out"
+      className="flex flex-col bg-(--wb-surface-base) border-r border-(--wb-border-subtle) shrink-0 transition-[width] duration-200 ease-in-out"
       style={{ width: isExpanded ? "var(--wb-sidebar-width)" : "60px" }}
     >
       <div className="px-2 py-3 border-b border-(--wb-border-subtle) flex items-center h-[52px]">
         <button
           onClick={() => setIsExpanded(!isExpanded)}
-          className="flex-shrink-0 w-10 h-10 flex items-center justify-center rounded-(--wb-radius-md) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) transition-colors"
+          className="shrink-0 w-10 h-10 flex items-center justify-center rounded-(--wb-radius-md) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) transition-colors"
           title="Toggle Navigation"
         >
           <NavigationRegular className="text-xl" />
@@ -84,7 +84,7 @@ export function Sidebar() {
               {active && (
                 <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
               )}
-              <Icon className="flex-shrink-0 text-xl" />
+              <Icon className="shrink-0 text-xl" />
               {isExpanded && <span className="truncate text-sm">{item.label}</span>}
             </button>
           );
@@ -110,7 +110,7 @@ export function Sidebar() {
           {currentPage === "settings" && (
             <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
           )}
-          <SettingsRegular className="flex-shrink-0 text-xl" />
+          <SettingsRegular className="shrink-0 text-xl" />
           {isExpanded && <span className="truncate text-sm">Settings</span>}
         </button>
       </div>

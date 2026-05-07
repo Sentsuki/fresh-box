@@ -1,24 +1,24 @@
-import { useEffect, useState } from "react";
 import {
-  WeatherMoonRegular,
-  FolderOpenRegular,
   ArrowSyncRegular,
-  DocumentTextRegular,
-  InfoRegular,
   BoxRegular,
-  SettingsRegular,
-  LinkRegular,
-  KeyRegular,
+  DocumentTextRegular,
+  FolderOpenRegular,
   GlobeRegular,
+  InfoRegular,
+  KeyRegular,
+  LinkRegular,
+  SettingsRegular,
+  WeatherMoonRegular,
 } from "@fluentui/react-icons";
-import { useSettingsStore } from "../../stores/settingsStore";
-import { useCoreUpdate } from "../../hooks/useCoreUpdate";
-import { usePriorityConfig, STACK_OPTIONS, LOG_LEVELS } from "../../hooks/usePriorityConfig";
+import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
-import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
-import { openAppDirectory, getSingboxStatus } from "../../services/api";
+import { useCoreUpdate } from "../../hooks/useCoreUpdate";
+import { LOG_LEVELS, STACK_OPTIONS, usePriorityConfig } from "../../hooks/usePriorityConfig";
+import { getSingboxStatus, openAppDirectory } from "../../services/api";
+import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
 
 export default function Settings() {
@@ -91,13 +91,13 @@ export default function Settings() {
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
-      <PageHeader 
-        title="Settings" 
+      <PageHeader
+        title="Settings"
         description="Configure application preferences and sing-box core parameters."
       />
 
       <div className="flex flex-col gap-8">
-        
+
         {/* Appearance */}
         <SettingGroup title="Appearance">
           <SettingCard
@@ -277,7 +277,7 @@ export default function Settings() {
                   value={clashApiSecret}
                   onChange={(e) => setClashApiSecret(e.target.value)}
                   placeholder="secret"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
                 />
                 <Button
                   size="sm"
