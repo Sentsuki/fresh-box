@@ -117,37 +117,40 @@ export default function Settings() {
               </div>
             }
             control={
-              <div className="flex items-center gap-2">
-                {availableOptions.length > 0 && (
-                  <select
-                    value={selectedCoreOptionKey}
-                    onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
-                    className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-                  >
-                    {availableOptions.map((opt) => (
-                      <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
-                        {opt.label}{opt.installed ? (opt.is_active ? " ✓" : "") : ""}
-                      </option>
-                    ))}
-                  </select>
-                )}
+              <div className="flex items-center gap-3">
                 <Button
                   size="sm"
                   variant="subtle"
+                  icon={<ArrowSyncRegular className={isRefreshingCoreStatus ? "animate-spin" : ""} />}
                   disabled={isRefreshingCoreStatus}
                   onClick={() => void refreshCoreStatus(true, true)}
                 >
                   Check
                 </Button>
+
                 {availableOptions.length > 0 && (
-                  <Button
-                    size="sm"
-                    variant="accent"
-                    disabled={isUpdatingCore || !availableOptions.length}
-                    onClick={() => void applySelectedCore()}
-                  >
-                    {updateCoreButtonLabel}
-                  </Button>
+                  <>
+                    <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+                    <select
+                      value={selectedCoreOptionKey}
+                      onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
+                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+                    >
+                      {availableOptions.map((opt) => (
+                        <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
+                          {opt.label}{opt.installed ? (opt.is_active ? " ✓" : "") : ""}
+                        </option>
+                      ))}
+                    </select>
+                    <Button
+                      size="sm"
+                      variant="accent"
+                      disabled={isUpdatingCore}
+                      onClick={() => void applySelectedCore()}
+                    >
+                      {updateCoreButtonLabel}
+                    </Button>
+                  </>
                 )}
               </div>
             }

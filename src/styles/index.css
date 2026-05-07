@@ -70,3 +70,20 @@ body {
 .winui-segmented-control button {
   box-shadow: none !important;
 }
+
+/* Fix native select dropdown styling in dark mode */
+select {
+  background-color: var(--wb-surface-base);
+  color: var(--wb-text-primary);
+}
+
+option {
+  background-color: var(--wb-surface-flyout);
+  color: var(--wb-text-primary);
+}
+
+/* Ensure selected option in dark mode is readable */
+select:focus option:checked {
+  background-color: var(--wb-accent) !important;
+  color: var(--wb-accent-fg) !important;
+}
