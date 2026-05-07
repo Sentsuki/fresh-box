@@ -62,7 +62,7 @@ export default function StatusCards({ overview }: StatusCardsProps) {
       {stats.map((stat) => (
         <Card key={stat.label}>
           <div className="flex items-center gap-3">
-            <div className={["text-xl shrink-0", stat.color].join(" ")}>
+            <div className={["text-xl flex-shrink-0", stat.color].join(" ")}>
               {stat.icon}
             </div>
             <div className="min-w-0">

@@ -6,7 +6,6 @@ import {
   CloudArrowDownRegular,
   CheckmarkCircleRegular,
   DismissCircleRegular,
-  GlobeRegular,
 } from "@fluentui/react-icons";
 import { useSingboxStore } from "../../stores/singboxStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -44,97 +43,90 @@ export default function Overview() {
   );
 
   return (
-    <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-bold text-(--wb-text-primary) tracking-tight">
+    <div className="flex flex-col gap-5 max-w-2xl">
+      <div>
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">
           Overview
         </h1>
-        <p className="text-sm text-(--wb-text-secondary) mt-1">
-          Monitor and control your network proxy service.
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
+          Service control and status
         </p>
-      </header>
+      </div>
 
-      {/* Hero Status Card */}
-      <section>
-        <Card className="overflow-hidden border-none shadow-lg bg-gradient-to-br from-(--wb-surface-layer) to-(--wb-surface-layer-alt)">
-          <div className="flex flex-col md:flex-row items-center gap-8 p-4 md:p-8">
-            <div className="relative shrink-0">
-              <div className={`w-24 h-24 rounded-full flex items-center justify-center text-4xl shadow-inner transition-all duration-500 ${
-                isRunning ? "bg-(--wb-success)/10 text-(--wb-success) scale-110" : "bg-(--wb-text-disabled)/5 text-(--wb-text-disabled)"
-              }`}>
-                {isRunning ? <CheckmarkCircleRegular /> : <DismissCircleRegular />}
+      {/* Status card */}
+      <Card>
+        <div className="flex items-start gap-4">
+          <div
+            className={[
+              "text-3xl flex-shrink-0 mt-0.5",
+              isRunning
+                ? "text-(--wb-success)"
+                : "text-(--wb-text-disabled)",
+            ].join(" ")}
+          >
+            {isRunning ? (
+              <CheckmarkCircleRegular />
+            ) : (
+              <DismissCircleRegular />
+            )}
+          </div>
+          <div className="flex-1 min-w-0">
+            <div>
+                <p className="text-sm font-semibold text-(--wb-text-primary)">
+                  {isRunning ? "Service Running" : "Service Stopped"}
+                </p>
+                <p className="text-xs text-(--wb-text-secondary) mt-0.5">
+                  {isRunning
+                    ? "Sing-box is active and ready"
+                    : "Select a config and click Start"}
+                </p>
               </div>
-              {isRunning && (
-                <span className="absolute top-0 right-0 w-6 h-6 bg-(--wb-success) border-4 border-(--wb-surface-layer) rounded-full animate-pulse" />
-              )}
-            </div>
 
-            <div className="flex-1 text-center md:text-left">
-              <h2 className="text-2xl font-bold text-(--wb-text-primary)">
-                {isRunning ? "Service is Active" : "Service is Offline"}
-              </h2>
-              <p className="text-sm text-(--wb-text-secondary) mt-1 mb-6">
-                {isRunning
-                  ? `Sing-box is currently handling your network traffic using "${selectedDisplay}".`
-                  : "Start the service to begin routing your traffic securely."}
-              </p>
-
-              <div className="flex flex-wrap justify-center md:justify-start gap-3">
-                <Button
-                  variant="accent"
-                  size="lg"
-                  icon={isRunning ? <StopRegular /> : <PlayRegular />}
-                  disabled={isPending || (!isRunning && !selectedPath)}
-                  onClick={isRunning ? stopService : startService}
-                  className="min-w-[140px]"
-                >
-                  {isPending ? (isRunning ? "Stopping..." : "Starting...") : (isRunning ? "Stop Service" : "Start Service")}
-                </Button>
-                
-                {selectedDisplay && (
-                  <div className="inline-flex items-center gap-2 px-4 py-2 rounded-(--wb-radius-md) bg-(--wb-surface-active) border border-(--wb-border-subtle)">
-                    {isSubscription ? (
-                      <CloudArrowDownRegular className="text-base text-(--wb-accent)" />
-                    ) : (
-                      <DocumentRegular className="text-base text-(--wb-text-secondary)" />
-                    )}
-                    <span className="text-sm font-medium text-(--wb-text-primary) truncate max-w-[150px]">
-                      {selectedDisplay}
-                    </span>
-                    <Badge variant={isSubscription ? "accent" : "subtle"}>
-                      {isSubscription ? "Sub" : "Local"}
-                    </Badge>
-                  </div>
-                )}
+            {selectedDisplay && (
+              <div className="mt-3 flex items-center justify-between px-3 py-2 rounded-(--wb-radius-md) bg-[rgba(0,0,0,0.2)] border border-(--wb-border-subtle)">
+                <div className="flex items-center gap-2 min-w-0">
+                  {isSubscription ? (
+                    <CloudArrowDownRegular className="flex-shrink-0 text-sm text-(--wb-text-secondary)" />
+                  ) : (
+                    <DocumentRegular className="flex-shrink-0 text-sm text-(--wb-text-secondary)" />
+                  )}
+                  <span className="text-xs text-(--wb-text-primary) truncate">
+                    {selectedDisplay}
+                  </span>
+                </div>
+                <Badge variant={isSubscription ? "accent" : "subtle"}>
+                  {isSubscription ? "Subscription" : "Local"}
+                </Badge>
               </div>
+            )}
+
+            <div className="flex gap-2 mt-4">
+              <Button
+                variant="accent"
+                icon={<PlayRegular />}
+                disabled={isRunning || isPending || !selectedPath}
+                onClick={startService}
+              >
+                {isPending && !isRunning ? "Starting..." : "Start"}
+              </Button>
+              <Button
+                icon={<StopRegular />}
+                disabled={!isRunning || isPending}
+                onClick={stopService}
+              >
+                {isPending && isRunning ? "Stopping..." : "Stop"}
+              </Button>
             </div>
           </div>
-        </Card>
-      </section>
+        </div>
+      </Card>
 
-      {isRunning && overview ? (
-        <section className="animate-in fade-in slide-in-from-bottom-4 duration-500">
+      {isRunning && overview && (
+        <>
           <StatusCards overview={overview} />
-          <div className="mt-8">
-            <TrafficChart />
-          </div>
-        </section>
-      ) : (
-        !isRunning && (
-          <div className="flex flex-col items-center justify-center py-20 text-center opacity-50">
-            <div className="text-6xl text-(--wb-text-disabled) mb-4">
-              <GlobeRegular />
-            </div>
-            <p className="text-lg font-medium text-(--wb-text-secondary)">
-              No traffic data available
-            </p>
-            <p className="text-sm text-(--wb-text-tertiary)">
-              Start the service to see real-time statistics.
-            </p>
-          </div>
-        )
+          <TrafficChart />
+        </>
       )}
     </div>
   );
 }
-

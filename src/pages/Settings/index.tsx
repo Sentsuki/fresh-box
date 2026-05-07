@@ -6,8 +6,6 @@ import {
   FolderOpenRegular,
   ArrowClockwiseRegular,
   ArrowSyncRegular,
-  DocumentTextRegular,
-  OpenRegular,
 } from "@fluentui/react-icons";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
@@ -15,7 +13,6 @@ import { useSingbox } from "../../hooks/useSingbox";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
 import { Button } from "../../components/ui/Button";
 import { Section } from "../../components/ui/Section";
-import { Card } from "../../components/ui/Card";
 import { KeyValue } from "../../components/ui/KeyValue";
 import { openAppDirectory, getSingboxStatus } from "../../services/api";
 import { getErrorMessage } from "../../services/tauri";
@@ -50,6 +47,14 @@ export default function Settings() {
     }
   }, [isRefreshingStatus, toastError]);
 
+  const processStatusColor = (() => {
+    if (!processStatus) return "text-(--wb-text-secondary)";
+    const n = processStatus.toLowerCase();
+    if (n.includes("running") || n.includes("detected")) return "text-(--wb-success)";
+    if (n.includes("failed") || n.includes("error")) return "text-(--wb-error)";
+    return "text-(--wb-accent)";
+  })();
+
   const {
     isRefreshingCoreStatus,
     isUpdatingCore,
@@ -68,220 +73,223 @@ export default function Settings() {
   const availableOptions = coreStatus?.available_options ?? [];
 
   return (
-    <div className="flex flex-col gap-8 pb-10">
-      <header>
-        <h1 className="text-3xl font-bold text-(--wb-text-primary) tracking-tight">Settings</h1>
-        <p className="text-sm text-(--wb-text-secondary) mt-1">
-          Configure application preferences and core management.
+    <div className="flex flex-col gap-5 max-w-lg">
+      <div>
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Settings</h1>
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
+          Application and core settings
         </p>
-      </header>
+      </div>
 
       {/* Appearance */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider ml-1">Appearance</h3>
-        <Card className="p-0 overflow-hidden divide-y divide-(--wb-border-subtle)">
-          <SettingExpander
-            icon={<WeatherMoonRegular />}
-            label="Application Theme"
-            description="Choose your preferred color theme for the interface."
+      <Section title="Appearance" icon={<WeatherMoonRegular />}>
+        <div className="flex flex-col gap-4">
+          <SettingRow
+            label="Theme"
+            description="Color theme for the application"
           >
             <select
               value={currentThemeMode}
-              onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) transition-all"
+              onChange={(e) =>
+                void setThemeMode(e.target.value as ThemeMode)
+              }
+              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             >
-              <option value="system">System Default</option>
-              <option value="dark">Dark Mode</option>
-              <option value="light">Light Mode</option>
+              <option value="system">Follow system</option>
+              <option value="dark">Dark</option>
+              <option value="light">Light</option>
             </select>
-          </SettingExpander>
-        </Card>
-      </section>
+          </SettingRow>
+        </div>
+      </Section>
 
-      {/* Core Management */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider ml-1">Core & Service</h3>
-        <Card className="p-0 overflow-hidden divide-y divide-(--wb-border-subtle)">
-          <SettingExpander
-            icon={<WrenchRegular />}
-            label="Service Control"
-            description={isRunning ? "The sing-box service is currently active." : "The sing-box service is currently stopped."}
-          >
-            <div className="flex items-center gap-2">
-              <div className={`w-2 h-2 rounded-full ${isRunning ? "bg-(--wb-success) animate-pulse" : "bg-(--wb-text-disabled)"}`} />
+      {/* Sing-box Core Status */}
+      <Section
+        title="Sing-box Core"
+        icon={<WrenchRegular />}
+      >
+        <div className="flex flex-col gap-3">
+          <div className="flex items-center justify-between">
+            <div>
+              <p className="text-sm text-(--wb-text-primary)">Core status</p>
+              <p className="text-xs text-(--wb-text-secondary)">
+                {isRunning ? "Running" : "Stopped"}
+              </p>
+            </div>
+            <div className="flex gap-2">
               <Button
                 variant={isRunning ? "default" : "accent"}
                 size="sm"
                 onClick={isRunning ? stopService : startService}
-                className="min-w-[80px]"
               >
                 {isRunning ? "Stop" : "Start"}
               </Button>
             </div>
-          </SettingExpander>
+          </div>
+        </div>
+      </Section>
 
-          <SettingExpander
-            icon={<ArrowSyncRegular />}
-            label="Core Version"
-            description={`Current: ${currentCoreLabel || "Unknown"}`}
+      {/* Sing-box Core Version Manager */}
+      <Section
+        title="Core Version"
+        icon={<ArrowSyncRegular />}
+        actions={
+          <Button
+            icon={<ArrowClockwiseRegular />}
+            size="sm"
+            variant="subtle"
+            disabled={isRefreshingCoreStatus}
+            onClick={() => void refreshCoreStatus(true, true)}
           >
-            <div className="flex items-center gap-2">
-              {availableOptions.length > 0 && (
+            {isRefreshingCoreStatus ? "Checking..." : "Refresh"}
+          </Button>
+        }
+      >
+        <div className="flex flex-col gap-3">
+          {coreStatusError && (
+            <p className="text-xs text-(--wb-error)">{coreStatusError}</p>
+          )}
+          <KeyValue label="Status" value={coreStatusText} />
+          <KeyValue label="Current" value={currentCoreLabel} />
+
+          {availableOptions.length > 0 && (
+            <>
+              <div className="flex items-center justify-between gap-4">
+                <p className="text-sm text-(--wb-text-primary)">Target</p>
                 <select
                   value={selectedCoreOptionKey}
                   onChange={(e) => void setSelectedCoreOptionKey(e.target.value)}
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+                  className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                 >
                   {availableOptions.map((opt) => (
                     <option key={`${opt.channel}:${opt.version}`} value={`${opt.channel}:${opt.version}`}>
-                      {opt.label}{opt.installed ? (opt.is_active ? " (active)" : " (installed)") : ""}
+                      {opt.label}{opt.installed ? (opt.is_active ? " ✓ (active)" : " (installed)") : ""}
                     </option>
                   ))}
                 </select>
+              </div>
+
+              {coreUpdateProgress && (
+                <div className="flex flex-col gap-1">
+                  <div className="flex justify-between text-xs text-(--wb-text-secondary)">
+                    <span>{coreUpdateProgress.message}</span>
+                    <span>{coreUpdateProgress.percent}%</span>
+                  </div>
+                  <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
+                    <div
+                      className="h-full bg-(--wb-accent) transition-all duration-200"
+                      style={{ width: `${coreUpdateProgress.percent}%` }}
+                    />
+                  </div>
+                </div>
               )}
-              <Button
-                variant="subtle"
-                size="sm"
-                icon={<ArrowClockwiseRegular />}
-                disabled={isRefreshingCoreStatus}
-                onClick={() => void refreshCoreStatus(true, true)}
-              />
-              <Button
-                variant="accent"
-                size="sm"
-                disabled={isUpdatingCore || !availableOptions.length}
-                onClick={() => void applySelectedCore()}
-              >
-                {isUpdatingCore ? "Updating..." : "Update"}
-              </Button>
-            </div>
-          </SettingExpander>
 
-          {coreUpdateProgress && (
-            <div className="px-5 py-3 bg-(--wb-surface-layer-alt)/50">
-               <div className="flex justify-between text-xs font-medium text-(--wb-text-secondary) mb-2">
-                <span>{coreUpdateProgress.message}</span>
-                <span>{coreUpdateProgress.percent}%</span>
+              <div className="flex justify-end">
+                <Button
+                  variant="accent"
+                  size="sm"
+                  disabled={isUpdatingCore || !availableOptions.length}
+                  onClick={() => void applySelectedCore()}
+                >
+                  {updateCoreButtonLabel}
+                </Button>
               </div>
-              <div className="h-1.5 rounded-full bg-(--wb-border-subtle) overflow-hidden">
-                <div
-                  className="h-full bg-(--wb-accent) transition-all duration-300"
-                  style={{ width: `${coreUpdateProgress.percent}%` }}
-                />
-              </div>
-            </div>
+            </>
           )}
+        </div>
+      </Section>
 
-          <SettingExpander
-            icon={<InfoRegular />}
-            label="Process Status"
-            description={processStatus || "Check the real-time state of the sing-box process."}
+      {/* Process Manager */}
+      <Section
+        title="Process Status"
+        actions={
+          <Button
+            icon={<ArrowClockwiseRegular />}
+            size="sm"
+            variant="subtle"
+            disabled={isRefreshingStatus}
+            onClick={() => void refreshProcessStatus()}
           >
-            <Button
-              variant="subtle"
-              size="sm"
-              icon={<ArrowClockwiseRegular />}
-              disabled={isRefreshingStatus}
-              onClick={() => void refreshProcessStatus()}
-            >
-              Refresh
-            </Button>
-          </SettingExpander>
-        </Card>
-      </section>
+            {isRefreshingStatus ? "Checking..." : "Refresh Status"}
+          </Button>
+        }
+      >
+        {processStatus ? (
+          <p className={`text-sm font-mono ${processStatusColor}`}>{processStatus}</p>
+        ) : (
+          <p className="text-sm text-(--wb-text-secondary)">
+            Click "Refresh Status" to check the sing-box process state.
+          </p>
+        )}
+      </Section>
 
-      {/* Advanced */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider ml-1">Advanced</h3>
-        <Card className="p-0 overflow-hidden divide-y divide-(--wb-border-subtle)">
-          <SettingExpander
-            icon={<DocumentTextRegular />}
-            label="Log Level"
-            description="Adjust the verbosity of the service logs."
+      {/* Logs settings */}
+      <Section title="Logs">
+        <div className="flex flex-col gap-4">
+          <SettingRow
+            label="Log level"
+            description="Minimum log level to display"
           >
             <select
               value={currentLogLevel}
-              onChange={(e) => void setLogLevel(e.target.value as LogLevel)}
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+              onChange={(e) =>
+                void setLogLevel(e.target.value as LogLevel)
+              }
+              className="px-2 py-1 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
             >
               {(["trace", "debug", "info", "warn", "error"] as LogLevel[]).map((level) => (
                 <option key={level} value={level}>
-                  {level.toUpperCase()}
+                  {level}
                 </option>
               ))}
             </select>
-          </SettingExpander>
+          </SettingRow>
+        </div>
+      </Section>
 
-          <SettingExpander
-            icon={<FolderOpenRegular />}
-            label="Data Directory"
-            description="Open the folder where configurations and logs are stored."
-          >
-            <Button
-              variant="subtle"
-              size="sm"
-              icon={<OpenRegular />}
-              onClick={() => void openAppDirectory()}
-            >
-              Open Folder
-            </Button>
-          </SettingExpander>
-        </Card>
-      </section>
+      {/* App Directory */}
+      <Section title="Application" icon={<FolderOpenRegular />}>
+        <Button
+          icon={<FolderOpenRegular />}
+          variant="subtle"
+          onClick={() => void openAppDirectory()}
+        >
+          Open App Directory
+        </Button>
+      </Section>
 
       {/* About */}
-      <section className="flex flex-col gap-3">
-        <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider ml-1">About</h3>
-        <Card className="p-6">
-          <div className="flex flex-col gap-4">
-            <div className="flex items-center gap-4">
-              <div className="w-12 h-12 rounded-xl bg-(--wb-accent) flex items-center justify-center text-2xl text-(--wb-accent-fg) shadow-lg">
-                FB
-              </div>
-              <div>
-                <h2 className="text-lg font-bold text-(--wb-text-primary)">Fresh Box</h2>
-                <p className="text-xs text-(--wb-text-tertiary)">Version 1.5.2 · Stable Channel</p>
-              </div>
-            </div>
-            <div className="grid grid-cols-2 gap-x-8 gap-y-2 mt-2">
-              <KeyValue label="Engine" value="sing-box" />
-              <KeyValue label="Framework" value="Tauri + React" />
-              <KeyValue label="UI Library" value="Fluent UI v9" />
-              <KeyValue label="Styling" value="Tailwind v4" />
-            </div>
-          </div>
-        </Card>
-      </section>
+      <Section title="About" icon={<InfoRegular />}>
+        <div className="flex flex-col gap-1">
+          <KeyValue label="App" value="Fresh Box" />
+          <KeyValue label="Framework" value="Tauri + React 19" />
+          <KeyValue label="UI" value="FluentUI v9 + Tailwind v4" />
+        </div>
+      </Section>
     </div>
   );
 }
 
-function SettingExpander({
-  icon,
+function SettingRow({
   label,
   description,
   children,
 }: {
-  icon?: React.ReactNode;
   label: string;
   description?: string;
   children: React.ReactNode;
 }) {
   return (
-    <div className="flex items-center justify-between gap-6 px-5 py-4 hover:bg-(--wb-surface-hover)/30 transition-colors">
-      <div className="flex items-start gap-4 flex-1 min-w-0">
-        {icon && <div className="text-lg text-(--wb-text-secondary) mt-0.5">{icon}</div>}
-        <div className="flex-1 min-w-0">
-          <p className="text-sm font-semibold text-(--wb-text-primary)">{label}</p>
-          {description && (
-            <p className="text-xs text-(--wb-text-tertiary) mt-0.5 leading-relaxed">
-              {description}
-            </p>
-          )}
-        </div>
+    <div className="flex items-center justify-between gap-4">
+      <div className="flex-1 min-w-0">
+        <p className="text-sm text-(--wb-text-primary)">{label}</p>
+        {description && (
+          <p className="text-xs text-(--wb-text-secondary) mt-0.5">
+            {description}
+          </p>
+        )}
       </div>
-      <div className="shrink-0">{children}</div>
+      <div className="flex-shrink-0">{children}</div>
     </div>
   );
 }
-

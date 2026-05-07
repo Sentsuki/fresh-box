@@ -47,17 +47,17 @@ export default function Config() {
   const subscriptionFiles = configFiles.filter((f) => !!subscriptions[f.displayName]);
 
   return (
-    <div className="flex flex-col gap-8">
-      <header>
-        <h1 className="text-3xl font-bold text-(--wb-text-primary) tracking-tight">Config</h1>
-        <p className="text-sm text-(--wb-text-secondary) mt-1">
-          Manage your sing-box configuration files and subscriptions.
+    <div className="flex flex-col gap-5 max-w-2xl">
+      <div>
+        <h1 className="text-xl font-semibold text-(--wb-text-primary)">Config</h1>
+        <p className="text-sm text-(--wb-text-secondary) mt-0.5">
+          Manage sing-box configuration files
         </p>
-      </header>
+      </div>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider">Subscriptions</h3>
+      <Section
+        title="Subscriptions"
+        actions={
           <Button
             icon={<AddRegular />}
             variant="accent"
@@ -67,17 +67,16 @@ export default function Config() {
               if (url) void addSubscription(url);
             }}
           >
-            Add New
+            Add
           </Button>
-        </div>
-
+        }
+      >
         {subscriptionFiles.length === 0 ? (
-          <div className="py-10 text-center bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-dashed border-(--wb-border-subtle)">
-            <CloudArrowDownRegular className="text-4xl text-(--wb-text-disabled) mb-2 mx-auto" />
-            <p className="text-sm text-(--wb-text-secondary)">No subscriptions added yet.</p>
-          </div>
+          <p className="text-sm text-(--wb-text-secondary) px-1">
+            No subscriptions. Click Add to add one.
+          </p>
         ) : (
-          <div className="grid gap-3">
+          <div className="flex flex-col gap-2">
             {subscriptionFiles.map((file) => {
               const sub = subscriptions[file.displayName];
               return (
@@ -98,28 +97,27 @@ export default function Config() {
             })}
           </div>
         )}
-      </section>
+      </Section>
 
-      <section className="flex flex-col gap-4">
-        <div className="flex items-center justify-between px-1">
-          <h3 className="text-sm font-semibold text-(--wb-text-tertiary) uppercase tracking-wider">Local Files</h3>
+      <Section
+        title="Local Files"
+        actions={
           <Button
             icon={<AddRegular />}
             variant="subtle"
             size="sm"
             onClick={() => void selectConfigFile()}
           >
-            Import File
+            Import
           </Button>
-        </div>
-
+        }
+      >
         {localFiles.length === 0 ? (
-          <div className="py-10 text-center bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-dashed border-(--wb-border-subtle)">
-            <DocumentRegular className="text-4xl text-(--wb-text-disabled) mb-2 mx-auto" />
-            <p className="text-sm text-(--wb-text-secondary)">No local config files imported.</p>
-          </div>
+          <p className="text-sm text-(--wb-text-secondary) px-1">
+            No local config files. Click Import to add one.
+          </p>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          <div className="grid grid-cols-2 gap-2">
             {localFiles.map((file) => {
               const isSelected = selectedDisplay === file.displayName;
               return (
@@ -139,7 +137,7 @@ export default function Config() {
             })}
           </div>
         )}
-      </section>
+      </Section>
     </div>
   );
 }
@@ -209,20 +207,18 @@ function LocalFileCard({
   if (editing) {
     return (
       <Card selected={selected}>
-        <div className="flex flex-col gap-3" onClick={(e) => e.stopPropagation()}>
-          <div>
-            <p className="text-xs font-semibold text-(--wb-text-tertiary) mb-1.5 uppercase">File Name</p>
-            <input
-              autoFocus
-              value={nameInput}
-              onChange={(e) => setNameInput(e.target.value)}
-              onKeyDown={handleKeyDown}
-              className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent) transition-all"
-            />
-          </div>
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="accent" icon={<CheckmarkRegular />} onClick={save}>Save</Button>
-            <Button size="sm" variant="subtle" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <p className="text-xs font-medium text-(--wb-text-secondary)">File Name</p>
+          <input
+            autoFocus
+            value={nameInput}
+            onChange={(e) => setNameInput(e.target.value)}
+            onKeyDown={handleKeyDown}
+            className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+          />
+          <div className="flex gap-1 justify-end">
+            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
           </div>
         </div>
       </Card>
@@ -230,41 +226,44 @@ function LocalFileCard({
   }
 
   return (
-    <Card selected={selected} onClick={onSelect} className="group h-full flex flex-col justify-between">
-      <div className="flex items-start gap-3">
-        <div className={`p-2 rounded-lg ${selected ? "bg-(--wb-accent)/10 text-(--wb-accent)" : "bg-(--wb-surface-active) text-(--wb-text-secondary)"}`}>
-          <DocumentRegular className="text-lg" />
-        </div>
+    <Card selected={selected} onClick={onSelect}>
+      <div className="flex items-start gap-2">
+        <DocumentRegular className="flex-shrink-0 text-(--wb-text-secondary) mt-0.5" />
         <div className="flex-1 min-w-0">
-          <p className="text-sm font-bold truncate text-(--wb-text-primary)">
+          <p className="text-sm font-medium truncate text-(--wb-text-primary)">
             {name}
           </p>
-          <p className="text-xs text-(--wb-text-tertiary) truncate mt-0.5">{path}</p>
+          <p className="text-xs text-(--wb-text-tertiary) truncate">{path}</p>
         </div>
+        {selected && (
+          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
+        )}
       </div>
-      <div className="mt-4 flex gap-1 justify-end opacity-0 group-hover:opacity-100 transition-opacity">
+      <div className="mt-2 flex gap-1 justify-end">
         <Button
           size="sm"
-          variant="subtle"
+          variant="ghost"
           icon={<OpenRegular />}
           onClick={(e) => { e.stopPropagation(); onOpen(); }}
-          title="Open file"
-        />
+        >
+          Open
+        </Button>
         <Button
           size="sm"
-          variant="subtle"
+          variant="ghost"
           icon={<EditRegular />}
           onClick={startEdit}
-          title="Rename"
-        />
+        >
+          Edit
+        </Button>
         <Button
           size="sm"
-          variant="subtle"
+          variant="ghost"
           icon={<DeleteRegular />}
-          className="hover:text-(--wb-error) hover:bg-(--wb-error)/10"
           onClick={(e) => { e.stopPropagation(); onDelete(); }}
-          title="Delete"
-        />
+        >
+          Delete
+        </Button>
       </div>
     </Card>
   );
@@ -322,32 +321,30 @@ function SubscriptionCard({
   if (editing) {
     return (
       <Card selected={selected}>
-        <div className="flex flex-col gap-4" onClick={(e) => e.stopPropagation()}>
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            <div>
-              <p className="text-xs font-semibold text-(--wb-text-tertiary) mb-1.5 uppercase">Name</p>
-              <input
-                autoFocus
-                value={nameInput}
-                onChange={(e) => setNameInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent) transition-all"
-              />
-            </div>
-            <div>
-              <p className="text-xs font-semibold text-(--wb-text-tertiary) mb-1.5 uppercase">Subscription URL</p>
-              <input
-                value={urlInput}
-                onChange={(e) => setUrlInput(e.target.value)}
-                onKeyDown={handleKeyDown}
-                placeholder="https://..."
-                className="w-full rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer-alt) px-3 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent) transition-all"
-              />
-            </div>
+        <div className="flex flex-col gap-2" onClick={(e) => e.stopPropagation()}>
+          <div>
+            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Name</p>
+            <input
+              autoFocus
+              value={nameInput}
+              onChange={(e) => setNameInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+            />
           </div>
-          <div className="flex gap-2 justify-end">
-            <Button size="sm" variant="accent" icon={<CheckmarkRegular />} onClick={save}>Save Changes</Button>
-            <Button size="sm" variant="subtle" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
+          <div>
+            <p className="text-xs font-medium text-(--wb-text-secondary) mb-1">Subscription URL</p>
+            <input
+              value={urlInput}
+              onChange={(e) => setUrlInput(e.target.value)}
+              onKeyDown={handleKeyDown}
+              placeholder="https://..."
+              className="w-full rounded-(--wb-radius-sm) border border-(--wb-border-subtle) bg-(--wb-surface-base) px-2 py-1.5 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+            />
+          </div>
+          <div className="flex gap-1 justify-end">
+            <Button size="sm" variant="accent" icon={<SaveRegular />} onClick={save}>Save</Button>
+            <Button size="sm" variant="ghost" icon={<DismissRegular />} onClick={(e) => { e.stopPropagation(); cancel(); }}>Cancel</Button>
           </div>
         </div>
       </Card>
@@ -355,69 +352,68 @@ function SubscriptionCard({
   }
 
   return (
-    <Card selected={selected} onClick={onSelect} className="group">
-      <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
-        <div className="flex items-start gap-4 min-w-0 flex-1">
-          <div className={`p-2.5 rounded-xl ${selected ? "bg-(--wb-accent)/10 text-(--wb-accent)" : "bg-(--wb-surface-active) text-(--wb-text-secondary)"}`}>
-            <CloudArrowDownRegular className="text-xl" />
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className="text-base font-bold text-(--wb-text-primary) truncate">
+    <Card selected={selected} onClick={onSelect}>
+      <div className="flex items-start justify-between gap-3">
+        <div className="flex items-start gap-2 min-w-0 flex-1">
+          <CloudArrowDownRegular className="flex-shrink-0 text-(--wb-accent) mt-0.5" />
+          <div className="min-w-0">
+            <p className="text-sm font-medium text-(--wb-text-primary) truncate">
               {name}
             </p>
-            <p className="text-xs text-(--wb-text-tertiary) truncate max-w-md mt-0.5">
+            <p className="text-xs text-(--wb-text-tertiary) truncate max-w-xs">
               {sub.url}
             </p>
             {sub.lastUpdated && (
-              <p className="text-[10px] font-semibold text-(--wb-text-disabled) mt-1.5 uppercase tracking-wider">
-                Last updated {formatLastUpdated(sub.lastUpdated)}
+              <p className="text-xs text-(--wb-text-disabled) mt-0.5">
+                Updated {formatLastUpdated(sub.lastUpdated)}
               </p>
             )}
           </div>
         </div>
-        
-        <div className="flex items-center gap-1.5 self-end md:self-center opacity-0 group-hover:opacity-100 transition-opacity">
-          <Button
-            size="sm"
-            variant="subtle"
-            icon={<ArrowClockwiseRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onUpdate();
-            }}
-            title="Update subscription"
-          >
-            Update
-          </Button>
-          <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-          <Button
-            size="sm"
-            variant="subtle"
-            icon={<OpenRegular />}
-            onClick={(e) => { e.stopPropagation(); onOpen(); }}
-            title="Open file"
-          />
-          <Button
-            size="sm"
-            variant="subtle"
-            icon={<EditRegular />}
-            onClick={startEdit}
-            title="Edit subscription"
-          />
-          <Button
-            size="sm"
-            variant="subtle"
-            icon={<DeleteRegular />}
-            className="hover:text-(--wb-error) hover:bg-(--wb-error)/10"
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title="Delete"
-          />
-        </div>
+        {selected && (
+          <CheckmarkRegular className="flex-shrink-0 text-(--wb-accent) text-sm" />
+        )}
+      </div>
+      <div className="flex gap-1 mt-2 justify-end">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<OpenRegular />}
+          onClick={(e) => { e.stopPropagation(); onOpen(); }}
+        >
+          Open
+        </Button>
+        <Button
+          size="sm"
+          variant="subtle"
+          icon={<ArrowClockwiseRegular />}
+          onClick={(e) => {
+            e.stopPropagation();
+            onUpdate();
+          }}
+        >
+          Update
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<EditRegular />}
+          onClick={startEdit}
+        >
+          Edit
+        </Button>
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<DeleteRegular />}
+          onClick={(e) => {
+            e.stopPropagation();
+            onDelete();
+          }}
+        >
+          Delete
+        </Button>
       </div>
     </Card>
   );
 }
-

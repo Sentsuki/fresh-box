@@ -62,7 +62,7 @@ export default function Rules() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center gap-3 shrink-0">
+      <div className="flex items-center gap-3 flex-shrink-0">
         <div>
           <h1 className="text-xl font-semibold text-(--wb-text-primary)">Rules</h1>
           <p className="text-sm text-(--wb-text-secondary) mt-0.5">

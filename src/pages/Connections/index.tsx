@@ -34,7 +34,15 @@ export default function Connections() {
   } = useConnectionsStream();
 
   const currentTab = useSettingsStore((s) => s.settings.pages.connections.current_tab);
+  const visibleColumnKeys = useSettingsStore((s) => s.settings.pages.connections.visible_columns);
+  const columnOrder = useSettingsStore((s) => s.settings.pages.connections.column_order);
+  const sortKey = useSettingsStore((s) => s.settings.pages.connections.sort_key);
+  const sortDirection = useSettingsStore((s) => s.settings.pages.connections.sort_direction);
   const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
+  const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
+  const setConnectionsColumnOrder = useSettingsStore((s) => s.setConnectionsColumnOrder);
+  const setConnectionsSortKey = useSettingsStore((s) => s.setConnectionsSortKey);
+  const setConnectionsSortDirection = useSettingsStore((s) => s.setConnectionsSortDirection);
 
   const [search, setSearch] = useState("");
   const [showColumns, setShowColumns] = useState(false);
@@ -64,6 +72,11 @@ export default function Connections() {
     );
   }, [rawEntries, visibleColumns, search]);
 
+  const groupedEntries = useMemo<ConnectionGroup[] | null>(() => {
+    if (!groupedColumn) return null;
+    return groupConnections(filteredRawEntries, groupedColumn.key, sortKey, sortDirection);
+  }, [filteredRawEntries, groupedColumn, sortKey, sortDirection]);
+
   const tableColumns: ColumnDef<ConnectionEntry>[] = useMemo(
     () =>
       visibleColumns.map((col) => ({
@@ -72,7 +85,7 @@ export default function Connections() {
         align: col.align,
         sortable: col.sortable,
         render: (row) => (
-          <span className="truncate text-[11px] font-medium leading-tight">
+          <span className="truncate text-xs">
             {formatConnectionValue(col.key as ConnectionColumnKey, row)}
           </span>
         ),
@@ -80,110 +93,11 @@ export default function Connections() {
     [visibleColumns],
   );
 
-  return (
-    <div className="flex flex-col h-full gap-6">
-      <header className="flex flex-col md:flex-row md:items-end justify-between gap-4">
-        <div>
-          <h1 className="text-3xl font-bold text-(--wb-text-primary) tracking-tight">Connections</h1>
-          <p className="text-sm text-(--wb-text-secondary) mt-1">
-            Analyze active and recently closed network connections.
-          </p>
-        </div>
-
-        <div className="flex items-center gap-2">
-          <Button
-            variant="default"
-            size="md"
-            icon={isPaused ? <PlayRegular /> : <PauseRegular />}
-            onClick={togglePause}
-          >
-            {isPaused ? "Resume" : "Pause"}
-          </Button>
-          <Button
-            variant="subtle"
-            size="md"
-            icon={<DismissRegular />}
-            className="hover:text-(--wb-error) hover:bg-(--wb-error)/10"
-            onClick={() => void closeAll()}
-          >
-            Close All
-          </Button>
-          <div className="w-px h-6 bg-(--wb-border-subtle) mx-1" />
-          <Button
-            variant={showColumns ? "accent" : "subtle"}
-            size="md"
-            icon={<ColumnRegular />}
-            onClick={() => setShowColumns(!showColumns)}
-          >
-            Columns
-          </Button>
-        </div>
-      </header>
-
-      {/* Search & Tabs */}
-      <div className="flex flex-col md:flex-row gap-4 md:items-center">
-        <div className="relative flex-1">
-          <SearchRegular className="absolute left-3 top-1/2 -translate-y-1/2 text-base text-(--wb-text-tertiary)" />
-          <input
-            value={search}
-            onChange={(e) => setSearch(e.target.value)}
-            placeholder="Search connections..."
-            className="w-full bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) pl-10 pr-4 py-2 text-sm text-(--wb-text-primary) outline-none focus:border-(--wb-accent) transition-all"
-          />
-        </div>
-
-        <div className="flex items-center gap-1 bg-(--wb-surface-layer) p-1 rounded-(--wb-radius-md) border border-(--wb-border-subtle)">
-          <button
-            onClick={() => void setConnectionsTab("active")}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-(--wb-radius-sm) transition-all ${
-              currentTab === "active" ? "bg-(--wb-accent) text-(--wb-accent-fg) shadow-sm" : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)"
-            }`}
-          >
-            ACTIVE ({active})
-          </button>
-          <button
-            onClick={() => void setConnectionsTab("closed")}
-            className={`px-4 py-1.5 text-xs font-semibold rounded-(--wb-radius-sm) transition-all ${
-              currentTab === "closed" ? "bg-(--wb-accent) text-(--wb-accent-fg) shadow-sm" : "text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)"
-            }`}
-          >
-            CLOSED ({closed})
-          </button>
-        </div>
-      </div>
-
-      <div className="flex-1 min-h-0 bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden shadow-sm">
-        <VirtualTable
-          columns={tableColumns}
-          data={filteredEntries}
-          rowHeight={32}
-          onRowClick={(row) => setSelectedConnection(row)}
-          onSort={(key) => {
-            const colKey = key as ConnectionColumnKey;
-            const sortDirection = useSettingsStore.getState().settings.pages.connections.sort_direction;
-            const sortKey = useSettingsStore.getState().settings.pages.connections.sort_key;
-            if (colKey === sortKey) {
-              void useSettingsStore.getState().setConnectionsSortDirection(sortDirection === "asc" ? "desc" : "asc");
-            } else {
-              void useSettingsStore.getState().setConnectionsSortKey(colKey);
-              void useSettingsStore.getState().setConnectionsSortDirection("desc");
-            }
-          }}
-          sortKey={useSettingsStore((s) => s.settings.pages.connections.sort_key)}
-          sortDirection={useSettingsStore((s) => s.settings.pages.connections.sort_direction)}
-        />
-      </div>
-
-      {selectedConnection && (
-        <ConnectionDetailsModal
-          connection={selectedConnection}
-          onClose={() => setSelectedConnection(null)}
-        />
-      )}
-    </div>
-  );
-}
-
+  const handleSort = useCallback(
+    (key: string) => {
+      const colKey = key as ConnectionColumnKey;
+      if (colKey === sortKey) {
+        void setConnectionsSortDirection(sortDirection === "asc" ? "desc" : "asc");
       } else {
         const col = visibleColumns.find((c) => c.key === colKey);
         void setConnectionsSortKey(colKey);
@@ -222,7 +136,7 @@ export default function Connections() {
 
   return (
     <div className="flex flex-col h-full gap-3">
-      <div className="flex items-center gap-3 shrink-0 flex-wrap">
+      <div className="flex items-center gap-3 flex-shrink-0 flex-wrap">
         <div>
           <h1 className="text-xl font-semibold text-(--wb-text-primary)">Connections</h1>
           <p className="text-sm text-(--wb-text-secondary) mt-0.5">
