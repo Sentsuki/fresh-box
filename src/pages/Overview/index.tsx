@@ -123,9 +123,9 @@ export default function Overview() {
             </div>
           ) : (
             <div className="flex flex-col gap-6">
-              <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+              <div className="flex flex-wrap gap-4">
                 {[...Array(4)].map((_, i) => (
-                  <div key={i} className="h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />
+                  <div key={i} className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />
                 ))}
               </div>
               <div className="h-64 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />

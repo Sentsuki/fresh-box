@@ -58,28 +58,30 @@ export default function StatusCards({ overview }: StatusCardsProps) {
   ];
 
   return (
-    <div className="grid grid-cols-2 gap-3">
+    <div className="flex flex-wrap gap-4">
       {stats.map((stat) => (
-        <Card key={stat.label}>
-          <div className="flex items-center gap-3">
-            <div className={["text-xl flex-shrink-0", stat.color].join(" ")}>
-              {stat.icon}
-            </div>
-            <div className="min-w-0">
-              <p className="text-xs text-(--wb-text-secondary)">
-                {stat.label}
-              </p>
-              <p className="text-lg font-semibold text-(--wb-text-primary) leading-tight">
-                {stat.value}
-              </p>
-              {stat.sub && (
-                <p className="text-[11px] text-(--wb-text-tertiary)">
-                  {stat.sub}
+        <div key={stat.label} className="flex-1 min-w-[200px]">
+          <Card className="h-full">
+            <div className="flex items-center gap-4">
+              <div className={["text-2xl flex-shrink-0", stat.color].join(" ")}>
+                {stat.icon}
+              </div>
+              <div className="min-w-0">
+                <p className="text-xs text-(--wb-text-secondary) font-medium">
+                  {stat.label}
                 </p>
-              )}
+                <p className="text-xl font-bold text-(--wb-text-primary) leading-tight mt-0.5">
+                  {stat.value}
+                </p>
+                {stat.sub && (
+                  <p className="text-[11px] text-(--wb-text-tertiary) mt-0.5 truncate">
+                    {stat.sub}
+                  </p>
+                )}
+              </div>
             </div>
-          </div>
-        </Card>
+          </Card>
+        </div>
       ))}
     </div>
   );
