@@ -14,6 +14,7 @@ import { usePriorityConfig, STACK_OPTIONS, LOG_LEVELS } from "../../hooks/usePri
 import { Button } from "../../components/ui/Button";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Switch } from "../../components/ui/Switch";
 import { openAppDirectory } from "../../services/api";
 import type { LogLevel as AppLogLevel, ThemeMode } from "../../types/app";
 
@@ -178,18 +179,13 @@ export default function Settings() {
               description="Log output detail from the sing-box core"
               control={
                 <div className="flex items-center gap-3">
-                  <label className="flex items-center gap-2 text-sm text-(--wb-text-secondary) cursor-pointer">
-                    <input
-                      type="checkbox"
-                      checked={logDisabled}
-                      onChange={(e) => setLogDisabled(e.target.checked)}
-                      className="accent-(--wb-accent)"
-                    />
-                    Disable
-                  </label>
                   <select
                     value={selectedLogLevel}
-                    onChange={(e) => setSelectedLogLevel(e.target.value as typeof LOG_LEVELS[number])}
+                    onChange={(e) => {
+                      const level = e.target.value as typeof LOG_LEVELS[number];
+                      setSelectedLogLevel(level);
+                      void updateLogConfiguration(logDisabled, level);
+                    }}
                     disabled={logDisabled}
                     className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                   >
@@ -197,13 +193,17 @@ export default function Settings() {
                       <option key={l} value={l}>{l}</option>
                     ))}
                   </select>
-                  <Button
-                    size="sm"
-                    variant="subtle"
-                    onClick={() => void updateLogConfiguration(logDisabled, selectedLogLevel)}
-                  >
-                    Apply
-                  </Button>
+                  <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+                  <div className="flex items-center gap-2.5">
+                    <span className="text-sm text-(--wb-text-secondary)">Disable</span>
+                    <Switch
+                      checked={logDisabled}
+                      onCheckedChange={(checked) => {
+                        setLogDisabled(checked);
+                        void updateLogConfiguration(checked, selectedLogLevel);
+                      }}
+                    />
+                  </div>
                 </div>
               }
             />
@@ -216,8 +216,15 @@ export default function Settings() {
             icon={<FolderOpenRegular />}
             title="App Directory"
             description="Open the folder containing config files, overrides, and logs"
-            onClick={() => void openAppDirectory()}
-            control={<span className="text-sm text-(--wb-accent) font-medium">Open Folder</span>}
+            control={
+              <Button
+                size="sm"
+                variant="accent"
+                onClick={() => void openAppDirectory()}
+              >
+                Open Folder
+              </Button>
+            }
           />
         </SettingGroup>
 
