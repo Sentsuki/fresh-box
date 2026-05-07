@@ -1,4 +1,4 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import {
   WeatherMoonRegular,
   FolderOpenRegular,
@@ -7,6 +7,9 @@ import {
   InfoRegular,
   BoxRegular,
   SettingsRegular,
+  LinkRegular,
+  KeyRegular,
+  GlobeRegular,
 } from "@fluentui/react-icons";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
@@ -15,7 +18,7 @@ import { Button } from "../../components/ui/Button";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Switch } from "../../components/ui/Switch";
-import { openAppDirectory } from "../../services/api";
+import { openAppDirectory, getSingboxStatus } from "../../services/api";
 import type { LogLevel as AppLogLevel, ThemeMode } from "../../types/app";
 
 export default function Settings() {
@@ -25,6 +28,22 @@ export default function Settings() {
 
   const currentAppLogLevel = settings.pages.logs.log_level;
   const currentThemeMode = settings.theme_mode;
+
+  // Process Management
+  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
+  const [processStatus, setProcessStatus] = useState<string | null>(null);
+
+  const refreshProcessStatus = async () => {
+    setIsRefreshingStatus(true);
+    try {
+      const status = await getSingboxStatus();
+      setProcessStatus(status);
+    } catch {
+      setProcessStatus("Failed to get process status.");
+    } finally {
+      setIsRefreshingStatus(false);
+    }
+  };
 
   // Core Update Manager
   const {
@@ -53,9 +72,18 @@ export default function Settings() {
     setLogDisabled,
     selectedLogLevel,
     setSelectedLogLevel,
+    clashApiController,
+    setClashApiController,
+    clashApiSecret,
+    setClashApiSecret,
+    testUrl,
+    setTestUrl,
     loadConfiguration,
     setStackOption,
     updateLogConfiguration,
+    updateClashApiConfig,
+    genRandomPort,
+    genRandomSecret,
   } = usePriorityConfig();
 
   useEffect(() => {
@@ -227,6 +255,117 @@ export default function Settings() {
               >
                 Open Folder
               </Button>
+            }
+          />
+        </SettingGroup>
+
+        {/* Process Management */}
+        <SettingGroup title="Process Management">
+          <SettingCard
+            icon={<SettingsRegular />}
+            title="Sing-box Process Status"
+            description={
+              processStatus ? (
+                <div className="mt-1 text-xs font-mono text-(--wb-text-secondary) whitespace-pre-wrap break-all">
+                  {processStatus}
+                </div>
+              ) : (
+                "Click Refresh to check the current status of the sing-box process."
+              )
+            }
+            control={
+              <Button
+                size="sm"
+                variant="subtle"
+                icon={<ArrowSyncRegular className={isRefreshingStatus ? "animate-spin" : ""} />}
+                disabled={isRefreshingStatus}
+                onClick={() => void refreshProcessStatus()}
+              >
+                Refresh
+              </Button>
+            }
+          />
+        </SettingGroup>
+
+        {/* Clash API Settings */}
+        <SettingGroup title="Clash API">
+          <SettingCard
+            icon={<LinkRegular />}
+            title="API Controller"
+            description="The address:port for the Clash API (e.g. 127.0.0.1:51385)"
+            control={
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={clashApiController}
+                  onChange={(e) => setClashApiController(e.target.value)}
+                  placeholder="127.0.0.1:51385"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                />
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={async () => {
+                    const controller = await genRandomPort();
+                    if (controller) {
+                      await updateClashApiConfig({ external_controller: controller, secret: clashApiSecret }, testUrl);
+                    }
+                  }}
+                >
+                  Random Port
+                </Button>
+              </div>
+            }
+          />
+          <SettingCard
+            icon={<KeyRegular />}
+            title="API Secret"
+            description="Authentication secret for the Clash API"
+            control={
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={clashApiSecret}
+                  onChange={(e) => setClashApiSecret(e.target.value)}
+                  placeholder="secret"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                />
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={async () => {
+                    const secret = await genRandomSecret();
+                    if (secret) {
+                      await updateClashApiConfig({ external_controller: clashApiController, secret }, testUrl);
+                    }
+                  }}
+                >
+                  Random
+                </Button>
+              </div>
+            }
+          />
+          <SettingCard
+            icon={<GlobeRegular />}
+            title="Test URL"
+            description="URL used for proxy latency tests"
+            control={
+              <div className="flex items-center gap-2">
+                <input
+                  type="text"
+                  value={testUrl}
+                  onChange={(e) => setTestUrl(e.target.value)}
+                  placeholder="https://www.gstatic.com/generate_204"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
+                />
+                <Button
+                  size="sm"
+                  variant="accent"
+                  onClick={() => void updateClashApiConfig({ external_controller: clashApiController, secret: clashApiSecret }, testUrl)}
+                >
+                  Save
+                </Button>
+              </div>
             }
           />
         </SettingGroup>

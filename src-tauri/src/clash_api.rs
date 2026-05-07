@@ -12,6 +12,48 @@ const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 const DEFAULT_TEST_TIMEOUT_MS: u64 = 5_000;
 const GLOBAL_GROUP_NAME: &str = "GLOBAL";
 
+struct ApiConfig {
+    base_url: String,
+    secret: String,
+    test_url: String,
+}
+
+fn get_api_config() -> ApiConfig {
+    use crate::priority_config::{PriorityConfig};
+    const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+    const DEFAULT_CONTROLLER: &str = "127.0.0.1:51385";
+
+    let config: PriorityConfig =
+        crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
+            .unwrap_or_default();
+
+    let controller = config
+        .clash_api
+        .as_ref()
+        .and_then(|c| c.external_controller.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_CONTROLLER);
+
+    let secret = config
+        .clash_api
+        .as_ref()
+        .and_then(|c| c.secret.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(CLASH_API_SECRET);
+
+    let test_url = config
+        .test_url
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_TEST_URL);
+
+    ApiConfig {
+        base_url: format!("http://{}", controller),
+        secret: secret.to_string(),
+        test_url: test_url.to_string(),
+    }
+}
+
 #[derive(Debug, Deserialize)]
 struct ClashConfigResponse {
     mode: String,
@@ -160,10 +202,10 @@ fn clash_client() -> Result<Client, CommandError> {
         })
 }
 
-fn build_clash_url(path: &str) -> String {
+fn build_clash_url(base_url: &str, path: &str) -> String {
     format!(
         "{}/{}",
-        CLASH_API_BASE_URL.trim_end_matches('/'),
+        base_url.trim_end_matches('/'),
         path.trim_start_matches('/')
     )
 }
@@ -177,9 +219,10 @@ fn map_clash_network_error(context: &str, error: reqwest::Error) -> CommandError
     }
 
     if error.is_connect() {
+        let api = get_api_config();
         return CommandError::network(format!(
             "{}: could not connect to the core at {}. Make sure the Clash API is running.",
-            context, CLASH_API_BASE_URL
+            context, api.base_url
         ));
     }
 
@@ -201,10 +244,11 @@ async fn clash_get<T>(path: &str, context: &str) -> Result<T, CommandError>
 where
     T: DeserializeOwned,
 {
+    let api = get_api_config();
     let client = clash_client()?;
     let response = client
-        .get(build_clash_url(path))
-        .bearer_auth(CLASH_API_SECRET)
+        .get(build_clash_url(&api.base_url, path))
+        .bearer_auth(&api.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error(context, error))?
@@ -222,10 +266,11 @@ async fn clash_patch(
     payload: serde_json::Value,
     context: &str,
 ) -> Result<(), CommandError> {
+    let api = get_api_config();
     let client = clash_client()?;
     client
-        .patch(build_clash_url(path))
-        .bearer_auth(CLASH_API_SECRET)
+        .patch(build_clash_url(&api.base_url, path))
+        .bearer_auth(&api.secret)
         .json(&payload)
         .send()
         .await
@@ -241,10 +286,11 @@ async fn clash_put(
     payload: serde_json::Value,
     context: &str,
 ) -> Result<(), CommandError> {
+    let api = get_api_config();
     let client = clash_client()?;
     client
-        .put(build_clash_url(path))
-        .bearer_auth(CLASH_API_SECRET)
+        .put(build_clash_url(&api.base_url, path))
+        .bearer_auth(&api.secret)
         .json(&payload)
         .send()
         .await
@@ -305,23 +351,24 @@ async fn execute_proxy_delay_test(
         return Err(CommandError::validation("Proxy name cannot be empty."));
     }
 
+    let api = get_api_config();
     let client = clash_client()?;
     let encoded_name = urlencoding::encode(proxy_name.trim());
     let target_url = url
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(DEFAULT_TEST_URL);
+        .unwrap_or(api.test_url.as_str());
     let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
     let request_url = format!(
         "{}?url={}&timeout={}",
-        build_clash_url(&format!("/proxies/{}/delay", encoded_name)),
+        build_clash_url(&api.base_url, &format!("/proxies/{}/delay", encoded_name)),
         urlencoding::encode(target_url),
         timeout
     );
 
     client
         .get(request_url)
-        .bearer_auth(CLASH_API_SECRET)
+        .bearer_auth(&api.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?

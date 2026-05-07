@@ -1,14 +1,20 @@
 use crate::errors::CommandError;
 use serde_json::Value;
+use rand::Rng;
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct ClashApiConfig {
+    pub external_controller: Option<String>,
+    pub secret: Option<String>,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct PriorityConfig {
     pub stack: Option<String>, // 直接存储 stack 值: "mixed", "gvisor", "system"
     pub log: Option<LogConfig>,
-    // 未来可以添加其他高优先级配置选项
-    // pub dns: Option<DnsConfig>,
-    // pub routing: Option<RoutingConfig>,
+    pub clash_api: Option<ClashApiConfig>,
+    pub test_url: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -154,6 +160,71 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
     }
 
     Ok(result)
+}
+
+// 默认 Clash API 地址和密钥
+const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:51385";
+const DEFAULT_CLASH_SECRET: &str = "~1]<R]:4db~4R)__EP4TN5dkLjob;9";
+const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
+
+#[derive(serde::Serialize)]
+pub struct CoreClientConfig {
+    pub http_url: String,
+    pub ws_url: String,
+    pub secret: String,
+    pub test_url: String,
+}
+
+#[tauri::command]
+pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
+    let config: PriorityConfig =
+        super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+
+    let controller = config
+        .clash_api
+        .as_ref()
+        .and_then(|c| c.external_controller.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
+
+    let secret = config
+        .clash_api
+        .as_ref()
+        .and_then(|c| c.secret.as_deref())
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_CLASH_SECRET);
+
+    let test_url = config
+        .test_url
+        .as_deref()
+        .filter(|s| !s.is_empty())
+        .unwrap_or(DEFAULT_TEST_URL);
+
+    Ok(CoreClientConfig {
+        http_url: format!("http://{}", controller),
+        ws_url: format!("ws://{}", controller),
+        secret: secret.to_string(),
+        test_url: test_url.to_string(),
+    })
+}
+
+#[tauri::command]
+pub async fn generate_random_port() -> Result<u16, CommandError> {
+    let port: u16 = rand::thread_rng().gen_range(10000..=65535);
+    Ok(port)
+}
+
+#[tauri::command]
+pub async fn generate_random_secret() -> Result<String, CommandError> {
+    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    let mut rng = rand::thread_rng();
+    let secret: String = (0..32)
+        .map(|_| {
+            let idx = rng.gen_range(0..CHARS.len());
+            CHARS[idx] as char
+        })
+        .collect();
+    Ok(secret)
 }
 
 // 应用优先级配置到配置对象

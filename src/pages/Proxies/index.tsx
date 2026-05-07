@@ -13,7 +13,8 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
-  if (!delay) return "text-(--wb-text-disabled)";
+  if (delay === null || delay === undefined) return "text-(--wb-text-disabled)";
+  if (delay <= 0) return "text-(--wb-error)";
   if (delay < 200) return "text-(--wb-success)";
   if (delay < 500) return "text-(--wb-warning)";
   return "text-(--wb-error)";
@@ -64,7 +65,9 @@ interface NodeCardProps {
 }
 
 const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: NodeCardProps) {
-  const isTesting = useClashStore((s) => s.activeDelayNode === node.name);
+  const isTesting = useClashStore(
+    (s) => s.activeDelayNode === node.name || s.groupTestingNodes.has(node.name)
+  );
   return (
     <button
       onClick={onSelect}
@@ -106,7 +109,9 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
           {isTesting ? (
             <Spinner size="sm" className="border-t-current" />
           ) : (
-            node.delay ? `${node.delay}ms` : "--"
+            node.delay !== null && node.delay !== undefined
+              ? (node.delay <= 0 ? "timeout" : `${node.delay}ms`)
+              : "--"
           )}
         </button>
       </div>

@@ -81,6 +81,9 @@ fn main() {
             priority_config::load_priority_config,
             priority_config::clear_priority_config,
             priority_config::check_config_fields,
+            priority_config::get_core_client_config,
+            priority_config::generate_random_port,
+            priority_config::generate_random_secret,
             update_mica_theme,
         ])
         .setup(|app| {

@@ -1,4 +1,5 @@
-import { useEffect, useRef } from "react";
+import { useState, useEffect } from "react";
+import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { formatSpeed } from "../../services/utils";
 
@@ -7,93 +8,79 @@ const MAX_POINTS = 60;
 interface DataPoint {
   dl: number;
   ul: number;
+  tick: number;
 }
 
-function drawChart(
-  canvas: HTMLCanvasElement,
-  history: DataPoint[],
-) {
-  const ctx = canvas.getContext("2d");
-  if (!ctx) return;
-
-  const { width, height } = canvas;
-  ctx.clearRect(0, 0, width, height);
-
-  const max = Math.max(...history.map((p) => Math.max(p.dl, p.ul)), 1024);
-
-  function drawLine(ctx: CanvasRenderingContext2D, points: number[], color: string, fillColor: string) {
-    if (points.length < 2) return;
-    const stepX = width / (MAX_POINTS - 1);
-
-    ctx.beginPath();
-    points.forEach((val, i) => {
-      const x = i * stepX;
-      const y = height - (val / max) * (height - 16) - 4;
-      if (i === 0) ctx.moveTo(x, y);
-      else ctx.lineTo(x, y);
-    });
-
-    ctx.strokeStyle = color;
-    ctx.lineWidth = 1.5;
-    ctx.stroke();
-
-    ctx.lineTo(points.length * stepX - stepX, height);
-    ctx.lineTo(0, height);
-    ctx.closePath();
-    ctx.fillStyle = fillColor;
-    ctx.fill();
-  }
-
-  const dlPoints = history.map((p) => p.dl);
-  const ulPoints = history.map((p) => p.ul);
-
-  drawLine(ctx, dlPoints, "#60CDFF", "rgba(96,205,255,0.1)");
-  drawLine(ctx, ulPoints, "#8CD7FF", "rgba(140,215,255,0.05)");
-
-  ctx.font = "10px Segoe UI Variable, system-ui, sans-serif";
-  ctx.fillStyle = "rgba(255,255,255,0.4)";
-  ctx.fillText(`▼ ${formatSpeed(dlPoints[dlPoints.length - 1] ?? 0)}`, 6, 14);
-  ctx.fillText(`▲ ${formatSpeed(ulPoints[ulPoints.length - 1] ?? 0)}`, 80, 14);
+function formatYAxis(value: number): string {
+  if (value === 0) return "0";
+  if (value >= 1024 * 1024) return `${(value / 1024 / 1024).toFixed(0)}M`;
+  if (value >= 1024) return `${(value / 1024).toFixed(0)}K`;
+  return `${value}`;
 }
 
 export default function TrafficChart() {
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const historyRef = useRef<DataPoint[]>([]);
-  const rafRef = useRef<number | null>(null);
-
   const totalDownloadSpeed = useConnectionsStore((s) => s.totalDownloadSpeed);
   const totalUploadSpeed = useConnectionsStore((s) => s.totalUploadSpeed);
+  const [history, setHistory] = useState<DataPoint[]>([]);
 
   useEffect(() => {
-    historyRef.current.push({ dl: totalDownloadSpeed, ul: totalUploadSpeed });
-    if (historyRef.current.length > MAX_POINTS) historyRef.current.shift();
-
-    if (rafRef.current !== null) cancelAnimationFrame(rafRef.current);
-
-    rafRef.current = requestAnimationFrame(() => {
-      rafRef.current = null;
-      if (canvasRef.current) drawChart(canvasRef.current, historyRef.current);
+    setHistory((prev) => {
+      const next = [
+        ...prev,
+        { dl: totalDownloadSpeed, ul: totalUploadSpeed, tick: Date.now() },
+      ];
+      return next.length > MAX_POINTS ? next.slice(next.length - MAX_POINTS) : next;
     });
-
-    return () => {
-      if (rafRef.current !== null) {
-        cancelAnimationFrame(rafRef.current);
-        rafRef.current = null;
-      }
-    };
   }, [totalDownloadSpeed, totalUploadSpeed]);
 
   return (
     <div className="rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer) p-3">
-      <p className="text-xs text-(--wb-text-secondary) mb-2">
-        Traffic (last 60s)
-      </p>
-      <canvas
-        ref={canvasRef}
-        width={560}
-        height={80}
-        className="w-full h-20 block"
-      />
+      <div className="flex items-center gap-4 mb-2">
+        <span className="text-xs text-(--wb-text-secondary)">Traffic (last 60s)</span>
+        <span className="text-xs font-medium" style={{ color: "#60CDFF" }}>
+          ▼ {formatSpeed(totalDownloadSpeed)}
+        </span>
+        <span className="text-xs font-medium" style={{ color: "#8CD7FF" }}>
+          ▲ {formatSpeed(totalUploadSpeed)}
+        </span>
+      </div>
+      <ResponsiveContainer width="100%" height={80}>
+        <AreaChart data={history} margin={{ top: 4, right: 0, left: 0, bottom: 0 }}>
+          <defs>
+            <linearGradient id="dlGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#60CDFF" stopOpacity={0.15} />
+              <stop offset="95%" stopColor="#60CDFF" stopOpacity={0} />
+            </linearGradient>
+            <linearGradient id="ulGrad" x1="0" y1="0" x2="0" y2="1">
+              <stop offset="5%" stopColor="#8CD7FF" stopOpacity={0.08} />
+              <stop offset="95%" stopColor="#8CD7FF" stopOpacity={0} />
+            </linearGradient>
+          </defs>
+          <YAxis hide domain={[0, "auto"]} tickFormatter={formatYAxis} />
+          <Tooltip
+            contentStyle={{ display: "none" }}
+            cursor={false}
+          />
+          <Area
+            type="monotone"
+            dataKey="dl"
+            stroke="#60CDFF"
+            strokeWidth={1.5}
+            fill="url(#dlGrad)"
+            dot={false}
+            isAnimationActive={false}
+          />
+          <Area
+            type="monotone"
+            dataKey="ul"
+            stroke="#8CD7FF"
+            strokeWidth={1.5}
+            fill="url(#ulGrad)"
+            dot={false}
+            isAnimationActive={false}
+          />
+        </AreaChart>
+      </ResponsiveContainer>
     </div>
   );
 }

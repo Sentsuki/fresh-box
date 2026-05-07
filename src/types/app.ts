@@ -342,6 +342,20 @@ export interface LogConfig {
 export interface PriorityConfig {
   stack?: string;
   log?: LogConfig;
+  clash_api?: ClashApiConfig;
+  test_url?: string;
+}
+
+export interface ClashApiConfig {
+  external_controller?: string;
+  secret?: string;
+}
+
+export interface CoreClientConfig {
+  http_url: string;
+  ws_url: string;
+  secret: string;
+  test_url: string;
 }
 
 export interface ConfigFieldsCheck {

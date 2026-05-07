@@ -17,6 +17,7 @@ interface ClashState {
   activeSelectionKey: string | null;
   activeDelayNode: string | null;
   activeGroupDelay: string | null;
+  groupTestingNodes: Set<string>;
 }
 
 interface ClashActions {
@@ -64,6 +65,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
   activeSelectionKey: null,
   activeDelayNode: null,
   activeGroupDelay: null,
+  groupTestingNodes: new Set<string>(),
 
   refreshOverview: async (showToastOnError = false) => {
     const sequence = ++requestSequence;
@@ -160,19 +162,51 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
   testGroupDelay: async (proxyGroup, onSuccess, onError) => {
     if (get().activeGroupDelay === proxyGroup) return;
     set({ activeGroupDelay: proxyGroup });
+
     try {
-      const overview = await testClashProxyGroupDelay(proxyGroup);
-      set({ overview, errorMessage: null });
-      const group = overview.proxy_groups.find((g) => g.name === proxyGroup);
-      onSuccess?.(
-        `${proxyGroup}: tested ${group?.options.length ?? 0} nodes`,
-      );
+      const overview = get().overview;
+      const group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
+      const nodes = group?.options.map((n) => n.name) ?? [];
+
+      if (nodes.length === 0) {
+        const refreshed = await testClashProxyGroupDelay(proxyGroup);
+        set({ overview: refreshed, errorMessage: null });
+        const g = refreshed.proxy_groups.find((g) => g.name === proxyGroup);
+        onSuccess?.(`${proxyGroup}: tested ${g?.options.length ?? 0} nodes`);
+        return;
+      }
+
+      // Add all nodes to groupTestingNodes
+      set({ groupTestingNodes: new Set(nodes) });
+
+      const BATCH = 5;
+      let testedCount = 0;
+      for (let i = 0; i < nodes.length; i += BATCH) {
+        const chunk = nodes.slice(i, i + BATCH);
+        await Promise.allSettled(
+          chunk.map(async (name) => {
+            try {
+              const updated = await testClashProxyDelay(name);
+              set((s) => ({
+                overview: updated,
+                errorMessage: null,
+                groupTestingNodes: new Set([...s.groupTestingNodes].filter((n) => n !== name)),
+              }));
+            } catch {
+              set((s) => ({
+                groupTestingNodes: new Set([...s.groupTestingNodes].filter((n) => n !== name)),
+              }));
+            }
+            testedCount++;
+          })
+        );
+      }
+
+      onSuccess?.(`${proxyGroup}: tested ${testedCount} nodes`);
     } catch (error) {
-      onError?.(
-        `Failed to test group latency: ${getErrorMessage(error)}`,
-      );
+      onError?.(`Failed to test group latency: ${getErrorMessage(error)}`);
     } finally {
-      set({ activeGroupDelay: null });
+      set({ activeGroupDelay: null, groupTestingNodes: new Set() });
     }
   },
 }));

@@ -3,11 +3,16 @@ import {
   checkConfigFields,
   loadPriorityConfig,
   savePriorityConfig,
+  generateRandomPort,
+  generateRandomSecret,
+  getCoreClientConfig,
 } from "../services/api";
+import { updateCoreClientConfig } from "../services/coreClient";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import type {
+  ClashApiConfig,
   ConfigFieldsCheck,
   LogLevel,
   PriorityConfig,
@@ -42,6 +47,9 @@ export function usePriorityConfig() {
   const [selectedStack, setSelectedStack] = useState<StackOption>("mixed");
   const [logDisabled, setLogDisabled] = useState(false);
   const [selectedLogLevel, setSelectedLogLevel] = useState<LogLevel>("info");
+  const [clashApiController, setClashApiController] = useState("");
+  const [clashApiSecret, setClashApiSecret] = useState("");
+  const [testUrl, setTestUrl] = useState("");
 
   const selectedConfigPath = useSettingsStore(
     (s) => s.settings.app.selected_config_path,
@@ -90,6 +98,10 @@ export function usePriorityConfig() {
           }
         }
       }
+
+      setClashApiController(priorityConfig.clash_api?.external_controller ?? "");
+      setClashApiSecret(priorityConfig.clash_api?.secret ?? "");
+      setTestUrl(priorityConfig.test_url ?? "");
     } catch (err) {
       setHasStackField(false);
       setHasLogField(false);
@@ -134,6 +146,49 @@ export function usePriorityConfig() {
     [hasLogField, updatePriorityConfig, success, toastError],
   );
 
+  const updateClashApiConfig = useCallback(
+    async (config: ClashApiConfig, newTestUrl?: string) => {
+      try {
+        const current = await loadPriorityConfig();
+        const updated: PriorityConfig = {
+          ...current,
+          clash_api: config,
+          ...(newTestUrl !== undefined ? { test_url: newTestUrl } : {}),
+        };
+        await savePriorityConfig(updated);
+        const coreConfig = await getCoreClientConfig();
+        updateCoreClientConfig(coreConfig);
+        success("Clash API settings saved.");
+      } catch (err) {
+        toastError(`Failed to update Clash API config: ${getErrorMessage(err)}`);
+      }
+    },
+    [success, toastError],
+  );
+
+  const genRandomPort = useCallback(async () => {
+    try {
+      const port = await generateRandomPort();
+      const newController = `127.0.0.1:${port}`;
+      setClashApiController(newController);
+      return newController;
+    } catch (err) {
+      toastError(`Failed to generate port: ${getErrorMessage(err)}`);
+      return null;
+    }
+  }, [toastError]);
+
+  const genRandomSecret = useCallback(async () => {
+    try {
+      const secret = await generateRandomSecret();
+      setClashApiSecret(secret);
+      return secret;
+    } catch (err) {
+      toastError(`Failed to generate secret: ${getErrorMessage(err)}`);
+      return null;
+    }
+  }, [toastError]);
+
   return {
     isLoading,
     hasStackField,
@@ -143,10 +198,19 @@ export function usePriorityConfig() {
     setLogDisabled,
     selectedLogLevel,
     setSelectedLogLevel,
+    clashApiController,
+    setClashApiController,
+    clashApiSecret,
+    setClashApiSecret,
+    testUrl,
+    setTestUrl,
     stackOptions: STACK_OPTIONS,
     logLevels: LOG_LEVELS,
     loadConfiguration,
     setStackOption,
     updateLogConfiguration,
+    updateClashApiConfig,
+    genRandomPort,
+    genRandomSecret,
   };
 }

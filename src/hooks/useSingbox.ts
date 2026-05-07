@@ -10,6 +10,22 @@ import { useClashStore } from "../stores/clashStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import { startConnectionsStream, stopConnectionsStream } from "./useConnectionsStream";
+import { isPermissionGranted, requestPermission, sendNotification } from "@tauri-apps/plugin-notification";
+
+async function notifySingboxStatus(body: string) {
+  try {
+    let permitted = await isPermissionGranted();
+    if (!permitted) {
+      const result = await requestPermission();
+      permitted = result === "granted";
+    }
+    if (permitted) {
+      sendNotification({ title: "Sing-box", body });
+    }
+  } catch {
+    // notifications are best-effort
+  }
+}
 
 let statusCheckInterval: number | null = null;
 
@@ -59,9 +75,13 @@ export function useSingbox() {
       await startSingbox(configPath);
       singbox.setRunning(true);
       startConnectionsStream();
-      startPolling(() => toastError("Sing-box has stopped unexpectedly."));
+      startPolling(() => {
+        toastError("Sing-box has stopped unexpectedly.");
+        void notifySingboxStatus("Sing-box has stopped unexpectedly.");
+      });
       await clash.refreshOverview(true);
       toastSuccess("Sing-box is running.");
+      void notifySingboxStatus("Sing-box is running.");
     } catch (err) {
       singbox.setRunning(false);
       clash.clearOverview();
@@ -86,6 +106,7 @@ export function useSingbox() {
       stopConnectionsStream(true);
       clash.clearOverview();
       toastSuccess("Sing-box is stopped.");
+      void notifySingboxStatus("Sing-box is stopped.");
     } catch (err) {
       toastError(`Error stopping sing-box: ${getErrorMessage(err)}`);
     } finally {

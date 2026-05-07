@@ -213,6 +213,18 @@ export async function checkConfigFields(
   return invokeCommand<ConfigFieldsCheck>("check_config_fields", { configPath });
 }
 
+export async function getCoreClientConfig(): Promise<import("../types/app").CoreClientConfig> {
+  return invokeCommand<import("../types/app").CoreClientConfig>("get_core_client_config");
+}
+
+export async function generateRandomPort(): Promise<number> {
+  return invokeCommand<number>("generate_random_port");
+}
+
+export async function generateRandomSecret(): Promise<string> {
+  return invokeCommand<string>("generate_random_secret");
+}
+
 export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
 }
