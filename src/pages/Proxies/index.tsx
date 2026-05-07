@@ -3,7 +3,6 @@ import {
   ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
-  CheckmarkCircleFilled,
 } from "@fluentui/react-icons";
 import { useClashStore } from "../../stores/clashStore";
 import { useClash } from "../../hooks/useClash";
@@ -70,21 +69,21 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
       onClick={onSelect}
       title={node.name}
       className={[
-        "relative flex flex-col items-start gap-1.5 px-4 py-3 rounded-(--wb-radius-md)",
+        "relative flex flex-col items-start gap-1.5 px-4 py-3 rounded-(--wb-radius-md) overflow-hidden",
         "text-left transition-all duration-200 cursor-pointer w-full min-w-0 border",
         selected
-          ? "bg-(--wb-surface-selected) border-(--wb-accent) shadow-sm"
+          ? "bg-(--wb-surface-base) border-(--wb-accent)"
           : "bg-(--wb-surface-base) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) hover:border-(--wb-border-default)",
       ].join(" ")}
     >
+      {selected && (
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-8 bg-(--wb-accent) rounded-r-full z-10" />
+      )}
       <div className="flex w-full justify-between items-start gap-2">
         <NodeName 
           name={node.name} 
-          className={`text-sm font-semibold leading-tight ${selected ? "text-(--wb-accent)" : "text-(--wb-text-primary)"}`} 
+          className="text-sm font-semibold leading-tight text-(--wb-text-primary)"
         />
-        {selected && (
-          <CheckmarkCircleFilled className="text-(--wb-accent) flex-shrink-0 text-lg" />
-        )}
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
         <span className="text-xs font-medium uppercase tracking-wider truncate text-(--wb-text-tertiary)">
