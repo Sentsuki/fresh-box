@@ -45,7 +45,7 @@ function NodeName({ name, className = "" }: { name: string, className?: string }
         key={`i-${match.index}`} 
         src={`https://flagcdn.com/24x18/${code}.png`} 
         alt={emoji}
-        className="inline-block w-[18px] h-[13px] mx-0.5 shadow-[0_0_1px_rgba(0,0,0,0.5)] rounded-[2px] object-cover -translate-y-[1px]"
+        className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-[1px]"
       />
     );
     lastIndex = regex.lastIndex;
