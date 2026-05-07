@@ -8,9 +8,11 @@ import {
 } from "../../hooks/useConnectionsStream";
 import type { ConnectionGroup } from "../../hooks/useConnectionsStream";
 import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
+import { ConnectionDetailsModal } from "../../components/connections/ConnectionDetailsModal";
 import { Button } from "../../components/ui/Button";
 import { Badge } from "../../components/ui/Badge";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { coreRequest } from "../../services/coreClient";
 import type { ConnectionEntry, ConnectionColumnKey } from "../../types/app";
 
 export default function Connections() {
@@ -45,6 +47,7 @@ export default function Connections() {
 
   const [search, setSearch] = useState("");
   const [showColumns, setShowColumns] = useState(false);
+  const [selectedConnection, setSelectedConnection] = useState<ConnectionEntry | null>(null);
 
   useEffect(() => {
     startStream();
@@ -128,6 +131,10 @@ export default function Connections() {
     },
     [columnOrder, setConnectionsColumnOrder],
   );
+
+  const disconnectConnection = useCallback(async (id: string) => {
+    await coreRequest(`connections/${encodeURIComponent(id)}`, { method: "DELETE" });
+  }, []);
 
   return (
     <div className="flex flex-col h-full gap-3">
@@ -270,6 +277,7 @@ export default function Connections() {
             onSort={handleSort}
             isGroupCollapsed={isGroupCollapsed}
             onToggleGroupCollapsed={toggleGroupCollapsed}
+            onRowClick={setSelectedConnection}
           />
         ) : (
           <VirtualTable
@@ -280,9 +288,17 @@ export default function Connections() {
             sortKey={sortKey}
             sortDirection={sortDirection}
             onSort={handleSort}
+            onRowClick={setSelectedConnection}
           />
         )}
       </div>
+
+      <ConnectionDetailsModal
+        connection={selectedConnection}
+        open={selectedConnection !== null}
+        onClose={() => setSelectedConnection(null)}
+        onDisconnect={disconnectConnection}
+      />
     </div>
   );
 }
@@ -295,6 +311,7 @@ interface GroupedTableProps {
   onSort: (key: string) => void;
   isGroupCollapsed: (id: string) => boolean;
   onToggleGroupCollapsed: (id: string) => void;
+  onRowClick: (row: ConnectionEntry) => void;
 }
 
 function GroupedTable({
@@ -305,6 +322,7 @@ function GroupedTable({
   onSort,
   isGroupCollapsed,
   onToggleGroupCollapsed,
+  onRowClick,
 }: GroupedTableProps) {
   return (
     <div className="h-full overflow-auto">
@@ -372,7 +390,8 @@ function GroupedTable({
                   group.items.map((row) => (
                     <tr
                       key={row.id}
-                      className="border-b border-[var(--wb-border-subtle)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-75"
+                      onClick={() => onRowClick(row)}
+                      className="border-b border-[var(--wb-border-subtle)] hover:bg-[var(--wb-surface-hover)] transition-colors duration-75 cursor-pointer"
                       style={{ height: 32 }}
                     >
                       {columns.map((col) => (
