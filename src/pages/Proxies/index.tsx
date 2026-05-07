@@ -30,6 +30,33 @@ function abbreviateType(type: string | undefined): string {
     .toLowerCase();
 }
 
+function NodeName({ name, className = "" }: { name: string, className?: string }) {
+  const parts = [];
+  let lastIndex = 0;
+  const regex = /[\uD83C][\uDDE6-\uDDFF][\uD83C][\uDDE6-\uDDFF]/g;
+  let match;
+  while ((match = regex.exec(name)) !== null) {
+    if (match.index > lastIndex) {
+      parts.push(name.substring(lastIndex, match.index));
+    }
+    const emoji = match[0];
+    const code = [...emoji].map(c => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1F1E6 + 97)).join('');
+    parts.push(
+      <img 
+        key={`i-${match.index}`} 
+        src={`https://flagcdn.com/24x18/${code}.png`} 
+        alt={emoji}
+        className="inline-block w-[18px] h-[13px] mx-0.5 shadow-[0_0_1px_rgba(0,0,0,0.5)] rounded-[2px] object-cover -translate-y-[1px]"
+      />
+    );
+    lastIndex = regex.lastIndex;
+  }
+  if (lastIndex < name.length) {
+    parts.push(name.substring(lastIndex));
+  }
+  return <span className={`truncate ${className}`} title={name}>{parts}</span>;
+}
+
 interface NodeCardProps {
   node: ClashProxyNode;
   selected: boolean;
@@ -51,20 +78,17 @@ const NodeCard = memo(function NodeCard({ node, selected, onSelect, onTest }: No
       ].join(" ")}
     >
       <div className="flex w-full justify-between items-start gap-2">
-        <span
-          className={`truncate text-sm font-semibold leading-tight ${
-            selected ? "text-(--wb-accent)" : "text-(--wb-text-primary)"
-          }`}
-        >
-          {node.name}
-        </span>
+        <NodeName 
+          name={node.name} 
+          className={`text-sm font-semibold leading-tight ${selected ? "text-(--wb-accent)" : "text-(--wb-text-primary)"}`} 
+        />
         {selected && (
           <CheckmarkCircleFilled className="text-(--wb-accent) flex-shrink-0 text-lg" />
         )}
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
         <span className="text-xs font-medium uppercase tracking-wider truncate text-(--wb-text-tertiary)">
-          {abbreviateType(node.type)}
+          {abbreviateType(node.kind)}
         </span>
         <button
           onClick={(e) => {
@@ -98,15 +122,16 @@ function GroupTrigger({ group }: { group: ClashProxyGroup }) {
           {group.name}
         </span>
         <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) flex-shrink-0 border border-(--wb-border-subtle)">
-          {group.type}
+          {group.kind}
         </span>
         <span className="text-xs text-(--wb-text-disabled) flex-shrink-0">
           {group.options.length} nodes
         </span>
       </div>
-      {group.now && (
-        <div className="text-sm font-medium text-(--wb-accent) truncate mt-1">
-          <span className="text-(--wb-text-tertiary) mr-1 font-normal">Active:</span> {group.now}
+      {group.current && (
+        <div className="text-sm font-medium text-(--wb-accent) truncate mt-1 flex items-center gap-1">
+          <span className="text-(--wb-text-tertiary) font-normal">Active:</span> 
+          <NodeName name={group.current} />
         </div>
       )}
     </div>
@@ -160,7 +185,7 @@ const GroupCard = memo(function GroupCard({ group, onSelectNode, onTestNode, onT
               <NodeCard
                 key={node.name}
                 node={node}
-                selected={group.now === node.name}
+                selected={group.current === node.name}
                 onSelect={() => onSelectNode(node.name)}
                 onTest={() => onTestNode(node.name)}
               />

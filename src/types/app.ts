@@ -393,15 +393,17 @@ export interface CoreUpdateProgressEvent {
 
 export interface ClashProxyNode {
   name: string;
-  type?: string;
+  kind: string;
   delay: number | null;
-  extra?: Record<string, unknown>;
+  alive?: boolean;
+  is_selected?: boolean;
 }
 
 export interface ClashProxyGroup {
   name: string;
-  type: string;
-  now: string;
+  kind: string;
+  current: string;
+  current_delay?: number | null;
   options: ClashProxyNode[];
 }
 
