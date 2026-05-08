@@ -6,6 +6,7 @@ import {
   stopConnectionsStream,
 } from "./useConnectionsStream";
 import { useSingboxStore } from "../stores/singboxStore";
+import { useLogsStream } from "./useLogsStream";
 
 interface WindowVisibilityState {
   isVisible: boolean;
@@ -31,6 +32,7 @@ export function isWindowVisible(): boolean {
  */
 export function useWindowVisibilityListener() {
   const setVisible = useWindowVisibilityStore((s) => s.setVisible);
+  const { stopStream: stopLogs, startStream: startLogs } = useLogsStream();
 
   useEffect(() => {
     let unlisten: (() => void) | null = null;
@@ -42,9 +44,11 @@ export function useWindowVisibilityListener() {
       if (!visible) {
         // Pause stream and clear cached state to start fresh when shown again.
         stopConnectionsStream(true);
+        stopLogs(true);
       } else {
         if (useSingboxStore.getState().isRunning) {
           startConnectionsStream();
+          startLogs();
         }
       }
     }).then((fn) => {
@@ -54,5 +58,5 @@ export function useWindowVisibilityListener() {
     return () => {
       unlisten?.();
     };
-  }, [setVisible]);
+  }, [setVisible, stopLogs, startLogs]);
 }
