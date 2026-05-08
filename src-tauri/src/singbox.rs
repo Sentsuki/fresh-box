@@ -179,8 +179,7 @@ fn detect_and_track_existing_process(
                 // Child is still alive — keep direct management.
                 let pid = child.id();
                 process_state.pid = Some(pid);
-                let process_info =
-                    get_singbox_process_info_by_pid(process_state, pid, true)?;
+                let process_info = get_singbox_process_info_by_pid(process_state, pid, true)?;
                 return Ok(Some((pid, process_info)));
             }
             _ => {

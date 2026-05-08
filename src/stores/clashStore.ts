@@ -16,7 +16,7 @@ interface ClashState {
   isRefreshing: boolean;
   activeMode: string | null;
   activeSelectionKey: string | null;
-  activeDelayNode: string | null;
+  activeDelayNodes: Set<string>;
   activeGroupDelay: string | null;
   groupTestingNodes: Set<string>;
 }
@@ -79,7 +79,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
   isRefreshing: false,
   activeMode: null,
   activeSelectionKey: null,
-  activeDelayNode: null,
+  activeDelayNodes: new Set<string>(),
   activeGroupDelay: null,
   groupTestingNodes: new Set<string>(),
 
@@ -114,7 +114,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       isRefreshing: false,
       activeMode: null,
       activeSelectionKey: null,
-      activeDelayNode: null,
+      activeDelayNodes: new Set<string>(),
       activeGroupDelay: null,
     });
     syncTrayMenu(null);
@@ -157,8 +157,12 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
   },
 
   testDelay: async (proxyName, onResult, onError) => {
-    if (get().activeDelayNode === proxyName) return;
-    set({ activeDelayNode: proxyName });
+    if (get().activeDelayNodes.has(proxyName)) return;
+    set((s) => {
+      const next = new Set(s.activeDelayNodes);
+      next.add(proxyName);
+      return { activeDelayNodes: next };
+    });
     try {
       const overview = await testClashProxyDelay(proxyName);
       set({ overview, errorMessage: null });
@@ -171,7 +175,11 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     } catch (error) {
       onError?.(`Failed to test node latency: ${getErrorMessage(error)}`);
     } finally {
-      set({ activeDelayNode: null });
+      set((s) => {
+        const next = new Set(s.activeDelayNodes);
+        next.delete(proxyName);
+        return { activeDelayNodes: next };
+      });
     }
   },
 

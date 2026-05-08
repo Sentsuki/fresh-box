@@ -18,7 +18,14 @@ function formatYAxis(value: number): string {
   return `${value}`;
 }
 
-const CustomTooltip = ({ active, payload }: any) => {
+interface CustomTooltipProps {
+  active?: boolean;
+  payload?: Array<{
+    value: number;
+  }>;
+}
+
+const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
   if (active && payload && payload.length) {
     return (
       <div className="bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) p-2 text-xs">
@@ -91,7 +98,11 @@ export default function TrafficChart() {
           <YAxis hide domain={[0, "auto"]} tickFormatter={formatYAxis} />
           <Tooltip
             content={<CustomTooltip />}
-            cursor={{ stroke: 'var(--wb-border-subtle)', strokeWidth: 1, strokeDasharray: '4 4' }}
+            cursor={{
+              stroke: "var(--wb-border-subtle)",
+              strokeWidth: 1,
+              strokeDasharray: "4 4",
+            }}
           />
           <Area
             type="monotone"

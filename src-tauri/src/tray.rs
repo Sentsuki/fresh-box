@@ -37,8 +37,7 @@ fn build_tray_menu(
         for (ni, node) in group.nodes.iter().enumerate() {
             let item_id = format!("proxy_{}_{}", gi, ni);
             let checked = *node == group.current;
-            let item =
-                CheckMenuItem::with_id(app, &item_id, node, true, checked, None::<&str>)?;
+            let item = CheckMenuItem::with_id(app, &item_id, node, true, checked, None::<&str>)?;
             submenu.append(&item)?;
             proxy_item_map.insert(item_id, (group.name.clone(), node.clone()));
         }
@@ -64,16 +63,19 @@ pub async fn refresh_tray_proxy_menu(
     proxy_groups: Vec<TrayProxyGroup>,
 ) -> Result<(), CommandError> {
     let new_menu = {
-        let mut map = state.proxy_item_map.lock().map_err(|_| {
-            CommandError::invalid_state("tray", "Failed to lock proxy item map")
-        })?;
-        build_tray_menu(&app_handle, &proxy_groups, &mut map)
-            .map_err(|e| CommandError::invalid_state("tray", format!("Failed to build menu: {}", e)))?
+        let mut map = state
+            .proxy_item_map
+            .lock()
+            .map_err(|_| CommandError::invalid_state("tray", "Failed to lock proxy item map"))?;
+        build_tray_menu(&app_handle, &proxy_groups, &mut map).map_err(|e| {
+            CommandError::invalid_state("tray", format!("Failed to build menu: {}", e))
+        })?
     };
 
     if let Some(tray) = app_handle.tray_by_id("main-tray") {
-        tray.set_menu(Some(new_menu))
-            .map_err(|e| CommandError::invalid_state("tray", format!("Failed to set menu: {}", e)))?;
+        tray.set_menu(Some(new_menu)).map_err(|e| {
+            CommandError::invalid_state("tray", format!("Failed to set menu: {}", e))
+        })?;
     }
 
     Ok(())

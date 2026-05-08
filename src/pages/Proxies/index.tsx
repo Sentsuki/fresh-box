@@ -86,7 +86,7 @@ const NodeCard = memo(function NodeCard({
 }: NodeCardProps) {
   const isTesting = useClashStore(
     (s) =>
-      s.activeDelayNode === node.name || s.groupTestingNodes.has(node.name),
+      s.activeDelayNodes.has(node.name) || s.groupTestingNodes.has(node.name),
   );
   return (
     <button
@@ -296,7 +296,9 @@ export default function Proxies() {
   if (!isRunning) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
-        <span className="font-semibold text-lg text-(--wb-text-primary)">Core is not running</span>
+        <span className="font-semibold text-lg text-(--wb-text-primary)">
+          Core is not running
+        </span>
         <p className="text-sm font-medium text-(--wb-text-secondary)">
           Please start the core service to view and manage proxies.
         </p>

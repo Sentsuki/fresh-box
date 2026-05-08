@@ -133,26 +133,24 @@ fn main() {
                     let _ = window_clone.emit("window-visibility-changed", false);
                 });
             }
-            tauri::WindowEvent::Focused(focused) => {
-                if *focused {
-                    let app = window.app_handle();
-                    if let Some(state) = app.try_state::<SingboxState>() {
-                        let state_clone = state.inner().clone();
-                        window_utils::spawn_async_after_delay(
-                            Duration::from_millis(50),
-                            move || async move {
-                                if let Ok(has_process) =
-                                    refresh_singbox_detection_directly(&state_clone).await
-                                {
-                                    if has_process {
-                                        println!(
-                                            "Window focused: Sing-box process detected and under management"
-                                        );
-                                    }
+            tauri::WindowEvent::Focused(true) => {
+                let app = window.app_handle();
+                if let Some(state) = app.try_state::<SingboxState>() {
+                    let state_clone = state.inner().clone();
+                    window_utils::spawn_async_after_delay(
+                        Duration::from_millis(50),
+                        move || async move {
+                            if let Ok(has_process) =
+                                refresh_singbox_detection_directly(&state_clone).await
+                            {
+                                if has_process {
+                                    println!(
+                                        "Window focused: Sing-box process detected and under management"
+                                    );
                                 }
-                            },
-                        );
-                    }
+                            }
+                        },
+                    );
                 }
             }
             tauri::WindowEvent::Destroyed => {

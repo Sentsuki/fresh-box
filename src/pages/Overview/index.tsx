@@ -164,8 +164,12 @@ export default function Overview() {
             )
           ) : (
             <div className="flex flex-col items-center justify-center h-64 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
-              <span className="font-semibold text-lg mb-2 text-(--wb-text-primary)">Core is not running</span>
-              <span>Please start the core service to view dashboard metrics.</span>
+              <span className="font-semibold text-lg mb-2 text-(--wb-text-primary)">
+                Core is not running
+              </span>
+              <span>
+                Please start the core service to view dashboard metrics.
+              </span>
             </div>
           )}
         </div>
