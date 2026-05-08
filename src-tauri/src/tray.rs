@@ -1,6 +1,6 @@
 // tray.rs - 托盘功能模块
 
-use crate::clash_api::{fetch_clash_overview_inner, select_proxy_inner};
+use crate::clash_api::select_proxy_inner;
 use crate::errors::CommandError;
 use crate::singbox::SingboxState;
 use serde::Deserialize;
@@ -55,41 +55,6 @@ fn build_tray_menu(
     menu.append(&quit_i)?;
 
     Ok(menu)
-}
-
-async fn rebuild_tray_menu_after_switch(app: &AppHandle) {
-    let overview = match fetch_clash_overview_inner().await {
-        Ok(ov) => ov,
-        Err(e) => {
-            eprintln!("Failed to fetch overview for tray rebuild: {}", e);
-            return;
-        }
-    };
-
-    let groups: Vec<TrayProxyGroup> = overview
-        .proxy_groups
-        .into_iter()
-        .filter(|g| g.kind.to_lowercase() == "selector")
-        .map(|g| TrayProxyGroup {
-            name: g.name,
-            current: g.current,
-            nodes: g.options.into_iter().map(|n| n.name).collect(),
-        })
-        .collect();
-
-    if let Some(state) = app.try_state::<TrayProxyState>() {
-        let new_menu = state
-            .proxy_item_map
-            .lock()
-            .ok()
-            .and_then(|mut map| build_tray_menu(app, &groups, &mut map).ok());
-
-        if let Some(menu) = new_menu {
-            if let Some(tray) = app.tray_by_id("main-tray") {
-                let _ = tray.set_menu(Some(menu));
-            }
-        }
-    }
 }
 
 #[tauri::command]
@@ -172,8 +137,10 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             eprintln!("Failed to switch proxy from tray: {}", e);
                             return;
                         }
+                        // Notify the frontend to refresh its state and sync the tray menu.
+                        // The frontend (clashStore.syncTrayMenu) is the single source of truth
+                        // for tray menu state, so we don't rebuild it here.
                         let _ = app_clone.emit("tray-proxy-switched", ());
-                        rebuild_tray_menu_after_switch(&app_clone).await;
                     });
                 }
                 return;
