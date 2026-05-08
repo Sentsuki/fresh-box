@@ -338,7 +338,7 @@ function LocalFileCard({
       onClick={selected ? undefined : onSelect}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-22 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-24 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
         <div
@@ -500,7 +500,7 @@ function SubscriptionCard({
       onClick={selected ? undefined : onSelect}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-24 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex items-start gap-3 mb-4">
         <div
