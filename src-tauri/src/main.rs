@@ -88,6 +88,7 @@ fn main() {
             priority_config::get_core_client_config,
             priority_config::generate_random_port,
             priority_config::generate_random_secret,
+            tray::refresh_tray_proxy_menu,
             update_mica_theme,
         ])
         .setup(|app| {

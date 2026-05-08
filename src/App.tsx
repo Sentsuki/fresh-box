@@ -1,4 +1,5 @@
 import { FluentProvider } from "@fluentui/react-components";
+import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { ErrorBoundary } from "./components/global/ErrorBoundary";
 import { GlobalToaster } from "./components/global/GlobalToaster";
@@ -17,6 +18,7 @@ import Proxies from "./pages/Proxies";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import { useAppStore } from "./stores/appStore";
+import { useClashStore } from "./stores/clashStore";
 import { useWindowVisibilityListener } from "./hooks/useWindowVisibility";
 
 function LoadingScreen() {
@@ -65,6 +67,15 @@ export default function App() {
       console.error("Failed to initialize:", err);
       useAppStore.getState().markInitialized();
     });
+  }, []);
+
+  useEffect(() => {
+    const unlisten = listen("tray-proxy-switched", () => {
+      void useClashStore.getState().refreshOverview(false);
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
   }, []);
 
   if (!initialized) {

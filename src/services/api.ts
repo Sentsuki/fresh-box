@@ -271,3 +271,9 @@ export async function updateSingboxCore(
 export async function cancelCoreUpdate(): Promise<void> {
   return invokeCommand<void>("cancel_core_update");
 }
+
+export async function refreshTrayProxyMenu(
+  proxyGroups: Array<{ name: string; current: string; nodes: string[] }>,
+): Promise<void> {
+  return invokeCommand<void>("refresh_tray_proxy_menu", { proxyGroups });
+}
