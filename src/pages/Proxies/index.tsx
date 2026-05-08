@@ -5,9 +5,9 @@ import {
 } from "@fluentui/react-icons";
 import { memo, useCallback, useEffect } from "react";
 import { Button } from "../../components/ui/Button";
+import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
-import { JumpingDots } from "../../components/ui/JumpingDots";
 import { useClash } from "../../hooks/useClash";
 import { useClashStore } from "../../stores/clashStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -93,7 +93,7 @@ const NodeCard = memo(function NodeCard({
       onClick={onSelect}
       title={node.name}
       className={[
-        "relative flex flex-col items-start gap-1.5 px-4 py-3 rounded-(--wb-radius-md) overflow-hidden",
+        "relative flex flex-col items-start gap-1 px-3 py-2 rounded-(--wb-radius-md) overflow-hidden",
         "text-left transition-all duration-200 cursor-pointer w-full min-w-0 border",
         selected
           ? "bg-(--wb-surface-base) border-(--wb-accent)"
@@ -106,7 +106,7 @@ const NodeCard = memo(function NodeCard({
       <div className="flex w-full justify-between items-start gap-2">
         <NodeName
           name={node.name}
-          className="text-sm font-semibold leading-tight text-(--wb-text-primary)"
+          className="text-xs font-semibold leading-tight text-(--wb-text-primary)"
         />
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
@@ -230,7 +230,7 @@ const GroupCard = memo(function GroupCard({
           <div
             className="grid gap-3"
             style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
             }}
           >
             {group.options.map((node) => (
