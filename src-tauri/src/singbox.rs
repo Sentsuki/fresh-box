@@ -171,9 +171,28 @@ fn clear_process_state(state: &mut ProcessState) {
 fn detect_and_track_existing_process(
     process_state: &mut ProcessState,
 ) -> Result<Option<(u32, String)>, CommandError> {
+    // If there is already a running child under direct management, preserve it
+    // rather than downgrading to PID-only tracking.
+    if let Some(child) = &mut process_state.child {
+        match child.try_wait() {
+            Ok(None) => {
+                // Child is still alive — keep direct management.
+                let pid = child.id();
+                process_state.pid = Some(pid);
+                let process_info =
+                    get_singbox_process_info_by_pid(process_state, pid, true)?;
+                return Ok(Some((pid, process_info)));
+            }
+            _ => {
+                // Child has exited or the check failed — clear state and fall
+                // through to external process detection below.
+                clear_process_state(process_state);
+            }
+        }
+    }
+
     match detect_existing_singbox(process_state, true)? {
         Some(pid) => {
-            process_state.child = None;
             process_state.pid = Some(pid);
             let process_info = get_singbox_process_info_by_pid(process_state, pid, false)?;
             Ok(Some((pid, process_info)))
