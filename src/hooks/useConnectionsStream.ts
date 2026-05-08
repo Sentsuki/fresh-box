@@ -273,7 +273,6 @@ function connectWs() {
   };
 
   ws.onmessage = (e) => {
-    if (document.hidden) return;
     try {
       const frame = JSON.parse(e.data as string) as CoreConnectionsFrame;
       useConnectionsStore.getState().setFrame(frame);
