@@ -5,12 +5,13 @@ import {
 } from "@fluentui/react-icons";
 import { memo, useCallback, useEffect } from "react";
 import { Button } from "../../components/ui/Button";
+import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
-import { JumpingDots } from "../../components/ui/JumpingDots";
 import { useClash } from "../../hooks/useClash";
 import { useClashStore } from "../../stores/clashStore";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useSingboxStore } from "../../stores/singboxStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
@@ -92,7 +93,7 @@ const NodeCard = memo(function NodeCard({
       onClick={onSelect}
       title={node.name}
       className={[
-        "relative flex flex-col items-start gap-1.5 px-4 py-3 rounded-(--wb-radius-md) overflow-hidden",
+        "relative flex flex-col items-start gap-1 px-3 py-2 rounded-(--wb-radius-md) overflow-hidden",
         "text-left transition-all duration-200 cursor-pointer w-full min-w-0 border",
         selected
           ? "bg-(--wb-surface-base) border-(--wb-accent)"
@@ -105,7 +106,7 @@ const NodeCard = memo(function NodeCard({
       <div className="flex w-full justify-between items-start gap-2">
         <NodeName
           name={node.name}
-          className="text-sm font-semibold leading-tight text-(--wb-text-primary)"
+          className="text-xs font-semibold leading-tight text-(--wb-text-primary)"
         />
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
@@ -155,12 +156,9 @@ interface GroupCardProps {
 function GroupTrigger({ group }: { group: ClashProxyGroup }) {
   return (
     <div className="flex-1 min-w-0">
-      <div className="flex items-center gap-3">
+      <div className="flex items-center gap-2">
         <span className="text-base font-semibold text-(--wb-text-primary) truncate">
           {group.name}
-        </span>
-        <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) shrink-0 border border-(--wb-border-subtle)">
-          {group.kind}
         </span>
         <span className="text-xs text-(--wb-text-disabled) shrink-0">
           {group.options.length} nodes
@@ -197,7 +195,7 @@ const GroupCard = memo(function GroupCard({
         <button
           onClick={() => void setProxyGroupCollapsed(group.name, open)}
           className={[
-            "flex flex-1 items-center justify-between px-5 py-4 min-w-0",
+            "flex flex-1 items-center justify-between px-4 py-3 min-w-0",
             "bg-transparent hover:bg-(--wb-surface-hover)",
             "transition-colors duration-150 text-left",
           ].join(" ")}
@@ -205,11 +203,16 @@ const GroupCard = memo(function GroupCard({
           <span className="flex-1 min-w-0">
             <GroupTrigger group={group} />
           </span>
-          <ChevronDownRegular
-            className={`ml-4 shrink-0 text-xl text-(--wb-text-secondary) transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-          />
+          <div className="flex items-center gap-3 ml-4 shrink-0">
+            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) border border-(--wb-border-subtle)">
+              {group.kind}
+            </span>
+            <ChevronDownRegular
+              className={`text-xl text-(--wb-text-secondary) transition-transform duration-300 ${open ? "rotate-180" : ""}`}
+            />
+          </div>
         </button>
-        <div className="shrink-0 px-4 bg-transparent border-l border-(--wb-border-subtle) h-full flex items-center">
+        <div className="shrink-0 px-3 bg-transparent border-l border-(--wb-border-subtle) h-full flex items-center">
           <Button
             variant="subtle"
             icon={<TimerRegular />}
@@ -225,11 +228,11 @@ const GroupCard = memo(function GroupCard({
         </div>
       </div>
       {open && (
-        <div className="p-5 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
+        <div className="p-4 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
           <div
-            className="grid gap-3"
+            className="grid gap-2"
             style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(220px, 1fr))",
+              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
             }}
           >
             {group.options.map((node) => (
@@ -251,6 +254,7 @@ const GroupCard = memo(function GroupCard({
 export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);
   const overview = useClashStore((s) => s.overview);
+  const isRunning = useSingboxStore((s) => s.isRunning);
   const isRefreshing = useClashStore((s) => s.isRefreshing);
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
   const {
@@ -288,6 +292,17 @@ export default function Proxies() {
     },
     [testGroupDelay],
   );
+
+  if (!isRunning) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
+        <span className="font-semibold text-lg text-(--wb-text-primary)">Core is not running</span>
+        <p className="text-sm font-medium text-(--wb-text-secondary)">
+          Please start the core service to view and manage proxies.
+        </p>
+      </div>
+    );
+  }
 
   if (!overview) {
     return (
@@ -341,7 +356,7 @@ export default function Proxies() {
           No proxy groups configured or loaded.
         </div>
       ) : (
-        <div className="flex flex-col gap-5">
+        <div className="flex flex-col gap-3">
           {groups.map((group) => (
             <GroupCard
               key={group.name}

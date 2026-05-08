@@ -1,5 +1,5 @@
-import { useState, useEffect } from "react";
-import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+import { useEffect, useState } from "react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { formatSpeed } from "../../services/utils";
 
@@ -18,10 +18,41 @@ function formatYAxis(value: number): string {
   return `${value}`;
 }
 
+const CustomTooltip = ({ active, payload }: any) => {
+  if (active && payload && payload.length) {
+    return (
+      <div className="bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) p-2 text-xs">
+        <div className="flex items-center gap-2 mb-1">
+          <span className="w-2 h-2 rounded-full bg-[#60CDFF]"></span>
+          <span className="text-(--wb-text-secondary)">Download:</span>
+          <span className="font-medium text-(--wb-text-primary)">
+            {formatSpeed(payload[0].value)}
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="w-2 h-2 rounded-full bg-[#8CD7FF]"></span>
+          <span className="text-(--wb-text-secondary)">Upload:</span>
+          <span className="font-medium text-(--wb-text-primary)">
+            {formatSpeed(payload[1].value)}
+          </span>
+        </div>
+      </div>
+    );
+  }
+  return null;
+};
+
 export default function TrafficChart() {
   const totalDownloadSpeed = useConnectionsStore((s) => s.totalDownloadSpeed);
   const totalUploadSpeed = useConnectionsStore((s) => s.totalUploadSpeed);
-  const [history, setHistory] = useState<DataPoint[]>([]);
+  const [history, setHistory] = useState<DataPoint[]>(() => {
+    const arr: DataPoint[] = [];
+    const now = Date.now();
+    for (let i = 0; i < MAX_POINTS; i++) {
+      arr.push({ dl: 0, ul: 0, tick: now - (MAX_POINTS - i) * 1000 });
+    }
+    return arr;
+  });
 
   useEffect(() => {
     setHistory((prev) => {
@@ -36,16 +67,10 @@ export default function TrafficChart() {
   }, [totalDownloadSpeed, totalUploadSpeed]);
 
   return (
-    <div className="rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer) p-3">
+    <>
       <div className="flex items-center gap-4 mb-2">
         <span className="text-xs text-(--wb-text-secondary)">
-          Traffic (last 60s)
-        </span>
-        <span className="text-xs font-medium" style={{ color: "#60CDFF" }}>
-          ▼ {formatSpeed(totalDownloadSpeed)}
-        </span>
-        <span className="text-xs font-medium" style={{ color: "#8CD7FF" }}>
-          ▲ {formatSpeed(totalUploadSpeed)}
+          Traffic (last 1m)
         </span>
       </div>
       <ResponsiveContainer width="100%" height={80}>
@@ -64,7 +89,10 @@ export default function TrafficChart() {
             </linearGradient>
           </defs>
           <YAxis hide domain={[0, "auto"]} tickFormatter={formatYAxis} />
-          <Tooltip contentStyle={{ display: "none" }} cursor={false} />
+          <Tooltip
+            content={<CustomTooltip />}
+            cursor={{ stroke: 'var(--wb-border-subtle)', strokeWidth: 1, strokeDasharray: '4 4' }}
+          />
           <Area
             type="monotone"
             dataKey="dl"
@@ -85,6 +113,6 @@ export default function TrafficChart() {
           />
         </AreaChart>
       </ResponsiveContainer>
-    </div>
+    </>
   );
 }

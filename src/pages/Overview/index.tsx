@@ -139,26 +139,33 @@ export default function Overview() {
 
         {/* Dynamic Status / Traffic Sections */}
         <div
-          className={`transition-all duration-700 ease-in-out origin-top ${isRunning ? "opacity-100 scale-y-100" : "opacity-50 grayscale pointer-events-none"}`}
+          className={`transition-all duration-700 ease-in-out origin-top ${isRunning ? "opacity-100 scale-y-100" : "opacity-100"}`}
         >
-          {overview ? (
-            <div className="flex flex-col gap-6">
-              <StatusCards overview={overview} />
-              <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) p-4 shadow-sm">
-                <TrafficChart />
+          {isRunning ? (
+            overview ? (
+              <div className="flex flex-col gap-6">
+                <StatusCards overview={overview} />
+                <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) p-4 shadow-sm">
+                  <TrafficChart />
+                </div>
               </div>
-            </div>
+            ) : (
+              <div className="flex flex-col gap-6">
+                <div className="flex flex-wrap gap-4">
+                  {[...Array(4)].map((_, i) => (
+                    <div
+                      key={i}
+                      className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
+                    />
+                  ))}
+                </div>
+                <div className="h-64 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />
+              </div>
+            )
           ) : (
-            <div className="flex flex-col gap-6">
-              <div className="flex flex-wrap gap-4">
-                {[...Array(4)].map((_, i) => (
-                  <div
-                    key={i}
-                    className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
-                  />
-                ))}
-              </div>
-              <div className="h-64 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse" />
+            <div className="flex flex-col items-center justify-center h-64 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
+              <span className="font-semibold text-lg mb-2 text-(--wb-text-primary)">Core is not running</span>
+              <span>Please start the core service to view dashboard metrics.</span>
             </div>
           )}
         </div>

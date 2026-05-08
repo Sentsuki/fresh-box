@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import {
   getClashOverview,
+  refreshTrayProxyMenu,
   selectClashProxy,
   testClashProxyDelay,
   testClashProxyGroupDelay,
@@ -48,6 +49,21 @@ interface ClashActions {
 
 let requestSequence = 0;
 
+function toTrayProxyGroups(overview: ClashOverview) {
+  return overview.proxy_groups
+    .filter((g) => g.kind.toLowerCase() === "selector")
+    .map((g) => ({
+      name: g.name,
+      current: g.current,
+      nodes: g.options.map((n) => n.name),
+    }));
+}
+
+function syncTrayMenu(overview: ClashOverview | null) {
+  const groups = overview ? toTrayProxyGroups(overview) : [];
+  refreshTrayProxyMenu(groups).catch(() => {});
+}
+
 function findDelay(
   overview: ClashOverview | null,
   proxyName: string,
@@ -74,6 +90,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       const overview = await getClashOverview();
       if (sequence === requestSequence) {
         set({ overview, errorMessage: null });
+        syncTrayMenu(overview);
       }
     } catch (error) {
       const message = getErrorMessage(error);
@@ -100,6 +117,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       activeDelayNode: null,
       activeGroupDelay: null,
     });
+    syncTrayMenu(null);
   },
 
   changeMode: async (mode, onSuccess, onError) => {

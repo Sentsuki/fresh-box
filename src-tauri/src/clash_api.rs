@@ -108,29 +108,29 @@ pub struct ClashDelayHistory {
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ClashOverview {
-    current_mode: String,
-    available_modes: Vec<String>,
-    proxy_groups: Vec<ClashProxyGroup>,
+    pub current_mode: String,
+    pub available_modes: Vec<String>,
+    pub proxy_groups: Vec<ClashProxyGroup>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ClashProxyGroup {
-    name: String,
-    kind: String,
-    current: String,
-    current_delay: Option<i64>,
-    options: Vec<ClashProxyNode>,
+    pub name: String,
+    pub kind: String,
+    pub current: String,
+    pub current_delay: Option<i64>,
+    pub options: Vec<ClashProxyNode>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ClashProxyNode {
-    name: String,
-    kind: String,
-    delay: Option<i64>,
-    alive: Option<bool>,
-    is_selected: bool,
+    pub name: String,
+    pub kind: String,
+    pub delay: Option<i64>,
+    pub alive: Option<bool>,
+    pub is_selected: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -298,7 +298,7 @@ async fn clash_put(
     Ok(())
 }
 
-async fn fetch_clash_overview_inner() -> Result<ClashOverview, CommandError> {
+pub(crate) async fn fetch_clash_overview_inner() -> Result<ClashOverview, CommandError> {
     let (config, proxies) = tokio::try_join!(
         clash_get::<ClashConfigResponse>("/configs", "Failed to load Clash mode configuration"),
         clash_get::<ClashProxiesResponse>("/proxies", "Failed to load Clash proxy groups"),
@@ -468,6 +468,16 @@ fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Orderi
 
 fn last_delay(history: &[ClashDelayHistory]) -> Option<i64> {
     history.last().map(|entry| entry.delay)
+}
+
+pub(crate) async fn select_proxy_inner(proxy_group: &str, node: &str) -> Result<(), CommandError> {
+    let encoded_group = urlencoding::encode(proxy_group.trim());
+    clash_put(
+        &format!("/proxies/{}", encoded_group),
+        json!({ "name": node }),
+        "Failed to switch proxy node",
+    )
+    .await
 }
 
 #[tauri::command]

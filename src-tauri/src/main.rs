@@ -17,7 +17,7 @@ use core_update::{
 };
 use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
-use tauri::{Manager, Window};
+use tauri::{Emitter, Manager, Window};
 
 #[tauri::command]
 fn update_mica_theme(window: Window, is_light: bool) {
@@ -88,6 +88,7 @@ fn main() {
             priority_config::get_core_client_config,
             priority_config::generate_random_port,
             priority_config::generate_random_secret,
+            tray::refresh_tray_proxy_menu,
             update_mica_theme,
         ])
         .setup(|app| {
@@ -129,6 +130,7 @@ fn main() {
                 let window_clone = window.clone();
                 window_utils::run_after_delay(Duration::from_millis(10), move || {
                     let _ = window_clone.hide();
+                    let _ = window_clone.emit("window-visibility-changed", false);
                 });
             }
             tauri::WindowEvent::Focused(focused) => {
