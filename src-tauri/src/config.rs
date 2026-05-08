@@ -414,15 +414,7 @@ pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-// 获取 log 目录路径（放核心生成的日志和崩溃日志）
-pub fn get_log_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_exe_dir()?.join("log");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("log directory", e))?;
-    }
-    Ok(dir)
-}
+
 
 // 获取 config 目录路径（放 config_override.json、priority_config.json、subscriptions.json）
 pub fn get_config_dir() -> Result<PathBuf, CommandError> {
