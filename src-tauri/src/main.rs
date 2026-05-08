@@ -145,7 +145,7 @@ fn main() {
                             {
                                 if has_process {
                                     println!(
-                                        "Window focused: Sing-box process detected and under management"
+                                        "Window focused: sing-box process detected and under management"
                                     );
                                 }
                             }

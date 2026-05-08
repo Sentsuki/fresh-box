@@ -124,7 +124,7 @@ export default function Settings() {
         </SettingGroup>
 
         {/* Core Settings */}
-        <SettingGroup title="Sing-box Core">
+        <SettingGroup title="sing-box Core">
           <SettingCard
             icon={<ArrowSyncRegular />}
             title="Core Version"
@@ -390,7 +390,7 @@ export default function Settings() {
           />
           <SettingCard
             icon={<SettingsRegular />}
-            title="Sing-box Process Status"
+            title="sing-box Process Status"
             description={
               processStatus ? (
                 <div className="mt-1 text-xs font-mono text-(--wb-text-secondary) whitespace-pre-wrap break-all">
