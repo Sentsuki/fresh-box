@@ -1,9 +1,9 @@
-import { useState, useEffect } from "react";
-import { AreaChart, Area, ResponsiveContainer, Tooltip, YAxis } from "recharts";
+import { useEffect, useState } from "react";
+import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { formatSpeed } from "../../services/utils";
 
-const MAX_POINTS = 300;
+const MAX_POINTS = 180;
 
 interface DataPoint {
   dl: number;
@@ -45,7 +45,14 @@ const CustomTooltip = ({ active, payload }: any) => {
 export default function TrafficChart() {
   const totalDownloadSpeed = useConnectionsStore((s) => s.totalDownloadSpeed);
   const totalUploadSpeed = useConnectionsStore((s) => s.totalUploadSpeed);
-  const [history, setHistory] = useState<DataPoint[]>([]);
+  const [history, setHistory] = useState<DataPoint[]>(() => {
+    const arr: DataPoint[] = [];
+    const now = Date.now();
+    for (let i = 0; i < MAX_POINTS; i++) {
+      arr.push({ dl: 0, ul: 0, tick: now - (MAX_POINTS - i) * 1000 });
+    }
+    return arr;
+  });
 
   useEffect(() => {
     setHistory((prev) => {
@@ -63,7 +70,7 @@ export default function TrafficChart() {
     <>
       <div className="flex items-center gap-4 mb-2">
         <span className="text-xs text-(--wb-text-secondary)">
-          Traffic (last 5m)
+          Traffic (last 3m)
         </span>
       </div>
       <ResponsiveContainer width="100%" height={80}>
@@ -82,8 +89,8 @@ export default function TrafficChart() {
             </linearGradient>
           </defs>
           <YAxis hide domain={[0, "auto"]} tickFormatter={formatYAxis} />
-          <Tooltip 
-            content={<CustomTooltip />} 
+          <Tooltip
+            content={<CustomTooltip />}
             cursor={{ stroke: 'var(--wb-border-subtle)', strokeWidth: 1, strokeDasharray: '4 4' }}
           />
           <Area
