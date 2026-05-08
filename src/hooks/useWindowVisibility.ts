@@ -40,9 +40,8 @@ export function useWindowVisibilityListener() {
       setVisible(visible);
 
       if (!visible) {
-        // Pause stream without clearing cached state so the UI looks correct
-        // when the window is shown again.
-        stopConnectionsStream(false);
+        // Pause stream and clear cached state to start fresh when shown again.
+        stopConnectionsStream(true);
       } else {
         if (useSingboxStore.getState().isRunning) {
           startConnectionsStream();
