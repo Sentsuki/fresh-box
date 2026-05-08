@@ -3,7 +3,7 @@ import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { formatSpeed } from "../../services/utils";
 
-const MAX_POINTS = 180;
+const MAX_POINTS = 60;
 
 interface DataPoint {
   dl: number;
@@ -70,7 +70,7 @@ export default function TrafficChart() {
     <>
       <div className="flex items-center gap-4 mb-2">
         <span className="text-xs text-(--wb-text-secondary)">
-          Traffic (last 3m)
+          Traffic (last 1m)
         </span>
       </div>
       <ResponsiveContainer width="100%" height={80}>
