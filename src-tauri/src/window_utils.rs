@@ -1,7 +1,7 @@
 // window_utils.rs - 安全的窗口操作工具
 
 use std::{future::Future, time::Duration};
-use tauri::{AppHandle, Manager};
+use tauri::{AppHandle, Emitter, Manager};
 
 pub fn run_after_delay<F>(delay: Duration, action: F)
 where
@@ -32,6 +32,7 @@ pub fn safe_show_window(app: &AppHandle, window_label: &str) -> Result<(), Strin
                     window
                         .show()
                         .map_err(|e| format!("Failed to show window: {}", e))?;
+                    let _ = window.emit("window-visibility-changed", true);
                 }
                 window
                     .set_focus()
@@ -54,6 +55,7 @@ pub fn safe_toggle_window(app: &AppHandle, window_label: &str) -> Result<(), Str
                     window
                         .hide()
                         .map_err(|e| format!("Failed to hide window: {}", e))?;
+                    let _ = window.emit("window-visibility-changed", false);
                 } else {
                     window
                         .show()
@@ -61,6 +63,7 @@ pub fn safe_toggle_window(app: &AppHandle, window_label: &str) -> Result<(), Str
                     window
                         .set_focus()
                         .map_err(|e| format!("Failed to focus window: {}", e))?;
+                    let _ = window.emit("window-visibility-changed", true);
                 }
                 Ok(())
             }

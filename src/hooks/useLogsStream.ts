@@ -4,6 +4,7 @@ import { buildCoreWebSocketUrl } from "../services/coreClient";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
+import { isWindowVisible } from "./useWindowVisibility";
 
 const LOG_LEVELS = [
   "trace",
@@ -160,11 +161,11 @@ export function useLogsStream() {
 
   const { success, info } = useToast();
 
-  // Flush logBuffer into store every 100ms; skip when app is hidden (minimized/unfocused)
+  // Flush logBuffer into store every 100ms; skip when window is hidden
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout>;
     const flush = () => {
-      if (!document.hidden && logBuffer.length > 0) {
+      if (isWindowVisible() && logBuffer.length > 0) {
         const batch = logBuffer.splice(0);
         useLogsStore.setState((state) => {
           const next = [...state.logs, ...batch];

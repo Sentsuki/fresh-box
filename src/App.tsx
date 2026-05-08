@@ -17,6 +17,7 @@ import Proxies from "./pages/Proxies";
 import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import { useAppStore } from "./stores/appStore";
+import { useWindowVisibilityListener } from "./hooks/useWindowVisibility";
 
 function LoadingScreen() {
   return (
@@ -57,6 +58,7 @@ export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
   const { initialize } = useInit();
   const fluentTheme = useTheme();
+  useWindowVisibilityListener();
 
   useEffect(() => {
     void initialize().catch((err: unknown) => {
