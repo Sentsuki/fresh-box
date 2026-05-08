@@ -11,6 +11,7 @@ import { JumpingDots } from "../../components/ui/JumpingDots";
 import { useClash } from "../../hooks/useClash";
 import { useClashStore } from "../../stores/clashStore";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useSingboxStore } from "../../stores/singboxStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
 
 function delayColor(delay: number | null): string {
@@ -251,6 +252,7 @@ const GroupCard = memo(function GroupCard({
 export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups ?? []);
   const overview = useClashStore((s) => s.overview);
+  const isRunning = useSingboxStore((s) => s.isRunning);
   const isRefreshing = useClashStore((s) => s.isRefreshing);
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
   const {
@@ -288,6 +290,17 @@ export default function Proxies() {
     },
     [testGroupDelay],
   );
+
+  if (!isRunning) {
+    return (
+      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
+        <span className="font-semibold text-lg text-(--wb-text-primary)">Core is not running</span>
+        <p className="text-sm font-medium text-(--wb-text-secondary)">
+          Please start the core service to view and manage proxies.
+        </p>
+      </div>
+    );
+  }
 
   if (!overview) {
     return (
