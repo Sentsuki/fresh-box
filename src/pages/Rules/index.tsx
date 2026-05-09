@@ -16,12 +16,10 @@ import type { RuleEntry, RulesTab } from "../../types/app";
 export default function Rules() {
   const {
     visibleRules,
-    visibleProviders,
     search,
     setSearch,
     isRefreshing,
     refreshRules,
-    updateProvider,
     currentTab,
     setCurrentTab,
   } = useRulesPage();
@@ -70,7 +68,7 @@ export default function Rules() {
       <div className="shrink-0 pr-2">
         <PageHeader
           title="Rules"
-          description="View active routing rules and manage external rule providers."
+          description="View active routing rules."
         >
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-64">
@@ -107,10 +105,6 @@ export default function Rules() {
           value={currentTab}
           tabs={[
             { value: "rules", label: `Rules (${visibleRules.length})` },
-            {
-              value: "providers",
-              label: `Providers (${visibleProviders.length})`,
-            },
           ]}
           onValueChange={(v) => setCurrentTab(v as RulesTab)}
           className="flex-1"
@@ -123,54 +117,6 @@ export default function Rules() {
                 rowHeight={40}
                 getRowKey={(row) => row.payload + row.type + row.proxy}
               />
-            </div>
-          </TabContent>
-          <TabContent value="providers" className="h-full overflow-y-auto mt-4">
-            <div className="flex flex-col gap-4 pb-4">
-              {visibleProviders.length === 0 ? (
-                <div className="flex items-center justify-center h-48 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl">
-                  No rule providers configured.
-                </div>
-              ) : (
-                visibleProviders.map((p) => (
-                  <div
-                    key={p.name}
-                    className="flex flex-col p-5 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer)"
-                  >
-                    <div className="flex items-start justify-between gap-4">
-                      <div>
-                        <div className="flex items-center gap-3">
-                          <p className="text-base font-semibold text-(--wb-text-primary)">
-                            {p.name}
-                          </p>
-                          <Badge
-                            variant="subtle"
-                            className="uppercase tracking-wider text-[10px]"
-                          >
-                            {p.vehicleType}
-                          </Badge>
-                        </div>
-                        <p className="text-xs text-(--wb-text-tertiary) mt-1.5 font-mono">
-                          {p.behavior} · {p.ruleCount} rules
-                        </p>
-                        {p.updatedAt && (
-                          <p className="text-xs text-(--wb-text-secondary) mt-2">
-                            Updated {formatLastUpdated(p.updatedAt)}
-                          </p>
-                        )}
-                      </div>
-                      <Button
-                        size="sm"
-                        variant="subtle"
-                        icon={<ArrowClockwiseRegular />}
-                        onClick={() => void updateProvider(p.name)}
-                      >
-                        Update
-                      </Button>
-                    </div>
-                  </div>
-                ))
-              )}
             </div>
           </TabContent>
         </Tabs>

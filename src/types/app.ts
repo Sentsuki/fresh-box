@@ -26,7 +26,7 @@ export type ConnectionColumnKey =
   | "process"
   | "network"
   | "start";
-export type RulesTab = "rules" | "providers";
+export type RulesTab = "rules";
 export type LogLevel =
   | "trace"
   | "debug"
@@ -187,7 +187,7 @@ const CONNECTION_COLUMNS = new Set<ConnectionColumnKey>(
   DEFAULT_CONNECTION_COLUMN_ORDER,
 );
 const SORT_DIRECTIONS: SortDirection[] = ["asc", "desc"];
-const RULES_TABS: RulesTab[] = ["rules", "providers"];
+const RULES_TABS: RulesTab[] = ["rules"];
 const LOG_LEVELS: LogLevel[] = [
   "trace",
   "debug",
@@ -447,7 +447,6 @@ export interface ClashOverview {
 
 export interface ClashRulesSnapshot {
   rules: RuleEntry[];
-  providers: RuleProviderEntry[];
 }
 
 export interface RuleEntry {
@@ -463,14 +462,7 @@ export interface RuleEntry {
   };
 }
 
-export interface RuleProviderEntry {
-  name: string;
-  behavior: string;
-  vehicleType: string;
-  type: string;
-  ruleCount?: number;
-  updatedAt?: string;
-}
+
 
 export interface ConnectionMetadata {
   network: string;

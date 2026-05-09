@@ -159,25 +159,6 @@ export async function getClashRules(): Promise<ClashRulesSnapshot> {
   return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
 }
 
-export async function toggleClashRule(
-  ruleUuid?: string,
-  ruleIndex?: number,
-  disabled = false,
-): Promise<ClashRulesSnapshot> {
-  return invokeCommand<ClashRulesSnapshot>("toggle_clash_rule", {
-    ruleUuid,
-    ruleIndex,
-    disabled,
-  });
-}
-
-export async function updateClashRuleProvider(
-  name: string,
-): Promise<ClashRulesSnapshot> {
-  return invokeCommand<ClashRulesSnapshot>("update_clash_rule_provider", {
-    name,
-  });
-}
 
 export async function enableConfigOverride(): Promise<void> {
   return invokeCommand<void>("enable_config_override");

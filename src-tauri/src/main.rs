@@ -58,8 +58,6 @@ fn main() {
             clash_api::test_clash_proxy_delay,
             clash_api::test_clash_proxy_group_delay,
             clash_api::get_clash_rules,
-            clash_api::toggle_clash_rule,
-            clash_api::update_clash_rule_provider,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
