@@ -1,7 +1,7 @@
 use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -71,18 +71,7 @@ struct ClashRulesResponse {
     rules: Vec<ClashRule>,
 }
 
-#[derive(Debug, Deserialize)]
-struct ClashRuleProvidersResponse {
-    #[serde(default)]
-    providers: Option<ClashRuleProviders>,
-}
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum ClashRuleProviders {
-    List(Vec<ClashRuleProvider>),
-    Map(HashMap<String, ClashRuleProvider>),
-}
 
 #[derive(Debug, Deserialize, Clone)]
 struct ClashProxy {
@@ -159,24 +148,7 @@ pub struct ClashRule {
     extra: Option<ClashRuleExtra>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ClashRuleProvider {
-    #[serde(default)]
-    behavior: String,
-    #[serde(default)]
-    format: String,
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    rule_count: u64,
-    #[serde(default)]
-    r#type: String,
-    #[serde(default)]
-    updated_at: String,
-    #[serde(default)]
-    vehicle_type: String,
-}
+
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
