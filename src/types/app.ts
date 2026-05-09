@@ -350,10 +350,24 @@ export interface LogConfig {
   level: LogLevel | string;
 }
 
+export interface PriorityInbound {
+  stack: string;
+}
+
+export interface PriorityClashApiConfig {
+  external_controller?: string;
+  secret?: string;
+}
+
+export interface PriorityExperimental {
+  clash_api?: PriorityClashApiConfig;
+}
+
+/** sing-box 标准格式的 priority_config */
 export interface PriorityConfig {
-  stack?: string;
+  inbounds?: PriorityInbound[];
   log?: LogConfig;
-  clash_api?: ClashApiConfig;
+  experimental?: PriorityExperimental;
 }
 
 export interface ClashApiConfig {

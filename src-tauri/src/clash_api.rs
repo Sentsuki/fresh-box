@@ -24,16 +24,17 @@ fn get_api_config() -> ApiConfig {
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
     let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
-    let controller = config
-        .clash_api
+    let clash_api = config
+        .experimental
         .as_ref()
+        .and_then(|e| e.clash_api.as_ref());
+
+    let controller = clash_api
         .and_then(|c| c.external_controller.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_CONTROLLER);
 
-    let secret = config
-        .clash_api
-        .as_ref()
+    let secret = clash_api
         .and_then(|c| c.secret.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
