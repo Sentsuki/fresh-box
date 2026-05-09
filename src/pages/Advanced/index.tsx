@@ -5,6 +5,7 @@ import {
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { Switch } from "../../components/ui/Switch";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useToast } from "../../hooks/useToast";
 import {
@@ -159,19 +160,12 @@ export default function Advanced() {
           <div className="flex flex-col gap-6">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
-                <label className="inline-flex items-center cursor-pointer">
-                  <input
-                    type="checkbox"
-                    className="sr-only peer"
-                    checked={overrideEnabled}
-                    onChange={() => void toggleOverrideEnabled()}
-                    disabled={togglingOverride}
-                  />
-                  <div className="relative w-9 h-5 bg-(--wb-surface-hover) rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 border border-(--wb-border-default)"></div>
-                  <span className="ml-2 text-sm font-medium text-(--wb-text-primary)">
-                    Inject Overrides
-                  </span>
-                </label>
+                <Switch
+                  checked={overrideEnabled}
+                  onCheckedChange={() => void toggleOverrideEnabled()}
+                  disabled={togglingOverride}
+                  label="Inject Overrides"
+                />
                 {togglingOverride && <span className="text-xs text-(--wb-text-secondary)">...</span>}
               </div>
 
