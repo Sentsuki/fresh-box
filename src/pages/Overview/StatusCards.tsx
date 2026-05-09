@@ -2,6 +2,7 @@ import { Card } from "../../components/ui/Card";
 import { formatBytes, formatSpeed } from "../../services/utils";
 import type { ClashOverview } from "../../types/app";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
+import { useTrafficStore } from "../../hooks/useTrafficStream";
 import {
   ArrowDownRegular,
   ArrowUpRegular,
@@ -18,8 +19,8 @@ export default function StatusCards({ overview }: StatusCardsProps) {
   const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
   const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
 
-  const downloadSpeed = active.reduce((sum, c) => sum + c.downloadSpeed, 0);
-  const uploadSpeed = active.reduce((sum, c) => sum + c.uploadSpeed, 0);
+  const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
+  const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
   const connectionsCount = active.length;
 
   const stats = [

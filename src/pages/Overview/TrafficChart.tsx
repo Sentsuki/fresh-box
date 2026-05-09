@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { useConnectionsStore } from "../../hooks/useConnectionsStream";
+import { useTrafficStore } from "../../hooks/useTrafficStream";
 import { formatSpeed } from "../../services/utils";
 
 const MAX_POINTS = 60;
@@ -50,8 +50,8 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 };
 
 export default function TrafficChart() {
-  const totalDownloadSpeed = useConnectionsStore((s) => s.totalDownloadSpeed);
-  const totalUploadSpeed = useConnectionsStore((s) => s.totalUploadSpeed);
+  const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
+  const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
   const [history, setHistory] = useState<DataPoint[]>(() => {
     const arr: DataPoint[] = [];
     const now = Date.now();
@@ -65,13 +65,13 @@ export default function TrafficChart() {
     setHistory((prev) => {
       const next = [
         ...prev,
-        { dl: totalDownloadSpeed, ul: totalUploadSpeed, tick: Date.now() },
+        { dl: downloadSpeed, ul: uploadSpeed, tick: Date.now() },
       ];
       return next.length > MAX_POINTS
         ? next.slice(next.length - MAX_POINTS)
         : next;
     });
-  }, [totalDownloadSpeed, totalUploadSpeed]);
+  }, [downloadSpeed, uploadSpeed]);
 
   return (
     <>
