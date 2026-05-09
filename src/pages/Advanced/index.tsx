@@ -25,7 +25,7 @@ interface OverrideEntry {
   value: string;
 }
 
-export default function Custom() {
+export default function Advanced() {
   const toast = useToast();
   const [overrides, setOverrides] = useState<OverrideEntry[]>([]);
   const [rawJson, setRawJson] = useState("");

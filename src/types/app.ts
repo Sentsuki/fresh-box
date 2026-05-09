@@ -7,7 +7,7 @@ export type AppPage =
   | "logs"
   | "rules"
   | "profiles"
-  | "custom"
+  | "advanced"
   | "settings";
 
 export type SingboxCoreChannel = "stable" | "testing";
@@ -179,7 +179,7 @@ const APP_PAGES: AppPage[] = [
   "logs",
   "rules",
   "profiles",
-  "custom",
+  "advanced",
   "settings",
 ];
 const CONNECTION_TABS: ConnectionPageTab[] = ["active", "closed"];
