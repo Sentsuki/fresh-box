@@ -81,17 +81,11 @@ function scheduleReconnect() {
   }, 1500);
 }
 
-/**
- * Check priority_config directly — backend always returns defaults (never null).
- * This is called every time we attempt to (re)connect so the check is always fresh.
- */
 async function isLogDisabled(): Promise<boolean> {
   try {
     const config = await loadPriorityConfig();
-    // log field is always present after backend fills defaults
     return config.log?.disabled === true;
   } catch {
-    // If config load fails, assume not disabled so we at least try once
     return false;
   }
 }
@@ -100,7 +94,6 @@ async function connect() {
   clearReconnectTimer();
   const store = useLogsStore.getState();
 
-  // Read log.disabled directly from priority_config (fresh, no race condition)
   const disabled = await isLogDisabled();
   if (disabled) {
     store.setStreamStatus("disabled");
@@ -169,6 +162,38 @@ function matchesSearch(entry: LogEntry, filter: string): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
+// --- Standalone functions for external control (consistent with other streams) ---
+
+export function startLogsStream() {
+  if (shouldReconnect) return;
+  shouldReconnect = true;
+  void connect();
+}
+
+export function stopLogsStream(clear = false) {
+  shouldReconnect = false;
+  clearReconnectTimer();
+  if (socket) {
+    const s = socket;
+    socket = null;
+    s.close();
+  } else {
+    useLogsStore.getState().setStreamStatus("disconnected");
+  }
+  if (clear) {
+    useLogsStore.getState().clearLogs();
+  }
+}
+
+export function restartLogsStream() {
+  if (!shouldReconnect) return;
+  stopLogsStream(false);
+  shouldReconnect = true;
+  void connect();
+}
+
+// --- Hook for React components ---
+
 export function useLogsStream() {
   const logs = useLogsStore((s) => s.logs);
   const search = useLogsStore((s) => s.search);
@@ -186,7 +211,6 @@ export function useLogsStream() {
 
   const { success, info } = useToast();
 
-  // Flush logBuffer into store every 100ms; skip when window is hidden
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout>;
     const flush = () => {
@@ -227,35 +251,6 @@ export function useLogsStream() {
       ),
     [logs],
   );
-
-  const startStream = useCallback(() => {
-    if (shouldReconnect) return;
-    shouldReconnect = true;
-    void connect();
-  }, []);
-
-  const stopStream = useCallback(
-    (clear = false) => {
-      shouldReconnect = false;
-      clearReconnectTimer();
-      if (socket) {
-        const s = socket;
-        socket = null;
-        s.close();
-      } else {
-        useLogsStore.getState().setStreamStatus("disconnected");
-      }
-      if (clear) clearLogsState();
-    },
-    [clearLogsState],
-  );
-
-  const restartStream = useCallback(() => {
-    if (!shouldReconnect) return;
-    stopStream(false);
-    shouldReconnect = true;
-    void connect();
-  }, [stopStream]);
 
   const clearLogs = useCallback(() => {
     clearLogsState();
@@ -303,9 +298,9 @@ export function useLogsStream() {
     streamError,
     availableTypes,
     logLevels: LOG_LEVELS as readonly LogLevel[],
-    startStream,
-    stopStream,
-    restartStream,
+    startStream: startLogsStream,
+    stopStream: stopLogsStream,
+    restartStream: restartLogsStream,
     clearLogs,
     downloadLogs,
   };
