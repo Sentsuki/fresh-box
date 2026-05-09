@@ -89,7 +89,7 @@ const NodeCard = memo(function NodeCard({
       s.activeDelayNodes.has(node.name) || s.groupTestingNodes.has(node.name),
   );
   return (
-    <button
+    <div
       onClick={onSelect}
       title={node.name}
       className={[
@@ -99,6 +99,14 @@ const NodeCard = memo(function NodeCard({
           ? "bg-(--wb-surface-base) border-(--wb-accent)"
           : "bg-(--wb-surface-base) border-(--wb-border-default) hover:bg-(--wb-surface-hover) hover:border-(--wb-border-default)",
       ].join(" ")}
+      role="button"
+      tabIndex={0}
+      onKeyDown={(e) => {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          onSelect();
+        }
+      }}
     >
       {selected && (
         <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
@@ -141,7 +149,7 @@ const NodeCard = memo(function NodeCard({
           )}
         </button>
       </div>
-    </button>
+    </div>
   );
 });
 
