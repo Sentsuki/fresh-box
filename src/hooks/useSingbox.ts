@@ -14,6 +14,7 @@ import {
   stopConnectionsStream,
 } from "./useConnectionsStream";
 import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
+import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
 import { useToast } from "./useToast";
 
 async function notifySingboxStatus(body: string) {
@@ -83,6 +84,7 @@ export function useSingbox() {
       singbox.setRunning(true);
       startConnectionsStream();
       startTrafficStream();
+      startMemoryStream();
       startPolling(() => {
         toastError("sing-box has stopped unexpectedly.");
         void notifySingboxStatus("sing-box has stopped unexpectedly.");
@@ -113,6 +115,7 @@ export function useSingbox() {
       stopPolling();
       stopConnectionsStream(true);
       stopTrafficStream(true);
+      stopMemoryStream(true);
       clash.clearOverview();
       toastSuccess("sing-box is stopped.");
       void notifySingboxStatus("sing-box is stopped.");

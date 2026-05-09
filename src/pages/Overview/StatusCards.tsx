@@ -1,11 +1,11 @@
 import {
   ArrowDownRegular,
   ArrowUpRegular,
-  PlugConnectedRegular,
   StorageRegular,
 } from "@fluentui/react-icons";
 import { Card } from "../../components/ui/Card";
 import { useConnectionsStore } from "../../hooks/useConnectionsStream";
+import { useMemoryStore } from "../../hooks/useMemoryStream";
 import { useTrafficStore } from "../../hooks/useTrafficStream";
 import { formatBytes, formatSpeed } from "../../services/utils";
 import type { ClashOverview } from "../../types/app";
@@ -15,13 +15,12 @@ interface StatusCardsProps {
 }
 
 export default function StatusCards({ overview }: StatusCardsProps) {
-  const active = useConnectionsStore((s) => s.active);
   const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
   const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
 
   const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
   const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
-  const connectionsCount = active.length;
+  const memoryInUse = useMemoryStore((s) => s.memoryInUse);
 
   const stats = [
     {
@@ -39,23 +38,12 @@ export default function StatusCards({ overview }: StatusCardsProps) {
       color: "text-(--wb-accent-hover)",
     },
     {
-      icon: <PlugConnectedRegular />,
-      label: "Connections",
-      value: String(connectionsCount),
+      icon: <StorageRegular />,
+      label: "Memory",
+      value: formatBytes(memoryInUse),
       sub: `Mode: ${overview.current_mode}`,
-      color: "text-(--wb-success)",
+      color: "text-(--wb-warning)",
     },
-    ...(overview.memory_usage !== undefined
-      ? [
-        {
-          icon: <StorageRegular />,
-          label: "Memory",
-          value: formatBytes(overview.memory_usage),
-          sub: "In use",
-          color: "text-(--wb-warning)",
-        },
-      ]
-      : []),
   ];
 
   return (
