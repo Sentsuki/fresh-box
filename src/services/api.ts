@@ -1,4 +1,5 @@
 import { invokeCommand } from "./tauri";
+import { coreRequest } from "./coreClient";
 import type {
   AppSettings,
   ClashOverview,
@@ -257,4 +258,10 @@ export async function refreshTrayProxyMenu(
   proxyGroups: Array<{ name: string; current: string; nodes: string[] }>,
 ): Promise<void> {
   return invokeCommand<void>("refresh_tray_proxy_menu", { proxyGroups });
+}
+
+export async function queryDns(name: string, type: string = "A"): Promise<unknown> {
+  return coreRequest<unknown>("/dns/query", {
+    params: { name, type }
+  });
 }

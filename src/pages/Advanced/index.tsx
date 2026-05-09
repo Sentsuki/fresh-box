@@ -1,10 +1,8 @@
 import { useState, useEffect } from "react";
 import {
-  AddRegular,
-  DeleteRegular,
   SaveRegular,
-  InfoRegular,
   CodeRegular,
+  SearchRegular,
 } from "@fluentui/react-icons";
 import { Button } from "../../components/ui/Button";
 import { SettingGroup, SettingCard } from "../../components/ui/SettingCard";
@@ -17,48 +15,39 @@ import {
   enableConfigOverride,
   disableConfigOverride,
   isConfigOverrideEnabled,
+  queryDns,
 } from "../../services/api";
 import type { ConfigOverride } from "../../types/app";
 
-interface OverrideEntry {
-  key: string;
-  value: string;
-}
+type AdvancedTab = "override" | "dns";
 
 export default function Advanced() {
   const toast = useToast();
-  const [overrides, setOverrides] = useState<OverrideEntry[]>([]);
+  
+  const [activeTab, setActiveTab] = useState<AdvancedTab>("override");
+
+  // Config Override State
   const [rawJson, setRawJson] = useState("");
-  const [useRaw, setUseRaw] = useState(false);
   const [saving, setSaving] = useState(false);
   const [overrideEnabled, setOverrideEnabled] = useState(false);
   const [togglingOverride, setTogglingOverride] = useState(false);
+
+  // DNS Query State
+  const [dnsDomain, setDnsDomain] = useState("");
+  const [dnsType, setDnsType] = useState("A");
+  const [dnsLoading, setDnsLoading] = useState(false);
+  const [dnsResult, setDnsResult] = useState<string>("");
 
   useEffect(() => {
     void Promise.all([
       loadConfigOverride().then((raw) => {
         if (raw && Object.keys(raw).length > 0) {
           setRawJson(JSON.stringify(raw, null, 2));
-          setOverrides(
-            Object.entries(raw).map(([key, value]) => ({
-              key,
-              value: typeof value === "string" ? value : JSON.stringify(value),
-            })),
-          );
         }
       }),
       isConfigOverrideEnabled().then(setOverrideEnabled),
     ]).catch(() => {});
   }, []);
-
-  const addEntry = () =>
-    setOverrides((prev) => [...prev, { key: "", value: "" }]);
-  const removeEntry = (i: number) =>
-    setOverrides((prev) => prev.filter((_, idx) => idx !== i));
-  const updateEntry = (i: number, field: "key" | "value", val: string) =>
-    setOverrides((prev) =>
-      prev.map((e, idx) => (idx === i ? { ...e, [field]: val } : e)),
-    );
 
   const toggleOverrideEnabled = async () => {
     setTogglingOverride(true);
@@ -84,20 +73,9 @@ export default function Advanced() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      let payload: ConfigOverride;
-      if (useRaw) {
+      let payload: ConfigOverride = {};
+      if (rawJson.trim()) {
         payload = JSON.parse(rawJson) as ConfigOverride;
-      } else {
-        const obj: ConfigOverride = {};
-        for (const entry of overrides) {
-          if (!entry.key.trim()) continue;
-          try {
-            obj[entry.key] = JSON.parse(entry.value) as unknown;
-          } catch {
-            obj[entry.key] = entry.value;
-          }
-        }
-        payload = obj;
       }
       await saveConfigOverride(payload);
       toast.success("Config overrides saved");
@@ -113,7 +91,6 @@ export default function Advanced() {
   const handleClearOverride = async () => {
     try {
       await clearConfigOverride();
-      setOverrides([]);
       setRawJson("");
       toast.success("Config override cleared");
     } catch (err) {
@@ -123,138 +100,159 @@ export default function Advanced() {
     }
   };
 
+  const handleDnsQuery = async () => {
+    if (!dnsDomain.trim()) {
+      toast.error("Please enter a domain");
+      return;
+    }
+    setDnsLoading(true);
+    setDnsResult("");
+    try {
+      const res = await queryDns(dnsDomain.trim(), dnsType);
+      setDnsResult(JSON.stringify(res, null, 2));
+    } catch (err) {
+      toast.error(
+        `DNS Query failed: ${err instanceof Error ? err.message : String(err)}`,
+      );
+      setDnsResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
+    } finally {
+      setDnsLoading(false);
+    }
+  };
+
   return (
-    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
+    <div className="flex flex-col h-full overflow-hidden pr-2 pb-10 gap-6">
       <PageHeader
         title="Advanced"
-        description="Write custom JSON rules and fields to override the active sing-box configuration."
-      >
-        <Button variant="subtle" onClick={() => void handleClearOverride()}>
-          Clear
-        </Button>
-        <Button
-          variant="accent"
-          icon={<SaveRegular />}
-          disabled={saving}
-          onClick={() => void handleSave()}
+        description="Write custom JSON rules to override the active sing-box configuration, or use advanced tools like DNS query."
+      />
+
+      {/* Tabs */}
+      <div className="flex items-center gap-2 p-1 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) w-fit shrink-0">
+        <button
+          onClick={() => setActiveTab("override")}
+          className={[
+            "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium flex items-center gap-2",
+            activeTab === "override"
+              ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
+              : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
+          ].join(" ")}
         >
-          {saving ? "Saving..." : "Save Overrides"}
-        </Button>
-      </PageHeader>
+          <CodeRegular />
+          Config Override
+        </button>
+        <button
+          onClick={() => setActiveTab("dns")}
+          className={[
+            "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium flex items-center gap-2",
+            activeTab === "dns"
+              ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
+              : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
+          ].join(" ")}
+        >
+          <SearchRegular />
+          DNS Query
+        </button>
+      </div>
 
-      <div className="flex flex-col gap-8">
-        <SettingGroup>
-          <SettingCard
-            icon={<CodeRegular />}
-            title="Inject Configuration Overrides"
-            description="These overrides are directly merged into the JSON payload before starting the sing-box core."
-            control={
-              <button
-                onClick={() => void toggleOverrideEnabled()}
-                disabled={togglingOverride}
-                className={[
-                  "px-4 py-2 text-sm rounded-full font-medium transition-colors border",
-                  overrideEnabled
-                    ? "bg-(--wb-success) border-(--wb-success) text-white hover:bg-[#5aa33d]"
-                    : "bg-transparent border-(--wb-border-default) text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
-                ].join(" ")}
+      <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+        {activeTab === "override" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex justify-end gap-2">
+              <Button variant="subtle" onClick={() => void handleClearOverride()}>
+                Clear
+              </Button>
+              <Button
+                variant="accent"
+                icon={<SaveRegular />}
+                disabled={saving}
+                onClick={() => void handleSave()}
               >
-                {togglingOverride
-                  ? "..."
-                  : overrideEnabled
-                    ? "Injection Enabled"
-                    : "Injection Disabled"}
-              </button>
-            }
-          />
-        </SettingGroup>
+                {saving ? "Saving..." : "Save Overrides"}
+              </Button>
+            </div>
 
-        <div className="flex flex-col gap-4">
-          <div className="flex items-center gap-2 p-1 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) w-fit">
-            <button
-              onClick={() => setUseRaw(false)}
-              className={[
-                "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium",
-                !useRaw
-                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
-                  : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
-              ].join(" ")}
-            >
-              Field Builder
-            </button>
-            <button
-              onClick={() => setUseRaw(true)}
-              className={[
-                "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium",
-                useRaw
-                  ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
-                  : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
-              ].join(" ")}
-            >
-              Raw JSON
-            </button>
-          </div>
+            <SettingGroup>
+              <SettingCard
+                icon={<CodeRegular />}
+                title="Inject Configuration Overrides"
+                description="These overrides are directly merged into the JSON payload before starting the sing-box core."
+                control={
+                  <button
+                    onClick={() => void toggleOverrideEnabled()}
+                    disabled={togglingOverride}
+                    className={[
+                      "px-4 py-2 text-sm rounded-full font-medium transition-colors border",
+                      overrideEnabled
+                        ? "bg-(--wb-success) border-(--wb-success) text-white hover:bg-[#5aa33d]"
+                        : "bg-transparent border-(--wb-border-default) text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
+                    ].join(" ")}
+                  >
+                    {togglingOverride
+                      ? "..."
+                      : overrideEnabled
+                        ? "Injection Enabled"
+                        : "Injection Disabled"}
+                  </button>
+                }
+              />
+            </SettingGroup>
 
-          <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden">
-            {useRaw ? (
+            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[300px]">
               <textarea
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
-                className="w-full h-[400px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
+                className="w-full h-full min-h-[300px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
                 placeholder='{\n  "experimental": {\n    "clash_api": {\n      "external_ui": ""\n    }\n  }\n}'
                 spellCheck={false}
               />
-            ) : (
-              <div className="p-4 flex flex-col gap-3">
-                <div className="flex justify-end mb-2">
-                  <Button
-                    icon={<AddRegular />}
-                    size="sm"
-                    variant="subtle"
-                    onClick={addEntry}
-                  >
-                    Add Field
-                  </Button>
-                </div>
-                {overrides.length === 0 ? (
-                  <div className="flex flex-col items-center justify-center py-10 text-(--wb-text-secondary)">
-                    <InfoRegular className="text-4xl mb-3 opacity-50" />
-                    <p className="text-sm">No overrides defined.</p>
-                  </div>
-                ) : (
-                  <div className="flex flex-col gap-2">
-                    {overrides.map((entry, i) => (
-                      <div key={i} className="flex items-center gap-2 group">
-                        <input
-                          value={entry.key}
-                          onChange={(e) =>
-                            updateEntry(i, "key", e.target.value)
-                          }
-                          placeholder="Field path (e.g. log.level)"
-                          className="w-1/3 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-                        />
-                        <input
-                          value={entry.value}
-                          onChange={(e) =>
-                            updateEntry(i, "value", e.target.value)
-                          }
-                          placeholder="Value (JSON or string)"
-                          className="flex-1 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
-                        />
-                        <button
-                          onClick={() => removeEntry(i)}
-                          className="p-2 text-(--wb-text-disabled) hover:text-(--wb-error) transition-colors rounded opacity-0 group-hover:opacity-100"
-                        >
-                          <DeleteRegular className="text-lg" />
-                        </button>
-                      </div>
-                    ))}
-                  </div>
-                )}
+            </div>
+          </div>
+        )}
+
+        {activeTab === "dns" && (
+          <div className="flex flex-col gap-6">
+            <div className="flex flex-col gap-2">
+              <h2 className="text-lg font-semibold text-(--wb-text-primary)">DNS Query</h2>
+              <p className="text-sm text-(--wb-text-secondary)">Resolve a domain name using the internal DNS router.</p>
+            </div>
+            
+            <div className="flex items-center gap-2">
+              <select
+                value={dnsType}
+                onChange={(e) => setDnsType(e.target.value)}
+                className="px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) focus:ring-1 focus:ring-(--wb-accent)"
+              >
+                {["A", "AAAA", "MX", "CNAME", "TXT", "NS", "SRV"].map((t) => (
+                  <option key={t} value={t}>{t}</option>
+                ))}
+              </select>
+              <input
+                value={dnsDomain}
+                onChange={(e) => setDnsDomain(e.target.value)}
+                onKeyDown={(e) => { if (e.key === "Enter") void handleDnsQuery() }}
+                placeholder="Enter domain name (e.g. google.com)"
+                className="flex-1 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) focus:ring-1 focus:ring-(--wb-accent)"
+              />
+              <Button
+                variant="accent"
+                icon={<SearchRegular />}
+                disabled={dnsLoading}
+                onClick={() => void handleDnsQuery()}
+              >
+                {dnsLoading ? "Querying..." : "Query"}
+              </Button>
+            </div>
+
+            {dnsResult && (
+              <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden p-4">
+                <pre className="font-mono text-sm text-(--wb-text-primary) whitespace-pre-wrap break-all">
+                  {dnsResult}
+                </pre>
               </div>
             )}
           </div>
-        </div>
+        )}
       </div>
     </div>
   );
