@@ -156,7 +156,7 @@ export default function Advanced() {
 
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar mt-6">
         {activeTab === "override" && (
-          <div className="flex flex-col gap-6">
+          <div className="flex flex-col gap-6 h-full">
             <div className="flex items-center justify-between gap-4">
               <div className="flex items-center gap-2">
                 <label className="inline-flex items-center cursor-pointer">
@@ -190,11 +190,11 @@ export default function Advanced() {
               </div>
             </div>
 
-            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[450px]">
+            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1">
               <textarea
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
-                className="w-full h-full min-h-[400px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
+                className="w-full h-full font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
                 placeholder='{...}'
                 spellCheck={false}
               />
