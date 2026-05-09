@@ -190,7 +190,7 @@ export default function Advanced() {
               </div>
             </div>
 
-            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[450px]">
+            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[400px]">
               <textarea
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
