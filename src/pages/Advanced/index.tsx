@@ -121,7 +121,7 @@ export default function Advanced() {
   };
 
   return (
-    <div className="flex flex-col h-full overflow-hidden pr-2 pb-10 gap-6">
+    <div className="flex flex-col h-full overflow-hidden pr-2 pb-10">
       <PageHeader
         title="Advanced"
         description="Write custom JSON rules to override the active sing-box configuration, or use advanced tools like DNS query."
@@ -155,7 +155,7 @@ export default function Advanced() {
         </button>
       </div>
 
-      <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
+      <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar mt-6">
         {activeTab === "override" && (
           <div className="flex flex-col gap-6">
             <div className="flex justify-end gap-2">
