@@ -73,29 +73,19 @@ export function usePriorityConfig() {
       setHasStackField(fieldsCheck.has_stack_field);
       setHasLogField(fieldsCheck.has_log_field);
 
-      // Stack: priority_config.inbounds[0].stack → fallback to core config field
+      // Stack: Use value from priority_config
       if (fieldsCheck.has_stack_field) {
-        const stackFromPriority = priorityConfig.inbounds?.[0]?.stack;
-        const stackValue = stackFromPriority ?? fieldsCheck.current_stack_value;
+        const stackValue = priorityConfig.inbounds?.[0]?.stack;
         if (stackValue && isStackOption(stackValue)) {
           setSelectedStack(stackValue);
         }
       }
 
-      // Log: backend fills defaults so priorityConfig.log is always present
+      // Log: Use value from priority_config (guaranteed by backend defaults)
       if (priorityConfig.log) {
         setLogDisabled(priorityConfig.log.disabled);
         if (isLogLevel(priorityConfig.log.level)) {
           setSelectedLogLevel(priorityConfig.log.level as LogLevel);
-        }
-      } else if (fieldsCheck.has_log_field) {
-        // Fallback (should not happen after backend fix)
-        setLogDisabled(fieldsCheck.current_log_disabled ?? false);
-        if (
-          fieldsCheck.current_log_level &&
-          isLogLevel(fieldsCheck.current_log_level)
-        ) {
-          setSelectedLogLevel(fieldsCheck.current_log_level as LogLevel);
         }
       }
 

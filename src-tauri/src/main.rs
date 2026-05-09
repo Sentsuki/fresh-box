@@ -90,6 +90,9 @@ fn main() {
             update_mica_theme,
         ])
         .setup(|app| {
+            // 首次启动时生成含完整默认值的 priority_config.json（幂等）
+            priority_config::ensure_priority_config_initialized();
+
             tray::setup_system_tray(app)?;
 
             let window = app.get_webview_window("main").unwrap();

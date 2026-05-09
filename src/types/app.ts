@@ -363,11 +363,10 @@ export interface PriorityExperimental {
   clash_api?: PriorityClashApiConfig;
 }
 
-/** sing-box 标准格式的 priority_config */
 export interface PriorityConfig {
-  inbounds?: PriorityInbound[];
-  log?: LogConfig;
-  experimental?: PriorityExperimental;
+  inbounds: PriorityInbound[];
+  log: LogConfig;
+  experimental: PriorityExperimental;
 }
 
 export interface ClashApiConfig {

@@ -24,10 +24,7 @@ fn get_api_config() -> ApiConfig {
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
     let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
-    let clash_api = config
-        .experimental
-        .as_ref()
-        .and_then(|e| e.clash_api.as_ref());
+    let clash_api = config.experimental.clash_api.as_ref();
 
     let controller = clash_api
         .and_then(|c| c.external_controller.as_deref())
