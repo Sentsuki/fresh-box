@@ -20,11 +20,12 @@ use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
 
 #[tauri::command]
-fn update_mica_theme(window: Window, is_light: bool) {
+fn update_mica_theme(window: Window, is_light: Option<bool>) {
     #[cfg(target_os = "windows")]
     {
         use window_vibrancy::apply_mica;
-        let _ = apply_mica(&window, Some(!is_light));
+        let is_dark = is_light.map(|light| !light);
+        let _ = apply_mica(&window, is_dark);
     }
 }
 

@@ -36,11 +36,16 @@ export function useTheme(): Theme {
 
   useEffect(() => {
     document.documentElement.classList.toggle("light", isLight);
-    getCurrentWindow()
-      .setTheme(isLight ? "light" : "dark")
-      .catch(console.error);
-    invoke("update_mica_theme", { isLight }).catch(console.error);
-  }, [isLight]);
+    
+    const win = getCurrentWindow();
+    if (themeMode === "system") {
+      win.setTheme(null).catch(console.error);
+      invoke("update_mica_theme", { isLight: null }).catch(console.error);
+    } else {
+      win.setTheme(themeMode).catch(console.error);
+      invoke("update_mica_theme", { isLight }).catch(console.error);
+    }
+  }, [isLight, themeMode]);
 
   return isLight ? LIGHT_THEME : DARK_THEME;
 }
