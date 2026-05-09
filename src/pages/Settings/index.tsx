@@ -425,8 +425,7 @@ export default function Settings() {
             title="Fresh Box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>UI: FluentUI v9 + Tailwind v4</span>
-                <span>Framework: Tauri + React 19</span>
+                <span>Version 1.6.2</span>
               </div>
             }
           />
