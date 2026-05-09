@@ -1,21 +1,20 @@
-import { useState, useEffect } from "react";
 import {
-  SaveRegular,
   CodeRegular,
+  SaveRegular,
   SearchRegular,
 } from "@fluentui/react-icons";
+import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
-import { SettingGroup, SettingCard } from "../../components/ui/SettingCard";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useToast } from "../../hooks/useToast";
 import {
-  loadConfigOverride,
-  saveConfigOverride,
   clearConfigOverride,
-  enableConfigOverride,
   disableConfigOverride,
+  enableConfigOverride,
   isConfigOverrideEnabled,
+  loadConfigOverride,
   queryDns,
+  saveConfigOverride,
 } from "../../services/api";
 import type { ConfigOverride } from "../../types/app";
 
@@ -23,7 +22,7 @@ type AdvancedTab = "override" | "dns";
 
 export default function Advanced() {
   const toast = useToast();
-  
+
   const [activeTab, setActiveTab] = useState<AdvancedTab>("override");
 
   // Config Override State
@@ -46,7 +45,7 @@ export default function Advanced() {
         }
       }),
       isConfigOverrideEnabled().then(setOverrideEnabled),
-    ]).catch(() => {});
+    ]).catch(() => { });
   }, []);
 
   const toggleOverrideEnabled = async () => {
@@ -158,52 +157,45 @@ export default function Advanced() {
       <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar mt-6">
         {activeTab === "override" && (
           <div className="flex flex-col gap-6">
-            <div className="flex justify-end gap-2">
-              <Button variant="subtle" onClick={() => void handleClearOverride()}>
-                Clear
-              </Button>
-              <Button
-                variant="accent"
-                icon={<SaveRegular />}
-                disabled={saving}
-                onClick={() => void handleSave()}
-              >
-                {saving ? "Saving..." : "Save Overrides"}
-              </Button>
+            <div className="flex items-center justify-between gap-4">
+              <div className="flex items-center gap-2">
+                <label className="inline-flex items-center cursor-pointer">
+                  <input
+                    type="checkbox"
+                    className="sr-only peer"
+                    checked={overrideEnabled}
+                    onChange={() => void toggleOverrideEnabled()}
+                    disabled={togglingOverride}
+                  />
+                  <div className="relative w-9 h-5 bg-(--wb-surface-hover) rounded-full peer peer-checked:after:translate-x-full peer-checked:after:border-white after:content-[''] after:absolute after:top-[2px] after:left-[2px] after:bg-white after:rounded-full after:h-4 after:w-4 after:transition-all peer-checked:bg-blue-600 border border-(--wb-border-default)"></div>
+                  <span className="ml-2 text-sm font-medium text-(--wb-text-primary)">
+                    Inject Overrides
+                  </span>
+                </label>
+                {togglingOverride && <span className="text-xs text-(--wb-text-secondary)">...</span>}
+              </div>
+
+              <div className="flex items-center gap-2">
+                <Button variant="subtle" onClick={() => void handleClearOverride()}>
+                  Clear
+                </Button>
+                <Button
+                  variant="accent"
+                  icon={<SaveRegular />}
+                  disabled={saving}
+                  onClick={() => void handleSave()}
+                >
+                  {saving ? "Saving..." : "Save Overrides"}
+                </Button>
+              </div>
             </div>
 
-            <SettingGroup>
-              <SettingCard
-                icon={<CodeRegular />}
-                title="Inject Configuration Overrides"
-                description="These overrides are directly merged into the JSON payload before starting the sing-box core."
-                control={
-                  <button
-                    onClick={() => void toggleOverrideEnabled()}
-                    disabled={togglingOverride}
-                    className={[
-                      "px-4 py-2 text-sm rounded-full font-medium transition-colors border",
-                      overrideEnabled
-                        ? "bg-(--wb-success) border-(--wb-success) text-white hover:bg-[#5aa33d]"
-                        : "bg-transparent border-(--wb-border-default) text-(--wb-text-secondary) hover:bg-(--wb-surface-hover)",
-                    ].join(" ")}
-                  >
-                    {togglingOverride
-                      ? "..."
-                      : overrideEnabled
-                        ? "Injection Enabled"
-                        : "Injection Disabled"}
-                  </button>
-                }
-              />
-            </SettingGroup>
-
-            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[300px]">
+            <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[450px]">
               <textarea
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
-                className="w-full h-full min-h-[300px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
-                placeholder='{\n  "experimental": {\n    "clash_api": {\n      "external_ui": ""\n    }\n  }\n}'
+                className="w-full h-full min-h-[400px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
+                placeholder='{...}'
                 spellCheck={false}
               />
             </div>
@@ -216,7 +208,7 @@ export default function Advanced() {
               <h2 className="text-lg font-semibold text-(--wb-text-primary)">DNS Query</h2>
               <p className="text-sm text-(--wb-text-secondary)">Resolve a domain name using the internal DNS router.</p>
             </div>
-            
+
             <div className="flex items-center gap-2">
               <select
                 value={dnsType}
