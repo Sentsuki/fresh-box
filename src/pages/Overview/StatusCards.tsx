@@ -1,14 +1,14 @@
-import { Card } from "../../components/ui/Card";
-import { formatBytes, formatSpeed } from "../../services/utils";
-import type { ClashOverview } from "../../types/app";
-import { useConnectionsStore } from "../../hooks/useConnectionsStream";
-import { useTrafficStore } from "../../hooks/useTrafficStream";
 import {
   ArrowDownRegular,
   ArrowUpRegular,
   PlugConnectedRegular,
   StorageRegular,
 } from "@fluentui/react-icons";
+import { Card } from "../../components/ui/Card";
+import { useConnectionsStore } from "../../hooks/useConnectionsStream";
+import { useTrafficStore } from "../../hooks/useTrafficStream";
+import { formatBytes, formatSpeed } from "../../services/utils";
+import type { ClashOverview } from "../../types/app";
 
 interface StatusCardsProps {
   overview: ClashOverview;
@@ -47,14 +47,14 @@ export default function StatusCards({ overview }: StatusCardsProps) {
     },
     ...(overview.memory_usage !== undefined
       ? [
-          {
-            icon: <StorageRegular />,
-            label: "Memory",
-            value: formatBytes(overview.memory_usage),
-            sub: "In use",
-            color: "text-(--wb-warning)",
-          },
-        ]
+        {
+          icon: <StorageRegular />,
+          label: "Memory",
+          value: formatBytes(overview.memory_usage),
+          sub: "In use",
+          color: "text-(--wb-warning)",
+        },
+      ]
       : []),
   ];
 
@@ -64,7 +64,7 @@ export default function StatusCards({ overview }: StatusCardsProps) {
         <div key={stat.label} className="flex-1 min-w-[200px]">
           <Card className="h-full">
             <div className="flex items-center gap-4">
-              <div className={["text-2xl flex-shrink-0", stat.color].join(" ")}>
+              <div className={["text-2xl shrink-0", stat.color].join(" ")}>
                 {stat.icon}
               </div>
               <div className="min-w-0">
