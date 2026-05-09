@@ -30,6 +30,8 @@ pub struct AppSettings {
     pub logs: LogsPageSettings,
     #[serde(default)]
     pub rules: RulesPageSettings,
+    #[serde(default)]
+    pub advanced: AdvancedPageSettings,
     #[serde(default, rename = "Profiles")]
     pub profiles: ProfilesSettings,
     #[serde(default, rename = "Settings")]
@@ -98,6 +100,12 @@ pub struct RulesPageSettings {
     pub current_tab: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AdvancedPageSettings {
+    pub current_tab: String,
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -107,6 +115,7 @@ impl Default for AppSettings {
             connections: ConnectionPageSettings::default(),
             logs: LogsPageSettings::default(),
             rules: RulesPageSettings::default(),
+            advanced: AdvancedPageSettings::default(),
             profiles: ProfilesSettings::default(),
             settings: AppDisplaySettings::default(),
         }
@@ -180,6 +189,14 @@ impl Default for RulesPageSettings {
     fn default() -> Self {
         Self {
             current_tab: "rules".to_string(),
+        }
+    }
+}
+
+impl Default for AdvancedPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "override".to_string(),
         }
     }
 }

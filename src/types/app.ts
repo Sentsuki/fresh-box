@@ -92,6 +92,12 @@ export interface RulesPageSettings {
   current_tab: RulesTab;
 }
 
+export type AdvancedPageTab = "override" | "dns";
+
+export interface AdvancedPageSettings {
+  current_tab: AdvancedPageTab;
+}
+
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
@@ -99,6 +105,7 @@ export interface AppSettings {
   connections: ConnectionPageSettings;
   logs: LogsPageSettings;
   rules: RulesPageSettings;
+  advanced: AdvancedPageSettings;
   Profiles: ProfilesSettings;
   Settings: AppDisplaySettings;
 }
@@ -156,6 +163,9 @@ export function createDefaultAppSettings(): AppSettings {
     rules: {
       current_tab: "rules",
     },
+    advanced: {
+      current_tab: "override",
+    },
     Profiles: {
       selected_config_path: null,
       selected_config_display: null,
@@ -188,6 +198,7 @@ const CONNECTION_COLUMNS = new Set<ConnectionColumnKey>(
 );
 const SORT_DIRECTIONS: SortDirection[] = ["asc", "desc"];
 const RULES_TABS: RulesTab[] = ["rules"];
+const ADVANCED_TABS: AdvancedPageTab[] = ["override", "dns"];
 const LOG_LEVELS: LogLevel[] = [
   "trace",
   "debug",
@@ -302,6 +313,11 @@ export function normalizeAppSettings(
       current_tab: RULES_TABS.includes(settings.rules?.current_tab)
         ? settings.rules.current_tab
         : defaults.rules.current_tab,
+    },
+    advanced: {
+      current_tab: ADVANCED_TABS.includes(settings.advanced?.current_tab)
+        ? settings.advanced.current_tab
+        : defaults.advanced.current_tab,
     },
     Profiles: {
       selected_config_path: settings.Profiles?.selected_config_path ?? null,

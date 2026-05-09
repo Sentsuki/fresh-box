@@ -18,13 +18,13 @@ import {
   saveConfigOverride,
 } from "../../services/api";
 import type { ConfigOverride } from "../../types/app";
-
-type AdvancedTab = "override" | "dns";
+import { useSettingsStore } from "../../stores/settingsStore";
 
 export default function Advanced() {
   const toast = useToast();
 
-  const [activeTab, setActiveTab] = useState<AdvancedTab>("override");
+  const activeTab = useSettingsStore((s) => s.settings.advanced.current_tab);
+  const setActiveTab = useSettingsStore((s) => s.setAdvancedTab);
 
   // Config Override State
   const [rawJson, setRawJson] = useState("");
@@ -130,7 +130,7 @@ export default function Advanced() {
       {/* Tabs */}
       <div className="flex items-center gap-2 p-1 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) w-fit shrink-0">
         <button
-          onClick={() => setActiveTab("override")}
+          onClick={() => void setActiveTab("override")}
           className={[
             "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium flex items-center gap-2",
             activeTab === "override"
@@ -142,7 +142,7 @@ export default function Advanced() {
           Config Override
         </button>
         <button
-          onClick={() => setActiveTab("dns")}
+          onClick={() => void setActiveTab("dns")}
           className={[
             "px-4 py-1.5 text-sm rounded-(--wb-radius-sm) transition-colors font-medium flex items-center gap-2",
             activeTab === "dns"
