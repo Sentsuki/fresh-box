@@ -8,7 +8,6 @@ import {
 import { useSingboxStore } from "../stores/singboxStore";
 import { useLogsStream } from "./useLogsStream";
 import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
-import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
 
 interface WindowVisibilityState {
   isVisible: boolean;
@@ -48,13 +47,11 @@ export function useWindowVisibilityListener() {
         stopConnectionsStream(true);
         stopLogs(true);
         stopTrafficStream(true);
-        stopMemoryStream(true);
       } else {
         if (useSingboxStore.getState().isRunning) {
           startConnectionsStream();
           startLogs();
           startTrafficStream();
-          startMemoryStream();
         }
       }
     }).then((fn) => {
