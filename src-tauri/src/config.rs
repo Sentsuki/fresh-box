@@ -431,8 +431,6 @@ pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-
-
 // 获取 config 目录路径（放 config_override.json、priority_config.json、subscriptions.json）
 pub fn get_config_dir() -> Result<PathBuf, CommandError> {
     let dir = get_exe_dir()?.join("config");

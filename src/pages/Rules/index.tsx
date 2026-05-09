@@ -65,10 +65,7 @@ export default function Rules() {
   return (
     <div className="flex flex-col h-full overflow-hidden">
       <div className="shrink-0 pr-2">
-        <PageHeader
-          title="Rules"
-          description="View active routing rules."
-        >
+        <PageHeader title="Rules" description="View active routing rules.">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-64">
               <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
@@ -102,9 +99,7 @@ export default function Rules() {
       <div className="flex flex-col flex-1 min-h-0 pr-2 pb-10">
         <Tabs
           value={currentTab}
-          tabs={[
-            { value: "rules", label: `Rules (${visibleRules.length})` },
-          ]}
+          tabs={[{ value: "rules", label: `Rules (${visibleRules.length})` }]}
           onValueChange={(v) => setCurrentTab(v as RulesTab)}
           className="flex-1"
         >

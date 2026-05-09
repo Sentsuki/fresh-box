@@ -1,8 +1,4 @@
-import {
-  CodeRegular,
-  SaveRegular,
-  SearchRegular,
-} from "@fluentui/react-icons";
+import { CodeRegular, SaveRegular, SearchRegular } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Switch } from "../../components/ui/Switch";
@@ -46,7 +42,7 @@ export default function Advanced() {
         }
       }),
       isConfigOverrideEnabled().then(setOverrideEnabled),
-    ]).catch(() => { });
+    ]).catch(() => {});
   }, []);
 
   const toggleOverrideEnabled = async () => {
@@ -114,7 +110,9 @@ export default function Advanced() {
       toast.error(
         `DNS Query failed: ${err instanceof Error ? err.message : String(err)}`,
       );
-      setDnsResult(`Error: ${err instanceof Error ? err.message : String(err)}`);
+      setDnsResult(
+        `Error: ${err instanceof Error ? err.message : String(err)}`,
+      );
     } finally {
       setDnsLoading(false);
     }
@@ -166,11 +164,18 @@ export default function Advanced() {
                   disabled={togglingOverride}
                   label="Inject Overrides"
                 />
-                {togglingOverride && <span className="text-xs text-(--wb-text-secondary)">...</span>}
+                {togglingOverride && (
+                  <span className="text-xs text-(--wb-text-secondary)">
+                    ...
+                  </span>
+                )}
               </div>
 
               <div className="flex items-center gap-2">
-                <Button variant="subtle" onClick={() => void handleClearOverride()}>
+                <Button
+                  variant="subtle"
+                  onClick={() => void handleClearOverride()}
+                >
                   Clear
                 </Button>
                 <Button
@@ -189,7 +194,7 @@ export default function Advanced() {
                 value={rawJson}
                 onChange={(e) => setRawJson(e.target.value)}
                 className="w-full h-full min-h-[400px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
-                placeholder='{...}'
+                placeholder="{...}"
                 spellCheck={false}
               />
             </div>
@@ -199,8 +204,12 @@ export default function Advanced() {
         {activeTab === "dns" && (
           <div className="flex flex-col gap-6">
             <div className="flex flex-col gap-2">
-              <h2 className="text-lg font-semibold text-(--wb-text-primary)">DNS Query</h2>
-              <p className="text-sm text-(--wb-text-secondary)">Resolve a domain name using the internal DNS router.</p>
+              <h2 className="text-lg font-semibold text-(--wb-text-primary)">
+                DNS Query
+              </h2>
+              <p className="text-sm text-(--wb-text-secondary)">
+                Resolve a domain name using the internal DNS router.
+              </p>
             </div>
 
             <div className="flex items-center gap-2">
@@ -210,13 +219,17 @@ export default function Advanced() {
                 className="px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) focus:ring-1 focus:ring-(--wb-accent)"
               >
                 {["A", "AAAA", "MX", "CNAME", "TXT", "NS", "SRV"].map((t) => (
-                  <option key={t} value={t}>{t}</option>
+                  <option key={t} value={t}>
+                    {t}
+                  </option>
                 ))}
               </select>
               <input
                 value={dnsDomain}
                 onChange={(e) => setDnsDomain(e.target.value)}
-                onKeyDown={(e) => { if (e.key === "Enter") void handleDnsQuery() }}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") void handleDnsQuery();
+                }}
                 placeholder="Enter domain name (e.g. google.com)"
                 className="flex-1 px-3 py-2 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) focus:ring-1 focus:ring-(--wb-accent)"
               />

@@ -182,7 +182,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
             proxy_groups: s.overview.proxy_groups.map((group) => ({
               ...group,
               options: group.options.map((node) =>
-                node.name === proxyName ? { ...node, delay: -1 } : node
+                node.name === proxyName ? { ...node, delay: -1 } : node,
               ),
             })),
           },
@@ -241,7 +241,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
                     proxy_groups: s.overview.proxy_groups.map((group) => ({
                       ...group,
                       options: group.options.map((node) =>
-                        node.name === name ? { ...node, delay: -1 } : node
+                        node.name === name ? { ...node, delay: -1 } : node,
                       ),
                     })),
                   },

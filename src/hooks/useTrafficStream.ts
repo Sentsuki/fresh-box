@@ -38,26 +38,29 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
   streamStatus: "disconnected",
   history: generateInitialHistory(),
 
-  setTraffic: (down, up) => set((state) => {
-    const nextHistory = [
-      ...state.history,
-      { dl: down, ul: up, tick: Date.now() },
-    ];
-    return {
-      downloadSpeed: down,
-      uploadSpeed: up,
-      history: nextHistory.length > MAX_POINTS
-        ? nextHistory.slice(nextHistory.length - MAX_POINTS)
-        : nextHistory,
-    };
-  }),
+  setTraffic: (down, up) =>
+    set((state) => {
+      const nextHistory = [
+        ...state.history,
+        { dl: down, ul: up, tick: Date.now() },
+      ];
+      return {
+        downloadSpeed: down,
+        uploadSpeed: up,
+        history:
+          nextHistory.length > MAX_POINTS
+            ? nextHistory.slice(nextHistory.length - MAX_POINTS)
+            : nextHistory,
+      };
+    }),
   setStreamStatus: (streamStatus) => set({ streamStatus }),
-  clear: () => set({ 
-    downloadSpeed: 0, 
-    uploadSpeed: 0, 
-    streamStatus: "disconnected",
-    history: generateInitialHistory(), // Clears history on explicit clear
-  }),
+  clear: () =>
+    set({
+      downloadSpeed: 0,
+      uploadSpeed: 0,
+      streamStatus: "disconnected",
+      history: generateInitialHistory(), // Clears history on explicit clear
+    }),
 }));
 
 let ws: WebSocket | null = null;

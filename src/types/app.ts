@@ -491,8 +491,6 @@ export interface RuleEntry {
   };
 }
 
-
-
 export interface ConnectionMetadata {
   network: string;
   type: string;

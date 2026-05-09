@@ -1,8 +1,6 @@
 import { useCallback, useMemo } from "react";
 import { create } from "zustand";
-import {
-  getClashRules,
-} from "../services/api";
+import { getClashRules } from "../services/api";
 import type { RuleEntry } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";

@@ -79,7 +79,10 @@ pub fn ensure_priority_config_initialized() {
     let config_dir = match super::config::get_config_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!("ensure_priority_config_initialized: failed to get config dir: {:?}", e);
+            eprintln!(
+                "ensure_priority_config_initialized: failed to get config dir: {:?}",
+                e
+            );
             return;
         }
     };
@@ -103,7 +106,10 @@ pub fn ensure_priority_config_initialized() {
     };
 
     if let Err(e) = super::config::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
-        eprintln!("ensure_priority_config_initialized: failed to write defaults: {:?}", e);
+        eprintln!(
+            "ensure_priority_config_initialized: failed to write defaults: {:?}",
+            e
+        );
     } else {
         println!("priority_config.json initialized with defaults.");
     }
@@ -237,8 +243,7 @@ pub struct CoreClientConfig {
 
 #[tauri::command]
 pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig =
-        super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let config: PriorityConfig = super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
     let app_settings = super::config::load_app_settings_file()?;
 
     let clash_api = config.experimental.clash_api.as_ref();

@@ -69,8 +69,6 @@ struct ClashRulesResponse {
     rules: Vec<ClashRule>,
 }
 
-
-
 #[derive(Debug, Deserialize, Clone)]
 struct ClashProxy {
     name: String,
@@ -145,8 +143,6 @@ pub struct ClashRule {
     index: Option<usize>,
     extra: Option<ClashRuleExtra>,
 }
-
-
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
@@ -408,8 +404,6 @@ fn build_clash_overview(
     }
 }
 
-
-
 fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Ordering {
     match (
         sort_index.iter().position(|name| name == left),
@@ -535,5 +529,3 @@ pub async fn test_clash_proxy_group_delay(
 pub async fn get_clash_rules() -> Result<ClashRulesSnapshot, CommandError> {
     fetch_clash_rules_inner().await
 }
-
-

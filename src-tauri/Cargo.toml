@@ -1,6 +1,6 @@
 [package]
 name = "fresh-box"
-version = "1.6.2"
+version = "1.6.3"
 description = "fresh-box"
 authors = ["you"]
 edition = "2021"
