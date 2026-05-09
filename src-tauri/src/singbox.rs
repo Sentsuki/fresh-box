@@ -265,7 +265,7 @@ fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> 
                 pid
             );
             Ok(format!(
-                "Sing-box is running (PID: {}) - {}",
+                "sing-box is running (PID: {}) - {}",
                 pid, process_info
             ))
         }
@@ -297,7 +297,7 @@ fn terminate_child_process(
             match child.try_wait() {
                 Ok(Some(status)) => {
                     println!(
-                        "Sing-box process (PID: {}) terminated with status: {}",
+                        "sing-box process (PID: {}) terminated with status: {}",
                         pid, status
                     );
                     break;
@@ -347,12 +347,7 @@ pub async fn start_singbox(
     let startup_result = async {
         let singbox_path = crate::config::get_active_singbox_core_executable()?;
 
-        let log_dir = crate::config::get_log_dir()?;
         let data_dir = crate::config::get_data_dir()?;
-
-        let log_file_path = log_dir.join("singbox.log");
-        let log_file = std::fs::File::create(&log_file_path)
-            .map_err(|error| CommandError::resource_not_found("log file", error))?;
 
         if !std::path::Path::new(&config_path).exists() {
             return Err(CommandError::resource_not_found(
@@ -391,8 +386,8 @@ pub async fn start_singbox(
             .args(["run", "-c", &*temp_config_path.to_string_lossy()])
             .current_dir(&data_dir)
             .stdin(Stdio::null())
-            .stdout(Stdio::from(log_file.try_clone()?))
-            .stderr(Stdio::from(log_file));
+            .stdout(Stdio::null())
+            .stderr(Stdio::null());
 
         #[cfg(windows)]
         {
@@ -412,7 +407,7 @@ pub async fn start_singbox(
     match startup_result {
         Ok(child) => {
             let pid = child.id();
-            println!("Sing-box process started successfully (PID: {}).", pid);
+            println!("sing-box process started successfully (PID: {}).", pid);
             process_state.child = Some(child);
             process_state.pid = Some(pid);
             process_state.last_start_time = Some(SystemTime::now());
@@ -599,7 +594,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
             let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, true)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
-                "Sing-box is running (Direct Management, PID: {}) - {}",
+                "sing-box is running (Direct Management, PID: {}) - {}",
                 pid, process_info
             ))
         }
@@ -607,7 +602,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
             let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, false)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
-                "Sing-box is running (PID Management, PID: {}) - {}",
+                "sing-box is running (PID Management, PID: {}) - {}",
                 pid, process_info
             ))
         }
@@ -615,11 +610,11 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
             let process_info = get_singbox_process_info_by_pid(&mut process_state, pid, false)
                 .unwrap_or_else(|_| "Unknown".to_string());
             Ok(format!(
-                "Sing-box is running (Detected, PID: {}) - {}",
+                "sing-box is running (Detected, PID: {}) - {}",
                 pid, process_info
             ))
         }
-        None => Ok("Sing-box is not running".to_string()),
+        None => Ok("sing-box is not running".to_string()),
     }
 }
 

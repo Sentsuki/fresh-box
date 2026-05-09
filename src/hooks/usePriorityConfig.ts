@@ -12,14 +12,15 @@ import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import type {
-  ClashApiConfig,
-  ConfigFieldsCheck,
   LogLevel,
   PriorityConfig,
-  StackOption,
+  PriorityClashApiConfig,
+  ConfigFieldsCheck,
 } from "../types/app";
 
-const STACK_OPTIONS: StackOption[] = ["mixed", "gvisor", "system"];
+const STACK_OPTIONS = ["mixed", "gvisor", "system"] as const;
+export type StackOption = (typeof STACK_OPTIONS)[number];
+
 const LOG_LEVELS: LogLevel[] = [
   "trace",
   "debug",
@@ -31,7 +32,7 @@ const LOG_LEVELS: LogLevel[] = [
 ];
 
 function isStackOption(value: string): value is StackOption {
-  return STACK_OPTIONS.includes(value as StackOption);
+  return (STACK_OPTIONS as readonly string[]).includes(value);
 }
 
 function isLogLevel(value: string): value is LogLevel {
@@ -50,9 +51,6 @@ export function usePriorityConfig() {
   const [clashApiController, setClashApiController] = useState("");
   const [clashApiSecret, setClashApiSecret] = useState("");
 
-  const testUrl = useSettingsStore((s) => s.settings.Settings.test_url);
-  const setTestUrl = useSettingsStore((s) => s.setTestUrl);
-
   const selectedConfigPath = useSettingsStore(
     (s) => s.settings.Profiles.selected_config_path,
   );
@@ -69,42 +67,32 @@ export function usePriorityConfig() {
       const [fieldsCheck, priorityConfig]: [ConfigFieldsCheck, PriorityConfig] =
         await Promise.all([
           checkConfigFields(selectedConfigPath),
-          loadPriorityConfig(),
+          loadPriorityConfig(), // backend always returns defaults, never null fields
         ]);
 
       setHasStackField(fieldsCheck.has_stack_field);
       setHasLogField(fieldsCheck.has_log_field);
 
+      // Stack: Use value from priority_config
       if (fieldsCheck.has_stack_field) {
-        const stackValue =
-          priorityConfig.stack ?? fieldsCheck.current_stack_value;
+        const stackValue = priorityConfig.inbounds?.[0]?.stack;
         if (stackValue && isStackOption(stackValue)) {
           setSelectedStack(stackValue);
         }
       }
 
-      if (fieldsCheck.has_log_field) {
-        const logConfig = priorityConfig.log;
-        if (logConfig) {
-          setLogDisabled(logConfig.disabled);
-          if (isLogLevel(logConfig.level)) {
-            setSelectedLogLevel(logConfig.level);
-          }
-        } else {
-          setLogDisabled(fieldsCheck.current_log_disabled ?? false);
-          if (
-            fieldsCheck.current_log_level &&
-            isLogLevel(fieldsCheck.current_log_level)
-          ) {
-            setSelectedLogLevel(fieldsCheck.current_log_level);
-          }
+      // Log: Use value from priority_config (guaranteed by backend defaults)
+      if (priorityConfig.log) {
+        setLogDisabled(priorityConfig.log.disabled);
+        if (isLogLevel(priorityConfig.log.level)) {
+          setSelectedLogLevel(priorityConfig.log.level as LogLevel);
         }
       }
 
-      setClashApiController(
-        priorityConfig.clash_api?.external_controller ?? "",
-      );
-      setClashApiSecret(priorityConfig.clash_api?.secret ?? "");
+      // Clash API: priority_config.experimental.clash_api
+      const clashApi = priorityConfig.experimental?.clash_api;
+      setClashApiController(clashApi?.external_controller ?? "");
+      setClashApiSecret(clashApi?.secret ?? "");
     } catch (err) {
       setHasStackField(false);
       setHasLogField(false);
@@ -114,17 +102,20 @@ export function usePriorityConfig() {
     }
   }, [selectedConfigPath, toastError]);
 
-  const updatePriorityConfig = useCallback(async (partial: PriorityConfig) => {
-    const current = await loadPriorityConfig();
-    await savePriorityConfig({ ...current, ...partial });
-  }, []);
+  const updatePriorityConfig = useCallback(
+    async (partial: Partial<PriorityConfig>) => {
+      const current = await loadPriorityConfig();
+      await savePriorityConfig({ ...current, ...partial });
+    },
+    [],
+  );
 
   const setStackOption = useCallback(
     async (option: StackOption) => {
       setSelectedStack(option);
       if (!hasStackField) return;
       try {
-        await updatePriorityConfig({ stack: option });
+        await updatePriorityConfig({ inbounds: [{ stack: option }] });
         success(`Stack option updated to: ${option}`);
       } catch (err) {
         toastError(`Failed to update stack: ${getErrorMessage(err)}`);
@@ -147,12 +138,15 @@ export function usePriorityConfig() {
   );
 
   const updateClashApiConfig = useCallback(
-    async (config: ClashApiConfig) => {
+    async (config: PriorityClashApiConfig) => {
       try {
         const current = await loadPriorityConfig();
         const updated: PriorityConfig = {
           ...current,
-          clash_api: config,
+          experimental: {
+            ...current.experimental,
+            clash_api: config,
+          },
         };
         await savePriorityConfig(updated);
         const coreConfig = await getCoreClientConfig();
@@ -203,8 +197,6 @@ export function usePriorityConfig() {
     setClashApiController,
     clashApiSecret,
     setClashApiSecret,
-    testUrl,
-    setTestUrl,
     stackOptions: STACK_OPTIONS,
     logLevels: LOG_LEVELS,
     loadConfiguration,

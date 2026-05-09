@@ -7,7 +7,7 @@ export type AppPage =
   | "logs"
   | "rules"
   | "profiles"
-  | "custom"
+  | "advanced"
   | "settings";
 
 export type SingboxCoreChannel = "stable" | "testing";
@@ -26,7 +26,7 @@ export type ConnectionColumnKey =
   | "process"
   | "network"
   | "start";
-export type RulesTab = "rules" | "providers";
+export type RulesTab = "rules";
 export type LogLevel =
   | "trace"
   | "debug"
@@ -92,6 +92,12 @@ export interface RulesPageSettings {
   current_tab: RulesTab;
 }
 
+export type AdvancedPageTab = "override" | "dns";
+
+export interface AdvancedPageSettings {
+  current_tab: AdvancedPageTab;
+}
+
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
@@ -99,6 +105,7 @@ export interface AppSettings {
   connections: ConnectionPageSettings;
   logs: LogsPageSettings;
   rules: RulesPageSettings;
+  advanced: AdvancedPageSettings;
   Profiles: ProfilesSettings;
   Settings: AppDisplaySettings;
 }
@@ -156,6 +163,9 @@ export function createDefaultAppSettings(): AppSettings {
     rules: {
       current_tab: "rules",
     },
+    advanced: {
+      current_tab: "override",
+    },
     Profiles: {
       selected_config_path: null,
       selected_config_display: null,
@@ -179,7 +189,7 @@ const APP_PAGES: AppPage[] = [
   "logs",
   "rules",
   "profiles",
-  "custom",
+  "advanced",
   "settings",
 ];
 const CONNECTION_TABS: ConnectionPageTab[] = ["active", "closed"];
@@ -187,7 +197,8 @@ const CONNECTION_COLUMNS = new Set<ConnectionColumnKey>(
   DEFAULT_CONNECTION_COLUMN_ORDER,
 );
 const SORT_DIRECTIONS: SortDirection[] = ["asc", "desc"];
-const RULES_TABS: RulesTab[] = ["rules", "providers"];
+const RULES_TABS: RulesTab[] = ["rules"];
+const ADVANCED_TABS: AdvancedPageTab[] = ["override", "dns"];
 const LOG_LEVELS: LogLevel[] = [
   "trace",
   "debug",
@@ -303,6 +314,11 @@ export function normalizeAppSettings(
         ? settings.rules.current_tab
         : defaults.rules.current_tab,
     },
+    advanced: {
+      current_tab: ADVANCED_TABS.includes(settings.advanced?.current_tab)
+        ? settings.advanced.current_tab
+        : defaults.advanced.current_tab,
+    },
     Profiles: {
       selected_config_path: settings.Profiles?.selected_config_path ?? null,
       selected_config_display:
@@ -350,10 +366,23 @@ export interface LogConfig {
   level: LogLevel | string;
 }
 
+export interface PriorityInbound {
+  stack: string;
+}
+
+export interface PriorityClashApiConfig {
+  external_controller?: string;
+  secret?: string;
+}
+
+export interface PriorityExperimental {
+  clash_api?: PriorityClashApiConfig;
+}
+
 export interface PriorityConfig {
-  stack?: string;
-  log?: LogConfig;
-  clash_api?: ClashApiConfig;
+  inbounds: PriorityInbound[];
+  log: LogConfig;
+  experimental: PriorityExperimental;
 }
 
 export interface ClashApiConfig {
@@ -447,7 +476,6 @@ export interface ClashOverview {
 
 export interface ClashRulesSnapshot {
   rules: RuleEntry[];
-  providers: RuleProviderEntry[];
 }
 
 export interface RuleEntry {
@@ -463,14 +491,7 @@ export interface RuleEntry {
   };
 }
 
-export interface RuleProviderEntry {
-  name: string;
-  behavior: string;
-  vehicleType: string;
-  type: string;
-  ruleCount?: number;
-  updatedAt?: string;
-}
+
 
 export interface ConnectionMetadata {
   network: string;

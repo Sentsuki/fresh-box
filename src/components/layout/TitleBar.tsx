@@ -16,7 +16,7 @@ export function TitleBar() {
     logs: "Logs",
     rules: "Rules",
     profiles: "Profiles",
-    custom: "Custom Rules",
+    advanced: "Advanced",
     settings: "Settings",
   };
 

@@ -30,6 +30,8 @@ pub struct AppSettings {
     pub logs: LogsPageSettings,
     #[serde(default)]
     pub rules: RulesPageSettings,
+    #[serde(default)]
+    pub advanced: AdvancedPageSettings,
     #[serde(default, rename = "Profiles")]
     pub profiles: ProfilesSettings,
     #[serde(default, rename = "Settings")]
@@ -98,6 +100,12 @@ pub struct RulesPageSettings {
     pub current_tab: String,
 }
 
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct AdvancedPageSettings {
+    pub current_tab: String,
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -107,6 +115,7 @@ impl Default for AppSettings {
             connections: ConnectionPageSettings::default(),
             logs: LogsPageSettings::default(),
             rules: RulesPageSettings::default(),
+            advanced: AdvancedPageSettings::default(),
             profiles: ProfilesSettings::default(),
             settings: AppDisplaySettings::default(),
         }
@@ -180,6 +189,14 @@ impl Default for RulesPageSettings {
     fn default() -> Self {
         Self {
             current_tab: "rules".to_string(),
+        }
+    }
+}
+
+impl Default for AdvancedPageSettings {
+    fn default() -> Self {
+        Self {
+            current_tab: "override".to_string(),
         }
     }
 }
@@ -414,15 +431,7 @@ pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-// 获取 log 目录路径（放核心生成的日志和崩溃日志）
-pub fn get_log_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_exe_dir()?.join("log");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("log directory", e))?;
-    }
-    Ok(dir)
-}
+
 
 // 获取 config 目录路径（放 config_override.json、priority_config.json、subscriptions.json）
 pub fn get_config_dir() -> Result<PathBuf, CommandError> {

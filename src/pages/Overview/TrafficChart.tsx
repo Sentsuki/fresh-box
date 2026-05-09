@@ -1,15 +1,6 @@
-import { useEffect, useState } from "react";
 import { Area, AreaChart, ResponsiveContainer, Tooltip, YAxis } from "recharts";
-import { useConnectionsStore } from "../../hooks/useConnectionsStream";
+import { useTrafficStore } from "../../hooks/useTrafficStream";
 import { formatSpeed } from "../../services/utils";
-
-const MAX_POINTS = 60;
-
-interface DataPoint {
-  dl: number;
-  ul: number;
-  tick: number;
-}
 
 function formatYAxis(value: number): string {
   if (value === 0) return "0";
@@ -50,28 +41,9 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
 };
 
 export default function TrafficChart() {
-  const totalDownloadSpeed = useConnectionsStore((s) => s.totalDownloadSpeed);
-  const totalUploadSpeed = useConnectionsStore((s) => s.totalUploadSpeed);
-  const [history, setHistory] = useState<DataPoint[]>(() => {
-    const arr: DataPoint[] = [];
-    const now = Date.now();
-    for (let i = 0; i < MAX_POINTS; i++) {
-      arr.push({ dl: 0, ul: 0, tick: now - (MAX_POINTS - i) * 1000 });
-    }
-    return arr;
-  });
-
-  useEffect(() => {
-    setHistory((prev) => {
-      const next = [
-        ...prev,
-        { dl: totalDownloadSpeed, ul: totalUploadSpeed, tick: Date.now() },
-      ];
-      return next.length > MAX_POINTS
-        ? next.slice(next.length - MAX_POINTS)
-        : next;
-    });
-  }, [totalDownloadSpeed, totalUploadSpeed]);
+  // Read history directly from the global store.
+  // This preserves data when switching pages, but clears it on tray minimize (due to stopTrafficStream(true)).
+  const history = useTrafficStore((s) => s.history);
 
   return (
     <>

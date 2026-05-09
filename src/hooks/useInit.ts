@@ -12,6 +12,8 @@ import {
 import { getCleanFileName } from "../services/utils";
 import type { ConfigFileEntry } from "../types/app";
 import { startConnectionsStream } from "./useConnectionsStream";
+import { startTrafficStream } from "./useTrafficStream";
+import { startMemoryStream } from "./useMemoryStream";
 import { updateCoreClientConfig } from "../services/coreClient";
 
 function buildConfigEntries(files: string[]): ConfigFileEntry[] {
@@ -68,6 +70,8 @@ export function useInit() {
     singbox.setRunning(running);
     if (running) {
       startConnectionsStream();
+      startTrafficStream();
+      startMemoryStream();
       await clash.refreshOverview(false);
     }
 

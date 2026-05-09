@@ -10,7 +10,7 @@ import { Spinner } from "./components/ui/Spinner";
 import { useInit } from "./hooks/useInit";
 import { useTheme } from "./hooks/useTheme";
 import Connections from "./pages/Connections";
-import Custom from "./pages/Custom";
+import Advanced from "./pages/Advanced";
 import Logs from "./pages/Logs";
 import Overview from "./pages/Overview";
 import Profiles from "./pages/Profiles";
@@ -46,8 +46,8 @@ function PageContent({ page }: { page: string }) {
       return <Rules />;
     case "profiles":
       return <Profiles />;
-    case "custom":
-      return <Custom />;
+    case "advanced":
+      return <Advanced />;
     case "settings":
       return <Settings />;
     default:

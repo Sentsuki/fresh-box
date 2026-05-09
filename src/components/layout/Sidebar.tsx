@@ -31,7 +31,7 @@ const NAV_ITEMS = [
   { id: "logs" as AppPage, label: "Logs", icon: DocumentTextRegular },
   { id: "rules" as AppPage, label: "Rules", icon: BookNumberRegular },
   { id: "profiles" as AppPage, label: "Profiles", icon: DocumentEditRegular },
-  { id: "custom" as AppPage, label: "Custom", icon: WrenchRegular },
+  { id: "advanced" as AppPage, label: "Advanced", icon: WrenchRegular },
 ] as const;
 
 export function Sidebar() {

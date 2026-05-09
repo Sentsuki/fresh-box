@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { create } from "zustand";
 import { buildCoreWebSocketUrl } from "../services/coreClient";
+import { loadPriorityConfig } from "../services/api";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
@@ -22,12 +23,12 @@ interface LogsState {
   logs: LogEntry[];
   search: string;
   isPaused: boolean;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: "disconnected" | "connecting" | "connected" | "error" | "disabled";
   streamError: string | null;
   setSearch: (s: string) => void;
   setIsPaused: (p: boolean) => void;
   setStreamStatus: (
-    s: "disconnected" | "connecting" | "connected" | "error",
+    s: "disconnected" | "connecting" | "connected" | "error" | "disabled",
   ) => void;
   setStreamError: (e: string | null) => void;
   clearLogs: () => void;
@@ -76,13 +77,31 @@ function clearReconnectTimer() {
 function scheduleReconnect() {
   clearReconnectTimer();
   reconnectTimer = window.setTimeout(() => {
-    if (shouldReconnect) connect();
+    if (shouldReconnect) void connect();
   }, 1500);
 }
 
-function connect() {
+async function isLogDisabled(): Promise<boolean> {
+  try {
+    const config = await loadPriorityConfig();
+    return config.log?.disabled === true;
+  } catch {
+    return false;
+  }
+}
+
+async function connect() {
   clearReconnectTimer();
   const store = useLogsStore.getState();
+
+  const disabled = await isLogDisabled();
+  if (disabled) {
+    store.setStreamStatus("disabled");
+    store.setStreamError(null);
+    shouldReconnect = false;
+    return;
+  }
+
   const logLevel = useSettingsStore.getState().settings.logs.log_level;
 
   store.setStreamStatus("connecting");
@@ -113,7 +132,6 @@ function connect() {
         }),
         category: extractCategory(msg.payload),
       };
-      // Buffer the entry — flushed via rAF in useLogsStream hook
       logBuffer.push(entry);
     } catch {
       // ignore parse errors
@@ -144,6 +162,38 @@ function matchesSearch(entry: LogEntry, filter: string): boolean {
   return tokens.every((token) => haystack.includes(token));
 }
 
+// --- Standalone functions for external control (consistent with other streams) ---
+
+export function startLogsStream() {
+  if (shouldReconnect) return;
+  shouldReconnect = true;
+  void connect();
+}
+
+export function stopLogsStream(clear = false) {
+  shouldReconnect = false;
+  clearReconnectTimer();
+  if (socket) {
+    const s = socket;
+    socket = null;
+    s.close();
+  } else {
+    useLogsStore.getState().setStreamStatus("disconnected");
+  }
+  if (clear) {
+    useLogsStore.getState().clearLogs();
+  }
+}
+
+export function restartLogsStream() {
+  if (!shouldReconnect) return;
+  stopLogsStream(false);
+  shouldReconnect = true;
+  void connect();
+}
+
+// --- Hook for React components ---
+
 export function useLogsStream() {
   const logs = useLogsStore((s) => s.logs);
   const search = useLogsStore((s) => s.search);
@@ -161,7 +211,6 @@ export function useLogsStream() {
 
   const { success, info } = useToast();
 
-  // Flush logBuffer into store every 100ms; skip when window is hidden
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout>;
     const flush = () => {
@@ -202,35 +251,6 @@ export function useLogsStream() {
       ),
     [logs],
   );
-
-  const startStream = useCallback(() => {
-    if (shouldReconnect) return;
-    shouldReconnect = true;
-    connect();
-  }, []);
-
-  const stopStream = useCallback(
-    (clear = false) => {
-      shouldReconnect = false;
-      clearReconnectTimer();
-      if (socket) {
-        const s = socket;
-        socket = null;
-        s.close();
-      } else {
-        useLogsStore.getState().setStreamStatus("disconnected");
-      }
-      if (clear) clearLogsState();
-    },
-    [clearLogsState],
-  );
-
-  const restartStream = useCallback(() => {
-    if (!shouldReconnect) return;
-    stopStream(false);
-    shouldReconnect = true;
-    connect();
-  }, [stopStream]);
 
   const clearLogs = useCallback(() => {
     clearLogsState();
@@ -278,9 +298,9 @@ export function useLogsStream() {
     streamError,
     availableTypes,
     logLevels: LOG_LEVELS as readonly LogLevel[],
-    startStream,
-    stopStream,
-    restartStream,
+    startStream: startLogsStream,
+    stopStream: stopLogsStream,
+    restartStream: restartLogsStream,
     clearLogs,
     downloadLogs,
   };

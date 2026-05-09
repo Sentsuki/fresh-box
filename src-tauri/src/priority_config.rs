@@ -5,6 +5,27 @@ const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:8964";
 pub const DEFAULT_CLASH_SECRET: &str = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
+pub const DEFAULT_STACK: &str = "mixed";
+
+// ── sing-box 标准格式的优先级配置 ─────────────────────────────────────────
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+pub struct PriorityInbound {
+    pub stack: String,
+}
+
+impl Default for PriorityInbound {
+    fn default() -> Self {
+        Self {
+            stack: DEFAULT_STACK.to_string(),
+        }
+    }
+}
+
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+pub struct ExperimentalConfig {
+    pub clash_api: Option<ClashApiConfig>,
+}
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct ClashApiConfig {
@@ -12,26 +33,28 @@ pub struct ClashApiConfig {
     pub secret: Option<String>,
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
-pub struct PriorityConfig {
-    pub stack: Option<String>, // 直接存储 stack 值: "mixed", "gvisor", "system"
-    pub log: Option<LogConfig>,
-    pub clash_api: Option<ClashApiConfig>,
-}
-
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct LogConfig {
-    pub disabled: bool, // log.disabled
-    pub level: String,  // "trace", "debug", "info", "warn", "error", "fatal", "panic"
+    pub disabled: bool,
+    pub level: String, // "trace"|"debug"|"info"|"warn"|"error"|"fatal"|"panic"
 }
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            disabled: false,
+            disabled: true, // 默认禁用日志输出
             level: "info".to_string(),
         }
     }
+}
+
+/// 新的 priority_config 结构，对应 sing-box 标准格式：
+/// { "inbounds": [{"stack": "mixed"}], "log": {...}, "experimental": {"clash_api": {...}} }
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+pub struct PriorityConfig {
+    pub inbounds: Vec<PriorityInbound>,
+    pub log: LogConfig,
+    pub experimental: ExperimentalConfig,
 }
 
 #[tauri::command]
@@ -39,6 +62,7 @@ pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandE
     super::config::save_named_config(PRIORITY_CONFIG_FILE, &config)
 }
 
+/// 直接加载配置，不再进行补全（要求文件必须完整）
 #[tauri::command]
 pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
     super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
@@ -47,6 +71,42 @@ pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
 #[tauri::command]
 pub async fn clear_priority_config() -> Result<(), CommandError> {
     super::config::remove_named_config(PRIORITY_CONFIG_FILE)
+}
+
+/// 首次启动时自动生成包含完整默认值的 priority_config.json
+/// 如果文件已存在则不覆盖（幂等）。
+pub fn ensure_priority_config_initialized() {
+    let config_dir = match super::config::get_config_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            eprintln!("ensure_priority_config_initialized: failed to get config dir: {:?}", e);
+            return;
+        }
+    };
+
+    let path = config_dir.join(PRIORITY_CONFIG_FILE);
+    if path.exists() {
+        return; // 已存在，不覆盖
+    }
+
+    let default_config = PriorityConfig {
+        inbounds: vec![PriorityInbound {
+            stack: DEFAULT_STACK.to_string(),
+        }],
+        log: LogConfig::default(),
+        experimental: ExperimentalConfig {
+            clash_api: Some(ClashApiConfig {
+                external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
+                secret: Some(DEFAULT_CLASH_SECRET.to_string()),
+            }),
+        },
+    };
+
+    if let Err(e) = super::config::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
+        eprintln!("ensure_priority_config_initialized: failed to write defaults: {:?}", e);
+    } else {
+        println!("priority_config.json initialized with defaults.");
+    }
 }
 
 #[derive(serde::Serialize, serde::Deserialize)]
@@ -177,19 +237,18 @@ pub struct CoreClientConfig {
 
 #[tauri::command]
 pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig = super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let config: PriorityConfig =
+        super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
     let app_settings = super::config::load_app_settings_file()?;
 
-    let controller = config
-        .clash_api
-        .as_ref()
+    let clash_api = config.experimental.clash_api.as_ref();
+
+    let controller = clash_api
         .and_then(|c| c.external_controller.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_CONTROLLER);
 
-    let secret = config
-        .clash_api
-        .as_ref()
+    let secret = clash_api
         .and_then(|c| c.secret.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
@@ -227,27 +286,30 @@ pub async fn generate_random_secret() -> Result<String, CommandError> {
     Ok(secret)
 }
 
-// 应用优先级配置到配置对象
-// 这个函数会在 Config Override 之后调用，确保优先级更高
+// 应用优先级配置到配置对象（在 Config Override 之后调用，优先级最高）
 pub fn apply_priority_config(
     config: &mut Value,
     priority_config: &PriorityConfig,
 ) -> Result<(), CommandError> {
-    // 应用 stack 配置
-    if let Some(stack_value) = &priority_config.stack {
-        apply_stack_config(config, stack_value)?;
+    // 应用 inbounds[0].stack
+    if let Some(first) = priority_config.inbounds.first() {
+        if let Err(e) = apply_stack_config(config, &first.stack) {
+            eprintln!("Warning: Failed to apply stack config: {:?}", e);
+        }
     }
 
     // 应用 log 配置
-    if let Some(log_config) = &priority_config.log {
-        apply_log_config(config, log_config)?;
-    }
+    apply_log_config(config, &priority_config.log)?;
 
-    // 始终写入 clash_api 配置（使用自定义值或默认值），确保 temp_config 里的值可控
-    let clash_api = priority_config.clash_api.clone().unwrap_or(ClashApiConfig {
-        external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
-        secret: Some(DEFAULT_CLASH_SECRET.to_string()),
-    });
+    // 始终写入 clash_api（使用自定义值或默认值），确保 temp_config 里的值可控
+    let clash_api = priority_config
+        .experimental
+        .clash_api
+        .clone()
+        .unwrap_or(ClashApiConfig {
+            external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
+            secret: Some(DEFAULT_CLASH_SECRET.to_string()),
+        });
     if let Err(error) = apply_clash_api_config(config, &clash_api) {
         eprintln!(
             "Warning: Failed to apply clash_api configuration: {:?}",

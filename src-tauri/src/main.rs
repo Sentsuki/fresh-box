@@ -58,8 +58,6 @@ fn main() {
             clash_api::test_clash_proxy_delay,
             clash_api::test_clash_proxy_group_delay,
             clash_api::get_clash_rules,
-            clash_api::toggle_clash_rule,
-            clash_api::update_clash_rule_provider,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,
@@ -92,6 +90,9 @@ fn main() {
             update_mica_theme,
         ])
         .setup(|app| {
+            // 首次启动时生成含完整默认值的 priority_config.json（幂等）
+            priority_config::ensure_priority_config_initialized();
+
             tray::setup_system_tray(app)?;
 
             let window = app.get_webview_window("main").unwrap();
@@ -145,7 +146,7 @@ fn main() {
                             {
                                 if has_process {
                                     println!(
-                                        "Window focused: Sing-box process detected and under management"
+                                        "Window focused: sing-box process detected and under management"
                                     );
                                 }
                             }

@@ -6,6 +6,9 @@ import {
   stopConnectionsStream,
 } from "./useConnectionsStream";
 import { useSingboxStore } from "../stores/singboxStore";
+import { startLogsStream, stopLogsStream } from "./useLogsStream";
+import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
+import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
 
 interface WindowVisibilityState {
   isVisible: boolean;
@@ -42,9 +45,15 @@ export function useWindowVisibilityListener() {
       if (!visible) {
         // Pause stream and clear cached state to start fresh when shown again.
         stopConnectionsStream(true);
+        stopLogsStream(true);
+        stopTrafficStream(true);
+        stopMemoryStream(true);
       } else {
         if (useSingboxStore.getState().isRunning) {
           startConnectionsStream();
+          startLogsStream();
+          startTrafficStream();
+          startMemoryStream();
         }
       }
     }).then((fn) => {

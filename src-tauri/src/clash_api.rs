@@ -1,7 +1,7 @@
 use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{de::DeserializeOwned, Deserialize, Serialize};
-use serde_json::{json, Value};
+use serde_json::json;
 use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
@@ -24,16 +24,14 @@ fn get_api_config() -> ApiConfig {
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
     let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
-    let controller = config
-        .clash_api
-        .as_ref()
+    let clash_api = config.experimental.clash_api.as_ref();
+
+    let controller = clash_api
         .and_then(|c| c.external_controller.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_CONTROLLER);
 
-    let secret = config
-        .clash_api
-        .as_ref()
+    let secret = clash_api
         .and_then(|c| c.secret.as_deref())
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
@@ -71,18 +69,7 @@ struct ClashRulesResponse {
     rules: Vec<ClashRule>,
 }
 
-#[derive(Debug, Deserialize)]
-struct ClashRuleProvidersResponse {
-    #[serde(default)]
-    providers: Option<ClashRuleProviders>,
-}
 
-#[derive(Debug, Deserialize)]
-#[serde(untagged)]
-enum ClashRuleProviders {
-    List(Vec<ClashRuleProvider>),
-    Map(HashMap<String, ClashRuleProvider>),
-}
 
 #[derive(Debug, Deserialize, Clone)]
 struct ClashProxy {
@@ -159,30 +146,12 @@ pub struct ClashRule {
     extra: Option<ClashRuleExtra>,
 }
 
-#[derive(Debug, Deserialize, Serialize, Clone)]
-#[serde(rename_all = "camelCase")]
-pub struct ClashRuleProvider {
-    #[serde(default)]
-    behavior: String,
-    #[serde(default)]
-    format: String,
-    #[serde(default)]
-    name: String,
-    #[serde(default)]
-    rule_count: u64,
-    #[serde(default)]
-    r#type: String,
-    #[serde(default)]
-    updated_at: String,
-    #[serde(default)]
-    vehicle_type: String,
-}
+
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
 pub struct ClashRulesSnapshot {
     rules: Vec<ClashRule>,
-    providers: Vec<ClashRuleProvider>,
 }
 
 fn clash_client() -> Result<Client, CommandError> {
@@ -308,13 +277,7 @@ pub(crate) async fn fetch_clash_overview_inner() -> Result<ClashOverview, Comman
 }
 
 async fn fetch_clash_rules_inner() -> Result<ClashRulesSnapshot, CommandError> {
-    let (rules, providers) = tokio::try_join!(
-        clash_get::<ClashRulesResponse>("/rules", "Failed to load Clash rules"),
-        clash_get::<ClashRuleProvidersResponse>(
-            "/providers/rules",
-            "Failed to load Clash rule providers"
-        ),
-    )?;
+    let rules = clash_get::<ClashRulesResponse>("/rules", "Failed to load Clash rules").await?;
 
     Ok(ClashRulesSnapshot {
         rules: rules
@@ -335,7 +298,6 @@ async fn fetch_clash_rules_inner() -> Result<ClashRulesSnapshot, CommandError> {
                 rule
             })
             .collect(),
-        providers: normalize_rule_providers(providers.providers),
     })
 }
 
@@ -446,13 +408,7 @@ fn build_clash_overview(
     }
 }
 
-fn normalize_rule_providers(providers: Option<ClashRuleProviders>) -> Vec<ClashRuleProvider> {
-    match providers {
-        Some(ClashRuleProviders::List(items)) => items,
-        Some(ClashRuleProviders::Map(items)) => items.into_values().collect(),
-        None => Vec::new(),
-    }
-}
+
 
 fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Ordering {
     match (
@@ -547,16 +503,30 @@ pub async fn test_clash_proxy_group_delay(
         return Err(CommandError::validation("Proxy group cannot be empty."));
     }
 
-    let overview = fetch_clash_overview_inner().await?;
-    let group = overview
-        .proxy_groups
-        .iter()
-        .find(|item| item.name == normalized_group)
-        .ok_or_else(|| CommandError::resource_not_found("proxy group", normalized_group))?;
+    let api = get_api_config();
+    let client = clash_client()?;
+    let encoded_group = urlencoding::encode(normalized_group);
+    let target_url = url
+        .as_deref()
+        .map(str::trim)
+        .filter(|value| !value.is_empty())
+        .unwrap_or(api.test_url.as_str());
+    let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
+    let request_url = format!(
+        "{}?url={}&timeout={}",
+        build_clash_url(&api.base_url, &format!("/group/{}/delay", encoded_group)),
+        urlencoding::encode(target_url),
+        timeout
+    );
 
-    for node in &group.options {
-        execute_proxy_delay_test(node.name.as_str(), url.as_deref(), timeout_ms).await?;
-    }
+    client
+        .get(request_url)
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to test group delay", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to test group delay", error))?;
 
     fetch_clash_overview_inner().await
 }
@@ -566,58 +536,4 @@ pub async fn get_clash_rules() -> Result<ClashRulesSnapshot, CommandError> {
     fetch_clash_rules_inner().await
 }
 
-#[tauri::command]
-pub async fn toggle_clash_rule(
-    rule_uuid: Option<String>,
-    rule_index: Option<usize>,
-    disabled: bool,
-) -> Result<ClashRulesSnapshot, CommandError> {
-    if let Some(uuid) = rule_uuid
-        .as_deref()
-        .map(str::trim)
-        .filter(|value| !value.is_empty())
-    {
-        clash_put(
-            &format!("/rules/{}", urlencoding::encode(uuid)),
-            json!({}),
-            "Failed to toggle Clash rule",
-        )
-        .await?;
-        return fetch_clash_rules_inner().await;
-    }
 
-    if let Some(index) = rule_index {
-        let mut payload = serde_json::Map::new();
-        payload.insert(index.to_string(), json!(disabled));
-        clash_patch(
-            "/rules/disable",
-            Value::Object(payload),
-            "Failed to toggle Clash rule",
-        )
-        .await?;
-        return fetch_clash_rules_inner().await;
-    }
-
-    Err(CommandError::validation(
-        "Rule toggle requires either a rule UUID or rule index.",
-    ))
-}
-
-#[tauri::command]
-pub async fn update_clash_rule_provider(name: String) -> Result<ClashRulesSnapshot, CommandError> {
-    let normalized_name = name.trim();
-    if normalized_name.is_empty() {
-        return Err(CommandError::validation(
-            "Rule provider name cannot be empty.",
-        ));
-    }
-
-    clash_put(
-        &format!("/providers/rules/{}", urlencoding::encode(normalized_name)),
-        json!({}),
-        "Failed to update Clash rule provider",
-    )
-    .await?;
-
-    fetch_clash_rules_inner().await
-}

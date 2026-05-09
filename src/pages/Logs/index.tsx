@@ -41,6 +41,7 @@ export default function Logs() {
     typeFilter,
     logLevel,
     logLevels,
+    streamStatus,
     setSearch,
     setTypeFilter,
     setIsPaused,
@@ -140,7 +141,8 @@ export default function Logs() {
                   restartStream();
                 });
               }}
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+              disabled={streamStatus === "disabled"}
+              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-40 disabled:cursor-not-allowed"
               title="Stream log level"
             >
               {logLevels.map((l) => (
@@ -172,7 +174,14 @@ export default function Logs() {
         </div>
 
         <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-log-bg) shadow-inner p-3 font-mono">
-          {visibleLogs.length === 0 ? (
+          {streamStatus === "disabled" ? (
+            <div className="flex flex-col items-center justify-center h-full gap-2 text-(--wb-text-disabled) text-sm font-medium">
+              <span>Log output is disabled in the core configuration.</span>
+              <span className="text-xs text-(--wb-text-disabled) opacity-60">
+                Enable it in Settings → Core Log Level.
+              </span>
+            </div>
+          ) : visibleLogs.length === 0 ? (
             <div className="flex items-center justify-center h-full text-(--wb-text-disabled) text-sm font-medium">
               No logs available
             </div>

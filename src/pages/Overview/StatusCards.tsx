@@ -1,60 +1,45 @@
-import { Card } from "../../components/ui/Card";
-import { formatBytes, formatSpeed } from "../../services/utils";
-import type { ClashOverview } from "../../types/app";
-import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import {
   ArrowDownRegular,
   ArrowUpRegular,
-  PlugConnectedRegular,
   StorageRegular,
 } from "@fluentui/react-icons";
+import { Card } from "../../components/ui/Card";
+import { useTrafficStore } from "../../hooks/useTrafficStream";
+import { useMemoryStore } from "../../hooks/useMemoryStream";
+import { formatBytes, formatSpeed } from "../../services/utils";
+import type { ClashOverview } from "../../types/app";
 
 interface StatusCardsProps {
   overview: ClashOverview;
 }
 
-export default function StatusCards({ overview }: StatusCardsProps) {
-  const active = useConnectionsStore((s) => s.active);
-  const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
-  const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
-
-  const downloadSpeed = active.reduce((sum, c) => sum + c.downloadSpeed, 0);
-  const uploadSpeed = active.reduce((sum, c) => sum + c.uploadSpeed, 0);
-  const connectionsCount = active.length;
+export default function StatusCards({ overview: _overview }: StatusCardsProps) {
+  const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
+  const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
+  const inuse = useMemoryStore((s) => s.inuse);
 
   const stats = [
     {
       icon: <ArrowDownRegular />,
       label: "Download",
       value: formatSpeed(downloadSpeed),
-      sub: `Total: ${formatBytes(downloadTotal)}`,
+      sub: "Current speed",
       color: "text-(--wb-accent)",
     },
     {
       icon: <ArrowUpRegular />,
       label: "Upload",
       value: formatSpeed(uploadSpeed),
-      sub: `Total: ${formatBytes(uploadTotal)}`,
+      sub: "Current speed",
       color: "text-(--wb-accent-hover)",
     },
     {
-      icon: <PlugConnectedRegular />,
-      label: "Connections",
-      value: String(connectionsCount),
-      sub: `Mode: ${overview.current_mode}`,
-      color: "text-(--wb-success)",
+      icon: <StorageRegular />,
+      label: "Memory",
+      value: inuse > 0 ? formatBytes(inuse) : "—",
+      sub: "Core heap in use",
+      color: "text-(--wb-warning)",
     },
-    ...(overview.memory_usage !== undefined
-      ? [
-          {
-            icon: <StorageRegular />,
-            label: "Memory",
-            value: formatBytes(overview.memory_usage),
-            sub: "In use",
-            color: "text-(--wb-warning)",
-          },
-        ]
-      : []),
   ];
 
   return (
@@ -63,7 +48,7 @@ export default function StatusCards({ overview }: StatusCardsProps) {
         <div key={stat.label} className="flex-1 min-w-[200px]">
           <Card className="h-full">
             <div className="flex items-center gap-4">
-              <div className={["text-2xl flex-shrink-0", stat.color].join(" ")}>
+              <div className={["text-2xl shrink-0", stat.color].join(" ")}>
                 {stat.icon}
               </div>
               <div className="min-w-0">
