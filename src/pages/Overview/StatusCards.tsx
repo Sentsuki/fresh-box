@@ -1,12 +1,11 @@
 import {
   ArrowDownRegular,
   ArrowUpRegular,
-  PlugConnectedRegular,
   StorageRegular,
 } from "@fluentui/react-icons";
 import { Card } from "../../components/ui/Card";
-import { useConnectionsStore } from "../../hooks/useConnectionsStream";
 import { useTrafficStore } from "../../hooks/useTrafficStream";
+import { useMemoryStore } from "../../hooks/useMemoryStream";
 import { formatBytes, formatSpeed } from "../../services/utils";
 import type { ClashOverview } from "../../types/app";
 
@@ -14,48 +13,33 @@ interface StatusCardsProps {
   overview: ClashOverview;
 }
 
-export default function StatusCards({ overview }: StatusCardsProps) {
-  const active = useConnectionsStore((s) => s.active);
-  const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
-  const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
-
+export default function StatusCards({ overview: _overview }: StatusCardsProps) {
   const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
   const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
-  const connectionsCount = active.length;
+  const inuse = useMemoryStore((s) => s.inuse);
 
   const stats = [
     {
       icon: <ArrowDownRegular />,
       label: "Download",
       value: formatSpeed(downloadSpeed),
-      sub: `Total: ${formatBytes(downloadTotal)}`,
+      sub: "Current speed",
       color: "text-(--wb-accent)",
     },
     {
       icon: <ArrowUpRegular />,
       label: "Upload",
       value: formatSpeed(uploadSpeed),
-      sub: `Total: ${formatBytes(uploadTotal)}`,
+      sub: "Current speed",
       color: "text-(--wb-accent-hover)",
     },
     {
-      icon: <PlugConnectedRegular />,
-      label: "Connections",
-      value: String(connectionsCount),
-      sub: `Mode: ${overview.current_mode}`,
-      color: "text-(--wb-success)",
+      icon: <StorageRegular />,
+      label: "Memory",
+      value: inuse > 0 ? formatBytes(inuse) : "—",
+      sub: "Core heap in use",
+      color: "text-(--wb-warning)",
     },
-    ...(overview.memory_usage !== undefined
-      ? [
-        {
-          icon: <StorageRegular />,
-          label: "Memory",
-          value: formatBytes(overview.memory_usage),
-          sub: "In use",
-          color: "text-(--wb-warning)",
-        },
-      ]
-      : []),
   ];
 
   return (
