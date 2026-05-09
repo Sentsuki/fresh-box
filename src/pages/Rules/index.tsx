@@ -10,7 +10,6 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { TabContent, Tabs } from "../../components/ui/Tabs";
 import { VirtualTable, type ColumnDef } from "../../components/ui/VirtualTable";
 import { useRulesPage } from "../../hooks/useRules";
-import { formatLastUpdated } from "../../services/utils";
 import type { RuleEntry, RulesTab } from "../../types/app";
 
 export default function Rules() {
