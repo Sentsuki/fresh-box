@@ -10,6 +10,7 @@ import {
 import { updateCoreClientConfig } from "../services/coreClient";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
+import { useLogsStore } from "./useLogsStream";
 import { useToast } from "./useToast";
 import type {
   ClashApiConfig,
@@ -85,13 +86,16 @@ export function usePriorityConfig() {
 
       if (fieldsCheck.has_log_field) {
         const logConfig = priorityConfig.log;
+        let disabled = false;
         if (logConfig) {
+          disabled = logConfig.disabled;
           setLogDisabled(logConfig.disabled);
           if (isLogLevel(logConfig.level)) {
             setSelectedLogLevel(logConfig.level);
           }
         } else {
-          setLogDisabled(fieldsCheck.current_log_disabled ?? false);
+          disabled = fieldsCheck.current_log_disabled ?? false;
+          setLogDisabled(disabled);
           if (
             fieldsCheck.current_log_level &&
             isLogLevel(fieldsCheck.current_log_level)
@@ -99,6 +103,8 @@ export function usePriorityConfig() {
             setSelectedLogLevel(fieldsCheck.current_log_level);
           }
         }
+        // Sync to global logs store so the stream avoids connecting when disabled
+        useLogsStore.getState().setLogDisabled(disabled);
       }
 
       setClashApiController(

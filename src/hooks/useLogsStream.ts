@@ -22,14 +22,16 @@ interface LogsState {
   logs: LogEntry[];
   search: string;
   isPaused: boolean;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: "disconnected" | "connecting" | "connected" | "error" | "disabled";
   streamError: string | null;
+  logDisabled: boolean;
   setSearch: (s: string) => void;
   setIsPaused: (p: boolean) => void;
   setStreamStatus: (
-    s: "disconnected" | "connecting" | "connected" | "error",
+    s: "disconnected" | "connecting" | "connected" | "error" | "disabled",
   ) => void;
   setStreamError: (e: string | null) => void;
+  setLogDisabled: (d: boolean) => void;
   clearLogs: () => void;
 }
 
@@ -42,10 +44,12 @@ export const useLogsStore = create<LogsState>((set) => ({
   isPaused: false,
   streamStatus: "disconnected",
   streamError: null,
+  logDisabled: false,
   setSearch: (search) => set({ search }),
   setIsPaused: (isPaused) => set({ isPaused }),
   setStreamStatus: (streamStatus) => set({ streamStatus }),
   setStreamError: (streamError) => set({ streamError }),
+  setLogDisabled: (logDisabled) => set({ logDisabled }),
   clearLogs: () => {
     logSeq = 1;
     logBuffer.length = 0;
@@ -83,6 +87,16 @@ function scheduleReconnect() {
 function connect() {
   clearReconnectTimer();
   const store = useLogsStore.getState();
+
+  // If the core has log output disabled, don't attempt a WebSocket connection
+  // (the endpoint returns HTTP 200 instead of 101, causing a handshake error)
+  if (store.logDisabled) {
+    store.setStreamStatus("disabled");
+    store.setStreamError(null);
+    shouldReconnect = false;
+    return;
+  }
+
   const logLevel = useSettingsStore.getState().settings.logs.log_level;
 
   store.setStreamStatus("connecting");
@@ -127,6 +141,14 @@ function connect() {
 
   socket.onclose = () => {
     socket = null;
+    // Re-read logDisabled at close time to self-heal the race condition:
+    // if logDisabled was updated after connect() started, stop here.
+    if (useLogsStore.getState().logDisabled) {
+      shouldReconnect = false;
+      useLogsStore.getState().setStreamStatus("disabled");
+      useLogsStore.getState().setStreamError(null);
+      return;
+    }
     if (shouldReconnect) {
       store.setStreamStatus("connecting");
       scheduleReconnect();
@@ -150,8 +172,10 @@ export function useLogsStream() {
   const isPaused = useLogsStore((s) => s.isPaused);
   const streamStatus = useLogsStore((s) => s.streamStatus);
   const streamError = useLogsStore((s) => s.streamError);
+  const logDisabled = useLogsStore((s) => s.logDisabled);
   const setSearch = useLogsStore((s) => s.setSearch);
   const setIsPaused = useLogsStore((s) => s.setIsPaused);
+  const setLogDisabled = useLogsStore((s) => s.setLogDisabled);
   const clearLogsState = useLogsStore((s) => s.clearLogs);
 
   const logLevel = useSettingsStore((s) => s.settings.logs.log_level);
@@ -276,6 +300,8 @@ export function useLogsStream() {
     setIsPaused,
     streamStatus,
     streamError,
+    logDisabled,
+    setLogDisabled,
     availableTypes,
     logLevels: LOG_LEVELS as readonly LogLevel[],
     startStream,
