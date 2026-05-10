@@ -140,22 +140,29 @@ export default function Rules() {
                 ref={containerRef}
                 className="h-full overflow-auto custom-scrollbar"
               >
-                <div style={{ width: Math.max(table.getTotalSize(), 900) }}>
+                <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
                   <div className="sticky top-0 z-10 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
                     {table.getHeaderGroups().map((headerGroup) => (
                       <div key={headerGroup.id} className="flex">
-                        {headerGroup.headers.map((header) => (
-                          <div
-                            key={header.id}
-                            className="h-10 px-4 flex items-center text-xs font-medium text-(--wb-text-secondary) border-r border-(--wb-border-subtle)"
-                            style={{ width: header.getSize() }}
-                          >
-                            {flexRender(
-                              header.column.columnDef.header,
-                              header.getContext(),
-                            )}
-                          </div>
-                        ))}
+                        {headerGroup.headers.map((header, index) => {
+                          const isLast = index === headerGroup.headers.length - 1;
+                          return (
+                            <div
+                              key={header.id}
+                              className="h-10 px-4 flex items-center text-xs font-medium text-(--wb-text-secondary) border-r border-(--wb-border-subtle)"
+                              style={{
+                                width: isLast ? undefined : header.getSize(),
+                                minWidth: isLast ? header.getSize() : undefined,
+                                flexGrow: isLast ? 1 : undefined,
+                              }}
+                            >
+                              {flexRender(
+                                header.column.columnDef.header,
+                                header.getContext(),
+                              )}
+                            </div>
+                          );
+                        })}
                       </div>
                     ))}
                   </div>
@@ -179,18 +186,25 @@ export default function Rules() {
                           ].join(" ")}
                           style={{ transform: `translateY(${virtualRow.start}px)` }}
                         >
-                          {row.getVisibleCells().map((cell) => (
-                            <div
-                              key={cell.id}
-                              className="px-4 flex items-center text-[13px] border-r border-(--wb-border-subtle) truncate"
-                              style={{ width: cell.column.getSize() }}
-                            >
-                              {flexRender(
-                                cell.column.columnDef.cell,
-                                cell.getContext(),
-                              )}
-                            </div>
-                          ))}
+                          {row.getVisibleCells().map((cell, index) => {
+                            const isLast = index === row.getVisibleCells().length - 1;
+                            return (
+                              <div
+                                key={cell.id}
+                                className="px-4 flex items-center text-[13px] border-r border-(--wb-border-subtle) truncate"
+                                style={{
+                                  width: isLast ? undefined : cell.column.getSize(),
+                                  minWidth: isLast ? cell.column.getSize() : undefined,
+                                  flexGrow: isLast ? 1 : undefined,
+                                }}
+                              >
+                                {flexRender(
+                                  cell.column.columnDef.cell,
+                                  cell.getContext(),
+                                )}
+                              </div>
+                            );
+                          })}
                         </div>
                       );
                     })}

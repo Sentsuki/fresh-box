@@ -263,11 +263,12 @@ export function ConnectionTable({
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
     >
-      <div style={{ width: Math.max(table.getTotalSize(), 900) }}>
+      <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
         <div className="sticky top-0 z-20 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="flex">
-              {headerGroup.headers.map((header) => {
+              {headerGroup.headers.map((header, index) => {
+                const isLast = index === headerGroup.headers.length - 1;
                 const pinned = header.column.getIsPinned();
                 const pinnedOffset =
                   pinned === "left"
@@ -286,7 +287,9 @@ export function ConnectionTable({
                         : "",
                     ].join(" ")}
                     style={{
-                      width: header.getSize(),
+                      width: isLast ? undefined : header.getSize(),
+                      minWidth: isLast ? header.getSize() : undefined,
+                      flexGrow: isLast ? 1 : undefined,
                       ...getPinnedStyles(pinned, pinnedOffset, true),
                     }}
                     onClick={
@@ -346,7 +349,8 @@ export function ConnectionTable({
                 }}
                 onClick={() => onRowClick(row.original)}
               >
-                {row.getVisibleCells().map((cell) => {
+                {row.getVisibleCells().map((cell, index) => {
+                  const isLast = index === row.getVisibleCells().length - 1;
                   const pinned = cell.column.getIsPinned();
                   const pinnedOffset =
                     pinned === "left"
@@ -360,7 +364,9 @@ export function ConnectionTable({
                       key={cell.id}
                       className="h-full px-3 border-r border-(--wb-border-subtle) flex items-center text-[13px] text-(--wb-text-primary) truncate"
                       style={{
-                        width: cell.column.getSize(),
+                        width: isLast ? undefined : cell.column.getSize(),
+                        minWidth: isLast ? cell.column.getSize() : undefined,
+                        flexGrow: isLast ? 1 : undefined,
                         ...getPinnedStyles(pinned, pinnedOffset),
                       }}
                       onContextMenu={(event) => {
