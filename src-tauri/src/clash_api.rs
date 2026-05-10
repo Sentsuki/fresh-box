@@ -297,11 +297,16 @@ async fn fetch_clash_rules_inner() -> Result<ClashRulesSnapshot, CommandError> {
     })
 }
 
+#[derive(Debug, Deserialize)]
+struct DelayResponse {
+    delay: i64,
+}
+
 async fn execute_proxy_delay_test(
     proxy_name: &str,
     url: Option<&str>,
     timeout_ms: Option<u64>,
-) -> Result<(), CommandError> {
+) -> Result<i64, CommandError> {
     if proxy_name.trim().is_empty() {
         return Err(CommandError::validation("Proxy name cannot be empty."));
     }
@@ -321,7 +326,7 @@ async fn execute_proxy_delay_test(
         timeout
     );
 
-    client
+    let response = client
         .get(request_url)
         .bearer_auth(&api.secret)
         .send()
@@ -330,7 +335,12 @@ async fn execute_proxy_delay_test(
         .error_for_status()
         .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?;
 
-    Ok(())
+    let data = response
+        .json::<DelayResponse>()
+        .await
+        .map_err(|error| CommandError::network(format!("Failed to parse delay response: {}", error)))?;
+
+    Ok(data.delay)
 }
 
 fn build_clash_overview(
@@ -480,10 +490,8 @@ pub async fn test_clash_proxy_delay(
     proxy_name: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
-) -> Result<ClashOverview, CommandError> {
-    execute_proxy_delay_test(proxy_name.as_str(), url.as_deref(), timeout_ms).await?;
-
-    fetch_clash_overview_inner().await
+) -> Result<i64, CommandError> {
+    execute_proxy_delay_test(proxy_name.as_str(), url.as_deref(), timeout_ms).await
 }
 
 #[tauri::command]
@@ -491,7 +499,7 @@ pub async fn test_clash_proxy_group_delay(
     proxy_group: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
-) -> Result<ClashOverview, CommandError> {
+) -> Result<HashMap<String, i64>, CommandError> {
     let normalized_group = proxy_group.trim();
     if normalized_group.is_empty() {
         return Err(CommandError::validation("Proxy group cannot be empty."));
@@ -513,7 +521,7 @@ pub async fn test_clash_proxy_group_delay(
         timeout
     );
 
-    client
+    let response = client
         .get(request_url)
         .bearer_auth(&api.secret)
         .send()
@@ -522,10 +530,48 @@ pub async fn test_clash_proxy_group_delay(
         .error_for_status()
         .map_err(|error| map_clash_network_error("Failed to test group delay", error))?;
 
-    fetch_clash_overview_inner().await
+    let data = response
+        .json::<HashMap<String, i64>>()
+        .await
+        .map_err(|error| CommandError::network(format!("Failed to parse group delay response: {}", error)))?;
+
+    Ok(data)
 }
 
 #[tauri::command]
 pub async fn get_clash_rules() -> Result<ClashRulesSnapshot, CommandError> {
     fetch_clash_rules_inner().await
+}
+
+#[tauri::command]
+pub async fn query_dns(
+    name: String,
+    r#type: Option<String>,
+) -> Result<serde_json::Value, CommandError> {
+    let api = get_api_config();
+    let client = clash_client()?;
+    let mut request_url = format!(
+        "{}?name={}",
+        build_clash_url(&api.base_url, "/dns/query"),
+        urlencoding::encode(&name)
+    );
+    if let Some(t) = r#type {
+        request_url.push_str(&format!("&type={}", urlencoding::encode(&t)));
+    }
+
+    let response = client
+        .get(request_url)
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to query DNS", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to query DNS", error))?;
+
+    let data = response
+        .json::<serde_json::Value>()
+        .await
+        .map_err(|error| CommandError::network(format!("Failed to parse DNS response: {}", error)))?;
+
+    Ok(data)
 }

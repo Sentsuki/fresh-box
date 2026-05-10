@@ -64,15 +64,6 @@ function syncTrayMenu(overview: ClashOverview | null) {
   refreshTrayProxyMenu(groups).catch(() => {});
 }
 
-function findDelay(
-  overview: ClashOverview | null,
-  proxyName: string,
-): number | null | undefined {
-  return overview?.proxy_groups
-    .flatMap((g) => g.options)
-    .find((n) => n.name === proxyName)?.delay;
-}
-
 export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
   overview: null,
   errorMessage: null,
@@ -164,9 +155,20 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       return { activeDelayNodes: next };
     });
     try {
-      const overview = await testClashProxyDelay(proxyName);
-      set({ overview, errorMessage: null });
-      const delay = findDelay(overview, proxyName);
+      const delay = await testClashProxyDelay(proxyName);
+      set((s) => ({
+        overview: s.overview ? {
+          ...s.overview,
+          proxy_groups: s.overview.proxy_groups.map((group) => ({
+            ...group,
+            options: group.options.map((node) =>
+              node.name === proxyName ? { ...node, delay } : node
+            ),
+          })),
+        } : null,
+        errorMessage: null,
+      }));
+      
       if (typeof delay === "number" && delay >= 0) {
         onResult?.(`${proxyName}: ${delay} ms`, true);
       } else {
@@ -202,61 +204,47 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     set({ activeGroupDelay: proxyGroup });
 
     try {
-      const overview = get().overview;
-      const group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
-      const nodes = group?.options.map((n) => n.name) ?? [];
+      let overview = get().overview;
+      let group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
+      let nodes = group?.options.map((n) => n.name) ?? [];
 
       if (nodes.length === 0) {
-        const refreshed = await testClashProxyGroupDelay(proxyGroup);
-        set({ overview: refreshed, errorMessage: null });
-        const g = refreshed.proxy_groups.find((g) => g.name === proxyGroup);
-        onSuccess?.(`${proxyGroup}: tested ${g?.options.length ?? 0} nodes`);
-        return;
+        await get().refreshOverview(); // 先拉取节点
+        overview = get().overview;
+        group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
+        nodes = group?.options.map((n) => n.name) ?? [];
+        
+        if (nodes.length === 0) {
+          onSuccess?.(`${proxyGroup}: no nodes found`);
+          return;
+        }
       }
 
-      // Add all nodes to groupTestingNodes
+      // 无论是一开始就有节点，还是刚刚拉取到的节点，都走这里
       set({ groupTestingNodes: new Set(nodes) });
 
-      const BATCH = 5;
-      let testedCount = 0;
-      for (let i = 0; i < nodes.length; i += BATCH) {
-        const chunk = nodes.slice(i, i + BATCH);
-        await Promise.allSettled(
-          chunk.map(async (name) => {
-            try {
-              const updated = await testClashProxyDelay(name);
-              set((s) => ({
-                overview: updated,
-                errorMessage: null,
-                groupTestingNodes: new Set(
-                  [...s.groupTestingNodes].filter((n) => n !== name),
-                ),
-              }));
-            } catch {
-              set((s) => {
-                if (!s.overview) return {};
-                return {
-                  overview: {
-                    ...s.overview,
-                    proxy_groups: s.overview.proxy_groups.map((group) => ({
-                      ...group,
-                      options: group.options.map((node) =>
-                        node.name === name ? { ...node, delay: -1 } : node,
-                      ),
-                    })),
-                  },
-                  groupTestingNodes: new Set(
-                    [...s.groupTestingNodes].filter((n) => n !== name),
-                  ),
-                };
-              });
-            }
-            testedCount++;
-          }),
-        );
-      }
+      const results = await testClashProxyGroupDelay(proxyGroup);
 
-      onSuccess?.(`${proxyGroup}: tested ${testedCount} nodes`);
+      set((s) => ({
+        overview: s.overview ? {
+          ...s.overview,
+          proxy_groups: s.overview.proxy_groups.map((g) => {
+            if (g.name === proxyGroup) {
+              return {
+                ...g,
+                options: g.options.map((node) => ({
+                  ...node,
+                  delay: results[node.name] !== undefined ? results[node.name] : -1,
+                })),
+              };
+            }
+            return g;
+          }),
+        } : null,
+        errorMessage: null,
+      }));
+
+      onSuccess?.(`${proxyGroup}: tested ${Object.keys(results).length} nodes`);
     } catch (error) {
       onError?.(`Failed to test group latency: ${getErrorMessage(error)}`);
     } finally {
