@@ -436,11 +436,8 @@ export function useConnectionsStream() {
   );
 
   const visibleColumns = useMemo(
-    () =>
-      settings.column_order
-        .filter((k) => settings.visible_columns.includes(k))
-        .map((k) => columnDefinitions[k]),
-    [settings.column_order, settings.visible_columns],
+    () => settings.visible_columns.map((k) => columnDefinitions[k]),
+    [settings.visible_columns],
   );
 
   const entries = settings.current_tab === "active" ? active : closed;

@@ -21,7 +21,6 @@ interface ConnectionCtrlProps {
   isPaused: boolean;
   showColumns: boolean;
   visibleColumnKeys: ConnectionColumnKey[];
-  columnOrder: ConnectionColumnKey[];
   sortKey: ConnectionColumnKey;
   onSetTab: (tab: ConnectionPageTab) => void;
   onSearchChange: (value: string) => void;
@@ -43,7 +42,6 @@ export function ConnectionCtrl({
   isPaused,
   showColumns,
   visibleColumnKeys,
-  columnOrder,
   onSetTab,
   onSearchChange,
   onSourceIpFilterChange,
@@ -158,10 +156,16 @@ export function ConnectionCtrl({
               <div className="max-h-[60vh] overflow-y-auto px-1">
                 {allColumns
                   .slice()
-                  .sort(
-                    (a, b) =>
-                      columnOrder.indexOf(a.key) - columnOrder.indexOf(b.key),
-                  )
+                  .sort((a, b) => {
+                    const aVisibleIndex = visibleColumnKeys.indexOf(a.key);
+                    const bVisibleIndex = visibleColumnKeys.indexOf(b.key);
+                    const aVisible = aVisibleIndex >= 0;
+                    const bVisible = bVisibleIndex >= 0;
+                    if (aVisible && bVisible) return aVisibleIndex - bVisibleIndex;
+                    if (aVisible) return -1;
+                    if (bVisible) return 1;
+                    return allColumns.indexOf(a) - allColumns.indexOf(b);
+                  })
                   .map((col) => (
                     <div
                       key={col.key}

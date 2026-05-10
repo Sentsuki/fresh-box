@@ -29,7 +29,6 @@ interface SettingsActions {
   setSelectedCoreOptionKey: (value: string) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
-  setConnectionsColumnOrder: (order: ConnectionColumnKey[]) => Promise<void>;
   setConnectionsVisibleColumns: (
     columns: ConnectionColumnKey[],
   ) => Promise<void>;
@@ -101,12 +100,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsTab: async (tab) => {
       await get().updateSettings((s) => {
         s.connections.current_tab = tab;
-      });
-    },
-
-    setConnectionsColumnOrder: async (order) => {
-      await get().updateSettings((s) => {
-        s.connections.column_order = order;
       });
     },
 

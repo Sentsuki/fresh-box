@@ -37,7 +37,6 @@ export default function Connections() {
   const visibleColumnKeys = useSettingsStore(
     (state) => state.settings.connections.visible_columns,
   );
-  const columnOrder = useSettingsStore((state) => state.settings.connections.column_order);
   const sortKey = useSettingsStore((state) => state.settings.connections.sort_key);
   const sortDirection = useSettingsStore(
     (state) => state.settings.connections.sort_direction,
@@ -45,9 +44,6 @@ export default function Connections() {
   const setConnectionsTab = useSettingsStore((state) => state.setConnectionsTab);
   const setConnectionsVisibleColumns = useSettingsStore(
     (state) => state.setConnectionsVisibleColumns,
-  );
-  const setConnectionsColumnOrder = useSettingsStore(
-    (state) => state.setConnectionsColumnOrder,
   );
   const setConnectionsSortKey = useSettingsStore(
     (state) => state.setConnectionsSortKey,
@@ -151,18 +147,18 @@ export default function Connections() {
 
   const moveColumn = useCallback(
     (key: ConnectionColumnKey, direction: -1 | 1) => {
-      const currentIndex = columnOrder.indexOf(key);
+      const currentIndex = visibleColumnKeys.indexOf(key);
       if (currentIndex < 0) return;
       const nextIndex = currentIndex + direction;
-      if (nextIndex < 0 || nextIndex >= columnOrder.length) return;
-      const nextOrder = [...columnOrder];
-      [nextOrder[currentIndex], nextOrder[nextIndex]] = [
-        nextOrder[nextIndex],
-        nextOrder[currentIndex],
+      if (nextIndex < 0 || nextIndex >= visibleColumnKeys.length) return;
+      const nextVisible = [...visibleColumnKeys];
+      [nextVisible[currentIndex], nextVisible[nextIndex]] = [
+        nextVisible[nextIndex],
+        nextVisible[currentIndex],
       ];
-      void setConnectionsColumnOrder(nextOrder);
+      void setConnectionsVisibleColumns(nextVisible);
     },
-    [columnOrder, setConnectionsColumnOrder],
+    [setConnectionsVisibleColumns, visibleColumnKeys],
   );
 
   const disconnectConnection = useCallback(async (id: string) => {
@@ -199,7 +195,6 @@ export default function Connections() {
           isPaused={isPaused}
           showColumns={showColumns}
           visibleColumnKeys={visibleColumnKeys}
-          columnOrder={columnOrder}
           sortKey={sortKey}
           onSetTab={(tab) => void setConnectionsTab(tab)}
           onSearchChange={setSearch}

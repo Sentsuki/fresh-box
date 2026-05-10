@@ -1,24 +1,19 @@
-# Logs 页面功能增强待办事项
+## Connections 页面列管理重构 (路线 B)
 
-从 Zashboard 借鉴的日志页面功能改进计划。
+借鉴 Zashboard 的思路，将列的“顺序”和“可见性”合并为一个数组，彻底解决自动恢复初始状态的 Bug。
 
-## 1. 倒序排列 (Reverse Chronological Order)
-- [ ] 修改日志存储或渲染逻辑，使最新日志显示在顶部。
-- [ ] 调整虚拟滚动器，确保新日志到达时，如果用户没有滚动查看历史，视口能保持在最新日志（顶部）。
 
-## 2. 正则搜索 (Regex Search)
-- [ ] 增强 `useLogsStream.ts` 中的 `matchesSearch` 函数，支持正则表达式匹配。
-- [ ] 优化错误处理，防止用户输入非法的正则表达式导致应用崩溃。
-- [ ] 在 `Logs/index.tsx` 的搜索框占位符中提示支持正则（例如："搜索日志... (支持正则)"）。
+- [x] **1. 数据结构重构**
+  - 在 `types` 和 `store` 中，移除独立的 `column_order` 配置。
+  - 使 `visible_columns` 数组同时承担“可见性”和“显示顺序”的职责。
 
-## 3. 反向过滤 (Negative Filter / Hide Logs)
-- [ ] 在 `settingsStore` 中添加 `hideLogRegex` (字符串) 和 `hideLogEnabled` (布尔值) 的持久化配置。
-- [ ] 在 `useLogsStream.ts` 的过滤逻辑中，增加对匹配 `hideLogRegex` 的日志的排除逻辑。
-- [ ] 在 `Logs/index.tsx` 页面上添加：
-  - [ ] 一个用于输入排除正则的输入框。
-  - [ ] 一个用于快速启用/禁用反向过滤的开关或按钮。
+- [x] **2. 修复正规化逻辑**
+  - 修改配置初始化和加载时的 `normalize` 逻辑。
+  - 移除对默认可见列的“强制补全”行为，允许用户真正隐藏任意列。
 
-## 4. 动态字典 (Dynamic Dictionary)
-- [ ] 改变目前固定的 `LOG_LEVELS` 过滤方式。
-- [ ] 在 `useLogsStream.ts` 中，动态遍历当前日志列表，提取出所有出现过的 `category`（模块分类）和 `type`（日志级别）。
-- [ ] 更新 `Logs/index.tsx` 的筛选 UI，将原本的分段控制或下拉框改为按“级别”和“模块”分组的动态字典。
+- [x] **3. 适配 hooks 与数据流**
+  - 更新 `useConnectionsStream`，使其直接依据 `visible_columns` 的内容和顺序来生成表格列定义。
+
+- [x] **4. 适配 UI 控制逻辑**
+  - 调整 `ConnectionCtrl`（列设置面板）和 `Connections` 页面的交互函数。
+  - 将“勾选显示”和“上下移动”的操作全部转化为对 `visible_columns` 数组的增删和位置交换。
