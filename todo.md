@@ -6,10 +6,7 @@
 
 ## 📦 步骤 1：安装依赖
 
-- [ ] 安装 TanStack 家族库
-  ```bash
-  npm install @tanstack/react-table @tanstack/react-virtual
-  ```
+- [ ] 安装 TanStack 家族库 （包管理用 pnpm）
 
 ---
 
