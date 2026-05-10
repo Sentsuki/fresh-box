@@ -1,10 +1,10 @@
 import { ColumnRegular } from "@fluentui/react-icons";
 import {
-  type ColumnPinningState,
   flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnPinningState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
@@ -107,7 +107,7 @@ export function ConnectionTable({
       if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
       sizeTimeoutRef.current = setTimeout(() => {
         saveSizesRef.current(next);
-      }, 500);
+      }, 100);
       return next;
     });
   }, []);
