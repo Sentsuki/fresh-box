@@ -108,6 +108,8 @@ export function ConnectionCtrl({
           )}
         </div>
 
+        <div className="flex-1" />
+
         {/* Pause */}
         <Button
           icon={isPaused ? <PlayRegular /> : <PauseRegular />}
