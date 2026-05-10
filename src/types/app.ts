@@ -140,14 +140,11 @@ export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
 ];
 
 export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
-  "host",
+  "process",
   "downloadSpeed",
   "uploadSpeed",
   "chain",
-  "rule",
-  "source",
-  "process",
-  "start",
+  "destination",
 ];
 
 export const DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204";
