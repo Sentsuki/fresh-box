@@ -267,8 +267,7 @@ export function ConnectionTable({
         <div className="sticky top-0 z-20 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="flex">
-              {headerGroup.headers.map((header, index) => {
-                const isLast = index === headerGroup.headers.length - 1;
+              {headerGroup.headers.map((header) => {
                 const pinned = header.column.getIsPinned();
                 const pinnedOffset =
                   pinned === "left"
@@ -287,9 +286,8 @@ export function ConnectionTable({
                         : "",
                     ].join(" ")}
                     style={{
-                      width: isLast ? undefined : header.getSize(),
-                      minWidth: isLast ? header.getSize() : undefined,
-                      flexGrow: isLast ? 1 : undefined,
+                      width: header.getSize(),
+                      flexShrink: 0,
                       ...getPinnedStyles(pinned, pinnedOffset, true),
                     }}
                     onClick={
@@ -349,8 +347,7 @@ export function ConnectionTable({
                 }}
                 onClick={() => onRowClick(row.original)}
               >
-                {row.getVisibleCells().map((cell, index) => {
-                  const isLast = index === row.getVisibleCells().length - 1;
+                {row.getVisibleCells().map((cell) => {
                   const pinned = cell.column.getIsPinned();
                   const pinnedOffset =
                     pinned === "left"
@@ -364,9 +361,8 @@ export function ConnectionTable({
                       key={cell.id}
                       className="h-full px-3 border-r border-(--wb-border-subtle) flex items-center text-[13px] text-(--wb-text-primary) truncate"
                       style={{
-                        width: isLast ? undefined : cell.column.getSize(),
-                        minWidth: isLast ? cell.column.getSize() : undefined,
-                        flexGrow: isLast ? 1 : undefined,
+                        width: cell.column.getSize(),
+                        flexShrink: 0,
                         ...getPinnedStyles(pinned, pinnedOffset),
                       }}
                       onContextMenu={(event) => {
