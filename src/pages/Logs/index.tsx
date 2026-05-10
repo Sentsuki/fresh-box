@@ -56,7 +56,6 @@ export default function Logs() {
     count: visibleLogs.length,
     getScrollElement: () => listRef.current,
     estimateSize: () => 30,
-    measureElement: (element) => element.getBoundingClientRect().height,
     overscan: 8,
   });
 
@@ -167,12 +166,12 @@ export default function Logs() {
                   return (
                     <div
                       key={entry.seq}
-                      ref={rowVirtualizer.measureElement}
                       className={[
                         "py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
                         LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
                         virtualRow.index % 2 === 0 ? "bg-(--wb-surface-active)" : "",
                       ].join(" ")}
+                      style={{ height: 30 }}
                     >
                       <div className="flex items-start gap-3">
                         <span className="shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
