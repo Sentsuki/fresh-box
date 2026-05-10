@@ -34,8 +34,12 @@ interface ConnectionColumnDefinition extends ConnectionColumnOption {
 }
 
 function getConnectionHost(c: ConnectionEntry): string {
-  const { host, destinationIP, destinationPort } = c.metadata;
-  return host || `${destinationIP}:${destinationPort}`;
+  const { host, destinationIP, destinationPort, sniffHost } = c.metadata;
+  const h = host || sniffHost || destinationIP;
+  if (h.includes(":")) {
+    return `[${h}]:${destinationPort}`;
+  }
+  return `${h}:${destinationPort}`;
 }
 
 const columnDefinitions: Record<
@@ -56,8 +60,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) =>
-      `${c.metadata.destinationIP}:${c.metadata.destinationPort}`,
+    getValue: (c) => c.metadata.remoteDestination || c.metadata.destinationIP || c.metadata.host,
   },
   downloadSpeed: {
     key: "downloadSpeed",
@@ -125,7 +128,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.processPath?.split(/[/\\]/).pop() ?? "",
+    getValue: (c) => c.metadata.process || c.metadata.processPath?.split(/[/\\\\]/).pop() || "-",
   },
   network: {
     key: "network",
@@ -133,7 +136,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.network,
+    getValue: (c) => `${c.metadata.type} | ${c.metadata.network}`,
   },
   start: {
     key: "start",
@@ -446,13 +449,13 @@ export function formatConnectionValue(
     case "host":
       return getConnectionHost(entry);
     case "destination":
-      return `${entry.metadata.destinationIP}:${entry.metadata.destinationPort}`;
+      return entry.metadata.remoteDestination || entry.metadata.destinationIP || entry.metadata.host;
     case "source":
       return `${entry.metadata.sourceIP}:${entry.metadata.sourcePort}`;
     case "process":
-      return entry.metadata.processPath?.split(/[/\\]/).pop() ?? "";
+      return entry.metadata.process || entry.metadata.processPath?.split(/[/\\\\]/).pop() || "-";
     case "network":
-      return entry.metadata.network;
+      return `${entry.metadata.type} | ${entry.metadata.network}`;
     case "rule":
       return entry.rule;
     case "sniffHost":
