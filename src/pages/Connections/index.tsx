@@ -2,8 +2,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ConnectionDetailsModal } from "../../components/connections/ConnectionDetailsModal";
-import { ConnectionCtrl } from "./ConnectionCtrl";
-import { ConnectionTable } from "./ConnectionTable";
+import { ConnectionCtrl } from "../../components/connections/ConnectionCtrl";
+import { ConnectionTable } from "../../components/connections/ConnectionTable";
 import {
   formatConnectionValue,
   groupConnections,
