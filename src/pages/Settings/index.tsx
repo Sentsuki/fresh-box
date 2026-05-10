@@ -130,102 +130,7 @@ export default function Settings() {
 
         {/* Core Settings */}
         <SettingGroup title="sing-box Core">
-          <SettingCard
-            icon={<ArrowSyncRegular />}
-            title="Core Version"
-            description={
-              <div className="flex flex-col gap-1 mt-1">
-                <span>
-                  {coreStatusText} (Current: {currentCoreLabel})
-                </span>
-                {coreStatusError && (
-                  <span className="text-(--wb-error)">{coreStatusError}</span>
-                )}
-                {coreUpdateProgress && (
-                  <div className="flex flex-col gap-1 w-48 mt-1">
-                    <div className="flex justify-between text-[10px] text-(--wb-text-tertiary)">
-                      <span>{coreUpdateProgress.message}</span>
-                      <span>{coreUpdateProgress.percent}%</span>
-                    </div>
-                    <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
-                      <div
-                        className="h-full bg-(--wb-accent) transition-all duration-200"
-                        style={{ width: `${coreUpdateProgress.percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-              </div>
-            }
-            control={
-              <div className="flex items-center gap-3">
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  icon={
-                    <ArrowSyncRegular
-                      className={isRefreshingCoreStatus ? "animate-spin" : ""}
-                    />
-                  }
-                  disabled={isRefreshingCoreStatus}
-                  onClick={() => void refreshCoreStatus(true, true)}
-                >
-                  Check
-                </Button>
 
-                {availableOptions.length > 0 && (
-                  <>
-                    <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-                    <select
-                      value={selectedCoreOptionKey}
-                      disabled={isUpdatingCore}
-                      onChange={(e) => {
-                        const newKey = e.target.value;
-                        void setSelectedCoreOptionKey(newKey);
-                        const opt = availableOptions.find(
-                          (o) => `${o.channel}:${o.version}` === newKey,
-                        );
-                        if (opt && !(opt.installed && opt.is_active)) {
-                          void applySelectedCore(newKey);
-                        }
-                      }}
-                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
-                    >
-                      {availableOptions.map((opt) => (
-                        <option
-                          key={`${opt.channel}:${opt.version}`}
-                          value={`${opt.channel}:${opt.version}`}
-                        >
-                          {opt.label}
-                          {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
-                        </option>
-                      ))}
-                    </select>
-                    {isUpdatingCore && (
-                      <Button
-                        size="sm"
-                        variant="subtle"
-                        onClick={() => void cancelUpdate()}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    {!isUpdatingCore &&
-                      selectedOption?.installed &&
-                      selectedOption?.is_active && (
-                        <Button
-                          size="sm"
-                          variant="accent"
-                          onClick={() => void applySelectedCore()}
-                        >
-                          {updateCoreButtonLabel}
-                        </Button>
-                      )}
-                  </>
-                )}
-              </div>
-            }
-          />
 
           {!isPriorityLoading && hasStackField && (
             <SettingCard
@@ -387,6 +292,102 @@ export default function Settings() {
 
         {/* Application */}
         <SettingGroup title="Application">
+          <SettingCard
+            icon={<ArrowSyncRegular />}
+            title="Core Version"
+            description={
+              <div className="flex flex-col gap-1 mt-1">
+                <span>
+                  {coreStatusText} (Current: {currentCoreLabel})
+                </span>
+                {coreStatusError && (
+                  <span className="text-(--wb-error)">{coreStatusError}</span>
+                )}
+                {coreUpdateProgress && (
+                  <div className="flex flex-col gap-1 w-48 mt-1">
+                    <div className="flex justify-between text-[10px] text-(--wb-text-tertiary)">
+                      <span>{coreUpdateProgress.message}</span>
+                      <span>{coreUpdateProgress.percent}%</span>
+                    </div>
+                    <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
+                      <div
+                        className="h-full bg-(--wb-accent) transition-all duration-200"
+                        style={{ width: `${coreUpdateProgress.percent}%` }}
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            }
+            control={
+              <div className="flex items-center gap-3">
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  icon={
+                    <ArrowSyncRegular
+                      className={isRefreshingCoreStatus ? "animate-spin" : ""}
+                    />
+                  }
+                  disabled={isRefreshingCoreStatus}
+                  onClick={() => void refreshCoreStatus(true, true)}
+                >
+                  Check
+                </Button>
+
+                {availableOptions.length > 0 && (
+                  <>
+                    <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+                    <select
+                      value={selectedCoreOptionKey}
+                      disabled={isUpdatingCore}
+                      onChange={(e) => {
+                        const newKey = e.target.value;
+                        void setSelectedCoreOptionKey(newKey);
+                        const opt = availableOptions.find(
+                          (o) => `${o.channel}:${o.version}` === newKey,
+                        );
+                        if (opt && !(opt.installed && opt.is_active)) {
+                          void applySelectedCore(newKey);
+                        }
+                      }}
+                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
+                    >
+                      {availableOptions.map((opt) => (
+                        <option
+                          key={`${opt.channel}:${opt.version}`}
+                          value={`${opt.channel}:${opt.version}`}
+                        >
+                          {opt.label}
+                          {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
+                        </option>
+                      ))}
+                    </select>
+                    {isUpdatingCore && (
+                      <Button
+                        size="sm"
+                        variant="subtle"
+                        onClick={() => void cancelUpdate()}
+                      >
+                        Cancel
+                      </Button>
+                    )}
+                    {!isUpdatingCore &&
+                      selectedOption?.installed &&
+                      selectedOption?.is_active && (
+                        <Button
+                          size="sm"
+                          variant="accent"
+                          onClick={() => void applySelectedCore()}
+                        >
+                          {updateCoreButtonLabel}
+                        </Button>
+                      )}
+                  </>
+                )}
+              </div>
+            }
+          />
           <SettingCard
             icon={<FolderOpenRegular />}
             title="App Directory"
