@@ -85,6 +85,8 @@ pub struct ConnectionPageSettings {
     pub grouped_column: Option<String>,
     #[serde(default)]
     pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+    #[serde(default)]
+    pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -145,20 +147,18 @@ impl Default for ConnectionPageSettings {
         Self {
             current_tab: "active".to_string(),
             visible_columns: vec![
-                "host".to_string(),
+                "process".to_string(),
                 "downloadSpeed".to_string(),
                 "uploadSpeed".to_string(),
                 "chain".to_string(),
-                "rule".to_string(),
-                "source".to_string(),
-                "process".to_string(),
-                "start".to_string(),
+                "destination".to_string(),
             ],
-            pinned_columns: vec!["host".to_string()],
+            pinned_columns: vec![],
             sort_key: "downloadSpeed".to_string(),
             sort_direction: "desc".to_string(),
             grouped_column: None,
             collapsed_groups: std::collections::BTreeMap::new(),
+            column_sizes: std::collections::BTreeMap::new(),
         }
     }
 }
