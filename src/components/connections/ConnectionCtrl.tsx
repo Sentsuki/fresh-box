@@ -15,6 +15,7 @@ import type {
 interface ConnectionCtrlProps {
   currentTab: ConnectionPageTab;
   groupedColumnLabel: string | null;
+  groupedColumnKey: ConnectionColumnKey | null;
   search: string;
   sourceIpFilter: string;
   sourceIpOptions: string[];
@@ -36,6 +37,7 @@ interface ConnectionCtrlProps {
 export function ConnectionCtrl({
   currentTab,
   groupedColumnLabel,
+  groupedColumnKey,
   search,
   sourceIpFilter,
   sourceIpOptions,
@@ -175,6 +177,10 @@ export function ConnectionCtrl({
                         type="checkbox"
                         id={`col-${col.key}`}
                         checked={visibleColumnKeys.includes(col.key)}
+                        disabled={
+                          groupedColumnKey === col.key &&
+                          visibleColumnKeys.includes(col.key)
+                        }
                         onChange={() => onToggleColumnVisible(col.key)}
                         className="w-4 h-4 rounded border-(--wb-border-default) accent-(--wb-accent) cursor-pointer"
                       />

@@ -7,7 +7,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useMemo, useRef, useState, type CSSProperties } from "react";
+import { useCallback, useMemo, useRef, type CSSProperties } from "react";
 import {
   formatConnectionValue,
   type ConnectionColumnOption,
@@ -27,8 +27,10 @@ interface ConnectionTableProps {
   sortKey: ConnectionColumnKey;
   sortDirection: SortDirection;
   groupedColumnKey: ConnectionColumnKey | null;
+  pinnedColumnKeys: ConnectionColumnKey[];
   onSort: (key: ConnectionColumnKey) => void;
   onToggleGrouping: (key: ConnectionColumnKey) => void;
+  onPinnedColumnsChange: (keys: ConnectionColumnKey[]) => void;
   onRowClick: (row: ConnectionEntry) => void;
   isGroupCollapsed: (id: string) => boolean;
   onToggleGroupCollapsed: (id: string) => void;
@@ -59,16 +61,21 @@ export function ConnectionTable({
   sortKey,
   sortDirection,
   groupedColumnKey,
+  pinnedColumnKeys,
   onSort,
   onToggleGrouping,
+  onPinnedColumnsChange,
   onRowClick,
   isGroupCollapsed,
   onToggleGroupCollapsed,
 }: ConnectionTableProps) {
-  const [columnPinning, setColumnPinning] = useState<ColumnPinningState>({
-    left: ["host"],
-    right: [],
-  });
+  const columnPinning = useMemo<ColumnPinningState>(
+    () => ({
+      left: pinnedColumnKeys,
+      right: [],
+    }),
+    [pinnedColumnKeys],
+  );
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
     active: boolean;
@@ -126,14 +133,12 @@ export function ConnectionTable({
               )}
               <button
                 onClick={(event) => {
-                  event.stopPropagation();
-                  setColumnPinning((prev) => ({
-                    ...prev,
-                    left: isPinned
-                      ? (prev.left ?? []).filter((id) => id !== col.key)
-                      : [...(prev.left ?? []), col.key],
-                  }));
-                }}
+                    event.stopPropagation();
+                    const next = isPinned
+                      ? pinnedColumnKeys.filter((id) => id !== col.key)
+                      : [...pinnedColumnKeys, col.key];
+                    onPinnedColumnsChange(next);
+                  }}
                 className={[
                   "p-0.5 rounded transition-colors text-xs leading-none",
                   isPinned
@@ -151,7 +156,13 @@ export function ConnectionTable({
           <span className="truncate text-[13px]">{String(ctx.getValue())}</span>
         ),
       })),
-    [columnPinning.left, columns, groupedColumnKey, onToggleGrouping],
+    [
+      columns,
+      groupedColumnKey,
+      onPinnedColumnsChange,
+      onToggleGrouping,
+      pinnedColumnKeys,
+    ],
   );
 
   const table = useReactTable({
@@ -162,7 +173,14 @@ export function ConnectionTable({
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     state: { columnPinning },
-    onColumnPinningChange: setColumnPinning,
+    onColumnPinningChange: (updater) => {
+      const nextValue =
+        typeof updater === "function" ? updater(columnPinning) : updater;
+      const nextLeft = (nextValue.left ?? []).filter(
+        (id): id is ConnectionColumnKey => typeof id === "string",
+      );
+      onPinnedColumnsChange(nextLeft);
+    },
   });
 
   const flatRows = table.getRowModel().rows;

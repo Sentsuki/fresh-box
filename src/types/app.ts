@@ -76,6 +76,7 @@ export interface ProxyPageSettings {
 export interface ConnectionPageSettings {
   current_tab: ConnectionPageTab;
   visible_columns: ConnectionColumnKey[];
+  pinned_columns: ConnectionColumnKey[];
   sort_key: ConnectionColumnKey;
   sort_direction: SortDirection;
   grouped_column: ConnectionColumnKey | null;
@@ -149,6 +150,7 @@ export function createDefaultAppSettings(): AppSettings {
     connections: {
       current_tab: "active",
       visible_columns: [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
+      pinned_columns: ["host"],
       sort_key: "downloadSpeed",
       sort_direction: "desc",
       grouped_column: null,
@@ -252,6 +254,13 @@ export function normalizeAppSettings(
   const visibleColumns = hasVisibleColumnsSetting
     ? normalizeColumnList(settings.connections?.visible_columns)
     : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS];
+  const hasPinnedColumnsSetting = Boolean(
+    settings.connections &&
+      Object.prototype.hasOwnProperty.call(settings.connections, "pinned_columns"),
+  );
+  const pinnedColumns = hasPinnedColumnsSetting
+    ? normalizeColumnList(settings.connections?.pinned_columns)
+    : (["host"] as ConnectionColumnKey[]);
 
   return {
     schema_version:
@@ -271,6 +280,7 @@ export function normalizeAppSettings(
         ? settings.connections.current_tab
         : defaults.connections.current_tab,
       visible_columns: visibleColumns,
+      pinned_columns: pinnedColumns,
       sort_key: CONNECTION_COLUMNS.has(settings.connections?.sort_key)
         ? settings.connections.sort_key
         : defaults.connections.sort_key,

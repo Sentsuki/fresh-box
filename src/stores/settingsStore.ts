@@ -32,6 +32,9 @@ interface SettingsActions {
   setConnectionsVisibleColumns: (
     columns: ConnectionColumnKey[],
   ) => Promise<void>;
+  setConnectionsPinnedColumns: (
+    columns: ConnectionColumnKey[],
+  ) => Promise<void>;
   setConnectionsSortKey: (key: ConnectionColumnKey) => Promise<void>;
   setConnectionsSortDirection: (direction: SortDirection) => Promise<void>;
   setConnectionsGroupedColumn: (
@@ -109,6 +112,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       });
     },
 
+    setConnectionsPinnedColumns: async (columns) => {
+      await get().updateSettings((s) => {
+        s.connections.pinned_columns = columns;
+      });
+    },
+
     setConnectionsSortKey: async (key) => {
       await get().updateSettings((s) => {
         s.connections.sort_key = key;
@@ -124,6 +133,15 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
         s.connections.grouped_column = column;
+        if (
+          column &&
+          !s.connections.visible_columns.includes(column)
+        ) {
+          s.connections.visible_columns = [
+            column,
+            ...s.connections.visible_columns,
+          ];
+        }
         s.connections.collapsed_groups = {};
       });
     },

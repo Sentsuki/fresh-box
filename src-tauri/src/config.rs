@@ -79,6 +79,7 @@ pub struct ProxyPageSettings {
 pub struct ConnectionPageSettings {
     pub current_tab: String,
     pub visible_columns: Vec<String>,
+    pub pinned_columns: Vec<String>,
     pub sort_key: String,
     pub sort_direction: String,
     pub grouped_column: Option<String>,
@@ -153,6 +154,7 @@ impl Default for ConnectionPageSettings {
                 "process".to_string(),
                 "start".to_string(),
             ],
+            pinned_columns: vec!["host".to_string()],
             sort_key: "downloadSpeed".to_string(),
             sort_direction: "desc".to_string(),
             grouped_column: None,

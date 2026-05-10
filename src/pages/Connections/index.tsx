@@ -37,6 +37,9 @@ export default function Connections() {
   const visibleColumnKeys = useSettingsStore(
     (state) => state.settings.connections.visible_columns,
   );
+  const pinnedColumnKeys = useSettingsStore(
+    (state) => state.settings.connections.pinned_columns,
+  );
   const sortKey = useSettingsStore((state) => state.settings.connections.sort_key);
   const sortDirection = useSettingsStore(
     (state) => state.settings.connections.sort_direction,
@@ -44,6 +47,9 @@ export default function Connections() {
   const setConnectionsTab = useSettingsStore((state) => state.setConnectionsTab);
   const setConnectionsVisibleColumns = useSettingsStore(
     (state) => state.setConnectionsVisibleColumns,
+  );
+  const setConnectionsPinnedColumns = useSettingsStore(
+    (state) => state.setConnectionsPinnedColumns,
   );
   const setConnectionsSortKey = useSettingsStore(
     (state) => state.setConnectionsSortKey,
@@ -137,12 +143,15 @@ export default function Connections() {
 
   const toggleColumnVisible = useCallback(
     (key: ConnectionColumnKey) => {
+      if (groupedColumn?.key === key && visibleColumnKeys.includes(key)) {
+        return;
+      }
       const nextColumns = visibleColumnKeys.includes(key)
         ? visibleColumnKeys.filter((columnKey) => columnKey !== key)
         : [...visibleColumnKeys, key];
       void setConnectionsVisibleColumns(nextColumns);
     },
-    [setConnectionsVisibleColumns, visibleColumnKeys],
+    [groupedColumn?.key, setConnectionsVisibleColumns, visibleColumnKeys],
   );
 
   const moveColumn = useCallback(
@@ -189,6 +198,7 @@ export default function Connections() {
         <ConnectionCtrl
           currentTab={currentTab}
           groupedColumnLabel={groupedColumn?.label ?? null}
+          groupedColumnKey={groupedColumn?.key ?? null}
           search={search}
           sourceIpFilter={sourceIpFilter}
           sourceIpOptions={sourceIpOptions}
@@ -215,8 +225,10 @@ export default function Connections() {
             sortKey={sortKey}
             sortDirection={sortDirection}
             groupedColumnKey={groupedColumn?.key ?? null}
+            pinnedColumnKeys={pinnedColumnKeys}
             onSort={handleSort}
             onToggleGrouping={toggleGrouping}
+            onPinnedColumnsChange={(keys) => void setConnectionsPinnedColumns(keys)}
             onRowClick={setSelectedConnection}
             isGroupCollapsed={isGroupCollapsed}
             onToggleGroupCollapsed={toggleGroupCollapsed}
