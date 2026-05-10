@@ -143,6 +143,67 @@ const columnDefinitions: Record<
     defaultDirection: "asc",
     getValue: (c) => c.start,
   },
+  sniffHost: {
+    key: "sniffHost",
+    label: "Sniff Host",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sniffHost || "-",
+  },
+  outbound: {
+    key: "outbound",
+    label: "Outbound",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.chains[0] || "-",
+  },
+  sourcePort: {
+    key: "sourcePort",
+    label: "Source Port",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sourcePort,
+  },
+  sourceIP: {
+    key: "sourceIP",
+    label: "Source IP",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sourceIP,
+  },
+  destinationType: {
+    key: "destinationType",
+    label: "Dest Type",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => {
+      const dest = c.metadata.destinationIP || c.metadata.host;
+      if (dest.includes(":")) return "IPv6";
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
+      return "FQDN";
+    },
+  },
+  remoteAddress: {
+    key: "remoteAddress",
+    label: "Remote Address",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.remoteDestination || "-",
+  },
+  inboundUser: {
+    key: "inboundUser",
+    label: "Inbound User",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.inboundUser || c.metadata.inboundName || c.metadata.inboundPort || "-",
+  },
 };
 
 export const allColumns: ConnectionColumnOption[] =
@@ -394,6 +455,24 @@ export function formatConnectionValue(
       return entry.metadata.network;
     case "rule":
       return entry.rule;
+    case "sniffHost":
+      return entry.metadata.sniffHost || "-";
+    case "outbound":
+      return entry.chains[0] || "-";
+    case "sourcePort":
+      return entry.metadata.sourcePort;
+    case "sourceIP":
+      return entry.metadata.sourceIP;
+    case "destinationType": {
+      const dest = entry.metadata.destinationIP || entry.metadata.host;
+      if (dest.includes(":")) return "IPv6";
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
+      return "FQDN";
+    }
+    case "remoteAddress":
+      return entry.metadata.remoteDestination || "-";
+    case "inboundUser":
+      return entry.metadata.inboundUser || entry.metadata.inboundName || entry.metadata.inboundPort || "-";
   }
 }
 

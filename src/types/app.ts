@@ -25,7 +25,14 @@ export type ConnectionColumnKey =
   | "source"
   | "process"
   | "network"
-  | "start";
+  | "start"
+  | "sniffHost"
+  | "outbound"
+  | "sourcePort"
+  | "sourceIP"
+  | "destinationType"
+  | "remoteAddress"
+  | "inboundUser";
 export type RulesTab = "rules";
 export type LogLevel =
   | "trace"
@@ -123,6 +130,13 @@ export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
   "process",
   "network",
   "start",
+  "sniffHost",
+  "outbound",
+  "sourcePort",
+  "sourceIP",
+  "destinationType",
+  "remoteAddress",
+  "inboundUser",
 ];
 
 export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
@@ -497,6 +511,11 @@ export interface ConnectionMetadata {
   dnsMode: string;
   processPath?: string;
   remoteDestination?: string;
+  sniffHost?: string;
+  inboundUser?: string;
+  inboundName?: string;
+  inboundPort?: string;
+  process?: string;
 }
 
 export interface CoreConnectionSnapshot {
