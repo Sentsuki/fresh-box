@@ -153,17 +153,7 @@ export default function Logs() {
               No logs available
             </div>
           ) : (
-            <div
-              ref={listRef}
-              className="h-full w-full overflow-auto custom-scrollbar"
-              onWheel={(e) => {
-                if (e.deltaX !== 0) {
-                  e.currentTarget.scrollLeft += e.deltaX;
-                } else if (e.shiftKey && e.deltaY !== 0) {
-                  e.currentTarget.scrollLeft += e.deltaY;
-                }
-              }}
-            >
+            <div ref={listRef} className="h-full w-full overflow-auto custom-scrollbar">
               <div
                 style={{
                   minWidth: "100%",

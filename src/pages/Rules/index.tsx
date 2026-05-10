@@ -139,13 +139,6 @@ export default function Rules() {
               <div
                 ref={containerRef}
                 className="h-full overflow-auto custom-scrollbar"
-                onWheel={(e) => {
-                  if (e.deltaX !== 0) {
-                    e.currentTarget.scrollLeft += e.deltaX;
-                  } else if (e.shiftKey && e.deltaY !== 0) {
-                    e.currentTarget.scrollLeft += e.deltaY;
-                  }
-                }}
               >
                 <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
                   <div className="sticky top-0 z-10 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">

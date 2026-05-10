@@ -262,13 +262,6 @@ export function ConnectionTable({
       onMouseMove={onMouseMove}
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
-      onWheel={(e) => {
-        if (e.deltaX !== 0) {
-          e.currentTarget.scrollLeft += e.deltaX;
-        } else if (e.shiftKey && e.deltaY !== 0) {
-          e.currentTarget.scrollLeft += e.deltaY;
-        }
-      }}
     >
       <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
         <div className="sticky top-0 z-20 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
@@ -421,16 +414,7 @@ function GroupedTable({
   onToggleGroupCollapsed,
 }: GroupedTableProps) {
   return (
-    <div
-      className="h-full overflow-auto"
-      onWheel={(e) => {
-        if (e.deltaX !== 0) {
-          e.currentTarget.scrollLeft += e.deltaX;
-        } else if (e.shiftKey && e.deltaY !== 0) {
-          e.currentTarget.scrollLeft += e.deltaY;
-        }
-      }}
-    >
+    <div className="h-full overflow-auto">
       <table className="w-full border-collapse">
         <thead className="sticky top-0 z-10 bg-(--wb-surface-layer)">
           <tr>
