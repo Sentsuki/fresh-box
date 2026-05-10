@@ -1,13 +1,13 @@
 import { ColumnRegular } from "@fluentui/react-icons";
 import {
-  type ColumnPinningState,
   flexRender,
   getCoreRowModel,
   useReactTable,
   type ColumnDef,
+  type ColumnPinningState,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useMemo, useRef, type CSSProperties } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
 import {
   formatConnectionValue,
   type ConnectionColumnOption,
@@ -28,9 +28,11 @@ interface ConnectionTableProps {
   sortDirection: SortDirection;
   groupedColumnKey: ConnectionColumnKey | null;
   pinnedColumnKeys: ConnectionColumnKey[];
+  columnSizes: Record<string, number>;
   onSort: (key: ConnectionColumnKey) => void;
   onToggleGrouping: (key: ConnectionColumnKey) => void;
   onPinnedColumnsChange: (keys: ConnectionColumnKey[]) => void;
+  onColumnSizesChange: (sizes: Record<string, number>) => void;
   onRowClick: (row: ConnectionEntry) => void;
   isGroupCollapsed: (id: string) => boolean;
   onToggleGroupCollapsed: (id: string) => void;
@@ -62,13 +64,53 @@ export function ConnectionTable({
   sortDirection,
   groupedColumnKey,
   pinnedColumnKeys,
+  columnSizes,
   onSort,
   onToggleGrouping,
   onPinnedColumnsChange,
+  onColumnSizesChange,
   onRowClick,
   isGroupCollapsed,
   onToggleGroupCollapsed,
 }: ConnectionTableProps) {
+  const [localColumnSizes, setLocalColumnSizes] = useState(columnSizes);
+
+  // Only sync from store on initial mount (columnSizes is stable unless
+  // an external actor changes it). We do NOT unconditionally reset on every
+  // reference change, because updateSettings deep-clones the whole settings
+  // object, creating a new column_sizes reference even when values are
+  // identical – which would cause a visible jump during a drag.
+  const initializedRef = useRef(false);
+  useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    // External change (e.g. settings reset): sync only when values differ.
+    setLocalColumnSizes((prev) => {
+      if (Object.keys(columnSizes).length !== Object.keys(prev).length)
+        return columnSizes;
+      for (const k in columnSizes) {
+        if (columnSizes[k] !== prev[k]) return columnSizes;
+      }
+      return prev;
+    });
+  }, [columnSizes]);
+
+  const saveSizesRef = useRef(onColumnSizesChange);
+  saveSizesRef.current = onColumnSizesChange;
+  const sizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  const handleColumnSizingChange = useCallback((updater: any) => {
+    setLocalColumnSizes((old) => {
+      const next = typeof updater === "function" ? updater(old) : updater;
+      if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
+      sizeTimeoutRef.current = setTimeout(() => {
+        saveSizesRef.current(next);
+      }, 200);
+      return next;
+    });
+  }, []);
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
       left: pinnedColumnKeys,
@@ -172,7 +214,8 @@ export function ConnectionTable({
     enableColumnPinning: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
-    state: { columnPinning },
+    state: { columnPinning, columnSizing: localColumnSizes },
+    onColumnSizingChange: handleColumnSizingChange,
     onColumnPinningChange: (updater) => {
       const nextValue =
         typeof updater === "function" ? updater(columnPinning) : updater;
@@ -479,7 +522,7 @@ function GroupedTable({
                     <tbody>
                       <tr
                         onClick={() => onToggleGroupCollapsed(group.id)}
-                        className="cursor-pointer bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover) transition-colors"
+                        className="cursor-pointer transition-colors bg-(--wb-accent)/15 hover:bg-(--wb-accent)/25"
                       >
                         <td
                           colSpan={columns.length}
