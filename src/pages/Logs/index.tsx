@@ -164,25 +164,22 @@ export default function Logs() {
             <div ref={listRef} className="h-full w-full overflow-auto custom-scrollbar">
               <div
                 style={{
-                  height: rowVirtualizer.getTotalSize(),
-                  width: "100%",
-                  position: "relative",
+                  minWidth: "100%",
+                  display: "inline-block",
                 }}
               >
+                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getVirtualItems()[0].start : 0 }} />
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const entry = visibleLogs[virtualRow.index];
                   return (
                     <div
                       key={entry.seq}
-                      ref={(element) => rowVirtualizer.measureElement(element)}
+                      ref={rowVirtualizer.measureElement}
                       className={[
-                        "absolute top-0 left-0 w-full py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
+                        "py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
                         LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
                         virtualRow.index % 2 === 0 ? "bg-(--wb-surface-active)" : "",
                       ].join(" ")}
-                      style={{
-                        transform: `translateY(${virtualRow.start}px)`,
-                      }}
                     >
                       <div className="flex items-start gap-3">
                         <span className="shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
@@ -194,7 +191,7 @@ export default function Logs() {
                           </span>
                         )}
                         <span
-                          className="flex-1 whitespace-pre-wrap break-words text-[13px] leading-5"
+                          className="flex-1 whitespace-pre text-[13px] leading-5"
                           title={entry.payload}
                         >
                           {entry.payload}
@@ -203,6 +200,7 @@ export default function Logs() {
                     </div>
                   );
                 })}
+                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end : 0 }} />
               </div>
             </div>
           )}
