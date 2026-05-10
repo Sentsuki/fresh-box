@@ -75,9 +75,21 @@ export function ConnectionTable({
 }: ConnectionTableProps) {
   const [localColumnSizes, setLocalColumnSizes] = useState(columnSizes);
 
+  // Only sync from store on initial mount (columnSizes is stable unless
+  // an external actor changes it). We do NOT unconditionally reset on every
+  // reference change, because updateSettings deep-clones the whole settings
+  // object, creating a new column_sizes reference even when values are
+  // identical – which would cause a visible jump during a drag.
+  const initializedRef = useRef(false);
   useEffect(() => {
+    if (!initializedRef.current) {
+      initializedRef.current = true;
+      return;
+    }
+    // External change (e.g. settings reset): sync only when values differ.
     setLocalColumnSizes((prev) => {
-      if (Object.keys(columnSizes).length !== Object.keys(prev).length) return columnSizes;
+      if (Object.keys(columnSizes).length !== Object.keys(prev).length)
+        return columnSizes;
       for (const k in columnSizes) {
         if (columnSizes[k] !== prev[k]) return columnSizes;
       }
@@ -92,12 +104,10 @@ export function ConnectionTable({
   const handleColumnSizingChange = useCallback((updater: any) => {
     setLocalColumnSizes((old) => {
       const next = typeof updater === "function" ? updater(old) : updater;
-      
       if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
       sizeTimeoutRef.current = setTimeout(() => {
         saveSizesRef.current(next);
-      }, 300);
-      
+      }, 500);
       return next;
     });
   }, []);
