@@ -335,10 +335,9 @@ async fn execute_proxy_delay_test(
         .error_for_status()
         .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?;
 
-    let data = response
-        .json::<DelayResponse>()
-        .await
-        .map_err(|error| CommandError::network(format!("Failed to parse delay response: {}", error)))?;
+    let data = response.json::<DelayResponse>().await.map_err(|error| {
+        CommandError::network(format!("Failed to parse delay response: {}", error))
+    })?;
 
     Ok(data.delay)
 }
@@ -533,7 +532,9 @@ pub async fn test_clash_proxy_group_delay(
     let data = response
         .json::<HashMap<String, i64>>()
         .await
-        .map_err(|error| CommandError::network(format!("Failed to parse group delay response: {}", error)))?;
+        .map_err(|error| {
+            CommandError::network(format!("Failed to parse group delay response: {}", error))
+        })?;
 
     Ok(data)
 }
@@ -571,7 +572,9 @@ pub async fn query_dns(
     let data = response
         .json::<serde_json::Value>()
         .await
-        .map_err(|error| CommandError::network(format!("Failed to parse DNS response: {}", error)))?;
+        .map_err(|error| {
+            CommandError::network(format!("Failed to parse DNS response: {}", error))
+        })?;
 
     Ok(data)
 }

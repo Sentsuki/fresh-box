@@ -263,14 +263,20 @@ export function normalizeAppSettings(
 
   const hasVisibleColumnsSetting = Boolean(
     settings.connections &&
-      Object.prototype.hasOwnProperty.call(settings.connections, "visible_columns"),
+    Object.prototype.hasOwnProperty.call(
+      settings.connections,
+      "visible_columns",
+    ),
   );
   const visibleColumns = hasVisibleColumnsSetting
     ? normalizeColumnList(settings.connections?.visible_columns)
     : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS];
   const hasPinnedColumnsSetting = Boolean(
     settings.connections &&
-      Object.prototype.hasOwnProperty.call(settings.connections, "pinned_columns"),
+    Object.prototype.hasOwnProperty.call(
+      settings.connections,
+      "pinned_columns",
+    ),
   );
   const pinnedColumns = hasPinnedColumnsSetting
     ? normalizeColumnList(settings.connections?.pinned_columns)

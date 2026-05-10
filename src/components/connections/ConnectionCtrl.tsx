@@ -5,10 +5,7 @@ import {
 } from "@fluentui/react-icons";
 import { Button } from "../../components/ui/Button";
 import { allColumns } from "../../hooks/useConnectionsStream";
-import type {
-  ConnectionColumnKey,
-  ConnectionPageTab,
-} from "../../types/app";
+import type { ConnectionColumnKey, ConnectionPageTab } from "../../types/app";
 
 interface ConnectionCtrlProps {
   currentTab: ConnectionPageTab;
@@ -106,8 +103,6 @@ export function ConnectionCtrl({
 
         <div className="flex-1" />
 
-
-
         {/* Close All */}
         <Button icon={<DismissRegular />} variant="subtle" onClick={onCloseAll}>
           Close All
@@ -135,7 +130,8 @@ export function ConnectionCtrl({
                     const bVisibleIndex = visibleColumnKeys.indexOf(b.key);
                     const aVisible = aVisibleIndex >= 0;
                     const bVisible = bVisibleIndex >= 0;
-                    if (aVisible && bVisible) return aVisibleIndex - bVisibleIndex;
+                    if (aVisible && bVisible)
+                      return aVisibleIndex - bVisibleIndex;
                     if (aVisible) return -1;
                     if (bVisible) return 1;
                     return allColumns.indexOf(a) - allColumns.indexOf(b);

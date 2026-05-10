@@ -157,18 +157,20 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     try {
       const delay = await testClashProxyDelay(proxyName);
       set((s) => ({
-        overview: s.overview ? {
-          ...s.overview,
-          proxy_groups: s.overview.proxy_groups.map((group) => ({
-            ...group,
-            options: group.options.map((node) =>
-              node.name === proxyName ? { ...node, delay } : node
-            ),
-          })),
-        } : null,
+        overview: s.overview
+          ? {
+              ...s.overview,
+              proxy_groups: s.overview.proxy_groups.map((group) => ({
+                ...group,
+                options: group.options.map((node) =>
+                  node.name === proxyName ? { ...node, delay } : node,
+                ),
+              })),
+            }
+          : null,
         errorMessage: null,
       }));
-      
+
       if (typeof delay === "number" && delay >= 0) {
         onResult?.(`${proxyName}: ${delay} ms`, true);
       } else {
@@ -213,7 +215,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
         overview = get().overview;
         group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
         nodes = group?.options.map((n) => n.name) ?? [];
-        
+
         if (nodes.length === 0) {
           onSuccess?.(`${proxyGroup}: no nodes found`);
           return;
@@ -226,21 +228,26 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       const results = await testClashProxyGroupDelay(proxyGroup);
 
       set((s) => ({
-        overview: s.overview ? {
-          ...s.overview,
-          proxy_groups: s.overview.proxy_groups.map((g) => {
-            if (g.name === proxyGroup) {
-              return {
-                ...g,
-                options: g.options.map((node) => ({
-                  ...node,
-                  delay: results[node.name] !== undefined ? results[node.name] : -1,
-                })),
-              };
+        overview: s.overview
+          ? {
+              ...s.overview,
+              proxy_groups: s.overview.proxy_groups.map((g) => {
+                if (g.name === proxyGroup) {
+                  return {
+                    ...g,
+                    options: g.options.map((node) => ({
+                      ...node,
+                      delay:
+                        results[node.name] !== undefined
+                          ? results[node.name]
+                          : -1,
+                    })),
+                  };
+                }
+                return g;
+              }),
             }
-            return g;
-          }),
-        } : null,
+          : null,
         errorMessage: null,
       }));
 

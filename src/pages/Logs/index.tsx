@@ -78,7 +78,11 @@ export default function Logs() {
             >
               Export
             </Button>
-            <Button icon={<DismissRegular />} variant="subtle" onClick={clearLogs}>
+            <Button
+              icon={<DismissRegular />}
+              variant="subtle"
+              onClick={clearLogs}
+            >
               Clear
             </Button>
           </div>
@@ -104,9 +108,11 @@ export default function Logs() {
             <select
               value={logLevel}
               onChange={(event) => {
-                void setLogLevel(event.target.value as typeof logLevel).then(() => {
-                  restartStream();
-                });
+                void setLogLevel(event.target.value as typeof logLevel).then(
+                  () => {
+                    restartStream();
+                  },
+                );
               }}
               disabled={streamStatus === "disabled"}
               className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-40 disabled:cursor-not-allowed"
@@ -153,14 +159,24 @@ export default function Logs() {
               No logs available
             </div>
           ) : (
-            <div ref={listRef} className="h-full w-full overflow-auto custom-scrollbar">
+            <div
+              ref={listRef}
+              className="h-full w-full overflow-auto custom-scrollbar"
+            >
               <div
                 style={{
                   minWidth: "100%",
                   display: "inline-block",
                 }}
               >
-                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getVirtualItems()[0].start : 0 }} />
+                <div
+                  style={{
+                    height:
+                      rowVirtualizer.getVirtualItems().length > 0
+                        ? rowVirtualizer.getVirtualItems()[0].start
+                        : 0,
+                  }}
+                />
                 {rowVirtualizer.getVirtualItems().map((virtualRow) => {
                   const entry = visibleLogs[virtualRow.index];
                   return (
@@ -169,7 +185,9 @@ export default function Logs() {
                       className={[
                         "py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
                         LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
-                        virtualRow.index % 2 === 0 ? "bg-(--wb-surface-active)" : "",
+                        virtualRow.index % 2 === 0
+                          ? "bg-(--wb-surface-active)"
+                          : "",
                       ].join(" ")}
                       style={{ height: 30 }}
                     >
@@ -192,7 +210,17 @@ export default function Logs() {
                     </div>
                   );
                 })}
-                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end : 0 }} />
+                <div
+                  style={{
+                    height:
+                      rowVirtualizer.getVirtualItems().length > 0
+                        ? rowVirtualizer.getTotalSize() -
+                          rowVirtualizer.getVirtualItems()[
+                            rowVirtualizer.getVirtualItems().length - 1
+                          ].end
+                        : 0,
+                  }}
+                />
               </div>
             </div>
           )}
@@ -212,7 +240,11 @@ export default function Logs() {
           ].join(" ")}
           title={isPaused ? "Resume" : "Pause"}
         >
-          {isPaused ? <PlayRegular className="w-5 h-5" /> : <PauseRegular className="w-5 h-5" />}
+          {isPaused ? (
+            <PlayRegular className="w-5 h-5" />
+          ) : (
+            <PauseRegular className="w-5 h-5" />
+          )}
         </button>
       </div>
     </div>

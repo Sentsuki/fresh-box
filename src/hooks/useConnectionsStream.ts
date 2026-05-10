@@ -60,7 +60,10 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.remoteDestination || c.metadata.destinationIP || c.metadata.host,
+    getValue: (c) =>
+      c.metadata.remoteDestination ||
+      c.metadata.destinationIP ||
+      c.metadata.host,
   },
   downloadSpeed: {
     key: "downloadSpeed",
@@ -128,7 +131,10 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.process || c.metadata.processPath?.split(/[/\\\\]/).pop() || "-",
+    getValue: (c) =>
+      c.metadata.process ||
+      c.metadata.processPath?.split(/[/\\\\]/).pop() ||
+      "-",
   },
   network: {
     key: "network",
@@ -205,7 +211,11 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.inboundUser || c.metadata.inboundName || c.metadata.inboundPort || "-",
+    getValue: (c) =>
+      c.metadata.inboundUser ||
+      c.metadata.inboundName ||
+      c.metadata.inboundPort ||
+      "-",
   },
 };
 
@@ -449,11 +459,19 @@ export function formatConnectionValue(
     case "host":
       return getConnectionHost(entry);
     case "destination":
-      return entry.metadata.remoteDestination || entry.metadata.destinationIP || entry.metadata.host;
+      return (
+        entry.metadata.remoteDestination ||
+        entry.metadata.destinationIP ||
+        entry.metadata.host
+      );
     case "source":
       return `${entry.metadata.sourceIP}:${entry.metadata.sourcePort}`;
     case "process":
-      return entry.metadata.process || entry.metadata.processPath?.split(/[/\\\\]/).pop() || "-";
+      return (
+        entry.metadata.process ||
+        entry.metadata.processPath?.split(/[/\\\\]/).pop() ||
+        "-"
+      );
     case "network":
       return `${entry.metadata.type} | ${entry.metadata.network}`;
     case "rule":
@@ -475,7 +493,12 @@ export function formatConnectionValue(
     case "remoteAddress":
       return entry.metadata.remoteDestination || "-";
     case "inboundUser":
-      return entry.metadata.inboundUser || entry.metadata.inboundName || entry.metadata.inboundPort || "-";
+      return (
+        entry.metadata.inboundUser ||
+        entry.metadata.inboundName ||
+        entry.metadata.inboundPort ||
+        "-"
+      );
   }
 }
 

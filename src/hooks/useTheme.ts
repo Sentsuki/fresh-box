@@ -36,7 +36,7 @@ export function useTheme(): Theme {
 
   useEffect(() => {
     document.documentElement.classList.toggle("light", isLight);
-    
+
     const win = getCurrentWindow();
     if (themeMode === "system") {
       win.setTheme(null).catch(console.error);

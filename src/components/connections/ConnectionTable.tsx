@@ -133,12 +133,12 @@ export function ConnectionTable({
               )}
               <button
                 onClick={(event) => {
-                    event.stopPropagation();
-                    const next = isPinned
-                      ? pinnedColumnKeys.filter((id) => id !== col.key)
-                      : [...pinnedColumnKeys, col.key];
-                    onPinnedColumnsChange(next);
-                  }}
+                  event.stopPropagation();
+                  const next = isPinned
+                    ? pinnedColumnKeys.filter((id) => id !== col.key)
+                    : [...pinnedColumnKeys, col.key];
+                  onPinnedColumnsChange(next);
+                }}
                 className={[
                   "p-0.5 rounded transition-colors text-xs leading-none",
                   isPinned
@@ -229,8 +229,10 @@ export function ConnectionTable({
     const element = containerRef.current;
     if (!element) return;
     event.preventDefault();
-    element.scrollLeft = dragRef.current.scrollLeft - (event.clientX - dragRef.current.startX);
-    element.scrollTop = dragRef.current.scrollTop - (event.clientY - dragRef.current.startY);
+    element.scrollLeft =
+      dragRef.current.scrollLeft - (event.clientX - dragRef.current.startX);
+    element.scrollTop =
+      dragRef.current.scrollTop - (event.clientY - dragRef.current.startY);
   }, []);
 
   const onMouseUp = useCallback(() => {
@@ -263,7 +265,9 @@ export function ConnectionTable({
       onMouseUp={onMouseUp}
       onMouseLeave={onMouseUp}
     >
-      <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
+      <div
+        style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}
+      >
         <div className="sticky top-0 z-20 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
           {table.getHeaderGroups().map((headerGroup) => (
             <div key={headerGroup.id} className="flex">
@@ -371,7 +375,10 @@ export function ConnectionTable({
                       }}
                       title={value}
                     >
-                      {flexRender(cell.column.columnDef.cell, cell.getContext())}
+                      {flexRender(
+                        cell.column.columnDef.cell,
+                        cell.getContext(),
+                      )}
                     </div>
                   );
                 })}
@@ -510,7 +517,9 @@ function GroupedTable({
                                 key={`${row.id}-${col.key}`}
                                 className={[
                                   "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
-                                  col.align === "end" ? "text-right" : "text-left",
+                                  col.align === "end"
+                                    ? "text-right"
+                                    : "text-left",
                                 ].join(" ")}
                               >
                                 {formatConnectionValue(col.key, row)}

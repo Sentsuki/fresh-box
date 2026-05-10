@@ -40,11 +40,15 @@ export default function Connections() {
   const pinnedColumnKeys = useSettingsStore(
     (state) => state.settings.connections.pinned_columns,
   );
-  const sortKey = useSettingsStore((state) => state.settings.connections.sort_key);
+  const sortKey = useSettingsStore(
+    (state) => state.settings.connections.sort_key,
+  );
   const sortDirection = useSettingsStore(
     (state) => state.settings.connections.sort_direction,
   );
-  const setConnectionsTab = useSettingsStore((state) => state.setConnectionsTab);
+  const setConnectionsTab = useSettingsStore(
+    (state) => state.setConnectionsTab,
+  );
   const setConnectionsVisibleColumns = useSettingsStore(
     (state) => state.setConnectionsVisibleColumns,
   );
@@ -69,7 +73,8 @@ export default function Connections() {
   }, [startStream]);
 
   const sourceIpOptions = useMemo(
-    () => [...new Set(rawEntries.map((entry) => entry.metadata.sourceIP))].sort(),
+    () =>
+      [...new Set(rawEntries.map((entry) => entry.metadata.sourceIP))].sort(),
     [rawEntries],
   );
 
@@ -78,7 +83,9 @@ export default function Connections() {
       if (!query.trim()) return true;
       const lowerQuery = query.toLowerCase();
       return visibleColumns.some((column) =>
-        formatConnectionValue(column.key, entry).toLowerCase().includes(lowerQuery),
+        formatConnectionValue(column.key, entry)
+          .toLowerCase()
+          .includes(lowerQuery),
       );
     },
     [visibleColumns],
@@ -96,8 +103,7 @@ export default function Connections() {
     () =>
       entries.filter(
         (entry) =>
-          matchesColumnFilter(entry, search) &&
-          matchesSourceIpFilter(entry),
+          matchesColumnFilter(entry, search) && matchesSourceIpFilter(entry),
       ),
     [entries, matchesColumnFilter, matchesSourceIpFilter, search],
   );
@@ -106,8 +112,7 @@ export default function Connections() {
     () =>
       rawEntries.filter(
         (entry) =>
-          matchesColumnFilter(entry, search) &&
-          matchesSourceIpFilter(entry),
+          matchesColumnFilter(entry, search) && matchesSourceIpFilter(entry),
       ),
     [matchesColumnFilter, matchesSourceIpFilter, rawEntries, search],
   );
@@ -125,7 +130,9 @@ export default function Connections() {
   const handleSort = useCallback(
     (key: ConnectionColumnKey) => {
       if (key === sortKey) {
-        void setConnectionsSortDirection(sortDirection === "asc" ? "desc" : "asc");
+        void setConnectionsSortDirection(
+          sortDirection === "asc" ? "desc" : "asc",
+        );
         return;
       }
       const column = visibleColumns.find((item) => item.key === key);
@@ -222,7 +229,9 @@ export default function Connections() {
             pinnedColumnKeys={pinnedColumnKeys}
             onSort={handleSort}
             onToggleGrouping={toggleGrouping}
-            onPinnedColumnsChange={(keys) => void setConnectionsPinnedColumns(keys)}
+            onPinnedColumnsChange={(keys) =>
+              void setConnectionsPinnedColumns(keys)
+            }
             onRowClick={setSelectedConnection}
             isGroupCollapsed={isGroupCollapsed}
             onToggleGroupCollapsed={toggleGroupCollapsed}
@@ -250,7 +259,11 @@ export default function Connections() {
           ].join(" ")}
           title={isPaused ? "Resume" : "Pause"}
         >
-          {isPaused ? <PlayRegular className="w-5 h-5" /> : <PauseRegular className="w-5 h-5" />}
+          {isPaused ? (
+            <PlayRegular className="w-5 h-5" />
+          ) : (
+            <PauseRegular className="w-5 h-5" />
+          )}
         </button>
       </div>
     </div>

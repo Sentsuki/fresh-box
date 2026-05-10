@@ -140,12 +140,18 @@ export default function Rules() {
                 ref={containerRef}
                 className="h-full overflow-auto custom-scrollbar"
               >
-                <div style={{ width: "100%", minWidth: Math.max(table.getTotalSize(), 900) }}>
+                <div
+                  style={{
+                    width: "100%",
+                    minWidth: Math.max(table.getTotalSize(), 900),
+                  }}
+                >
                   <div className="sticky top-0 z-10 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
                     {table.getHeaderGroups().map((headerGroup) => (
                       <div key={headerGroup.id} className="flex">
                         {headerGroup.headers.map((header, index) => {
-                          const isLast = index === headerGroup.headers.length - 1;
+                          const isLast =
+                            index === headerGroup.headers.length - 1;
                           return (
                             <div
                               key={header.id}
@@ -184,17 +190,24 @@ export default function Rules() {
                               : "",
                             "hover:bg-(--wb-surface-hover)",
                           ].join(" ")}
-                          style={{ transform: `translateY(${virtualRow.start}px)` }}
+                          style={{
+                            transform: `translateY(${virtualRow.start}px)`,
+                          }}
                         >
                           {row.getVisibleCells().map((cell, index) => {
-                            const isLast = index === row.getVisibleCells().length - 1;
+                            const isLast =
+                              index === row.getVisibleCells().length - 1;
                             return (
                               <div
                                 key={cell.id}
                                 className="px-4 flex items-center text-[13px] border-r border-(--wb-border-subtle) truncate"
                                 style={{
-                                  width: isLast ? undefined : cell.column.getSize(),
-                                  minWidth: isLast ? cell.column.getSize() : undefined,
+                                  width: isLast
+                                    ? undefined
+                                    : cell.column.getSize(),
+                                  minWidth: isLast
+                                    ? cell.column.getSize()
+                                    : undefined,
                                   flexGrow: isLast ? 1 : undefined,
                                 }}
                               >
