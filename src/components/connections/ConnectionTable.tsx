@@ -479,7 +479,7 @@ function GroupedTable({
                     <tbody>
                       <tr
                         onClick={() => onToggleGroupCollapsed(group.id)}
-                        className="cursor-pointer bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover) transition-colors"
+                        className="cursor-pointer transition-colors bg-(--wb-accent)/15 hover:bg-(--wb-accent)/25"
                       >
                         <td
                           colSpan={columns.length}
