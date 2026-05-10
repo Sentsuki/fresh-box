@@ -78,7 +78,6 @@ pub struct ProxyPageSettings {
 #[serde(default)]
 pub struct ConnectionPageSettings {
     pub current_tab: String,
-    pub column_order: Vec<String>,
     pub visible_columns: Vec<String>,
     pub sort_key: String,
     pub sort_direction: String,
@@ -144,20 +143,6 @@ impl Default for ConnectionPageSettings {
     fn default() -> Self {
         Self {
             current_tab: "active".to_string(),
-            column_order: vec![
-                "host".to_string(),
-                "destination".to_string(),
-                "downloadSpeed".to_string(),
-                "uploadSpeed".to_string(),
-                "download".to_string(),
-                "upload".to_string(),
-                "chain".to_string(),
-                "rule".to_string(),
-                "source".to_string(),
-                "process".to_string(),
-                "network".to_string(),
-                "start".to_string(),
-            ],
             visible_columns: vec![
                 "host".to_string(),
                 "downloadSpeed".to_string(),
