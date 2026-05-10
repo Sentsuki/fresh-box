@@ -1,64 +1,26 @@
-# 全站虚拟化统一重构待办事项 (Todo List)
+# Logs 页面功能增强待办事项
 
-这个待办事项列表旨在指导你将项目中的 `Connections`、`Logs`、`Rules` 以及 `Proxies` 页面进行重构，以获得更好的性能、更丰富的功能和统一的技术栈。
+从 Zashboard 借鉴的日志页面功能改进计划。
 
----
+## 1. 倒序排列 (Reverse Chronological Order)
+- [ ] 修改日志存储或渲染逻辑，使最新日志显示在顶部。
+  - [ ] 方案 A：在 `useLogsStream.ts` 中将新日志 `unshift` 到数组头部（需注意性能和 `slice` 逻辑）。
+  - [ ] 方案 B：保持原数组顺序，在渲染或传递给虚拟滚动时进行 `reverse()`。
+- [ ] 调整虚拟滚动器，确保新日志到达时，如果用户没有滚动查看历史，视口能保持在最新日志（顶部）。
 
-## 📦 步骤 1：安装依赖
+## 2. 正则搜索 (Regex Search)
+- [ ] 增强 `useLogsStream.ts` 中的 `matchesSearch` 函数，支持正则表达式匹配。
+- [ ] 优化错误处理，防止用户输入非法的正则表达式导致应用崩溃。
+- [ ] 在 `Logs/index.tsx` 的搜索框占位符中提示支持正则（例如："搜索日志... (支持正则)"）。
 
-- [ ] 安装 TanStack 家族库 （包管理用 pnpm）
+## 3. 反向过滤 (Negative Filter / Hide Logs)
+- [ ] 在 `settingsStore` 中添加 `hideLogRegex` (字符串) 和 `hideLogEnabled` (布尔值) 的持久化配置。
+- [ ] 在 `useLogsStream.ts` 的过滤逻辑中，增加对匹配 `hideLogRegex` 的日志的排除逻辑。
+- [ ] 在 `Logs/index.tsx` 页面上添加：
+  - [ ] 一个用于输入排除正则的输入框。
+  - [ ] 一个用于快速启用/禁用反向过滤的开关或按钮。
 
----
-
-## 🌐 步骤 2：Connections 页面重构 (高优先级)
-
-目标：还原 `zashboard` 的高级表格交互。
-
-- [ ] **文件结构拆分**
-  - [ ] 在 `src/pages/Connections/` 目录下拆分出 `ConnectionTable.tsx` 和 `ConnectionCtrl.tsx`。
-- [ ] **实现高级表格特性 (基于 TanStack Table & Virtual)**
-  - [ ] 支持 **列钉住 (Pinning)**（如固定 Host 列）。
-  - [ ] 支持 **列宽调整 (Resizing)**。
-  - [ ] 添加 **右键单元格复制** 功能。
-  - [ ] 添加 **鼠标拖拽滚动** 表格功能。
-- [ ] **增强控制栏**
-  - [ ] 添加 **正则表达式过滤** 和 **源 IP 过滤器**。
-
----
-
-## 📜 步骤 3：Logs 页面重构 (高优先级)
-
-目标：解决长日志换行被截断的问题。
-
-- [ ] **引入 `@tanstack/react-virtual`**
-  - [ ] 替换现有的 `VirtualList`。
-- [ ] **启用动态高度测量 (Dynamic Measurement)**
-  - [ ] 配置 virtualizer 使用动态测量，允许日志根据内容自然换行。
-
----
-
-## 📋 步骤 4：Rules 页面重构 (中优先级)
-
-目标：统一技术栈，使用通用的表格组件。
-
-- [ ] **引入 `@tanstack/react-table` 和 `@tanstack/react-virtual`**
-  - [ ] 替换现有的 `VirtualTable`。
-- [ ] **保持固定行高**
-  - [ ] 继续使用固定行高（如 40px）以获得最佳性能。
-
----
-
-## ⚡ 步骤 5：Proxies 页面重构 (可选 - 视节点数量而定)
-
-目标：优化成百上千个节点卡片时的渲染性能。你可以选择以下两种方案之一：
-
-- [ ] **方案 A：实现无限滚动 / 懒加载 (向 zashboard 看齐 - 推荐)**
-  - [ ] 不使用真正的虚拟化，而是使用“按需渲染”。
-  - [ ] 初始只渲染前 N 个节点，监听滚动事件，触底时增加渲染数量。
-
-
-## 🧹 步骤 6：清理工作
-
-- [ ] 当所有页面都重构完成后，删除项目中老旧的自定义组件：
-  - [ ] `src/components/ui/VirtualList`
-  - [ ] `src/components/ui/VirtualTable`
+## 4. 动态字典 (Dynamic Dictionary)
+- [ ] 改变目前固定的 `LOG_LEVELS` 过滤方式。
+- [ ] 在 `useLogsStream.ts` 中，动态遍历当前日志列表，提取出所有出现过的 `category`（模块分类）和 `type`（日志级别）。
+- [ ] 更新 `Logs/index.tsx` 的筛选 UI，将原本的分段控制或下拉框改为按“级别”和“模块”分组的动态字典。
