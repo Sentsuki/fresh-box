@@ -44,6 +44,9 @@ interface SettingsActions {
     group: string,
     collapsed: boolean,
   ) => Promise<void>;
+  setConnectionsColumnSizes: (
+    sizes: Record<string, number>,
+  ) => Promise<void>;
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
@@ -140,6 +143,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionGroupCollapsed: async (group, collapsed) => {
       await get().updateSettings((s) => {
         s.connections.collapsed_groups[group] = collapsed;
+      });
+    },
+
+    setConnectionsColumnSizes: async (sizes) => {
+      await get().updateSettings((s) => {
+        s.connections.column_sizes = sizes;
       });
     },
 

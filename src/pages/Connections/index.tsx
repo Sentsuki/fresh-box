@@ -46,6 +46,9 @@ export default function Connections() {
   const sortDirection = useSettingsStore(
     (state) => state.settings.connections.sort_direction,
   );
+  const columnSizes = useSettingsStore(
+    (state) => state.settings.connections.column_sizes,
+  );
   const setConnectionsTab = useSettingsStore(
     (state) => state.setConnectionsTab,
   );
@@ -60,6 +63,9 @@ export default function Connections() {
   );
   const setConnectionsSortDirection = useSettingsStore(
     (state) => state.setConnectionsSortDirection,
+  );
+  const setConnectionsColumnSizes = useSettingsStore(
+    (state) => state.setConnectionsColumnSizes,
   );
 
   const [search, setSearch] = useState("");
@@ -227,10 +233,14 @@ export default function Connections() {
             sortDirection={sortDirection}
             groupedColumnKey={groupedColumn?.key ?? null}
             pinnedColumnKeys={pinnedColumnKeys}
+            columnSizes={columnSizes}
             onSort={handleSort}
             onToggleGrouping={toggleGrouping}
             onPinnedColumnsChange={(keys) =>
               void setConnectionsPinnedColumns(keys)
+            }
+            onColumnSizesChange={(sizes) =>
+              void setConnectionsColumnSizes(sizes)
             }
             onRowClick={setSelectedConnection}
             isGroupCollapsed={isGroupCollapsed}

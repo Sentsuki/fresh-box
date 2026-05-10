@@ -88,6 +88,7 @@ export interface ConnectionPageSettings {
   sort_direction: SortDirection;
   grouped_column: ConnectionColumnKey | null;
   collapsed_groups: Record<string, boolean>;
+  column_sizes: Record<string, number>;
 }
 
 export interface LogsPageSettings {
@@ -166,6 +167,7 @@ export function createDefaultAppSettings(): AppSettings {
       sort_direction: "desc",
       grouped_column: null,
       collapsed_groups: {},
+      column_sizes: {},
     },
     logs: {
       log_level: "info",
@@ -252,6 +254,18 @@ function normalizeBooleanRecord(value: unknown): Record<string, boolean> {
   );
 }
 
+function normalizeNumberRecord(value: unknown): Record<string, number> {
+  if (!value || typeof value !== "object" || Array.isArray(value)) {
+    return {};
+  }
+
+  return Object.fromEntries(
+    Object.entries(value).filter(
+      (entry): entry is [string, number] => typeof entry[1] === "number",
+    ),
+  );
+}
+
 export function normalizeAppSettings(
   settings: AppSettings | null | undefined,
 ): AppSettings {
@@ -314,6 +328,7 @@ export function normalizeAppSettings(
       collapsed_groups: normalizeBooleanRecord(
         settings.connections?.collapsed_groups,
       ),
+      column_sizes: normalizeNumberRecord(settings.connections?.column_sizes),
     },
     logs: {
       log_level: LOG_LEVELS.includes(settings.logs?.log_level)
