@@ -130,8 +130,6 @@ export default function Settings() {
 
         {/* Core Settings */}
         <SettingGroup title="sing-box Core">
-
-
           {!isPriorityLoading && hasStackField && (
             <SettingCard
               icon={<BoxRegular />}
@@ -460,7 +458,7 @@ export default function Settings() {
             title="Fresh Box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version 1.6.4</span>
+                <span>Version 1.6.5</span>
               </div>
             }
           />

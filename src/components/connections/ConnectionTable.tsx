@@ -5,9 +5,18 @@ import {
   useReactTable,
   type ColumnDef,
   type ColumnPinningState,
+  type ColumnSizingState,
+  type Updater,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useCallback, useEffect, useMemo, useRef, useState, type CSSProperties } from "react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type CSSProperties,
+} from "react";
 import {
   formatConnectionValue,
   type ConnectionColumnOption,
@@ -101,16 +110,19 @@ export function ConnectionTable({
   saveSizesRef.current = onColumnSizesChange;
   const sizeTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
-  const handleColumnSizingChange = useCallback((updater: any) => {
-    setLocalColumnSizes((old) => {
-      const next = typeof updater === "function" ? updater(old) : updater;
-      if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
-      sizeTimeoutRef.current = setTimeout(() => {
-        saveSizesRef.current(next);
-      }, 200);
-      return next;
-    });
-  }, []);
+  const handleColumnSizingChange = useCallback(
+    (updater: Updater<ColumnSizingState>) => {
+      setLocalColumnSizes((old) => {
+        const next = typeof updater === "function" ? updater(old) : updater;
+        if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
+        sizeTimeoutRef.current = setTimeout(() => {
+          saveSizesRef.current(next);
+        }, 200);
+        return next;
+      });
+    },
+    [],
+  );
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
       left: pinnedColumnKeys,

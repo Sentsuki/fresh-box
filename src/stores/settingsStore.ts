@@ -44,9 +44,7 @@ interface SettingsActions {
     group: string,
     collapsed: boolean,
   ) => Promise<void>;
-  setConnectionsColumnSizes: (
-    sizes: Record<string, number>,
-  ) => Promise<void>;
+  setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
