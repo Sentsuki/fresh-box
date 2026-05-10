@@ -60,6 +60,8 @@ fn main() {
             clash_api::test_clash_proxy_group_delay,
             clash_api::get_clash_rules,
             clash_api::query_dns,
+            clash_api::flush_fakeip_cache,
+            clash_api::flush_dns_cache,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,

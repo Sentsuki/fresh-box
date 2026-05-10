@@ -575,3 +575,39 @@ pub async fn query_dns(
 
     Ok(data)
 }
+
+#[tauri::command]
+pub async fn flush_fakeip_cache() -> Result<(), CommandError> {
+    let api = get_api_config();
+    let client = clash_client()?;
+    let request_url = build_clash_url(&api.base_url, "/cache/fakeip/flush");
+
+    client
+        .post(request_url)
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to flush Fake-IP cache", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to flush Fake-IP cache", error))?;
+
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn flush_dns_cache() -> Result<(), CommandError> {
+    let api = get_api_config();
+    let client = clash_client()?;
+    let request_url = build_clash_url(&api.base_url, "/cache/dns/flush");
+
+    client
+        .post(request_url)
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to flush DNS cache", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to flush DNS cache", error))?;
+
+    Ok(())
+}

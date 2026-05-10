@@ -159,6 +159,14 @@ export async function getClashRules(): Promise<ClashRulesSnapshot> {
   return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
 }
 
+export async function flushFakeIpCache(): Promise<void> {
+  return invokeCommand<void>("flush_fakeip_cache");
+}
+
+export async function flushDnsCache(): Promise<void> {
+  return invokeCommand<void>("flush_dns_cache");
+}
+
 export async function enableConfigOverride(): Promise<void> {
   return invokeCommand<void>("enable_config_override");
 }
