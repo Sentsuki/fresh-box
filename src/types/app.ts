@@ -280,7 +280,7 @@ export function normalizeAppSettings(
   );
   const pinnedColumns = hasPinnedColumnsSetting
     ? normalizeColumnList(settings.connections?.pinned_columns)
-    : (["host"] as ConnectionColumnKey[]);
+    : defaults.connections.pinned_columns;
 
   return {
     schema_version:
