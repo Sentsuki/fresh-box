@@ -242,9 +242,11 @@ export function ConnectionTable({
       <GroupedTable
         groups={groupedEntries}
         columns={columns}
+        groupedColumnKey={groupedColumnKey}
         sortKey={sortKey}
         sortDirection={sortDirection}
         onSort={onSort}
+        onToggleGrouping={onToggleGrouping}
         onRowClick={onRowClick}
         isGroupCollapsed={isGroupCollapsed}
         onToggleGroupCollapsed={onToggleGroupCollapsed}
@@ -383,9 +385,11 @@ export function ConnectionTable({
 interface GroupedTableProps {
   groups: ConnectionGroup[];
   columns: ConnectionColumnOption[];
+  groupedColumnKey: ConnectionColumnKey | null;
   sortKey: ConnectionColumnKey;
   sortDirection: SortDirection;
   onSort: (key: ConnectionColumnKey) => void;
+  onToggleGrouping: (key: ConnectionColumnKey) => void;
   onRowClick: (row: ConnectionEntry) => void;
   isGroupCollapsed: (id: string) => boolean;
   onToggleGroupCollapsed: (id: string) => void;
@@ -394,9 +398,11 @@ interface GroupedTableProps {
 function GroupedTable({
   groups,
   columns,
+  groupedColumnKey,
   sortKey,
   sortDirection,
   onSort,
+  onToggleGrouping,
   onRowClick,
   isGroupCollapsed,
   onToggleGroupCollapsed,
@@ -408,6 +414,7 @@ function GroupedTable({
           <tr>
             {columns.map((col) => {
               const isSorted = sortKey === col.key;
+              const isGrouped = groupedColumnKey === col.key;
               const isClickable = col.sortable;
               return (
                 <th
@@ -423,8 +430,25 @@ function GroupedTable({
                     isSorted ? "text-(--wb-text-primary)" : "",
                   ].join(" ")}
                 >
-                  <span className="inline-flex items-center gap-1">
-                    {col.label}
+                  <span className="inline-flex items-center gap-1.5">
+                    <span>{col.label}</span>
+                    {col.groupable && (
+                      <button
+                        onClick={(event) => {
+                          event.stopPropagation();
+                          onToggleGrouping(col.key);
+                        }}
+                        className={[
+                          "p-0.5 rounded transition-all inline-flex items-center justify-center shrink-0",
+                          isGrouped
+                            ? "bg-(--wb-accent) text-(--wb-accent-fg)"
+                            : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active)",
+                        ].join(" ")}
+                        title={isGrouped ? "Ungroup" : `Group by ${col.label}`}
+                      >
+                        <ColumnRegular className="w-3.5 h-3.5" />
+                      </button>
+                    )}
                     {isSorted && (
                       <span className="text-(--wb-accent)">
                         {sortDirection === "asc" ? "↑" : "↓"}

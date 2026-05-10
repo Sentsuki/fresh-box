@@ -436,17 +436,8 @@ export function useConnectionsStream() {
   );
 
   const visibleColumns = useMemo(
-    () => {
-      const keys = [...settings.visible_columns];
-      if (
-        settings.grouped_column &&
-        !keys.includes(settings.grouped_column)
-      ) {
-        keys.unshift(settings.grouped_column);
-      }
-      return keys.map((k) => columnDefinitions[k]);
-    },
-    [settings.visible_columns, settings.grouped_column],
+    () => settings.visible_columns.map((k) => columnDefinitions[k]),
+    [settings.visible_columns],
   );
 
   const entries = settings.current_tab === "active" ? active : closed;
@@ -504,10 +495,6 @@ export function useConnectionsStream() {
     [settings.grouped_column, setConnectionsGroupedColumn],
   );
 
-  const clearGrouping = useCallback(() => {
-    void setConnectionsGroupedColumn(null);
-  }, [setConnectionsGroupedColumn]);
-
   const toggleGroupCollapsed = useCallback(
     (groupId: string) => {
       const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
@@ -540,7 +527,6 @@ export function useConnectionsStream() {
     togglePause,
     closeAll,
     toggleGrouping,
-    clearGrouping,
     toggleGroupCollapsed,
     isGroupCollapsed,
   };

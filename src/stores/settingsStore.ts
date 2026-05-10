@@ -133,15 +133,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
         s.connections.grouped_column = column;
-        if (
-          column &&
-          !s.connections.visible_columns.includes(column)
-        ) {
-          s.connections.visible_columns = [
-            column,
-            ...s.connections.visible_columns,
-          ];
-        }
         s.connections.collapsed_groups = {};
       });
     },

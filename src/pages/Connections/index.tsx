@@ -26,7 +26,6 @@ export default function Connections() {
     togglePause,
     closeAll,
     toggleGrouping,
-    clearGrouping,
     toggleGroupCollapsed,
     isGroupCollapsed,
   } = useConnectionsStream();
@@ -143,15 +142,12 @@ export default function Connections() {
 
   const toggleColumnVisible = useCallback(
     (key: ConnectionColumnKey) => {
-      if (groupedColumn?.key === key && visibleColumnKeys.includes(key)) {
-        return;
-      }
       const nextColumns = visibleColumnKeys.includes(key)
         ? visibleColumnKeys.filter((columnKey) => columnKey !== key)
         : [...visibleColumnKeys, key];
       void setConnectionsVisibleColumns(nextColumns);
     },
-    [groupedColumn?.key, setConnectionsVisibleColumns, visibleColumnKeys],
+    [setConnectionsVisibleColumns, visibleColumnKeys],
   );
 
   const moveColumn = useCallback(
@@ -197,8 +193,6 @@ export default function Connections() {
       <div className="flex flex-col gap-4 h-full min-h-0 pr-2 pb-10">
         <ConnectionCtrl
           currentTab={currentTab}
-          groupedColumnLabel={groupedColumn?.label ?? null}
-          groupedColumnKey={groupedColumn?.key ?? null}
           search={search}
           sourceIpFilter={sourceIpFilter}
           sourceIpOptions={sourceIpOptions}
@@ -213,7 +207,6 @@ export default function Connections() {
           onToggleColumnsPanel={() => setShowColumns((value) => !value)}
           onToggleColumnVisible={toggleColumnVisible}
           onMoveColumn={moveColumn}
-          onClearGrouping={clearGrouping}
           onCloseAll={closeAll}
         />
 

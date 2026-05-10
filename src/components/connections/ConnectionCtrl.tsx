@@ -14,8 +14,6 @@ import type {
 
 interface ConnectionCtrlProps {
   currentTab: ConnectionPageTab;
-  groupedColumnLabel: string | null;
-  groupedColumnKey: ConnectionColumnKey | null;
   search: string;
   sourceIpFilter: string;
   sourceIpOptions: string[];
@@ -30,14 +28,11 @@ interface ConnectionCtrlProps {
   onToggleColumnsPanel: () => void;
   onToggleColumnVisible: (key: ConnectionColumnKey) => void;
   onMoveColumn: (key: ConnectionColumnKey, dir: -1 | 1) => void;
-  onClearGrouping: () => void;
   onCloseAll: () => void;
 }
 
 export function ConnectionCtrl({
   currentTab,
-  groupedColumnLabel,
-  groupedColumnKey,
   search,
   sourceIpFilter,
   sourceIpOptions,
@@ -51,7 +46,6 @@ export function ConnectionCtrl({
   onToggleColumnsPanel,
   onToggleColumnVisible,
   onMoveColumn,
-  onClearGrouping,
   onCloseAll,
 }: ConnectionCtrlProps) {
   return (
@@ -73,19 +67,6 @@ export function ConnectionCtrl({
             </button>
           ))}
         </div>
-
-        {groupedColumnLabel && (
-          <div className="flex items-center gap-1.5 px-3 py-1.5 rounded-full text-xs font-semibold tracking-wide uppercase bg-(--wb-accent)/10 text-(--wb-accent) border border-(--wb-accent)/20">
-            <span>Grouped: {groupedColumnLabel}</span>
-            <button
-              onClick={onClearGrouping}
-              className="hover:opacity-70 transition-opacity leading-none ml-1"
-              title="Clear grouping"
-            >
-              ✕
-            </button>
-          </div>
-        )}
       </div>
 
       <div className="flex items-center gap-3 flex-wrap">
@@ -177,10 +158,6 @@ export function ConnectionCtrl({
                         type="checkbox"
                         id={`col-${col.key}`}
                         checked={visibleColumnKeys.includes(col.key)}
-                        disabled={
-                          groupedColumnKey === col.key &&
-                          visibleColumnKeys.includes(col.key)
-                        }
                         onChange={() => onToggleColumnVisible(col.key)}
                         className="w-4 h-4 rounded border-(--wb-border-default) accent-(--wb-accent) cursor-pointer"
                       />
