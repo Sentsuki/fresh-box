@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
+import { PauseRegular, PlayRegular } from "@fluentui/react-icons";
 import { Badge } from "../../components/ui/Badge";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ConnectionDetailsModal } from "../../components/connections/ConnectionDetailsModal";
@@ -234,6 +235,23 @@ export default function Connections() {
           onClose={() => setSelectedConnection(null)}
           onDisconnect={disconnectConnection}
         />
+
+        <button
+          onClick={togglePause}
+          className={[
+            "fixed bottom-10 right-6 z-50",
+            "w-12 h-12 rounded-full",
+            "flex items-center justify-center",
+            "backdrop-blur-md",
+            isPaused
+              ? "bg-(--wb-accent) text-(--wb-accent-fg) hover:bg-(--wb-accent-hover)"
+              : "bg-(--wb-surface-flyout) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) border border-(--wb-border-subtle)",
+            "transition-all duration-200",
+          ].join(" ")}
+          title={isPaused ? "Resume" : "Pause"}
+        >
+          {isPaused ? <PlayRegular className="w-5 h-5" /> : <PauseRegular className="w-5 h-5" />}
+        </button>
       </div>
     </div>
   );

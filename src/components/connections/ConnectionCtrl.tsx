@@ -1,8 +1,6 @@
 import {
   ColumnRegular,
   DismissRegular,
-  PauseRegular,
-  PlayRegular,
   SearchRegular,
 } from "@fluentui/react-icons";
 import { Button } from "../../components/ui/Button";
@@ -36,13 +34,11 @@ export function ConnectionCtrl({
   search,
   sourceIpFilter,
   sourceIpOptions,
-  isPaused,
   showColumns,
   visibleColumnKeys,
   onSetTab,
   onSearchChange,
   onSourceIpFilterChange,
-  onTogglePause,
   onToggleColumnsPanel,
   onToggleColumnVisible,
   onMoveColumn,
@@ -110,14 +106,7 @@ export function ConnectionCtrl({
 
         <div className="flex-1" />
 
-        {/* Pause */}
-        <Button
-          icon={isPaused ? <PlayRegular /> : <PauseRegular />}
-          variant="subtle"
-          onClick={onTogglePause}
-        >
-          {isPaused ? "Resume" : "Pause"}
-        </Button>
+
 
         {/* Close All */}
         <Button icon={<DismissRegular />} variant="subtle" onClick={onCloseAll}>
