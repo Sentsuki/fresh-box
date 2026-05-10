@@ -46,7 +46,7 @@ function getPinnedStyles(
     position: "sticky",
     ...(pinned === "left" ? { left: offset } : { right: offset }),
     zIndex: isHeader ? 20 : 10,
-    background: "var(--wb-surface-layer)",
+    background: "var(--wb-badge-default-bg)",
     boxShadow:
       pinned === "left"
         ? "1px 0 0 var(--wb-border-subtle)"

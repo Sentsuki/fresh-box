@@ -150,7 +150,7 @@ export function createDefaultAppSettings(): AppSettings {
     connections: {
       current_tab: "active",
       visible_columns: [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
-      pinned_columns: ["host"],
+      pinned_columns: [],
       sort_key: "downloadSpeed",
       sort_direction: "desc",
       grouped_column: null,
