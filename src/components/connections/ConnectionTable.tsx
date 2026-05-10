@@ -107,7 +107,7 @@ export function ConnectionTable({
       if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
       sizeTimeoutRef.current = setTimeout(() => {
         saveSizesRef.current(next);
-      }, 100);
+      }, 200);
       return next;
     });
   }, []);
