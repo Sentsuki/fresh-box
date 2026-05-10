@@ -326,23 +326,21 @@ async fn execute_proxy_delay_test(
         timeout
     );
 
-    let response_result = client
+    let response = client
         .get(request_url)
         .bearer_auth(&api.secret)
         .send()
-        .await;
+        .await
+        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?;
 
-    match response_result {
-        Ok(response) => {
-            if response.status().is_success() {
-                if let Ok(data) = response.json::<DelayResponse>().await {
-                    return Ok(data.delay);
-                }
-            }
-            Ok(-1)
-        }
-        Err(_) => Ok(-1),
-    }
+    let data = response
+        .json::<DelayResponse>()
+        .await
+        .map_err(|error| CommandError::network(format!("Failed to parse delay response: {}", error)))?;
+
+    Ok(data.delay)
 }
 
 fn build_clash_overview(
@@ -532,27 +530,12 @@ pub async fn test_clash_proxy_group_delay(
         .error_for_status()
         .map_err(|error| map_clash_network_error("Failed to test group delay", error))?;
 
-    let delay_results = response
+    let data = response
         .json::<HashMap<String, i64>>()
         .await
         .map_err(|error| CommandError::network(format!("Failed to parse group delay response: {}", error)))?;
 
-    // Fetch proxies to know the full list of nodes in this group
-    let proxies = clash_get::<ClashProxiesResponse>("/proxies", "Failed to load proxies").await?;
-    
-    let mut full_results = HashMap::new();
-    
-    if let Some(group) = proxies.proxies.get(normalized_group) {
-        for node_name in &group.all {
-            let delay = delay_results.get(node_name).copied().unwrap_or(-1);
-            full_results.insert(node_name.clone(), delay);
-        }
-    } else {
-        // If group not found in proxies, just return the delay results we got
-        return Ok(delay_results);
-    }
-
-    Ok(full_results)
+    Ok(data)
 }
 
 #[tauri::command]

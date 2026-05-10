@@ -176,6 +176,20 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       }
     } catch (error) {
       onError?.(`Failed to test node latency: ${getErrorMessage(error)}`);
+      set((s) => {
+        if (!s.overview) return {};
+        return {
+          overview: {
+            ...s.overview,
+            proxy_groups: s.overview.proxy_groups.map((group) => ({
+              ...group,
+              options: group.options.map((node) =>
+                node.name === proxyName ? { ...node, delay: -1 } : node,
+              ),
+            })),
+          },
+        };
+      });
     } finally {
       set((s) => {
         const next = new Set(s.activeDelayNodes);
@@ -220,7 +234,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
                 ...g,
                 options: g.options.map((node) => ({
                   ...node,
-                  delay: results[node.name],
+                  delay: results[node.name] !== undefined ? results[node.name] : -1,
                 })),
               };
             }
