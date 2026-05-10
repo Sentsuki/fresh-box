@@ -25,7 +25,14 @@ export type ConnectionColumnKey =
   | "source"
   | "process"
   | "network"
-  | "start";
+  | "start"
+  | "sniffHost"
+  | "outbound"
+  | "sourcePort"
+  | "sourceIP"
+  | "destinationType"
+  | "remoteAddress"
+  | "inboundUser";
 export type RulesTab = "rules";
 export type LogLevel =
   | "trace"
@@ -75,8 +82,8 @@ export interface ProxyPageSettings {
 
 export interface ConnectionPageSettings {
   current_tab: ConnectionPageTab;
-  column_order: ConnectionColumnKey[];
   visible_columns: ConnectionColumnKey[];
+  pinned_columns: ConnectionColumnKey[];
   sort_key: ConnectionColumnKey;
   sort_direction: SortDirection;
   grouped_column: ConnectionColumnKey | null;
@@ -123,6 +130,13 @@ export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
   "process",
   "network",
   "start",
+  "sniffHost",
+  "outbound",
+  "sourcePort",
+  "sourceIP",
+  "destinationType",
+  "remoteAddress",
+  "inboundUser",
 ];
 
 export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
@@ -149,8 +163,8 @@ export function createDefaultAppSettings(): AppSettings {
     },
     connections: {
       current_tab: "active",
-      column_order: [...DEFAULT_CONNECTION_COLUMN_ORDER],
       visible_columns: [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
+      pinned_columns: [],
       sort_key: "downloadSpeed",
       sort_direction: "desc",
       grouped_column: null,
@@ -209,10 +223,7 @@ const LOG_LEVELS: LogLevel[] = [
   "panic",
 ];
 
-function normalizeColumnList(
-  value: unknown,
-  fallback: ConnectionColumnKey[],
-): ConnectionColumnKey[] {
+function normalizeColumnList(value: unknown): ConnectionColumnKey[] {
   const raw = Array.isArray(value)
     ? value.filter(
         (item): item is ConnectionColumnKey =>
@@ -226,11 +237,6 @@ function normalizeColumnList(
   for (const key of raw) {
     if (seen.has(key)) continue;
     seen.add(key);
-    next.push(key);
-  }
-
-  for (const key of fallback) {
-    if (seen.has(key)) continue;
     next.push(key);
   }
 
@@ -255,14 +261,20 @@ export function normalizeAppSettings(
   const defaults = createDefaultAppSettings();
   if (!settings) return defaults;
 
-  const columnOrder = normalizeColumnList(
-    settings.connections?.column_order,
-    DEFAULT_CONNECTION_COLUMN_ORDER,
+  const hasVisibleColumnsSetting = Boolean(
+    settings.connections &&
+      Object.prototype.hasOwnProperty.call(settings.connections, "visible_columns"),
   );
-  const visibleColumns = normalizeColumnList(
-    settings.connections?.visible_columns,
-    DEFAULT_CONNECTION_VISIBLE_COLUMNS,
-  ).filter((key) => columnOrder.includes(key));
+  const visibleColumns = hasVisibleColumnsSetting
+    ? normalizeColumnList(settings.connections?.visible_columns)
+    : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS];
+  const hasPinnedColumnsSetting = Boolean(
+    settings.connections &&
+      Object.prototype.hasOwnProperty.call(settings.connections, "pinned_columns"),
+  );
+  const pinnedColumns = hasPinnedColumnsSetting
+    ? normalizeColumnList(settings.connections?.pinned_columns)
+    : (["host"] as ConnectionColumnKey[]);
 
   return {
     schema_version:
@@ -281,11 +293,8 @@ export function normalizeAppSettings(
       current_tab: CONNECTION_TABS.includes(settings.connections?.current_tab)
         ? settings.connections.current_tab
         : defaults.connections.current_tab,
-      column_order: columnOrder,
-      visible_columns:
-        visibleColumns.length > 0
-          ? visibleColumns
-          : [...DEFAULT_CONNECTION_VISIBLE_COLUMNS],
+      visible_columns: visibleColumns,
+      pinned_columns: pinnedColumns,
       sort_key: CONNECTION_COLUMNS.has(settings.connections?.sort_key)
         ? settings.connections.sort_key
         : defaults.connections.sort_key,
@@ -502,6 +511,11 @@ export interface ConnectionMetadata {
   dnsMode: string;
   processPath?: string;
   remoteDestination?: string;
+  sniffHost?: string;
+  inboundUser?: string;
+  inboundName?: string;
+  inboundPort?: string;
+  process?: string;
 }
 
 export interface CoreConnectionSnapshot {

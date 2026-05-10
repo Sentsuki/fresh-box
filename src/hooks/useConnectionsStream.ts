@@ -34,8 +34,12 @@ interface ConnectionColumnDefinition extends ConnectionColumnOption {
 }
 
 function getConnectionHost(c: ConnectionEntry): string {
-  const { host, destinationIP, destinationPort } = c.metadata;
-  return host || `${destinationIP}:${destinationPort}`;
+  const { host, destinationIP, destinationPort, sniffHost } = c.metadata;
+  const h = host || sniffHost || destinationIP;
+  if (h.includes(":")) {
+    return `[${h}]:${destinationPort}`;
+  }
+  return `${h}:${destinationPort}`;
 }
 
 const columnDefinitions: Record<
@@ -56,8 +60,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) =>
-      `${c.metadata.destinationIP}:${c.metadata.destinationPort}`,
+    getValue: (c) => c.metadata.remoteDestination || c.metadata.destinationIP || c.metadata.host,
   },
   downloadSpeed: {
     key: "downloadSpeed",
@@ -125,7 +128,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.processPath?.split(/[/\\]/).pop() ?? "",
+    getValue: (c) => c.metadata.process || c.metadata.processPath?.split(/[/\\\\]/).pop() || "-",
   },
   network: {
     key: "network",
@@ -133,7 +136,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.metadata.network,
+    getValue: (c) => `${c.metadata.type} | ${c.metadata.network}`,
   },
   start: {
     key: "start",
@@ -142,6 +145,67 @@ const columnDefinitions: Record<
     groupable: false,
     defaultDirection: "asc",
     getValue: (c) => c.start,
+  },
+  sniffHost: {
+    key: "sniffHost",
+    label: "Sniff Host",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sniffHost || "-",
+  },
+  outbound: {
+    key: "outbound",
+    label: "Outbound",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.chains[0] || "-",
+  },
+  sourcePort: {
+    key: "sourcePort",
+    label: "Source Port",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sourcePort,
+  },
+  sourceIP: {
+    key: "sourceIP",
+    label: "Source IP",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.sourceIP,
+  },
+  destinationType: {
+    key: "destinationType",
+    label: "Dest Type",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => {
+      const dest = c.metadata.destinationIP || c.metadata.host;
+      if (dest.includes(":")) return "IPv6";
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
+      return "FQDN";
+    },
+  },
+  remoteAddress: {
+    key: "remoteAddress",
+    label: "Remote Address",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.remoteDestination || "-",
+  },
+  inboundUser: {
+    key: "inboundUser",
+    label: "Inbound User",
+    sortable: true,
+    groupable: true,
+    defaultDirection: "asc",
+    getValue: (c) => c.metadata.inboundUser || c.metadata.inboundName || c.metadata.inboundPort || "-",
   },
 };
 
@@ -385,15 +449,33 @@ export function formatConnectionValue(
     case "host":
       return getConnectionHost(entry);
     case "destination":
-      return `${entry.metadata.destinationIP}:${entry.metadata.destinationPort}`;
+      return entry.metadata.remoteDestination || entry.metadata.destinationIP || entry.metadata.host;
     case "source":
       return `${entry.metadata.sourceIP}:${entry.metadata.sourcePort}`;
     case "process":
-      return entry.metadata.processPath?.split(/[/\\]/).pop() ?? "";
+      return entry.metadata.process || entry.metadata.processPath?.split(/[/\\\\]/).pop() || "-";
     case "network":
-      return entry.metadata.network;
+      return `${entry.metadata.type} | ${entry.metadata.network}`;
     case "rule":
       return entry.rule;
+    case "sniffHost":
+      return entry.metadata.sniffHost || "-";
+    case "outbound":
+      return entry.chains[0] || "-";
+    case "sourcePort":
+      return entry.metadata.sourcePort;
+    case "sourceIP":
+      return entry.metadata.sourceIP;
+    case "destinationType": {
+      const dest = entry.metadata.destinationIP || entry.metadata.host;
+      if (dest.includes(":")) return "IPv6";
+      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
+      return "FQDN";
+    }
+    case "remoteAddress":
+      return entry.metadata.remoteDestination || "-";
+    case "inboundUser":
+      return entry.metadata.inboundUser || entry.metadata.inboundName || entry.metadata.inboundPort || "-";
   }
 }
 
@@ -436,11 +518,8 @@ export function useConnectionsStream() {
   );
 
   const visibleColumns = useMemo(
-    () =>
-      settings.column_order
-        .filter((k) => settings.visible_columns.includes(k))
-        .map((k) => columnDefinitions[k]),
-    [settings.column_order, settings.visible_columns],
+    () => settings.visible_columns.map((k) => columnDefinitions[k]),
+    [settings.visible_columns],
   );
 
   const entries = settings.current_tab === "active" ? active : closed;
@@ -498,10 +577,6 @@ export function useConnectionsStream() {
     [settings.grouped_column, setConnectionsGroupedColumn],
   );
 
-  const clearGrouping = useCallback(() => {
-    void setConnectionsGroupedColumn(null);
-  }, [setConnectionsGroupedColumn]);
-
   const toggleGroupCollapsed = useCallback(
     (groupId: string) => {
       const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
@@ -534,7 +609,6 @@ export function useConnectionsStream() {
     togglePause,
     closeAll,
     toggleGrouping,
-    clearGrouping,
     toggleGroupCollapsed,
     isGroupCollapsed,
   };

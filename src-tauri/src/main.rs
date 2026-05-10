@@ -20,11 +20,12 @@ use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
 
 #[tauri::command]
-fn update_mica_theme(window: Window, is_light: bool) {
+fn update_mica_theme(window: Window, is_light: Option<bool>) {
     #[cfg(target_os = "windows")]
     {
         use window_vibrancy::apply_mica;
-        let _ = apply_mica(&window, Some(!is_light));
+        let is_dark = is_light.map(|light| !light);
+        let _ = apply_mica(&window, is_dark);
     }
 }
 
@@ -58,6 +59,9 @@ fn main() {
             clash_api::test_clash_proxy_delay,
             clash_api::test_clash_proxy_group_delay,
             clash_api::get_clash_rules,
+            clash_api::query_dns,
+            clash_api::flush_fakeip_cache,
+            clash_api::flush_dns_cache,
             config::list_configs,
             config::copy_config_to_bin,
             config::save_subscription_config,

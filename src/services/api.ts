@@ -1,5 +1,3 @@
-import { invokeCommand } from "./tauri";
-import { coreRequest } from "./coreClient";
 import type {
   AppSettings,
   ClashOverview,
@@ -14,6 +12,7 @@ import type {
   SubscriptionRecord,
 } from "../types/app";
 import { normalizeAppSettings } from "../types/app";
+import { invokeCommand } from "./tauri";
 
 function normalizeSubscriptions(
   parsed: Record<string, SubscriptionInfo | string>,
@@ -136,8 +135,8 @@ export async function testClashProxyDelay(
   proxyName: string,
   url?: string,
   timeoutMs?: number,
-): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("test_clash_proxy_delay", {
+): Promise<number> {
+  return invokeCommand<number>("test_clash_proxy_delay", {
     proxyName,
     url,
     timeoutMs,
@@ -148,8 +147,8 @@ export async function testClashProxyGroupDelay(
   proxyGroup: string,
   url?: string,
   timeoutMs?: number,
-): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("test_clash_proxy_group_delay", {
+): Promise<Record<string, number>> {
+  return invokeCommand<Record<string, number>>("test_clash_proxy_group_delay", {
     proxyGroup,
     url,
     timeoutMs,
@@ -158,6 +157,14 @@ export async function testClashProxyGroupDelay(
 
 export async function getClashRules(): Promise<ClashRulesSnapshot> {
   return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
+}
+
+export async function flushFakeIpCache(): Promise<void> {
+  return invokeCommand<void>("flush_fakeip_cache");
+}
+
+export async function flushDnsCache(): Promise<void> {
+  return invokeCommand<void>("flush_dns_cache");
 }
 
 export async function enableConfigOverride(): Promise<void> {
@@ -263,7 +270,5 @@ export async function queryDns(
   name: string,
   type: string = "A",
 ): Promise<unknown> {
-  return coreRequest<unknown>("/dns/query", {
-    params: { name, type },
-  });
+  return invokeCommand<unknown>("query_dns", { name, type });
 }

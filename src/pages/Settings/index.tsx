@@ -21,7 +21,12 @@ import {
   STACK_OPTIONS,
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
-import { getSingboxStatus, openAppDirectory } from "../../services/api";
+import {
+  flushDnsCache,
+  flushFakeIpCache,
+  getSingboxStatus,
+  openAppDirectory,
+} from "../../services/api";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
 
@@ -350,6 +355,34 @@ export default function Settings() {
               </div>
             }
           />
+          <SettingCard
+            icon={<ArrowSyncRegular />}
+            title="Flush Fake-IP Cache"
+            description="Clears the Fake-IP mappings if enabled"
+            control={
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => void flushFakeIpCache()}
+              >
+                Flush
+              </Button>
+            }
+          />
+          <SettingCard
+            icon={<ArrowSyncRegular />}
+            title="Flush DNS Cache"
+            description="Clears the internal DNS cache"
+            control={
+              <Button
+                size="sm"
+                variant="subtle"
+                onClick={() => void flushDnsCache()}
+              >
+                Flush
+              </Button>
+            }
+          />
         </SettingGroup>
 
         {/* Application */}
@@ -388,6 +421,7 @@ export default function Settings() {
               </div>
             }
           />
+
           <SettingCard
             icon={<SettingsRegular />}
             title="sing-box Process Status"

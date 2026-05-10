@@ -3,7 +3,7 @@ import {
   ChevronDownRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
-import { memo, useCallback, useEffect } from "react";
+import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -13,6 +13,8 @@ import { useClashStore } from "../../stores/clashStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
 import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
+
+const GROUP_BATCH_SIZE = 12;
 
 function delayColor(delay: number | null): string {
   if (delay === null || delay === undefined) return "text-(--wb-text-disabled)";
@@ -275,10 +277,46 @@ export default function Proxies() {
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
+  const scrollContainerRef = useRef<HTMLDivElement>(null);
+  const [renderCount, setRenderCount] = useState(GROUP_BATCH_SIZE);
 
   useEffect(() => {
     void refreshOverview();
   }, [refreshOverview]);
+
+  useEffect(() => {
+    setRenderCount(Math.min(groups.length, GROUP_BATCH_SIZE));
+  }, [groups.length]);
+
+  const visibleGroups = useMemo(
+    () => groups.slice(0, renderCount),
+    [groups, renderCount],
+  );
+
+  const loadMore = useCallback(() => {
+    setRenderCount((current) => {
+      if (current >= groups.length) return current;
+      return Math.min(current + GROUP_BATCH_SIZE, groups.length);
+    });
+  }, [groups.length]);
+
+  useEffect(() => {
+    const container = scrollContainerRef.current;
+    if (!container) return;
+    const onScroll = () => {
+      const threshold = 200;
+      const reachedBottom =
+        container.scrollHeight - container.scrollTop - container.clientHeight <
+        threshold;
+      if (reachedBottom) {
+        loadMore();
+      }
+    };
+    container.addEventListener("scroll", onScroll, { passive: true });
+    return () => {
+      container.removeEventListener("scroll", onScroll);
+    };
+  }, [loadMore]);
 
   const handleSelectNode = useCallback(
     async (groupName: string, nodeName: string) => {
@@ -326,7 +364,10 @@ export default function Proxies() {
   }
 
   return (
-    <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
+    <div
+      ref={scrollContainerRef}
+      className="flex flex-col h-full overflow-y-auto pr-2 pb-10"
+    >
       <PageHeader
         title="Routing"
         description={`${groups.length} proxy groups available. Select your preferred outbound routes.`}
@@ -367,7 +408,7 @@ export default function Proxies() {
         </div>
       ) : (
         <div className="flex flex-col gap-3">
-          {groups.map((group) => (
+          {visibleGroups.map((group) => (
             <GroupCard
               key={group.name}
               group={group}
@@ -377,6 +418,11 @@ export default function Proxies() {
               onTestGroup={() => void handleTestGroup(group.name)}
             />
           ))}
+          {renderCount < groups.length && (
+            <div className="py-2 text-center text-xs text-(--wb-text-tertiary)">
+              Rendering {renderCount} / {groups.length} groups...
+            </div>
+          )}
         </div>
       )}
     </div>

@@ -29,8 +29,10 @@ interface SettingsActions {
   setSelectedCoreOptionKey: (value: string) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
-  setConnectionsColumnOrder: (order: ConnectionColumnKey[]) => Promise<void>;
   setConnectionsVisibleColumns: (
+    columns: ConnectionColumnKey[],
+  ) => Promise<void>;
+  setConnectionsPinnedColumns: (
     columns: ConnectionColumnKey[],
   ) => Promise<void>;
   setConnectionsSortKey: (key: ConnectionColumnKey) => Promise<void>;
@@ -104,15 +106,15 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       });
     },
 
-    setConnectionsColumnOrder: async (order) => {
-      await get().updateSettings((s) => {
-        s.connections.column_order = order;
-      });
-    },
-
     setConnectionsVisibleColumns: async (columns) => {
       await get().updateSettings((s) => {
         s.connections.visible_columns = columns;
+      });
+    },
+
+    setConnectionsPinnedColumns: async (columns) => {
+      await get().updateSettings((s) => {
+        s.connections.pinned_columns = columns;
       });
     },
 

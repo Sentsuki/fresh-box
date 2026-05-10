@@ -5,12 +5,11 @@ import {
   PlayRegular,
   SearchRegular,
 } from "@fluentui/react-icons";
-import { useCallback, useEffect } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { useEffect, useRef } from "react";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { VirtualList } from "../../components/ui/VirtualList";
 import { useLogsStream } from "../../hooks/useLogsStream";
-import type { LogEntry } from "../../types/app";
 
 const LEVEL_COLORS: Record<string, string> = {
   panic: "text-(--wb-log-panic)",
@@ -51,39 +50,18 @@ export default function Logs() {
     startStream,
     restartStream,
   } = useLogsStream();
+  const listRef = useRef<HTMLDivElement>(null);
+
+  const rowVirtualizer = useVirtualizer({
+    count: visibleLogs.length,
+    getScrollElement: () => listRef.current,
+    estimateSize: () => 30,
+    overscan: 8,
+  });
 
   useEffect(() => {
     startStream();
   }, [startStream]);
-
-  const renderLogEntry = useCallback(
-    (entry: LogEntry, _i: number) => (
-      <div
-        className={[
-          "flex items-start gap-3 py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors min-w-max",
-          LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
-          _i % 2 === 0 ? "bg-(--wb-surface-active)" : "",
-        ].join(" ")}
-        style={{ height: 28, lineHeight: "20px" }}
-      >
-        <span className="shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
-          {entry.type.toUpperCase().slice(0, 5)}
-        </span>
-        {entry.time && (
-          <span className="shrink-0 text-(--wb-text-tertiary) w-20">
-            {entry.time}
-          </span>
-        )}
-        <span
-          className="flex-1 whitespace-nowrap text-[13px]"
-          title={entry.payload}
-        >
-          {entry.payload}
-        </span>
-      </div>
-    ),
-    [],
-  );
 
   return (
     <div className="flex flex-col h-full overflow-hidden">
@@ -94,24 +72,13 @@ export default function Logs() {
         >
           <div className="flex items-center gap-2">
             <Button
-              icon={isPaused ? <PlayRegular /> : <PauseRegular />}
-              variant="subtle"
-              onClick={() => setIsPaused(!isPaused)}
-            >
-              {isPaused ? "Resume" : "Pause"}
-            </Button>
-            <Button
               icon={<ArrowDownloadRegular />}
               variant="subtle"
               onClick={downloadLogs}
             >
               Export
             </Button>
-            <Button
-              icon={<DismissRegular />}
-              variant="subtle"
-              onClick={clearLogs}
-            >
+            <Button icon={<DismissRegular />} variant="subtle" onClick={clearLogs}>
               Clear
             </Button>
           </div>
@@ -124,7 +91,7 @@ export default function Logs() {
             <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
             <input
               value={search}
-              onChange={(e) => setSearch(e.target.value)}
+              onChange={(event) => setSearch(event.target.value)}
               placeholder="Search logs..."
               className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
             />
@@ -136,8 +103,8 @@ export default function Logs() {
             </span>
             <select
               value={logLevel}
-              onChange={(e) => {
-                void setLogLevel(e.target.value as typeof logLevel).then(() => {
+              onChange={(event) => {
+                void setLogLevel(event.target.value as typeof logLevel).then(() => {
                   restartStream();
                 });
               }}
@@ -145,9 +112,9 @@ export default function Logs() {
               className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-40 disabled:cursor-not-allowed"
               title="Stream log level"
             >
-              {logLevels.map((l) => (
-                <option key={l} value={l}>
-                  {l}
+              {logLevels.map((level) => (
+                <option key={level} value={level}>
+                  {level}
                 </option>
               ))}
             </select>
@@ -186,15 +153,67 @@ export default function Logs() {
               No logs available
             </div>
           ) : (
-            <VirtualList
-              items={visibleLogs}
-              itemHeight={28}
-              renderItem={renderLogEntry}
-              getItemKey={(item) => item.seq}
-              className="h-full w-full custom-scrollbar"
-            />
+            <div ref={listRef} className="h-full w-full overflow-auto custom-scrollbar">
+              <div
+                style={{
+                  minWidth: "100%",
+                  display: "inline-block",
+                }}
+              >
+                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getVirtualItems()[0].start : 0 }} />
+                {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                  const entry = visibleLogs[virtualRow.index];
+                  return (
+                    <div
+                      key={entry.seq}
+                      className={[
+                        "py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
+                        LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
+                        virtualRow.index % 2 === 0 ? "bg-(--wb-surface-active)" : "",
+                      ].join(" ")}
+                      style={{ height: 30 }}
+                    >
+                      <div className="flex items-start gap-3">
+                        <span className="shrink-0 text-(--wb-text-disabled) font-semibold w-12 text-right tracking-wider">
+                          {entry.type.toUpperCase().slice(0, 5)}
+                        </span>
+                        {entry.time && (
+                          <span className="shrink-0 text-(--wb-text-tertiary) w-20">
+                            {entry.time}
+                          </span>
+                        )}
+                        <span
+                          className="flex-1 whitespace-pre text-[13px] leading-5"
+                          title={entry.payload}
+                        >
+                          {entry.payload}
+                        </span>
+                      </div>
+                    </div>
+                  );
+                })}
+                <div style={{ height: rowVirtualizer.getVirtualItems().length > 0 ? rowVirtualizer.getTotalSize() - rowVirtualizer.getVirtualItems()[rowVirtualizer.getVirtualItems().length - 1].end : 0 }} />
+              </div>
+            </div>
           )}
         </div>
+
+        <button
+          onClick={() => setIsPaused(!isPaused)}
+          className={[
+            "fixed bottom-10 right-6 z-50",
+            "w-12 h-12 rounded-full",
+            "flex items-center justify-center",
+            "backdrop-blur-md",
+            isPaused
+              ? "bg-(--wb-accent) text-(--wb-accent-fg) hover:bg-(--wb-accent-hover)"
+              : "bg-(--wb-surface-flyout) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) border border-(--wb-border-subtle)",
+            "transition-all duration-200",
+          ].join(" ")}
+          title={isPaused ? "Resume" : "Pause"}
+        >
+          {isPaused ? <PlayRegular className="w-5 h-5" /> : <PauseRegular className="w-5 h-5" />}
+        </button>
       </div>
     </div>
   );
