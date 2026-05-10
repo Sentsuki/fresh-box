@@ -57,8 +57,6 @@ export default function Connections() {
   );
 
   const [search, setSearch] = useState("");
-  const [regexFilter, setRegexFilter] = useState("");
-  const [regexEnabled, setRegexEnabled] = useState(false);
   const [sourceIpFilter, setSourceIpFilter] = useState("all");
   const [showColumns, setShowColumns] = useState(false);
   const [selectedConnection, setSelectedConnection] =
@@ -67,17 +65,6 @@ export default function Connections() {
   useEffect(() => {
     startStream();
   }, [startStream]);
-
-  const regex = useMemo(() => {
-    if (!regexEnabled || !regexFilter.trim()) {
-      return { pattern: null, invalid: false };
-    }
-    try {
-      return { pattern: new RegExp(regexFilter, "i"), invalid: false };
-    } catch {
-      return { pattern: null, invalid: true };
-    }
-  }, [regexEnabled, regexFilter]);
 
   const sourceIpOptions = useMemo(
     () => [...new Set(rawEntries.map((entry) => entry.metadata.sourceIP))].sort(),
@@ -95,16 +82,6 @@ export default function Connections() {
     [visibleColumns],
   );
 
-  const matchesRegexFilter = useCallback(
-    (entry: ConnectionEntry) => {
-      if (!regexEnabled || !regex.pattern) return true;
-      return visibleColumns.some((column) =>
-        regex.pattern?.test(formatConnectionValue(column.key, entry)),
-      );
-    },
-    [regex.pattern, regexEnabled, visibleColumns],
-  );
-
   const matchesSourceIpFilter = useCallback(
     (entry: ConnectionEntry) => {
       if (sourceIpFilter === "all") return true;
@@ -118,10 +95,9 @@ export default function Connections() {
       entries.filter(
         (entry) =>
           matchesColumnFilter(entry, search) &&
-          matchesRegexFilter(entry) &&
           matchesSourceIpFilter(entry),
       ),
-    [entries, matchesColumnFilter, matchesRegexFilter, matchesSourceIpFilter, search],
+    [entries, matchesColumnFilter, matchesSourceIpFilter, search],
   );
 
   const filteredRawEntries = useMemo(
@@ -129,10 +105,9 @@ export default function Connections() {
       rawEntries.filter(
         (entry) =>
           matchesColumnFilter(entry, search) &&
-          matchesRegexFilter(entry) &&
           matchesSourceIpFilter(entry),
       ),
-    [matchesColumnFilter, matchesRegexFilter, matchesSourceIpFilter, rawEntries, search],
+    [matchesColumnFilter, matchesSourceIpFilter, rawEntries, search],
   );
 
   const groupedEntries = useMemo(() => {
@@ -219,9 +194,6 @@ export default function Connections() {
           currentTab={currentTab}
           groupedColumnLabel={groupedColumn?.label ?? null}
           search={search}
-          regexFilter={regexFilter}
-          regexEnabled={regexEnabled}
-          regexInvalid={regex.invalid}
           sourceIpFilter={sourceIpFilter}
           sourceIpOptions={sourceIpOptions}
           isPaused={isPaused}
@@ -229,21 +201,13 @@ export default function Connections() {
           visibleColumnKeys={visibleColumnKeys}
           columnOrder={columnOrder}
           sortKey={sortKey}
-          sortDirection={sortDirection}
           onSetTab={(tab) => void setConnectionsTab(tab)}
           onSearchChange={setSearch}
-          onRegexFilterChange={setRegexFilter}
-          onRegexEnabledChange={setRegexEnabled}
           onSourceIpFilterChange={setSourceIpFilter}
           onTogglePause={togglePause}
           onToggleColumnsPanel={() => setShowColumns((value) => !value)}
           onToggleColumnVisible={toggleColumnVisible}
           onMoveColumn={moveColumn}
-          onSortDirectionToggle={() =>
-            void setConnectionsSortDirection(
-              sortDirection === "asc" ? "desc" : "asc",
-            )
-          }
           onClearGrouping={clearGrouping}
           onCloseAll={closeAll}
         />
