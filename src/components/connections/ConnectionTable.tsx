@@ -26,6 +26,7 @@ import {
   type ConnectionColumnOption,
 } from "../../hooks/useConnectionsStream";
 import { useToast } from "../../hooks/useToast";
+import { useSettingsStore } from "../../stores/settingsStore";
 import type {
   ConnectionColumnKey,
   ConnectionEntry,
@@ -40,12 +41,10 @@ interface ConnectionTableProps {
   groupedColumnKey: ConnectionColumnKey | null;
   pinnedColumnKeys: ConnectionColumnKey[];
   columnSizes: Record<string, number>;
-  expandedGroups: Record<string, boolean>;
   onSort: (key: ConnectionColumnKey) => void;
   onToggleGrouping: (key: ConnectionColumnKey) => void;
   onPinnedColumnsChange: (keys: ConnectionColumnKey[]) => void;
   onColumnSizesChange: (sizes: Record<string, number>) => void;
-  onExpandedGroupsChange: (groups: Record<string, boolean>) => void;
   onRowClick: (row: ConnectionEntry) => void;
 }
 
@@ -75,16 +74,19 @@ export function ConnectionTable({
   groupedColumnKey,
   pinnedColumnKeys,
   columnSizes,
-  expandedGroups,
   onSort,
   onToggleGrouping,
   onPinnedColumnsChange,
   onColumnSizesChange,
-  onExpandedGroupsChange,
   onRowClick,
 }: ConnectionTableProps) {
   const [localColumnSizes, setLocalColumnSizes] = useState(columnSizes);
-  const [expanded, setExpanded] = useState<ExpandedState>(expandedGroups);
+  const expanded = useSettingsStore(
+    (s) => s.connectionExpandedGroups,
+  ) as ExpandedState;
+  const setConnectionExpandedGroups = useSettingsStore(
+    (s) => s.setConnectionExpandedGroups,
+  );
 
   // Only sync from store on initial mount (columnSizes is stable unless
   // an external actor changes it). We do NOT unconditionally reset on every
@@ -108,14 +110,15 @@ export function ConnectionTable({
     });
   }, [columnSizes]);
 
-  const onExpandedGroupsChangeRef = useRef(onExpandedGroupsChange);
-  onExpandedGroupsChangeRef.current = onExpandedGroupsChange;
-
-  // Collapse all groups whenever the active grouping column changes.
+  // Collapse all groups when the grouping column changes.
+  // Initialise the ref to the current value so the effect is a no-op on mount
+  // (and on React StrictMode's second mount), while still firing on real changes.
+  const prevGroupedColumnKeyRef = useRef(groupedColumnKey);
   useEffect(() => {
-    setExpanded({});
-    onExpandedGroupsChangeRef.current({});
-  }, [groupedColumnKey]);
+    if (prevGroupedColumnKeyRef.current === groupedColumnKey) return;
+    prevGroupedColumnKeyRef.current = groupedColumnKey;
+    setConnectionExpandedGroups({});
+  }, [groupedColumnKey, setConnectionExpandedGroups]);
 
   const saveSizesRef = useRef(onColumnSizesChange);
   saveSizesRef.current = onColumnSizesChange;
@@ -257,13 +260,11 @@ export function ConnectionTable({
     },
     onColumnSizingChange: handleColumnSizingChange,
     onExpandedChange: (updater) => {
-      setExpanded((prev) => {
-        const next = typeof updater === "function" ? updater(prev) : updater;
-        if (next !== true) {
-          onExpandedGroupsChangeRef.current(next as Record<string, boolean>);
-        }
-        return next;
-      });
+      const next =
+        typeof updater === "function" ? updater(expanded) : updater;
+      if (next !== true) {
+        setConnectionExpandedGroups(next as Record<string, boolean>);
+      }
     },
     onColumnPinningChange: (updater) => {
       const nextValue =
