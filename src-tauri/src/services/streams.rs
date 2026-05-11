@@ -23,35 +23,6 @@ impl StreamsState {
     }
 }
 
-struct WsConfig {
-    base_url: String,
-    secret: String,
-}
-
-fn get_ws_config() -> WsConfig {
-    use crate::config::{DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
-    const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
-
-    let config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
-
-    let clash_api = config.experimental.clash_api.as_ref();
-
-    let controller = clash_api
-        .and_then(|c| c.external_controller.as_deref())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
-
-    let secret = clash_api
-        .and_then(|c| c.secret.as_deref())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_SECRET);
-
-    WsConfig {
-        base_url: format!("ws://{}", controller),
-        secret: secret.to_string(),
-    }
-}
 
 // ── Traffic stream ─────────────────────────────────────────────────────────
 
@@ -86,11 +57,11 @@ async fn run_traffic_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<
             break;
         }
 
-        let cfg = get_ws_config();
+        let endpoint = crate::services::clash_client::get_clash_endpoint();
         let ws_url = format!(
             "{}/traffic?token={}",
-            cfg.base_url,
-            urlencoding::encode(&cfg.secret)
+            endpoint.ws_base(),
+            urlencoding::encode(&endpoint.secret)
         );
 
         let _ = app.emit("stream-traffic-status", "connecting");
@@ -175,11 +146,11 @@ async fn run_memory_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<b
             break;
         }
 
-        let cfg = get_ws_config();
+        let endpoint = crate::services::clash_client::get_clash_endpoint();
         let ws_url = format!(
             "{}/memory?token={}",
-            cfg.base_url,
-            urlencoding::encode(&cfg.secret)
+            endpoint.ws_base(),
+            urlencoding::encode(&endpoint.secret)
         );
 
         let _ = app.emit("stream-memory-status", "connecting");
@@ -264,11 +235,11 @@ async fn run_connections_stream(app: tauri::AppHandle, mut stop_rx: watch::Recei
             break;
         }
 
-        let cfg = get_ws_config();
+        let endpoint = crate::services::clash_client::get_clash_endpoint();
         let ws_url = format!(
             "{}/connections?token={}",
-            cfg.base_url,
-            urlencoding::encode(&cfg.secret)
+            endpoint.ws_base(),
+            urlencoding::encode(&endpoint.secret)
         );
 
         let _ = app.emit("stream-connections-status", "connecting");
@@ -371,12 +342,12 @@ async fn run_logs_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<boo
             break;
         }
 
-        let cfg = get_ws_config();
+        let endpoint = crate::services::clash_client::get_clash_endpoint();
         let ws_url = format!(
             "{}/logs?level={}&token={}",
-            cfg.base_url,
+            endpoint.ws_base(),
             urlencoding::encode(&log_level),
-            urlencoding::encode(&cfg.secret)
+            urlencoding::encode(&endpoint.secret)
         );
 
         let _ = app.emit("stream-logs-status", "connecting");

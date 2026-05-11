@@ -10,13 +10,31 @@ const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 const DEFAULT_TEST_TIMEOUT_MS: u64 = 5_000;
 const GLOBAL_GROUP_NAME: &str = "GLOBAL";
 
-struct ApiConfig {
-    base_url: String,
-    secret: String,
-    test_url: String,
+/// Resolved Clash API endpoint configuration.  Shared by the HTTP client
+/// (`clash_client`) and the WebSocket stream client (`streams`).
+pub struct ClashEndpoint {
+    /// The `host:port` of the external controller, without any URL scheme.
+    pub controller: String,
+    pub secret: String,
+    pub test_url: String,
 }
 
-fn get_api_config() -> ApiConfig {
+impl ClashEndpoint {
+    /// Base URL for REST API calls: `http://<controller>`.
+    pub fn http_base(&self) -> String {
+        format!("http://{}", self.controller)
+    }
+
+    /// Base URL for WebSocket streams: `ws://<controller>`.
+    pub fn ws_base(&self) -> String {
+        format!("ws://{}", self.controller)
+    }
+}
+
+/// Read the active Clash API endpoint from `priority_config.json` and
+/// `app_settings.json`.  Falls back to compile-time defaults when the files
+/// are absent or the relevant fields are empty.
+pub fn get_clash_endpoint() -> ClashEndpoint {
     use crate::config::{DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
@@ -38,8 +56,8 @@ fn get_api_config() -> ApiConfig {
 
     let test_url = app_settings.settings.test_url.as_str();
 
-    ApiConfig {
-        base_url: format!("http://{}", controller),
+    ClashEndpoint {
+        controller: controller.to_string(),
         secret: secret.to_string(),
         test_url: if test_url.is_empty() {
             DEFAULT_TEST_URL.to_string()
@@ -181,10 +199,10 @@ fn map_clash_network_error(context: &str, error: reqwest::Error) -> CommandError
     }
 
     if error.is_connect() {
-        let api = get_api_config();
+        let endpoint = get_clash_endpoint();
         return CommandError::network(format!(
             "{}: could not connect to the core at {}. Make sure the Clash API is running.",
-            context, api.base_url
+            context, endpoint.http_base()
         ));
     }
 
@@ -206,11 +224,11 @@ async fn clash_get<T>(path: &str, context: &str) -> Result<T, CommandError>
 where
     T: DeserializeOwned,
 {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     let response = client
-        .get(build_clash_url(&api.base_url, path))
-        .bearer_auth(&api.secret)
+        .get(build_clash_url(&endpoint.http_base(), path))
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error(context, error))?
@@ -228,11 +246,11 @@ async fn clash_patch(
     payload: serde_json::Value,
     context: &str,
 ) -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     client
-        .patch(build_clash_url(&api.base_url, path))
-        .bearer_auth(&api.secret)
+        .patch(build_clash_url(&endpoint.http_base(), path))
+        .bearer_auth(&endpoint.secret)
         .json(&payload)
         .send()
         .await
@@ -248,11 +266,11 @@ async fn clash_put(
     payload: serde_json::Value,
     context: &str,
 ) -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     client
-        .put(build_clash_url(&api.base_url, path))
-        .bearer_auth(&api.secret)
+        .put(build_clash_url(&endpoint.http_base(), path))
+        .bearer_auth(&endpoint.secret)
         .json(&payload)
         .send()
         .await
@@ -311,24 +329,24 @@ async fn execute_proxy_delay_test(
         return Err(CommandError::validation("Proxy name cannot be empty."));
     }
 
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     let encoded_name = urlencoding::encode(proxy_name.trim());
     let target_url = url
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(api.test_url.as_str());
+        .unwrap_or(endpoint.test_url.as_str());
     let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
     let request_url = format!(
         "{}?url={}&timeout={}",
-        build_clash_url(&api.base_url, &format!("/proxies/{}/delay", encoded_name)),
+        build_clash_url(&endpoint.http_base(), &format!("/proxies/{}/delay", encoded_name)),
         urlencoding::encode(target_url),
         timeout
     );
 
     let response = client
         .get(request_url)
-        .bearer_auth(&api.secret)
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to test proxy delay", error))?
@@ -507,25 +525,25 @@ pub async fn test_clash_proxy_group_delay(
         return Err(CommandError::validation("Proxy group cannot be empty."));
     }
 
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     let encoded_group = urlencoding::encode(normalized_group);
     let target_url = url
         .as_deref()
         .map(str::trim)
         .filter(|value| !value.is_empty())
-        .unwrap_or(api.test_url.as_str());
+        .unwrap_or(endpoint.test_url.as_str());
     let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
     let request_url = format!(
         "{}?url={}&timeout={}",
-        build_clash_url(&api.base_url, &format!("/group/{}/delay", encoded_group)),
+        build_clash_url(&endpoint.http_base(), &format!("/group/{}/delay", encoded_group)),
         urlencoding::encode(target_url),
         timeout
     );
 
     let response = client
         .get(request_url)
-        .bearer_auth(&api.secret)
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to test group delay", error))?
@@ -553,11 +571,11 @@ pub async fn query_dns(
     name: String,
     r#type: Option<String>,
 ) -> Result<serde_json::Value, CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     let mut request_url = format!(
         "{}?name={}",
-        build_clash_url(&api.base_url, "/dns/query"),
+        build_clash_url(&endpoint.http_base(), "/dns/query"),
         urlencoding::encode(&name)
     );
     if let Some(t) = r#type {
@@ -566,7 +584,7 @@ pub async fn query_dns(
 
     let response = client
         .get(request_url)
-        .bearer_auth(&api.secret)
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to query DNS", error))?
@@ -584,13 +602,13 @@ pub async fn query_dns(
 }
 
 pub async fn flush_fakeip_cache() -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
-    let request_url = build_clash_url(&api.base_url, "/cache/fakeip/flush");
+    let request_url = build_clash_url(&endpoint.http_base(), "/cache/fakeip/flush");
 
     client
         .post(request_url)
-        .bearer_auth(&api.secret)
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to flush Fake-IP cache", error))?
@@ -601,13 +619,13 @@ pub async fn flush_fakeip_cache() -> Result<(), CommandError> {
 }
 
 pub async fn flush_dns_cache() -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
-    let request_url = build_clash_url(&api.base_url, "/cache/dns/flush");
+    let request_url = build_clash_url(&endpoint.http_base(), "/cache/dns/flush");
 
     client
         .post(request_url)
-        .bearer_auth(&api.secret)
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to flush DNS cache", error))?
@@ -618,11 +636,11 @@ pub async fn flush_dns_cache() -> Result<(), CommandError> {
 }
 
 pub async fn close_all_connections() -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     client
-        .delete(build_clash_url(&api.base_url, "/connections"))
-        .bearer_auth(&api.secret)
+        .delete(build_clash_url(&endpoint.http_base(), "/connections"))
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to close all connections", error))?
@@ -632,12 +650,12 @@ pub async fn close_all_connections() -> Result<(), CommandError> {
 }
 
 pub async fn close_connection(id: String) -> Result<(), CommandError> {
-    let api = get_api_config();
+    let endpoint = get_clash_endpoint();
     let client = clash_client()?;
     let path = format!("/connections/{}", urlencoding::encode(&id));
     client
-        .delete(build_clash_url(&api.base_url, &path))
-        .bearer_auth(&api.secret)
+        .delete(build_clash_url(&endpoint.http_base(), &path))
+        .bearer_auth(&endpoint.secret)
         .send()
         .await
         .map_err(|error| map_clash_network_error("Failed to close connection", error))?
