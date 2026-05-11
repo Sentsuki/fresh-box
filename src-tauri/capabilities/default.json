@@ -7,7 +7,6 @@
   ],
   "permissions": [
     "core:default",
-    "opener:default",
     "core:window:allow-minimize",
     "core:window:allow-maximize",
     "core:window:allow-close",
@@ -16,17 +15,6 @@
     "core:window:allow-set-theme",
     "core:path:allow-resolve",
     "dialog:default",
-    {
-      "identifier": "http:default",
-      "allow": [
-        {
-          "url": "https://*"
-        },
-        {
-          "url": "http://127.0.0.1:*"
-        }
-      ]
-    },
     "notification:default"
   ]
 }
