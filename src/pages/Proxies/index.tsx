@@ -56,7 +56,7 @@ function NodeName({
     parts.push(
       <img
         key={`i-${match.index}`}
-        src={`https://flagcdn.com/24x18/${code}.png`}
+        src={`https://flagcdn.com/256x192/${code}.png`}
         alt={emoji}
         className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-px"
       />,
