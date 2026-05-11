@@ -74,7 +74,7 @@ pub struct ConnectionPageSettings {
     pub sort_direction: String,
     pub grouped_column: Option<String>,
     #[serde(default)]
-    pub collapsed_groups: std::collections::BTreeMap<String, bool>,
+    pub expanded_groups: std::collections::BTreeMap<String, bool>,
     #[serde(default)]
     pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
@@ -147,7 +147,7 @@ impl Default for ConnectionPageSettings {
             sort_key: "downloadSpeed".to_string(),
             sort_direction: "desc".to_string(),
             grouped_column: None,
-            collapsed_groups: std::collections::BTreeMap::new(),
+            expanded_groups: std::collections::BTreeMap::new(),
             column_sizes: std::collections::BTreeMap::new(),
         }
     }

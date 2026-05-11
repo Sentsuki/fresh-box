@@ -491,8 +491,8 @@ export function useConnectionsStream() {
   const setConnectionsGroupedColumn = useSettingsStore(
     (s) => s.setConnectionsGroupedColumn,
   );
-  const setConnectionGroupCollapsed = useSettingsStore(
-    (s) => s.setConnectionGroupCollapsed,
+  const setConnectionGroupExpanded = useSettingsStore(
+    (s) => s.setConnectionGroupExpanded,
   );
 
   const visibleColumns = useMemo(
@@ -544,17 +544,17 @@ export function useConnectionsStream() {
 
   const toggleGroupCollapsed = useCallback(
     (groupId: string) => {
-      const isCollapsed = Boolean(settings.collapsed_groups[groupId]);
-      void setConnectionGroupCollapsed(groupId, !isCollapsed);
+      const isExpanded = Boolean(settings.expanded_groups[groupId]);
+      void setConnectionGroupExpanded(groupId, !isExpanded);
     },
-    [settings.collapsed_groups, setConnectionGroupCollapsed],
+    [settings.expanded_groups, setConnectionGroupExpanded],
   );
 
   const isGroupCollapsed = useCallback(
     (groupId: string) => {
-      return Boolean(settings.collapsed_groups[groupId]);
+      return !settings.expanded_groups[groupId];
     },
-    [settings.collapsed_groups],
+    [settings.expanded_groups],
   );
 
   return {
