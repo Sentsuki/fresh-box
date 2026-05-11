@@ -338,7 +338,7 @@ fn scan_locally_installed_cores(
             options.push(SingboxCoreOption {
                 channel: channel.to_string(),
                 version: version.clone(),
-                label: format!("{} · {} (local)", channel_label(channel), version),
+                label: format!("{} · {}", channel_label(channel), version),
                 installed: true,
                 is_active,
             });
