@@ -15,7 +15,6 @@ Thumbs.db
 
 # === Tauri / Rust ===
 /src-tauri/target/
-src-tauri/Cargo.lock
 src-tauri/updater/
 
 # === Package managers (Yarn / PNPM) ===

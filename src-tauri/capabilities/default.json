@@ -15,18 +15,6 @@
     "core:window:allow-start-dragging",
     "core:window:allow-set-theme",
     "core:path:allow-resolve",
-    {
-      "identifier": "core:default",
-      "description": "Allow executing the bundled sing-box binary as a sidecar",
-      "allow": [
-        {
-          "name": "shell:execute",
-          "cmd": "$RESOURCE/bin/sing-box.exe",
-          "sidecar": true,
-          "args": true
-        }
-      ]
-    },
     "dialog:default",
     {
       "identifier": "http:default",
