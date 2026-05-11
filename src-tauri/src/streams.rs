@@ -29,10 +29,10 @@ struct WsConfig {
 }
 
 fn get_ws_config() -> WsConfig {
-    use crate::priority_config::{DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
+    use crate::config::{DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
-    let config: crate::priority_config::PriorityConfig =
+    let config: crate::config::PriorityConfig =
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
 
     let clash_api = config.experimental.clash_api.as_ref();
@@ -55,7 +55,6 @@ fn get_ws_config() -> WsConfig {
 
 // ── Traffic stream ─────────────────────────────────────────────────────────
 
-#[tauri::command]
 pub async fn start_traffic_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
@@ -71,7 +70,6 @@ pub async fn start_traffic_stream(
     Ok(())
 }
 
-#[tauri::command]
 pub async fn stop_traffic_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
@@ -146,7 +144,6 @@ async fn run_traffic_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<
 
 // ── Memory stream ──────────────────────────────────────────────────────────
 
-#[tauri::command]
 pub async fn start_memory_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
@@ -162,7 +159,6 @@ pub async fn start_memory_stream(
     Ok(())
 }
 
-#[tauri::command]
 pub async fn stop_memory_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
@@ -237,7 +233,6 @@ async fn run_memory_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<b
 
 // ── Connections stream ─────────────────────────────────────────────────────
 
-#[tauri::command]
 pub async fn start_connections_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
@@ -253,7 +248,6 @@ pub async fn start_connections_stream(
     Ok(())
 }
 
-#[tauri::command]
 pub async fn stop_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
@@ -328,7 +322,6 @@ async fn run_connections_stream(app: tauri::AppHandle, mut stop_rx: watch::Recei
 
 // ── Logs stream ────────────────────────────────────────────────────────────
 
-#[tauri::command]
 pub async fn start_logs_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
@@ -344,7 +337,6 @@ pub async fn start_logs_stream(
     Ok(())
 }
 
-#[tauri::command]
 pub async fn stop_logs_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
@@ -362,7 +354,7 @@ async fn run_logs_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<boo
 
     // Check if logs are disabled
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
-    let priority_config: crate::priority_config::PriorityConfig =
+    let priority_config: crate::config::PriorityConfig =
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
 
     if priority_config.log.disabled {
@@ -435,3 +427,4 @@ async fn run_logs_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<boo
 
     let _ = app.emit("stream-logs-status", "disconnected");
 }
+

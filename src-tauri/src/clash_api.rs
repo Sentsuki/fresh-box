@@ -17,10 +17,10 @@ struct ApiConfig {
 }
 
 fn get_api_config() -> ApiConfig {
-    use crate::priority_config::{PriorityConfig, DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
+    use crate::config::{DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET};
     const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
-    let config: PriorityConfig =
+    let config: crate::config::PriorityConfig =
         crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
     let app_settings = crate::config::load_app_settings_file().unwrap_or_default();
 
@@ -439,14 +439,12 @@ pub(crate) async fn select_proxy_inner(proxy_group: &str, node: &str) -> Result<
     .await
 }
 
-#[tauri::command]
 pub async fn get_clash_overview(app: tauri::AppHandle) -> Result<ClashOverview, CommandError> {
     let overview = fetch_clash_overview_inner().await?;
     crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
 }
 
-#[tauri::command]
 pub async fn update_clash_mode(app: tauri::AppHandle, mode: String) -> Result<ClashOverview, CommandError> {
     if mode.trim().is_empty() {
         return Err(CommandError::validation("Clash mode cannot be empty."));
@@ -464,7 +462,6 @@ pub async fn update_clash_mode(app: tauri::AppHandle, mode: String) -> Result<Cl
     Ok(overview)
 }
 
-#[tauri::command]
 pub async fn select_clash_proxy(
     app: tauri::AppHandle,
     proxy_group: String,
@@ -491,7 +488,6 @@ pub async fn select_clash_proxy(
     Ok(overview)
 }
 
-#[tauri::command]
 pub async fn test_clash_proxy_delay(
     proxy_name: String,
     url: Option<String>,
@@ -500,7 +496,6 @@ pub async fn test_clash_proxy_delay(
     execute_proxy_delay_test(proxy_name.as_str(), url.as_deref(), timeout_ms).await
 }
 
-#[tauri::command]
 pub async fn test_clash_proxy_group_delay(
     app: tauri::AppHandle,
     proxy_group: String,
@@ -550,12 +545,10 @@ pub async fn test_clash_proxy_group_delay(
     Ok(data)
 }
 
-#[tauri::command]
 pub async fn get_clash_rules() -> Result<ClashRulesSnapshot, CommandError> {
     fetch_clash_rules_inner().await
 }
 
-#[tauri::command]
 pub async fn query_dns(
     name: String,
     r#type: Option<String>,
@@ -590,7 +583,6 @@ pub async fn query_dns(
     Ok(data)
 }
 
-#[tauri::command]
 pub async fn flush_fakeip_cache() -> Result<(), CommandError> {
     let api = get_api_config();
     let client = clash_client()?;
@@ -608,7 +600,6 @@ pub async fn flush_fakeip_cache() -> Result<(), CommandError> {
     Ok(())
 }
 
-#[tauri::command]
 pub async fn flush_dns_cache() -> Result<(), CommandError> {
     let api = get_api_config();
     let client = clash_client()?;
@@ -626,7 +617,6 @@ pub async fn flush_dns_cache() -> Result<(), CommandError> {
     Ok(())
 }
 
-#[tauri::command]
 pub async fn close_all_connections() -> Result<(), CommandError> {
     let api = get_api_config();
     let client = clash_client()?;
@@ -641,7 +631,6 @@ pub async fn close_all_connections() -> Result<(), CommandError> {
     Ok(())
 }
 
-#[tauri::command]
 pub async fn close_connection(id: String) -> Result<(), CommandError> {
     let api = get_api_config();
     let client = clash_client()?;
@@ -656,3 +645,4 @@ pub async fn close_connection(id: String) -> Result<(), CommandError> {
         .map_err(|error| map_clash_network_error("Failed to close connection", error))?;
     Ok(())
 }
+

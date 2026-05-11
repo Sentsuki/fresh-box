@@ -1,13 +1,12 @@
 use crate::errors::CommandError;
 use rand::RngExt as _;
 use serde_json::{json, Value};
+
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:8964";
 pub const DEFAULT_CLASH_SECRET: &str = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
 pub const DEFAULT_STACK: &str = "mixed";
-
-// ── sing-box 标准格式的优先级配置 ─────────────────────────────────────────
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct PriorityInbound {
@@ -36,20 +35,18 @@ pub struct ClashApiConfig {
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
 pub struct LogConfig {
     pub disabled: bool,
-    pub level: String, // "trace"|"debug"|"info"|"warn"|"error"|"fatal"|"panic"
+    pub level: String,
 }
 
 impl Default for LogConfig {
     fn default() -> Self {
         Self {
-            disabled: true, // 默认禁用日志输出
+            disabled: true,
             level: "info".to_string(),
         }
     }
 }
 
-/// 新的 priority_config 结构，对应 sing-box 标准格式：
-/// { "inbounds": [{"stack": "mixed"}], "log": {...}, "experimental": {"clash_api": {...}} }
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
 pub struct PriorityConfig {
     pub inbounds: Vec<PriorityInbound>,
@@ -57,26 +54,20 @@ pub struct PriorityConfig {
     pub experimental: ExperimentalConfig,
 }
 
-#[tauri::command]
-pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandError> {
-    super::config::save_named_config(PRIORITY_CONFIG_FILE, &config)
+pub(crate) fn save_priority_config_inner(config: PriorityConfig) -> Result<(), CommandError> {
+    super::io::save_named_config(PRIORITY_CONFIG_FILE, &config)
 }
 
-/// 直接加载配置，不再进行补全（要求文件必须完整）
-#[tauri::command]
-pub async fn load_priority_config() -> Result<PriorityConfig, CommandError> {
-    super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)
+pub(crate) fn load_priority_config_inner() -> Result<PriorityConfig, CommandError> {
+    super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)
 }
 
-#[tauri::command]
-pub async fn clear_priority_config() -> Result<(), CommandError> {
-    super::config::remove_named_config(PRIORITY_CONFIG_FILE)
+pub(crate) fn clear_priority_config_inner() -> Result<(), CommandError> {
+    super::io::remove_named_config(PRIORITY_CONFIG_FILE)
 }
 
-/// 首次启动时自动生成包含完整默认值的 priority_config.json
-/// 如果文件已存在则不覆盖（幂等）。
 pub fn ensure_priority_config_initialized() {
-    let config_dir = match super::config::get_config_dir() {
+    let config_dir = match super::paths::get_config_dir() {
         Ok(dir) => dir,
         Err(e) => {
             eprintln!(
@@ -89,7 +80,7 @@ pub fn ensure_priority_config_initialized() {
 
     let path = config_dir.join(PRIORITY_CONFIG_FILE);
     if path.exists() {
-        return; // 已存在，不覆盖
+        return;
     }
 
     let default_config = PriorityConfig {
@@ -105,7 +96,7 @@ pub fn ensure_priority_config_initialized() {
         },
     };
 
-    if let Err(e) = super::config::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
+    if let Err(e) = super::io::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
         eprintln!(
             "ensure_priority_config_initialized: failed to write defaults: {:?}",
             e
@@ -124,11 +115,11 @@ pub struct ConfigFieldsCheck {
     pub current_log_level: Option<String>,
 }
 
-#[tauri::command]
-pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsCheck, CommandError> {
+pub(crate) fn check_config_fields_inner(
+    config_path: String,
+) -> Result<ConfigFieldsCheck, CommandError> {
     use std::fs;
 
-    // 读取原始配置文件
     let config_content = fs::read_to_string(&config_path)?;
     let config: Value = serde_json::from_str(&config_content)?;
 
@@ -140,7 +131,6 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
         current_log_level: None,
     };
 
-    // 检查原始配置文件中的 stack 字段
     if let Some(inbounds) = config.get("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array() {
             for inbound in inbounds_array {
@@ -157,17 +147,12 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
         }
     }
 
-    // 检查原始配置文件中的 log 字段
     if let Some(log_obj) = config.get("log") {
         if log_obj.is_object() {
             result.has_log_field = true;
-
-            // 获取当前的 disabled 值
             if let Some(disabled_value) = log_obj.get("disabled") {
                 result.current_log_disabled = disabled_value.as_bool();
             }
-
-            // 获取当前的 level 值
             if let Some(level_value) = log_obj.get("level") {
                 if let Some(level_str) = level_value.as_str() {
                     result.current_log_level = Some(level_str.to_string());
@@ -176,14 +161,12 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
         }
     }
 
-    // 检查 Config Override 中的字段
-    let config_dir = super::config::get_config_dir()?;
+    let config_dir = super::paths::get_config_dir()?;
     let override_path = config_dir.join("config_override.json");
 
     if override_path.exists() {
         if let Ok(override_content) = fs::read_to_string(&override_path) {
             if let Ok(override_config) = serde_json::from_str::<Value>(&override_content) {
-                // 检查 Config Override 中的 stack 字段
                 if !result.has_stack_field {
                     if let Some(override_inbounds) = override_config.get("inbounds") {
                         if let Some(override_inbounds_array) = override_inbounds.as_array() {
@@ -203,18 +186,13 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
                     }
                 }
 
-                // 检查 Config Override 中的 log 字段
                 if !result.has_log_field {
                     if let Some(override_log_obj) = override_config.get("log") {
                         if override_log_obj.is_object() {
                             result.has_log_field = true;
-
-                            // 获取当前的 disabled 值
                             if let Some(disabled_value) = override_log_obj.get("disabled") {
                                 result.current_log_disabled = disabled_value.as_bool();
                             }
-
-                            // 获取当前的 level 值
                             if let Some(level_value) = override_log_obj.get("level") {
                                 if let Some(level_str) = level_value.as_str() {
                                     result.current_log_level = Some(level_str.to_string());
@@ -230,7 +208,6 @@ pub async fn check_config_fields(config_path: String) -> Result<ConfigFieldsChec
     Ok(result)
 }
 
-// 默认 Clash API 地址和密钥（已在文件顶部声明为 pub const）
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 
 #[derive(serde::Serialize)]
@@ -241,10 +218,10 @@ pub struct CoreClientConfig {
     pub test_url: String,
 }
 
-#[tauri::command]
-pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig = super::config::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
-    let app_settings = super::config::load_app_settings_file()?;
+pub(crate) fn get_core_client_config_inner() -> Result<CoreClientConfig, CommandError> {
+    let config: PriorityConfig =
+        super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let app_settings = super::app_settings::load_app_settings_file()?;
 
     let clash_api = config.experimental.clash_api.as_ref();
 
@@ -272,14 +249,12 @@ pub async fn get_core_client_config() -> Result<CoreClientConfig, CommandError> 
     })
 }
 
-#[tauri::command]
-pub async fn generate_random_port() -> Result<u16, CommandError> {
+pub(crate) fn generate_random_port_inner() -> Result<u16, CommandError> {
     let port: u16 = rand::rng().random_range(10000..=65535);
     Ok(port)
 }
 
-#[tauri::command]
-pub async fn generate_random_secret() -> Result<String, CommandError> {
+pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
     const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
     let mut rng = rand::rng();
     let secret: String = (0..32)
@@ -291,22 +266,18 @@ pub async fn generate_random_secret() -> Result<String, CommandError> {
     Ok(secret)
 }
 
-// 应用优先级配置到配置对象（在 Config Override 之后调用，优先级最高）
 pub fn apply_priority_config(
     config: &mut Value,
     priority_config: &PriorityConfig,
 ) -> Result<(), CommandError> {
-    // 应用 inbounds[0].stack
     if let Some(first) = priority_config.inbounds.first() {
         if let Err(e) = apply_stack_config(config, &first.stack) {
             eprintln!("Warning: Failed to apply stack config: {:?}", e);
         }
     }
 
-    // 应用 log 配置
     apply_log_config(config, &priority_config.log)?;
 
-    // 始终写入 clash_api（使用自定义值或默认值），确保 temp_config 里的值可控
     let clash_api = priority_config
         .experimental
         .clash_api
@@ -325,14 +296,11 @@ pub fn apply_priority_config(
     Ok(())
 }
 
-// 应用 stack 配置到配置对象
 pub fn apply_stack_config(config: &mut Value, stack_value: &str) -> Result<(), CommandError> {
-    // 检查配置中是否有 inbounds 数组
     if let Some(inbounds) = config.get_mut("inbounds") {
         if let Some(inbounds_array) = inbounds.as_array_mut() {
             let mut found_stack = false;
 
-            // 遍历 inbounds 数组，查找包含 stack 字段的对象
             for inbound in inbounds_array.iter_mut() {
                 if let Some(inbound_obj) = inbound.as_object_mut() {
                     if inbound_obj.contains_key("stack") {
@@ -358,9 +326,7 @@ pub fn apply_stack_config(config: &mut Value, stack_value: &str) -> Result<(), C
     Ok(())
 }
 
-// 应用 log 配置到配置对象
 pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<(), CommandError> {
-    // 确保配置中有 log 对象
     if config.get("log").is_none() {
         config
             .as_object_mut()
@@ -368,7 +334,6 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
             .insert("log".to_string(), Value::Object(serde_json::Map::new()));
     }
 
-    // 获取 log 对象的可变引用
     let log_obj = config
         .get_mut("log")
         .and_then(|v| v.as_object_mut())
@@ -376,16 +341,12 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
             CommandError::ResourceNotFound("Invalid log configuration format".to_string())
         })?;
 
-    // 应用 disabled 设置
     log_obj.insert("disabled".to_string(), Value::Bool(log_config.disabled));
-
-    // 应用 level 设置
     log_obj.insert("level".to_string(), Value::String(log_config.level.clone()));
 
     Ok(())
 }
 
-// 应用 clash_api 配置：无条件覆盖 experimental.clash_api 整节
 pub fn apply_clash_api_config(
     config: &mut Value,
     clash_api: &ClashApiConfig,
@@ -402,7 +363,6 @@ pub fn apply_clash_api_config(
         .filter(|s| !s.is_empty())
         .unwrap_or(DEFAULT_CLASH_SECRET);
 
-    // 确保 experimental 对象存在
     if config.get("experimental").is_none() {
         config
             .as_object_mut()
@@ -420,7 +380,6 @@ pub fn apply_clash_api_config(
             CommandError::ResourceNotFound("Invalid experimental config format".to_string())
         })?;
 
-    // 完全替换 clash_api 节，不保留原始配置
     experimental.insert(
         "clash_api".to_string(),
         json!({

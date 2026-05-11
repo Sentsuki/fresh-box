@@ -19,53 +19,47 @@ impl Default for OverrideConfig {
 }
 
 fn load_override_file() -> Result<OverrideConfig, CommandError> {
-    super::config::load_named_config_or_default(OVERRIDE_CONFIG_FILE)
+    super::io::load_named_config_or_default(OVERRIDE_CONFIG_FILE)
 }
 
 fn save_override_file(override_config: &OverrideConfig) -> Result<(), CommandError> {
-    super::config::save_named_config(OVERRIDE_CONFIG_FILE, override_config)
+    super::io::save_named_config(OVERRIDE_CONFIG_FILE, override_config)
 }
 
-#[tauri::command]
-pub async fn enable_config_override() -> Result<(), CommandError> {
+pub(crate) fn enable_config_override_inner() -> Result<(), CommandError> {
     let mut override_config = load_override_file()?;
     override_config.enabled = true;
     save_override_file(&override_config)?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn disable_config_override() -> Result<(), CommandError> {
+pub(crate) fn disable_config_override_inner() -> Result<(), CommandError> {
     let mut override_config = load_override_file()?;
     override_config.enabled = false;
     save_override_file(&override_config)?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn save_config_override(config: Value) -> Result<(), CommandError> {
+pub(crate) fn save_config_override_inner(config: Value) -> Result<(), CommandError> {
     let mut override_config = load_override_file()?;
     override_config.config = config;
     save_override_file(&override_config)?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn clear_config_override() -> Result<(), CommandError> {
+pub(crate) fn clear_config_override_inner() -> Result<(), CommandError> {
     let mut override_config = load_override_file()?;
     override_config.config = json!({});
     save_override_file(&override_config)?;
     Ok(())
 }
 
-#[tauri::command]
-pub async fn load_config_override() -> Result<Value, CommandError> {
+pub(crate) fn load_config_override_inner() -> Result<Value, CommandError> {
     let override_config = load_override_file()?;
     Ok(override_config.config)
 }
 
-#[tauri::command]
-pub async fn is_config_override_enabled() -> Result<bool, CommandError> {
+pub(crate) fn is_config_override_enabled_inner() -> Result<bool, CommandError> {
     let override_config = load_override_file()?;
     Ok(override_config.enabled)
 }

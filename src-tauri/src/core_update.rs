@@ -47,7 +47,6 @@ impl CoreUpdateCancelState {
     }
 }
 
-#[tauri::command]
 pub async fn cancel_core_update(
     cancel: State<'_, CoreUpdateCancelState>,
 ) -> Result<(), CommandError> {
@@ -133,7 +132,6 @@ struct CoreUpdatePaths {
     staged_version_dir: PathBuf,
 }
 
-#[tauri::command]
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
     force_refresh: Option<bool>,
@@ -192,7 +190,6 @@ pub async fn get_singbox_core_status(
     })
 }
 
-#[tauri::command]
 pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
     let normalized_channel = normalize_core_channel(&channel)?;
     if !core_version_installed(normalized_channel, &version) {
@@ -213,7 +210,6 @@ pub async fn activate_singbox_core(channel: String, version: String) -> Result<(
     )
 }
 
-#[tauri::command]
 pub async fn update_singbox_core(
     app: AppHandle,
     state: State<'_, SingboxState>,
@@ -1143,3 +1139,4 @@ fn hide_window(command: &mut Command) {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 }
+

@@ -56,7 +56,6 @@ fn build_tray_menu(
     Ok(menu)
 }
 
-#[tauri::command]
 pub async fn refresh_tray_proxy_menu(
     app_handle: AppHandle,
     state: State<'_, TrayProxyState>,
@@ -209,3 +208,4 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 
     Ok(())
 }
+

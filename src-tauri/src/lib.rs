@@ -1,12 +1,11 @@
 // lib.rs - 可选的库文件，用于导出所有公共模块和函数
 
 pub mod clash_api;
+pub mod commands;
 pub mod config;
-pub mod config_override;
 pub mod core_update;
 pub mod errors;
 pub mod logger;
-pub mod priority_config;
 pub mod singbox;
 pub mod streams;
 pub mod tray;
