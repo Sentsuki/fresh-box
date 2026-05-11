@@ -67,7 +67,7 @@ export default function App() {
       console.error("Failed to initialize:", err);
       useAppStore.getState().markInitialized();
     });
-  }, []);
+  }, [initialize]);
 
   useEffect(() => {
     const unlisten = listen("tray-proxy-switched", () => {

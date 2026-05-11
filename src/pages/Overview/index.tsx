@@ -154,7 +154,8 @@ export default function Overview() {
                 <div className="flex flex-wrap gap-4">
                   {[...Array(4)].map((_, i) => (
                     <div
-                      key={i}
+                      // eslint-disable-next-line react/no-array-index-key
+                      key={`skeleton-${i}`}
                       className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
                     />
                   ))}

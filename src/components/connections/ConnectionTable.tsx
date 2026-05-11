@@ -164,7 +164,7 @@ export function ConnectionTable({
         enableSorting: col.sortable,
         header: () => {
           const isGrouped = groupedColumnKey === col.key;
-          const isPinned = columnPinning.left?.includes(col.key);
+          const isPinned = pinnedColumnKeys.includes(col.key);
           return (
             <div className="flex items-center gap-1.5 group/header">
               <span className="truncate">{col.label}</span>

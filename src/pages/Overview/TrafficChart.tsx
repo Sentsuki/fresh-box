@@ -21,14 +21,14 @@ const CustomTooltip = ({ active, payload }: CustomTooltipProps) => {
     return (
       <div className="bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) p-2 text-xs">
         <div className="flex items-center gap-2 mb-1">
-          <span className="w-2 h-2 rounded-full bg-[#60CDFF]"></span>
+          <span className="w-2 h-2 rounded-full bg-[#60CDFF]" />
           <span className="text-(--wb-text-secondary)">Download:</span>
           <span className="font-medium text-(--wb-text-primary)">
             {formatSpeed(payload[0].value)}
           </span>
         </div>
         <div className="flex items-center gap-2">
-          <span className="w-2 h-2 rounded-full bg-[#8CD7FF]"></span>
+          <span className="w-2 h-2 rounded-full bg-[#8CD7FF]" />
           <span className="text-(--wb-text-secondary)">Upload:</span>
           <span className="font-medium text-(--wb-text-primary)">
             {formatSpeed(payload[1].value)}

@@ -158,7 +158,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     return () => {
       void unlistenPromise.then((unlisten) => unlisten());
     };
-  }, [autoRefreshOnMount]);
+  }, [autoRefreshOnMount, refreshCoreStatus]);
 
   const options = coreStatus?.available_options ?? [];
   const selectedOption = options.find(

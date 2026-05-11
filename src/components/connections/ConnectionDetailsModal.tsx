@@ -131,7 +131,8 @@ export function ConnectionDetailsModal({
                     <div className="flex flex-wrap items-center gap-1.5">
                       {connection.chains.length > 0 ? (
                         connection.chains.map((node, i) => (
-                          <div key={i} className="flex items-center gap-1.5">
+                          // eslint-disable-next-line react/no-array-index-key
+                          <div key={`${node}-${i}`} className="flex items-center gap-1.5">
                             <span className="px-2 py-0.5 rounded bg-(--wb-surface-active) text-xs font-medium border border-(--wb-border-subtle)">
                               {node}
                             </span>
