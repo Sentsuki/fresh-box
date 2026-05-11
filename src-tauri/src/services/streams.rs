@@ -2,7 +2,7 @@ use crate::errors::CommandError;
 use futures_util::StreamExt;
 use std::time::Duration;
 use tauri::Emitter;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::{Mutex, watch};
 use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 pub struct StreamsState {
@@ -129,7 +129,6 @@ async fn run_json_stream<F>(
     let _ = app.emit(status_event, "disconnected");
 }
 
-
 // ── Traffic stream ─────────────────────────────────────────────────────────
 
 pub async fn start_traffic_stream(
@@ -171,9 +170,7 @@ pub async fn start_memory_stream(
     Ok(())
 }
 
-pub async fn stop_memory_stream(
-    state: tauri::State<'_, StreamsState>,
-) -> Result<(), CommandError> {
+pub async fn stop_memory_stream(state: tauri::State<'_, StreamsState>) -> Result<(), CommandError> {
     stop_stream_slot(&state.memory).await;
     Ok(())
 }
@@ -213,9 +210,7 @@ pub async fn start_logs_stream(
     Ok(())
 }
 
-pub async fn stop_logs_stream(
-    state: tauri::State<'_, StreamsState>,
-) -> Result<(), CommandError> {
+pub async fn stop_logs_stream(state: tauri::State<'_, StreamsState>) -> Result<(), CommandError> {
     stop_stream_slot(&state.logs).await;
     Ok(())
 }
@@ -248,4 +243,3 @@ async fn run_logs_stream(app: tauri::AppHandle, stop_rx: watch::Receiver<bool>) 
     )
     .await;
 }
-

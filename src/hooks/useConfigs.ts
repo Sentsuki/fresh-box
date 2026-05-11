@@ -143,7 +143,10 @@ export function useConfigs() {
       config.setPending(true);
       try {
         const result = await fetchSubscription(url);
-        const targetPath = await saveSubscriptionConfig(result.file_name, result.content);
+        const targetPath = await saveSubscriptionConfig(
+          result.file_name,
+          result.content,
+        );
         const cleanFileName = getCleanFileName(targetPath);
 
         const current = useConfigStore.getState().subscriptions;

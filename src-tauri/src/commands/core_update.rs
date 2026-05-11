@@ -1,5 +1,7 @@
-use crate::services::core_update::{CoreUpdateCancelState, SingboxCoreStatus, SingboxCoreUpdateResult};
 use crate::errors::CommandError;
+use crate::services::core_update::{
+    CoreUpdateCancelState, SingboxCoreStatus, SingboxCoreUpdateResult,
+};
 use crate::services::singbox::SingboxState;
 use tauri::State;
 
@@ -19,10 +21,7 @@ pub async fn get_singbox_core_status(
 }
 
 #[tauri::command]
-pub async fn activate_singbox_core(
-    channel: String,
-    version: String,
-) -> Result<(), CommandError> {
+pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
     crate::services::core_update::activate_singbox_core(channel, version).await
 }
 

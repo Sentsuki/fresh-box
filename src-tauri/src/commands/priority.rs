@@ -1,5 +1,5 @@
-use crate::errors::CommandError;
 use crate::config::priority::{ConfigFieldsCheck, CoreClientConfig, PriorityConfig};
+use crate::errors::CommandError;
 
 #[tauri::command]
 pub async fn save_priority_config(config: PriorityConfig) -> Result<(), CommandError> {

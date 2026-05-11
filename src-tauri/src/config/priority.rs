@@ -1,6 +1,6 @@
 use crate::errors::CommandError;
 use rand::RngExt as _;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
@@ -132,66 +132,74 @@ pub(crate) fn check_config_fields_inner(
     };
 
     if let Some(inbounds) = config.get("inbounds")
-        && let Some(inbounds_array) = inbounds.as_array() {
-            for inbound in inbounds_array {
-                if let Some(inbound_obj) = inbound.as_object()
-                    && let Some(stack_value) = inbound_obj.get("stack") {
-                        result.has_stack_field = true;
-                        if let Some(stack_str) = stack_value.as_str() {
-                            result.current_stack_value = Some(stack_str.to_string());
-                        }
-                        break;
-                    }
+        && let Some(inbounds_array) = inbounds.as_array()
+    {
+        for inbound in inbounds_array {
+            if let Some(inbound_obj) = inbound.as_object()
+                && let Some(stack_value) = inbound_obj.get("stack")
+            {
+                result.has_stack_field = true;
+                if let Some(stack_str) = stack_value.as_str() {
+                    result.current_stack_value = Some(stack_str.to_string());
+                }
+                break;
             }
         }
+    }
 
     if let Some(log_obj) = config.get("log")
-        && log_obj.is_object() {
-            result.has_log_field = true;
-            if let Some(disabled_value) = log_obj.get("disabled") {
-                result.current_log_disabled = disabled_value.as_bool();
-            }
-            if let Some(level_value) = log_obj.get("level")
-                && let Some(level_str) = level_value.as_str() {
-                    result.current_log_level = Some(level_str.to_string());
-                }
+        && log_obj.is_object()
+    {
+        result.has_log_field = true;
+        if let Some(disabled_value) = log_obj.get("disabled") {
+            result.current_log_disabled = disabled_value.as_bool();
         }
+        if let Some(level_value) = log_obj.get("level")
+            && let Some(level_str) = level_value.as_str()
+        {
+            result.current_log_level = Some(level_str.to_string());
+        }
+    }
 
     let config_dir = super::paths::get_config_dir()?;
     let override_path = config_dir.join("config_override.json");
 
     if override_path.exists()
         && let Ok(override_content) = fs::read_to_string(&override_path)
-            && let Ok(override_config) = serde_json::from_str::<Value>(&override_content) {
-                if !result.has_stack_field
-                    && let Some(override_inbounds) = override_config.get("inbounds")
-                        && let Some(override_inbounds_array) = override_inbounds.as_array() {
-                            for inbound in override_inbounds_array {
-                                if let Some(inbound_obj) = inbound.as_object()
-                                    && let Some(stack_value) = inbound_obj.get("stack") {
-                                        result.has_stack_field = true;
-                                        if let Some(stack_str) = stack_value.as_str() {
-                                            result.current_stack_value =
-                                                Some(stack_str.to_string());
-                                        }
-                                        break;
-                                    }
-                            }
-                        }
-
-                if !result.has_log_field
-                    && let Some(override_log_obj) = override_config.get("log")
-                        && override_log_obj.is_object() {
-                            result.has_log_field = true;
-                            if let Some(disabled_value) = override_log_obj.get("disabled") {
-                                result.current_log_disabled = disabled_value.as_bool();
-                            }
-                            if let Some(level_value) = override_log_obj.get("level")
-                                && let Some(level_str) = level_value.as_str() {
-                                    result.current_log_level = Some(level_str.to_string());
-                                }
-                        }
+        && let Ok(override_config) = serde_json::from_str::<Value>(&override_content)
+    {
+        if !result.has_stack_field
+            && let Some(override_inbounds) = override_config.get("inbounds")
+            && let Some(override_inbounds_array) = override_inbounds.as_array()
+        {
+            for inbound in override_inbounds_array {
+                if let Some(inbound_obj) = inbound.as_object()
+                    && let Some(stack_value) = inbound_obj.get("stack")
+                {
+                    result.has_stack_field = true;
+                    if let Some(stack_str) = stack_value.as_str() {
+                        result.current_stack_value = Some(stack_str.to_string());
+                    }
+                    break;
+                }
             }
+        }
+
+        if !result.has_log_field
+            && let Some(override_log_obj) = override_config.get("log")
+            && override_log_obj.is_object()
+        {
+            result.has_log_field = true;
+            if let Some(disabled_value) = override_log_obj.get("disabled") {
+                result.current_log_disabled = disabled_value.as_bool();
+            }
+            if let Some(level_value) = override_log_obj.get("level")
+                && let Some(level_str) = level_value.as_str()
+            {
+                result.current_log_level = Some(level_str.to_string());
+            }
+        }
+    }
 
     Ok(result)
 }
@@ -207,8 +215,7 @@ pub struct CoreClientConfig {
 }
 
 pub(crate) fn get_core_client_config_inner() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig =
-        super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
+    let config: PriorityConfig = super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
     let app_settings = super::app_settings::load_app_settings_file()?;
 
     let clash_api = config.experimental.clash_api.as_ref();
@@ -259,9 +266,10 @@ pub fn apply_priority_config(
     priority_config: &PriorityConfig,
 ) -> Result<(), CommandError> {
     if let Some(first) = priority_config.inbounds.first()
-        && let Err(e) = apply_stack_config(config, &first.stack) {
-            eprintln!("Warning: Failed to apply stack config: {:?}", e);
-        }
+        && let Err(e) = apply_stack_config(config, &first.stack)
+    {
+        eprintln!("Warning: Failed to apply stack config: {:?}", e);
+    }
 
     apply_log_config(config, &priority_config.log)?;
 
@@ -290,11 +298,11 @@ pub fn apply_stack_config(config: &mut Value, stack_value: &str) -> Result<(), C
 
             for inbound in inbounds_array.iter_mut() {
                 if let Some(inbound_obj) = inbound.as_object_mut()
-                    && inbound_obj.contains_key("stack") {
-                        inbound_obj
-                            .insert("stack".to_string(), Value::String(stack_value.to_string()));
-                        found_stack = true;
-                    }
+                    && inbound_obj.contains_key("stack")
+                {
+                    inbound_obj.insert("stack".to_string(), Value::String(stack_value.to_string()));
+                    found_stack = true;
+                }
             }
 
             if !found_stack {

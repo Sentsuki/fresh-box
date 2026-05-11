@@ -1,8 +1,8 @@
 use crate::config::{
-    get_active_singbox_core_executable, get_active_singbox_core_selection, get_bin_dir,
-    get_core_channel_dir, get_core_version_dir, get_data_dir, normalize_core_channel,
-    read_json_file, set_active_singbox_core_selection, write_json_file, CORE_CHANNEL_STABLE,
-    CORE_CHANNEL_TESTING,
+    CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING, get_active_singbox_core_executable,
+    get_active_singbox_core_selection, get_bin_dir, get_core_channel_dir, get_core_version_dir,
+    get_data_dir, normalize_core_channel, read_json_file, set_active_singbox_core_selection,
+    write_json_file,
 };
 use crate::errors::CommandError;
 use crate::services::singbox::SingboxState;
@@ -14,8 +14,8 @@ use std::fs::{self, File};
 use std::io::{self, Write};
 use std::path::{Component, Path, PathBuf};
 use std::process::Command;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::{SystemTime, UNIX_EPOCH};
 use tauri::{AppHandle, Emitter, State};
 
@@ -356,9 +356,10 @@ pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
 pub fn auto_select_installed_core() -> Result<(), CommandError> {
     // If active selection is already set and the binary is present, nothing to do.
     if let Ok(Some((channel, version))) = get_active_singbox_core_selection()
-        && core_version_installed(&channel, &version) {
-            return Ok(());
-        }
+        && core_version_installed(&channel, &version)
+    {
+        return Ok(());
+    }
 
     let bin_dir = get_bin_dir()?;
 
@@ -472,9 +473,10 @@ async fn fetch_available_core_releases(
 ) -> Result<Vec<CoreReleaseMetadata>, CommandError> {
     if !force_refresh
         && let Some(cache) = load_cached_core_releases()?
-            && is_release_cache_fresh(&cache)? {
-                return Ok(cache.releases);
-            }
+        && is_release_cache_fresh(&cache)?
+    {
+        return Ok(cache.releases);
+    }
 
     match fetch_available_core_releases_from_github().await {
         Ok(releases) => {
@@ -495,8 +497,8 @@ async fn fetch_available_core_releases(
     }
 }
 
-async fn fetch_available_core_releases_from_github(
-) -> Result<Vec<CoreReleaseMetadata>, CommandError> {
+async fn fetch_available_core_releases_from_github()
+-> Result<Vec<CoreReleaseMetadata>, CommandError> {
     let releases = github_client()?
         .get(GITHUB_RELEASES_API)
         .header("Accept", "application/vnd.github+json")
@@ -1136,5 +1138,3 @@ fn hide_window(command: &mut Command) {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 }
-
-

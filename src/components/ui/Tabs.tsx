@@ -59,6 +59,8 @@ export function Tabs({
   );
 }
 
-export function TabContent(props: React.ComponentProps<typeof RadixTabs.Content>) {
+export function TabContent(
+  props: React.ComponentProps<typeof RadixTabs.Content>,
+) {
   return <RadixTabs.Content {...props} />;
 }

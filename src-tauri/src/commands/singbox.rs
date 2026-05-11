@@ -22,9 +22,7 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
 }
 
 #[tauri::command]
-pub async fn health_check_singbox(
-    state: State<'_, SingboxState>,
-) -> Result<String, CommandError> {
+pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
     crate::services::singbox::health_check_singbox(state).await
 }
 
@@ -36,9 +34,7 @@ pub async fn initialize_singbox_state(
 }
 
 #[tauri::command]
-pub async fn get_singbox_status(
-    state: State<'_, SingboxState>,
-) -> Result<String, CommandError> {
+pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
     crate::services::singbox::get_singbox_status(state).await
 }
 

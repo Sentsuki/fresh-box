@@ -166,7 +166,9 @@ export default function Rules() {
                                 className="h-10 px-4 flex items-center text-xs font-medium text-(--wb-text-secondary) border-r border-(--wb-border-subtle)"
                                 style={{
                                   width: isLast ? undefined : header.getSize(),
-                                  minWidth: isLast ? header.getSize() : undefined,
+                                  minWidth: isLast
+                                    ? header.getSize()
+                                    : undefined,
                                   flexGrow: isLast ? 1 : undefined,
                                 }}
                               >

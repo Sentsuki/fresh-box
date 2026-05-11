@@ -1,6 +1,6 @@
 use crate::errors::CommandError;
 use reqwest::Client;
-use serde::{de::DeserializeOwned, Deserialize, Serialize};
+use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
 use std::cmp::Ordering;
 use std::collections::HashMap;
@@ -202,7 +202,8 @@ fn map_clash_network_error(context: &str, error: reqwest::Error) -> CommandError
         let endpoint = get_clash_endpoint();
         return CommandError::network(format!(
             "{}: could not connect to the core at {}. Make sure the Clash API is running.",
-            context, endpoint.http_base()
+            context,
+            endpoint.http_base()
         ));
     }
 
@@ -339,7 +340,10 @@ async fn execute_proxy_delay_test(
     let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
     let request_url = format!(
         "{}?url={}&timeout={}",
-        build_clash_url(&endpoint.http_base(), &format!("/proxies/{}/delay", encoded_name)),
+        build_clash_url(
+            &endpoint.http_base(),
+            &format!("/proxies/{}/delay", encoded_name)
+        ),
         urlencoding::encode(target_url),
         timeout
     );
@@ -463,7 +467,10 @@ pub async fn get_clash_overview(app: tauri::AppHandle) -> Result<ClashOverview, 
     Ok(overview)
 }
 
-pub async fn update_clash_mode(app: tauri::AppHandle, mode: String) -> Result<ClashOverview, CommandError> {
+pub async fn update_clash_mode(
+    app: tauri::AppHandle,
+    mode: String,
+) -> Result<ClashOverview, CommandError> {
     if mode.trim().is_empty() {
         return Err(CommandError::validation("Clash mode cannot be empty."));
     }
@@ -536,7 +543,10 @@ pub async fn test_clash_proxy_group_delay(
     let timeout = timeout_ms.unwrap_or(DEFAULT_TEST_TIMEOUT_MS);
     let request_url = format!(
         "{}?url={}&timeout={}",
-        build_clash_url(&endpoint.http_base(), &format!("/group/{}/delay", encoded_group)),
+        build_clash_url(
+            &endpoint.http_base(),
+            &format!("/group/{}/delay", encoded_group)
+        ),
         urlencoding::encode(target_url),
         timeout
     );
@@ -663,4 +673,3 @@ pub async fn close_connection(id: String) -> Result<(), CommandError> {
         .map_err(|error| map_clash_network_error("Failed to close connection", error))?;
     Ok(())
 }
-

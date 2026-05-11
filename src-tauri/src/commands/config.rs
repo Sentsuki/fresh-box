@@ -1,5 +1,5 @@
-use crate::errors::CommandError;
 use crate::config::AppSettings;
+use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
 
@@ -68,9 +68,9 @@ pub async fn save_subscription_config(
     fs::write(&target_path, content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
-    crate::config::profiles::append_to_file_order(
-        crate::config::profiles::stem_from_filename(&file_name),
-    )?;
+    crate::config::profiles::append_to_file_order(crate::config::profiles::stem_from_filename(
+        &file_name,
+    ))?;
 
     Ok(target_path.to_string_lossy().into_owned())
 }
@@ -135,7 +135,6 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
         }
     }
 
-
     let order = crate::config::profiles::load_file_order()?;
     let mut result: Vec<String> = Vec::with_capacity(on_disk.len());
 
@@ -172,9 +171,9 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     fs::remove_file(&rm_full_path)
         .map_err(|e| CommandError::resource_not_found("config file", e))?;
 
-    crate::config::profiles::remove_from_file_order(
-        crate::config::profiles::stem_from_filename(&config_path),
-    )?;
+    crate::config::profiles::remove_from_file_order(crate::config::profiles::stem_from_filename(
+        &config_path,
+    ))?;
 
     Ok(())
 }
@@ -227,12 +226,13 @@ pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandErro
 
     if !parsed.contains_key(crate::config::profiles::FILE_ORDER_KEY)
         && let Ok(existing) = crate::config::profiles::load_subscriptions_json()
-            && let Some(order) = existing.get(crate::config::profiles::FILE_ORDER_KEY) {
-                parsed.insert(
-                    crate::config::profiles::FILE_ORDER_KEY.to_string(),
-                    order.clone(),
-                );
-            }
+        && let Some(order) = existing.get(crate::config::profiles::FILE_ORDER_KEY)
+    {
+        parsed.insert(
+            crate::config::profiles::FILE_ORDER_KEY.to_string(),
+            order.clone(),
+        );
+    }
 
     crate::config::profiles::save_subscriptions_json(&parsed)
 }
@@ -400,9 +400,7 @@ pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, Co
     let mut config: Value = serde_json::from_str(&content)
         .map_err(|e| CommandError::json("failed to parse config JSON", e))?;
 
-    if let Ok(Some(override_config)) =
-        crate::config::get_override_config_if_enabled().await
-    {
+    if let Ok(Some(override_config)) = crate::config::get_override_config_if_enabled().await {
         crate::config::apply_config_override(&mut config, &override_config);
     }
 
@@ -457,10 +455,9 @@ pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, 
         )));
     }
 
-    let content = response
-        .text()
-        .await
-        .map_err(|e| CommandError::network(format!("Failed to read subscription content: {}", e)))?;
+    let content = response.text().await.map_err(|e| {
+        CommandError::network(format!("Failed to read subscription content: {}", e))
+    })?;
 
     Ok(FetchSubscriptionResult { content, file_name })
 }

@@ -10,9 +10,11 @@ mod tray;
 mod window_utils;
 
 use services::core_update::{
-    auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState,
+    CoreUpdateCancelState, auto_select_installed_core, cleanup_staged_core_update_files_directly,
 };
-use services::singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
+use services::singbox::{
+    SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly,
+};
 use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
 
@@ -155,11 +157,12 @@ fn main() {
                         move || async move {
                             if let Ok(has_process) =
                                 refresh_singbox_detection_directly(&state_clone).await
-                                && has_process {
-                                    println!(
-                                        "Window focused: sing-box process detected and under management"
-                                    );
-                                }
+                                && has_process
+                            {
+                                println!(
+                                    "Window focused: sing-box process detected and under management"
+                                );
+                            }
                         },
                     );
                 }

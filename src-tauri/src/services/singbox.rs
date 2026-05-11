@@ -358,16 +358,13 @@ pub async fn start_singbox(
         let config_content = fs::read_to_string(&config_path)?;
         let mut base_config: Value = serde_json::from_str(&config_content)?;
 
-        if let Some(override_config) =
-            crate::config::get_override_config_if_enabled().await?
-        {
+        if let Some(override_config) = crate::config::get_override_config_if_enabled().await? {
             crate::config::apply_config_override(&mut base_config, &override_config);
         }
 
         let priority_config: crate::config::PriorityConfig =
             crate::config::load_named_config_or_default("priority_config.json")?;
-        if let Err(error) =
-            crate::config::apply_priority_config(&mut base_config, &priority_config)
+        if let Err(error) = crate::config::apply_priority_config(&mut base_config, &priority_config)
         {
             eprintln!(
                 "Warning: Failed to apply priority configuration: {:?}",
@@ -420,7 +417,7 @@ pub async fn start_singbox(
     }
 }
 
-pub async fn stop_singbox(state: State<'_, SingboxState>)-> Result<(), CommandError> {
+pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
     let (managed_child, tracked_pid) = {
         let mut process_state = state.lock("stop_singbox")?;
         let child = process_state.child.take();
@@ -457,7 +454,7 @@ pub async fn stop_singbox(state: State<'_, SingboxState>)-> Result<(), CommandEr
     }
 }
 
-pub async fn is_singbox_running(state: State<'_, SingboxState>)-> Result<bool, CommandError> {
+pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
     let mut process_state = state.lock("is_singbox_running")?;
     Ok(inspect_running_process(&mut process_state)?.is_some())
 }
@@ -557,12 +554,13 @@ fn get_singbox_process_info_by_pid(
         }
 
         if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid))
-            && is_singbox_process_name(process.name()) {
-                let memory_kb = process.memory() / 1024;
-                let cpu_usage = process.cpu_usage();
+            && is_singbox_process_name(process.name())
+        {
+            let memory_kb = process.memory() / 1024;
+            let cpu_usage = process.cpu_usage();
 
-                return Ok(format!("Memory: {} KB, CPU: {:.1}%", memory_kb, cpu_usage));
-            }
+            return Ok(format!("Memory: {} KB, CPU: {:.1}%", memory_kb, cpu_usage));
+        }
     }
 
     #[cfg(not(windows))]
@@ -581,7 +579,7 @@ pub async fn refresh_singbox_detection(
     refresh_detection_inner(&state)
 }
 
-pub async fn get_singbox_status(state: State<'_, SingboxState>)-> Result<String, CommandError> {
+pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
     let mut process_state = state.lock("get_singbox_status")?;
     match inspect_running_process(&mut process_state)? {
         Some(ProcessOrigin::Direct(pid)) => {
@@ -612,7 +610,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>)-> Result<String,
     }
 }
 
-pub async fn health_check_singbox(state: State<'_, SingboxState>)-> Result<String, CommandError> {
+pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
     let mut process_state = state.lock("health_check_singbox")?;
 
     if let Some(child) = &mut process_state.child {

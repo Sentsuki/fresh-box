@@ -101,9 +101,10 @@ pub fn get_active_singbox_core_selection() -> Result<Option<(String, String)>, C
         settings.settings.singbox_core.active_channel,
         settings.settings.singbox_core.active_version,
     ) {
-        (Some(channel), Some(version)) => {
-            Ok(Some((normalize_core_channel(&channel)?.to_string(), version)))
-        }
+        (Some(channel), Some(version)) => Ok(Some((
+            normalize_core_channel(&channel)?.to_string(),
+            version,
+        ))),
         (None, None) => Ok(None),
         _ => Err(CommandError::invalid_state(
             "get_active_singbox_core_selection",

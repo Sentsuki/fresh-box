@@ -1,5 +1,5 @@
 use crate::errors::CommandError;
-use serde_json::{json, Value};
+use serde_json::{Value, json};
 
 const OVERRIDE_CONFIG_FILE: &str = "config_override.json";
 
@@ -66,19 +66,20 @@ pub(crate) fn is_config_override_enabled_inner() -> Result<bool, CommandError> {
 
 pub fn apply_config_override(base_config: &mut Value, override_config: &Value) {
     if let Some(obj) = base_config.as_object_mut()
-        && let Some(override_obj) = override_config.as_object() {
-            for (key, value) in override_obj {
-                if let Some(existing_value) = obj.get_mut(key) {
-                    if existing_value.is_object() && value.is_object() {
-                        apply_config_override(existing_value, value);
-                    } else {
-                        obj[key] = value.clone();
-                    }
+        && let Some(override_obj) = override_config.as_object()
+    {
+        for (key, value) in override_obj {
+            if let Some(existing_value) = obj.get_mut(key) {
+                if existing_value.is_object() && value.is_object() {
+                    apply_config_override(existing_value, value);
                 } else {
-                    obj.insert(key.clone(), value.clone());
+                    obj[key] = value.clone();
                 }
+            } else {
+                obj.insert(key.clone(), value.clone());
             }
         }
+    }
 }
 
 pub async fn get_override_config_if_enabled() -> Result<Option<Value>, CommandError> {

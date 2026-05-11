@@ -458,7 +458,7 @@ export default function Settings() {
             title="Fresh Box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version 1.6.5</span>
+                <span>Version 1.6.6</span>
               </div>
             }
           />

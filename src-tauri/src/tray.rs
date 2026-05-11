@@ -1,16 +1,16 @@
 // tray.rs - 托盘功能模块
 
-use crate::services::clash_client::select_proxy_inner;
 use crate::errors::CommandError;
+use crate::services::clash_client::select_proxy_inner;
 use crate::services::singbox::SingboxState;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
+    AppHandle, Emitter, Manager, State,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
-    AppHandle, Emitter, Manager, State,
 };
 
 #[derive(Debug, Deserialize, Clone)]
@@ -80,7 +80,10 @@ pub async fn refresh_tray_proxy_menu(
     Ok(())
 }
 
-pub(crate) fn sync_tray_from_overview(app: &AppHandle, overview: &crate::services::clash_client::ClashOverview) {
+pub(crate) fn sync_tray_from_overview(
+    app: &AppHandle,
+    overview: &crate::services::clash_client::ClashOverview,
+) {
     let selector_groups: Vec<TrayProxyGroup> = overview
         .proxy_groups
         .iter()
@@ -208,4 +211,3 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 
     Ok(())
 }
-
