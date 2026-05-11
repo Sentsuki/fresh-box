@@ -71,9 +71,10 @@ export default function Settings() {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
-    releasesLoaded,
+    cacheState,
   } = useCoreUpdate(true);
   const availableOptions = coreStatus?.available_options ?? [];
+  const controlsEnabled = cacheState === "fresh" || cacheState === "stale";
 
   // Priority Config (TUN & Core Logs)
   const {
@@ -311,9 +312,14 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
-                {coreStatus && !releasesLoaded && (
+                {coreStatus && cacheState === "no_cache" && (
                   <span className="text-[11px] text-(--wb-text-tertiary) italic">
-                    Release list unavailable offline — Check to enable install/switch.
+                    No version list — click Check to load available releases.
+                  </span>
+                )}
+                {coreStatus && cacheState === "stale" && (
+                  <span className="text-[11px] text-amber-500/80 italic">
+                    Version list may be outdated — click Check to refresh.
                   </span>
                 )}
               </div>
@@ -339,7 +345,7 @@ export default function Settings() {
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                     <select
                       value={selectedCoreOptionKey}
-                      disabled={isUpdatingCore || !releasesLoaded}
+                      disabled={isUpdatingCore || !controlsEnabled}
                       onChange={(e) => {
                         const newKey = e.target.value;
                         void setSelectedCoreOptionKey(newKey);
@@ -372,7 +378,7 @@ export default function Settings() {
                       </Button>
                     )}
                     {!isUpdatingCore &&
-                      releasesLoaded &&
+                      controlsEnabled &&
                       selectedOption?.installed &&
                       selectedOption?.is_active && (
                         <Button

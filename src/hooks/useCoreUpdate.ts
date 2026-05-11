@@ -40,14 +40,20 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   const { success, error: toastError } = useToast();
 
   const refreshCoreStatus = useCallback(
-    async (showErrorToast = false, forceRefresh = false, localOnly = false) => {
+    async (showErrorToast = false, forceRefresh = false) => {
       if (isRefreshing) return;
       setIsRefreshing(true);
       setCoreStatusError("");
       try {
-        const status = await getSingboxCoreStatus(forceRefresh, localOnly);
+        const status = await getSingboxCoreStatus(forceRefresh);
         setCoreStatus(status);
-        // Auto-select an option if none selected
+        // Surface a non-fatal network error embedded in the status
+        // (e.g. GitHub unreachable during Check) without throwing.
+        if (status.fetch_error) {
+          setCoreStatusError(status.fetch_error);
+          if (showErrorToast) toastError(status.fetch_error);
+        }
+        // Auto-select an option if none is selected yet
         const options = status.available_options ?? [];
         if (options.length > 0) {
           const currentExists = options.some(
@@ -145,8 +151,8 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   useEffect(() => {
     if (autoRefreshOnMount && !hasAutoRefreshed.current) {
       hasAutoRefreshed.current = true;
-      // local_only=true: read from disk only, no GitHub/cache request
-      void refreshCoreStatus(false, false, true);
+      // Backend decides everything: normal page load reads cache only, no network.
+      void refreshCoreStatus();
     }
 
     const unlistenPromise = listen<CoreUpdateProgressEvent>(
@@ -224,6 +230,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
-    releasesLoaded: coreStatus?.releases_loaded ?? false,
+    cacheState: coreStatus?.cache_state ?? "no_cache",
   };
 }

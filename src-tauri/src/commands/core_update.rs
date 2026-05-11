@@ -16,9 +16,8 @@ pub async fn cancel_core_update(
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
     force_refresh: Option<bool>,
-    local_only: Option<bool>,
 ) -> Result<SingboxCoreStatus, CommandError> {
-    crate::services::core_update::get_singbox_core_status(state, force_refresh, local_only).await
+    crate::services::core_update::get_singbox_core_status(state, force_refresh).await
 }
 
 #[tauri::command]

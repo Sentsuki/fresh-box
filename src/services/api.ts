@@ -225,11 +225,9 @@ export async function openAppDirectory(): Promise<void> {
 
 export async function getSingboxCoreStatus(
   forceRefresh = false,
-  localOnly = false,
 ): Promise<SingboxCoreStatus> {
   return invokeCommand<SingboxCoreStatus>("get_singbox_core_status", {
     forceRefresh,
-    localOnly,
   });
 }
 
