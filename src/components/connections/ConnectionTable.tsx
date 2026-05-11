@@ -237,6 +237,7 @@ export function ConnectionTable({
     getCoreRowModel: getCoreRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
+    autoResetExpanded: false,
     enableColumnPinning: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
