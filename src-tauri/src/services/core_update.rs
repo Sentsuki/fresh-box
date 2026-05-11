@@ -5,7 +5,7 @@ use crate::config::{
     CORE_CHANNEL_TESTING,
 };
 use crate::errors::CommandError;
-use crate::singbox::SingboxState;
+use crate::services::singbox::SingboxState;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -47,7 +47,6 @@ impl CoreUpdateCancelState {
     }
 }
 
-#[tauri::command]
 pub async fn cancel_core_update(
     cancel: State<'_, CoreUpdateCancelState>,
 ) -> Result<(), CommandError> {
@@ -133,7 +132,6 @@ struct CoreUpdatePaths {
     staged_version_dir: PathBuf,
 }
 
-#[tauri::command]
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
     force_refresh: Option<bool>,
@@ -144,7 +142,7 @@ pub async fn get_singbox_core_status(
     let active_selection = get_active_singbox_core_selection()?;
     cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
 
-    let is_running = crate::singbox::is_singbox_running(state).await?;
+    let is_running = crate::services::singbox::is_singbox_running(state).await?;
     let installed = get_active_singbox_core_executable().is_ok();
     let (current_channel, current_version) = active_selection
         .clone()
@@ -192,7 +190,6 @@ pub async fn get_singbox_core_status(
     })
 }
 
-#[tauri::command]
 pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
     let normalized_channel = normalize_core_channel(&channel)?;
     if !core_version_installed(normalized_channel, &version) {
@@ -213,7 +210,6 @@ pub async fn activate_singbox_core(channel: String, version: String) -> Result<(
     )
 }
 
-#[tauri::command]
 pub async fn update_singbox_core(
     app: AppHandle,
     state: State<'_, SingboxState>,
@@ -249,7 +245,7 @@ pub async fn update_singbox_core(
     let previous_version = previous_selection
         .as_ref()
         .map(|(_, version)| version.clone());
-    let restart_required = crate::singbox::is_singbox_running(state).await?;
+    let restart_required = crate::services::singbox::is_singbox_running(state).await?;
     if restart_required
         && previous_selection
             .as_ref()
@@ -1143,3 +1139,5 @@ fn hide_window(command: &mut Command) {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 }
+
+

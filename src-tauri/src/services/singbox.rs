@@ -329,7 +329,6 @@ fn terminate_child_process(
     Ok(())
 }
 
-#[tauri::command]
 pub async fn start_singbox(
     _app_handle: tauri::AppHandle,
     state: State<'_, SingboxState>,
@@ -360,14 +359,15 @@ pub async fn start_singbox(
         let mut base_config: Value = serde_json::from_str(&config_content)?;
 
         if let Some(override_config) =
-            crate::config_override::get_override_config_if_enabled().await?
+            crate::config::get_override_config_if_enabled().await?
         {
-            crate::config_override::apply_config_override(&mut base_config, &override_config);
+            crate::config::apply_config_override(&mut base_config, &override_config);
         }
 
-        let priority_config = crate::priority_config::load_priority_config().await?;
+        let priority_config: crate::config::PriorityConfig =
+            crate::config::load_named_config_or_default("priority_config.json")?;
         if let Err(error) =
-            crate::priority_config::apply_priority_config(&mut base_config, &priority_config)
+            crate::config::apply_priority_config(&mut base_config, &priority_config)
         {
             eprintln!(
                 "Warning: Failed to apply priority configuration: {:?}",
@@ -420,8 +420,7 @@ pub async fn start_singbox(
     }
 }
 
-#[tauri::command]
-pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
+pub async fn stop_singbox(state: State<'_, SingboxState>)-> Result<(), CommandError> {
     let (managed_child, tracked_pid) = {
         let mut process_state = state.lock("stop_singbox")?;
         let child = process_state.child.take();
@@ -458,13 +457,11 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     }
 }
 
-#[tauri::command]
-pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
+pub async fn is_singbox_running(state: State<'_, SingboxState>)-> Result<bool, CommandError> {
     let mut process_state = state.lock("is_singbox_running")?;
     Ok(inspect_running_process(&mut process_state)?.is_some())
 }
 
-#[tauri::command]
 pub async fn initialize_singbox_state(
     state: State<'_, SingboxState>,
 ) -> Result<String, CommandError> {
@@ -579,15 +576,13 @@ fn get_singbox_process_info_by_pid(
     Ok("Process not found or not a sing-box process".to_string())
 }
 
-#[tauri::command]
 pub async fn refresh_singbox_detection(
     state: State<'_, SingboxState>,
 ) -> Result<bool, CommandError> {
     refresh_detection_inner(&state)
 }
 
-#[tauri::command]
-pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
+pub async fn get_singbox_status(state: State<'_, SingboxState>)-> Result<String, CommandError> {
     let mut process_state = state.lock("get_singbox_status")?;
     match inspect_running_process(&mut process_state)? {
         Some(ProcessOrigin::Direct(pid)) => {
@@ -618,8 +613,7 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
     }
 }
 
-#[tauri::command]
-pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
+pub async fn health_check_singbox(state: State<'_, SingboxState>)-> Result<String, CommandError> {
     let mut process_state = state.lock("health_check_singbox")?;
 
     if let Some(child) = &mut process_state.child {

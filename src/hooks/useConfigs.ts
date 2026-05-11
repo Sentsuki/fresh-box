@@ -1,9 +1,9 @@
 import { useCallback } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
-import { fetch } from "@tauri-apps/plugin-http";
 import {
   copyConfigToBin,
   deleteConfigFile,
+  fetchSubscription,
   listConfigs,
   loadSubscriptions,
   openConfigFile as openConfigFileCmd,
@@ -59,20 +59,6 @@ async function syncConfigFiles(preferredDisplayName?: string | null) {
 async function persistSubscriptions(subscriptions: SubscriptionRecord) {
   await saveSubscriptions(subscriptions);
   useConfigStore.getState().setSubscriptions(subscriptions);
-}
-
-function extractFileNameFromUrl(url: string): string {
-  const parsedUrl = new URL(url);
-  const pathname = parsedUrl.pathname;
-  const originalName =
-    pathname.substring(pathname.lastIndexOf("/") + 1) || "subscription";
-  return originalName.endsWith(".json") ? originalName : `${originalName}.json`;
-}
-
-async function fetchSubscriptionContent(url: string): Promise<string> {
-  const response = await fetch(url);
-  if (!response.ok) throw new Error(`HTTP error! status: ${response.status}`);
-  return response.text();
 }
 
 export function useConfigs() {
@@ -156,9 +142,8 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const content = await fetchSubscriptionContent(url);
-        const fileName = extractFileNameFromUrl(url);
-        const targetPath = await saveSubscriptionConfig(fileName, content);
+        const result = await fetchSubscription(url);
+        const targetPath = await saveSubscriptionConfig(result.file_name, result.content);
         const cleanFileName = getCleanFileName(targetPath);
 
         const current = useConfigStore.getState().subscriptions;
@@ -190,8 +175,8 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const content = await fetchSubscriptionContent(subscription.url);
-        await saveSubscriptionConfig(`${fileName}.json`, content);
+        const result = await fetchSubscription(subscription.url);
+        await saveSubscriptionConfig(`${fileName}.json`, result.content);
         await persistSubscriptions({
           ...config.subscriptions,
           [fileName]: {

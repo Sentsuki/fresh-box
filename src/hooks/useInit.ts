@@ -7,14 +7,12 @@ import {
   isSingboxRunning,
   listConfigs,
   loadSubscriptions,
-  getCoreClientConfig,
 } from "../services/api";
 import { getCleanFileName } from "../services/utils";
 import type { ConfigFileEntry } from "../types/app";
 import { startConnectionsStream } from "./useConnectionsStream";
 import { startTrafficStream } from "./useTrafficStream";
 import { startMemoryStream } from "./useMemoryStream";
-import { updateCoreClientConfig } from "../services/coreClient";
 
 function buildConfigEntries(files: string[]): ConfigFileEntry[] {
   return files.map((path) => ({
@@ -33,16 +31,11 @@ export function useInit() {
 
     await settings.hydrate();
 
-    const [files, subscriptions, running, coreClientConfig] = await Promise.all(
-      [
-        listConfigs(),
-        loadSubscriptions(),
-        isSingboxRunning(),
-        getCoreClientConfig(),
-      ],
-    );
-
-    updateCoreClientConfig(coreClientConfig);
+    const [files, subscriptions, running] = await Promise.all([
+      listConfigs(),
+      loadSubscriptions(),
+      isSingboxRunning(),
+    ]);
 
     const configFiles = buildConfigEntries(files);
     config.setConfigFiles(configFiles);

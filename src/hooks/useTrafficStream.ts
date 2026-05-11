@@ -1,5 +1,9 @@
+import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { buildCoreWebSocketUrl } from "../services/coreClient";
+import {
+  startTrafficStream as startTrafficStreamCmd,
+  stopTrafficStream as stopTrafficStreamCmd,
+} from "../services/api";
 
 export interface DataPoint {
   dl: number;
@@ -59,83 +63,32 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
       downloadSpeed: 0,
       uploadSpeed: 0,
       streamStatus: "disconnected",
-      history: generateInitialHistory(), // Clears history on explicit clear
+      history: generateInitialHistory(),
     }),
 }));
 
-let ws: WebSocket | null = null;
-let reconnectTimer: number | null = null;
-let shouldReconnect = false;
-
-function clearReconnectTimer() {
-  if (reconnectTimer !== null) {
-    window.clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-}
-
-function scheduleReconnect() {
-  clearReconnectTimer();
-  reconnectTimer = window.setTimeout(() => {
-    if (shouldReconnect) connectWs();
-  }, 1500);
-}
-
-function connectWs() {
-  clearReconnectTimer();
-  const store = useTrafficStore.getState();
-  store.setStreamStatus("connecting");
-
-  ws = new WebSocket(buildCoreWebSocketUrl("traffic"));
-
-  ws.onopen = () => {
-    store.setStreamStatus("connected");
-  };
-
-  ws.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data as string) as { down: number; up: number };
-      store.setTraffic(data.down, data.up);
-    } catch {
-      // ignore parse errors
-    }
-  };
-
-  ws.onerror = () => {
-    store.setStreamStatus("error");
-  };
-
-  ws.onclose = () => {
-    ws = null;
-    if (shouldReconnect) {
-      store.setStreamStatus("connecting");
-      scheduleReconnect();
-    } else {
-      store.setStreamStatus("disconnected");
-    }
-  };
-}
-
 export function startTrafficStream() {
-  if (shouldReconnect) return;
-  shouldReconnect = true;
-  connectWs();
+  void startTrafficStreamCmd();
 }
 
 export function stopTrafficStream(clear = false) {
-  shouldReconnect = false;
-  clearReconnectTimer();
-  if (ws) {
-    const activeWs = ws;
-    ws = null;
-    activeWs.close();
-  } else {
-    useTrafficStore.getState().setStreamStatus("disconnected");
-  }
+  void stopTrafficStreamCmd();
   if (clear) {
     useTrafficStore.getState().clear();
   }
 }
+
+// Register event listeners at module level so they're always active
+// regardless of which component (if any) calls useTrafficStream().
+void listen<string>("stream-traffic-status", (e) => {
+  useTrafficStore
+    .getState()
+    .setStreamStatus(e.payload as TrafficState["streamStatus"]);
+});
+
+void listen<{ down: number; up: number }>("stream-traffic", (e) => {
+  useTrafficStore.getState().setTraffic(e.payload.down, e.payload.up);
+});
 
 export function useTrafficStream() {
   const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);

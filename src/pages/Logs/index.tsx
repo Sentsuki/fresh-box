@@ -6,7 +6,7 @@ import {
   SearchRegular,
 } from "@fluentui/react-icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useRef } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useLogsStream } from "../../hooks/useLogsStream";
@@ -51,6 +51,13 @@ export default function Logs() {
     restartStream,
   } = useLogsStream();
   const listRef = useRef<HTMLDivElement>(null);
+
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
 
   const rowVirtualizer = useVirtualizer({
     count: visibleLogs.length,
@@ -158,10 +165,10 @@ export default function Logs() {
             <div className="flex items-center justify-center h-full text-(--wb-text-disabled) text-sm font-medium">
               No logs available
             </div>
-          ) : (
+          ) : !isReady ? null : (
             <div
               ref={listRef}
-              className="h-full w-full overflow-auto custom-scrollbar"
+              className="h-full w-full overflow-auto custom-scrollbar animate-pop-in"
             >
               <div
                 style={{

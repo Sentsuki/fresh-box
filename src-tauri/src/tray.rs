@@ -1,8 +1,8 @@
 // tray.rs - 托盘功能模块
 
-use crate::clash_api::select_proxy_inner;
+use crate::services::clash_client::select_proxy_inner;
 use crate::errors::CommandError;
-use crate::singbox::SingboxState;
+use crate::services::singbox::SingboxState;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -56,7 +56,6 @@ fn build_tray_menu(
     Ok(menu)
 }
 
-#[tauri::command]
 pub async fn refresh_tray_proxy_menu(
     app_handle: AppHandle,
     state: State<'_, TrayProxyState>,
@@ -79,6 +78,35 @@ pub async fn refresh_tray_proxy_menu(
     }
 
     Ok(())
+}
+
+pub(crate) fn sync_tray_from_overview(app: &AppHandle, overview: &crate::services::clash_client::ClashOverview) {
+    let selector_groups: Vec<TrayProxyGroup> = overview
+        .proxy_groups
+        .iter()
+        .filter(|g| g.kind.to_lowercase() == "selector")
+        .map(|g| TrayProxyGroup {
+            name: g.name.clone(),
+            current: g.current.clone(),
+            nodes: g.options.iter().map(|n| n.name.clone()).collect(),
+        })
+        .collect();
+
+    if let Some(state) = app.try_state::<TrayProxyState>() {
+        let new_menu = {
+            let mut map = match state.proxy_item_map.lock() {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            match build_tray_menu(app, &selector_groups, &mut map) {
+                Ok(menu) => menu,
+                Err(_) => return,
+            }
+        };
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            let _ = tray.set_menu(Some(new_menu));
+        }
+    }
 }
 
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
@@ -153,7 +181,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     let app_clone = app.clone();
                     crate::window_utils::run_after_delay(Duration::from_millis(0), move || {
                         if let Some(state) = app_clone.try_state::<SingboxState>() {
-                            crate::singbox::cleanup_process(&state);
+                            crate::services::singbox::cleanup_process(&state);
                         }
                         if let Some(window) = app_clone.get_webview_window("main") {
                             let _ = window.close();
@@ -180,3 +208,4 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 
     Ok(())
 }
+
