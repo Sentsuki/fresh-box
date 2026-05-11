@@ -260,30 +260,25 @@ export default function Settings() {
           />
           <SettingCard
             icon={<ArrowSyncRegular />}
-            title="Flush Fake-IP Cache"
-            description="Clears the Fake-IP mappings if enabled"
+            title="Flush Cache"
+            description="Clear internal DNS cache or Fake-IP mappings"
             control={
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => void flushFakeIpCache()}
-              >
-                Flush
-              </Button>
-            }
-          />
-          <SettingCard
-            icon={<ArrowSyncRegular />}
-            title="Flush DNS Cache"
-            description="Clears the internal DNS cache"
-            control={
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => void flushDnsCache()}
-              >
-                Flush
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => void flushFakeIpCache()}
+                >
+                  Flush Fake-IP
+                </Button>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => void flushDnsCache()}
+                >
+                  Flush DNS
+                </Button>
+              </div>
             }
           />
         </SettingGroup>
