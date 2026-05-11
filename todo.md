@@ -1,17 +1,8 @@
 # TODO List
 
 ## Connections 页面优化
-- [ ] **统一列对齐方式**
-  - 目前未分组（虚拟滚动）和分组（原生表格）的对齐方式不一致。
-  - 需要修复未分组视图漏掉读取 `col.align` 的问题，让速度和流量等数字列在两边都统一靠右对齐。
-- [ ] **重构分组视图以支持虚拟滚动**
-  - 当前分组视图（`GroupedTable`）未使用虚拟滚动，大量连接时可能会卡顿。
-  - 参考 `zashboard` 的实现，结合 TanStack Table 的 Expanding 功能和 `@tanstack/react-virtual`，实现分组下的虚拟滚动。
+- [ ] **重构 Connections 表格为完全虚拟化**
+  - 彻底移除不带虚拟滚动的 `GroupedTable` 组件。
+  - 参考 `zashboard` 的实现，不再手动维护分组状态，而是利用 TanStack Table 的 `getGroupedRowModel` 和 `getExpandedRowModel` 插件来统一处理分组和展开。
+  - 将 TanStack Table 算好的扁平化行模型直接交给 `@tanstack/react-virtual`，实现**无论分不分组，整个表格始终保持完全虚拟化**，彻底解决海量数据下的卡顿问题。
 
-## 性能与架构优化
-- [ ] **侧边栏 Tab 切换动画与延迟优化**
-  - 如果用户依然觉得切换 Tab 有延迟，考虑进一步优化 `PageTransition` 的延迟，或者彻底将页面级联渲染改为异步。
-- [ ] **配置文件拆分**
-  - 如果频繁读写 `app_setting.json` 导致 I/O 压力，考虑将频繁变动的状态（如当前页面、折叠状态）拆分到独立的缓存文件中。
-- [ ] **后端配置校验**
-  - 在 Rust 后端增加对前端传来的配置修改的业务逻辑校验。
