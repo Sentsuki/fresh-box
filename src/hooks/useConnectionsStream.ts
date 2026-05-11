@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo } from "react";
+import { useCallback, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import {
@@ -465,6 +465,19 @@ export function formatConnectionValue(
   }
 }
 
+// Register event listeners at module level so they're always active.
+void listen<string>("stream-connections-status", (e) => {
+  useConnectionsStore
+    .getState()
+    .setStreamStatus(
+      e.payload as "disconnected" | "connecting" | "connected" | "error",
+    );
+});
+
+void listen<CoreConnectionsFrame>("stream-connections", (e) => {
+  useConnectionsStore.getState().setFrame(e.payload);
+});
+
 export function useConnectionsStream() {
   const { success, error } = useToast();
   const active = useConnectionsStore((s) => s.active);
@@ -481,28 +494,6 @@ export function useConnectionsStream() {
   const setConnectionGroupCollapsed = useSettingsStore(
     (s) => s.setConnectionGroupCollapsed,
   );
-
-  useEffect(() => {
-    const unlistenStatus = listen<string>("stream-connections-status", (e) => {
-      useConnectionsStore
-        .getState()
-        .setStreamStatus(
-          e.payload as "disconnected" | "connecting" | "connected" | "error",
-        );
-    });
-
-    const unlistenData = listen<CoreConnectionsFrame>(
-      "stream-connections",
-      (e) => {
-        useConnectionsStore.getState().setFrame(e.payload);
-      },
-    );
-
-    return () => {
-      void unlistenStatus.then((fn) => fn());
-      void unlistenData.then((fn) => fn());
-    };
-  }, []);
 
   const visibleColumns = useMemo(
     () => settings.visible_columns.map((k) => columnDefinitions[k]),

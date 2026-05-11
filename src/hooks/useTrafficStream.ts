@@ -1,4 +1,3 @@
-import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import {
@@ -79,33 +78,23 @@ export function stopTrafficStream(clear = false) {
   }
 }
 
+// Register event listeners at module level so they're always active
+// regardless of which component (if any) calls useTrafficStream().
+void listen<string>("stream-traffic-status", (e) => {
+  useTrafficStore
+    .getState()
+    .setStreamStatus(e.payload as TrafficState["streamStatus"]);
+});
+
+void listen<{ down: number; up: number }>("stream-traffic", (e) => {
+  useTrafficStore.getState().setTraffic(e.payload.down, e.payload.up);
+});
+
 export function useTrafficStream() {
   const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
   const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
   const streamStatus = useTrafficStore((s) => s.streamStatus);
   const history = useTrafficStore((s) => s.history);
-
-  useEffect(() => {
-    const unlistenStatus = listen<string>("stream-traffic-status", (e) => {
-      useTrafficStore
-        .getState()
-        .setStreamStatus(e.payload as TrafficState["streamStatus"]);
-    });
-
-    const unlistenData = listen<{ down: number; up: number }>(
-      "stream-traffic",
-      (e) => {
-        useTrafficStore
-          .getState()
-          .setTraffic(e.payload.down, e.payload.up);
-      },
-    );
-
-    return () => {
-      void unlistenStatus.then((fn) => fn());
-      void unlistenData.then((fn) => fn());
-    };
-  }, []);
 
   return {
     downloadSpeed,
