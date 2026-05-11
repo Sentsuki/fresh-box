@@ -98,7 +98,7 @@ export function Sidebar() {
                 <motion.span
                   layoutId="sidebar-active-indicator"
                   className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full"
-                  transition={{ type: "spring", stiffness: 400, damping: 30 }}
+                  transition={{ type: "spring", stiffness: 400, damping: 33 }}
                 />
               )}
               <Icon className="shrink-0 text-xl" />
@@ -130,7 +130,7 @@ export function Sidebar() {
             <motion.span
               layoutId="sidebar-active-indicator"
               className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full"
-              transition={{ type: "spring", stiffness: 400, damping: 30 }}
+              transition={{ type: "spring", stiffness: 400, damping: 33 }}
             />
           )}
           <SettingsRegular className="shrink-0 text-xl" />
