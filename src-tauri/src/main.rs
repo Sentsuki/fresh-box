@@ -1,21 +1,19 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
-mod clash_api;
 mod commands;
 mod config;
 mod core_update;
 mod errors;
 mod logger;
-mod singbox;
-mod streams;
+mod services;
 mod tray;
 mod window_utils;
 
 use core_update::{
     auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState,
 };
-use singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
+use services::singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};
 use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
 
@@ -41,7 +39,7 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .manage(singbox_state)
         .manage(cancel_state)
-        .manage(streams::StreamsState::new())
+        .manage(services::streams::StreamsState::new())
         .invoke_handler(tauri::generate_handler![
             commands::singbox::start_singbox,
             commands::singbox::stop_singbox,

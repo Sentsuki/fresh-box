@@ -1,6 +1,6 @@
 use crate::core_update::{CoreUpdateCancelState, SingboxCoreStatus, SingboxCoreUpdateResult};
 use crate::errors::CommandError;
-use crate::singbox::SingboxState;
+use crate::services::singbox::SingboxState;
 use tauri::State;
 
 #[tauri::command]

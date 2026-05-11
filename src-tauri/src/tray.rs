@@ -1,8 +1,8 @@
 // tray.rs - 托盘功能模块
 
-use crate::clash_api::select_proxy_inner;
+use crate::services::clash_client::select_proxy_inner;
 use crate::errors::CommandError;
-use crate::singbox::SingboxState;
+use crate::services::singbox::SingboxState;
 use serde::Deserialize;
 use std::collections::HashMap;
 use std::sync::{Arc, Mutex};
@@ -80,7 +80,7 @@ pub async fn refresh_tray_proxy_menu(
     Ok(())
 }
 
-pub(crate) fn sync_tray_from_overview(app: &AppHandle, overview: &crate::clash_api::ClashOverview) {
+pub(crate) fn sync_tray_from_overview(app: &AppHandle, overview: &crate::services::clash_client::ClashOverview) {
     let selector_groups: Vec<TrayProxyGroup> = overview
         .proxy_groups
         .iter()
@@ -181,7 +181,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     let app_clone = app.clone();
                     crate::window_utils::run_after_delay(Duration::from_millis(0), move || {
                         if let Some(state) = app_clone.try_state::<SingboxState>() {
-                            crate::singbox::cleanup_process(&state);
+                            crate::services::singbox::cleanup_process(&state);
                         }
                         if let Some(window) = app_clone.get_webview_window("main") {
                             let _ = window.close();

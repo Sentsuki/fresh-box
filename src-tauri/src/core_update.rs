@@ -5,7 +5,7 @@ use crate::config::{
     CORE_CHANNEL_TESTING,
 };
 use crate::errors::CommandError;
-use crate::singbox::SingboxState;
+use crate::services::singbox::SingboxState;
 use futures_util::StreamExt;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -142,7 +142,7 @@ pub async fn get_singbox_core_status(
     let active_selection = get_active_singbox_core_selection()?;
     cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
 
-    let is_running = crate::singbox::is_singbox_running(state).await?;
+    let is_running = crate::services::singbox::is_singbox_running(state).await?;
     let installed = get_active_singbox_core_executable().is_ok();
     let (current_channel, current_version) = active_selection
         .clone()
@@ -245,7 +245,7 @@ pub async fn update_singbox_core(
     let previous_version = previous_selection
         .as_ref()
         .map(|(_, version)| version.clone());
-    let restart_required = crate::singbox::is_singbox_running(state).await?;
+    let restart_required = crate::services::singbox::is_singbox_running(state).await?;
     if restart_required
         && previous_selection
             .as_ref()
@@ -1139,4 +1139,5 @@ fn hide_window(command: &mut Command) {
         command.creation_flags(CREATE_NO_WINDOW);
     }
 }
+
 
