@@ -74,6 +74,13 @@ export default function Connections() {
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntry | null>(null);
 
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     startStream();
   }, [startStream]);
@@ -223,27 +230,29 @@ export default function Connections() {
         />
 
         <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden flex flex-col">
-          <ConnectionTable
-            rows={filteredEntries}
-            columns={visibleColumns}
-            groupedEntries={groupedEntries}
-            sortKey={sortKey}
-            sortDirection={sortDirection}
-            groupedColumnKey={groupedColumn?.key ?? null}
-            pinnedColumnKeys={pinnedColumnKeys}
-            columnSizes={columnSizes}
-            onSort={handleSort}
-            onToggleGrouping={toggleGrouping}
-            onPinnedColumnsChange={(keys) =>
-              void setConnectionsPinnedColumns(keys)
-            }
-            onColumnSizesChange={(sizes) =>
-              void setConnectionsColumnSizes(sizes)
-            }
-            onRowClick={setSelectedConnection}
-            isGroupCollapsed={isGroupCollapsed}
-            onToggleGroupCollapsed={toggleGroupCollapsed}
-          />
+          {isReady && (
+            <ConnectionTable
+              rows={filteredEntries}
+              columns={visibleColumns}
+              groupedEntries={groupedEntries}
+              sortKey={sortKey}
+              sortDirection={sortDirection}
+              groupedColumnKey={groupedColumn?.key ?? null}
+              pinnedColumnKeys={pinnedColumnKeys}
+              columnSizes={columnSizes}
+              onSort={handleSort}
+              onToggleGrouping={toggleGrouping}
+              onPinnedColumnsChange={(keys) =>
+                void setConnectionsPinnedColumns(keys)
+              }
+              onColumnSizesChange={(sizes) =>
+                void setConnectionsColumnSizes(sizes)
+              }
+              onRowClick={setSelectedConnection}
+              isGroupCollapsed={isGroupCollapsed}
+              onToggleGroupCollapsed={toggleGroupCollapsed}
+            />
+          )}
         </div>
 
         <ConnectionDetailsModal

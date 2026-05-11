@@ -7,9 +7,14 @@ interface PageTransitionProps {
 
 export function PageTransition({ children, pageKey }: PageTransitionProps) {
   const [mounted, setMounted] = useState(false);
+  const [prevPageKey, setPrevPageKey] = useState(pageKey);
+
+  if (pageKey !== prevPageKey) {
+    setMounted(false);
+    setPrevPageKey(pageKey);
+  }
 
   useEffect(() => {
-    setMounted(false);
     const id = requestAnimationFrame(() => {
       setMounted(true);
     });
