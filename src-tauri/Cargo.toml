@@ -3,7 +3,7 @@ name = "fresh-box"
 version = "1.6.5"
 description = "fresh-box"
 authors = ["sentsuki"]
-edition = "2021"
+edition = "2026"
 
 # See more keys and their definitions at https://doc.rust-lang.org/cargo/reference/manifest.html
 
