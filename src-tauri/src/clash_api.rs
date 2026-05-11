@@ -440,12 +440,14 @@ pub(crate) async fn select_proxy_inner(proxy_group: &str, node: &str) -> Result<
 }
 
 #[tauri::command]
-pub async fn get_clash_overview() -> Result<ClashOverview, CommandError> {
-    fetch_clash_overview_inner().await
+pub async fn get_clash_overview(app: tauri::AppHandle) -> Result<ClashOverview, CommandError> {
+    let overview = fetch_clash_overview_inner().await?;
+    crate::tray::sync_tray_from_overview(&app, &overview);
+    Ok(overview)
 }
 
 #[tauri::command]
-pub async fn update_clash_mode(mode: String) -> Result<ClashOverview, CommandError> {
+pub async fn update_clash_mode(app: tauri::AppHandle, mode: String) -> Result<ClashOverview, CommandError> {
     if mode.trim().is_empty() {
         return Err(CommandError::validation("Clash mode cannot be empty."));
     }
@@ -457,11 +459,14 @@ pub async fn update_clash_mode(mode: String) -> Result<ClashOverview, CommandErr
     )
     .await?;
 
-    fetch_clash_overview_inner().await
+    let overview = fetch_clash_overview_inner().await?;
+    crate::tray::sync_tray_from_overview(&app, &overview);
+    Ok(overview)
 }
 
 #[tauri::command]
 pub async fn select_clash_proxy(
+    app: tauri::AppHandle,
     proxy_group: String,
     name: String,
 ) -> Result<ClashOverview, CommandError> {
@@ -481,7 +486,9 @@ pub async fn select_clash_proxy(
     )
     .await?;
 
-    fetch_clash_overview_inner().await
+    let overview = fetch_clash_overview_inner().await?;
+    crate::tray::sync_tray_from_overview(&app, &overview);
+    Ok(overview)
 }
 
 #[tauri::command]
@@ -495,6 +502,7 @@ pub async fn test_clash_proxy_delay(
 
 #[tauri::command]
 pub async fn test_clash_proxy_group_delay(
+    app: tauri::AppHandle,
     proxy_group: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
@@ -536,6 +544,9 @@ pub async fn test_clash_proxy_group_delay(
             CommandError::network(format!("Failed to parse group delay response: {}", error))
         })?;
 
+    if let Ok(overview) = fetch_clash_overview_inner().await {
+        crate::tray::sync_tray_from_overview(&app, &overview);
+    }
     Ok(data)
 }
 
@@ -612,5 +623,36 @@ pub async fn flush_dns_cache() -> Result<(), CommandError> {
         .error_for_status()
         .map_err(|error| map_clash_network_error("Failed to flush DNS cache", error))?;
 
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_all_connections() -> Result<(), CommandError> {
+    let api = get_api_config();
+    let client = clash_client()?;
+    client
+        .delete(build_clash_url(&api.base_url, "/connections"))
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to close all connections", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to close all connections", error))?;
+    Ok(())
+}
+
+#[tauri::command]
+pub async fn close_connection(id: String) -> Result<(), CommandError> {
+    let api = get_api_config();
+    let client = clash_client()?;
+    let path = format!("/connections/{}", urlencoding::encode(&id));
+    client
+        .delete(build_clash_url(&api.base_url, &path))
+        .bearer_auth(&api.secret)
+        .send()
+        .await
+        .map_err(|error| map_clash_network_error("Failed to close connection", error))?
+        .error_for_status()
+        .map_err(|error| map_clash_network_error("Failed to close connection", error))?;
     Ok(())
 }

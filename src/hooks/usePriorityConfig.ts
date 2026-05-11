@@ -5,9 +5,7 @@ import {
   savePriorityConfig,
   generateRandomPort,
   generateRandomSecret,
-  getCoreClientConfig,
 } from "../services/api";
-import { updateCoreClientConfig } from "../services/coreClient";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
@@ -149,8 +147,6 @@ export function usePriorityConfig() {
           },
         };
         await savePriorityConfig(updated);
-        const coreConfig = await getCoreClientConfig();
-        updateCoreClientConfig(coreConfig);
         success("Clash API settings saved.");
       } catch (err) {
         toastError(

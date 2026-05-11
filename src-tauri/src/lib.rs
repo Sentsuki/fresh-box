@@ -8,6 +8,7 @@ pub mod errors;
 pub mod logger;
 pub mod priority_config;
 pub mod singbox;
+pub mod streams;
 pub mod tray;
 pub mod window_utils;
 

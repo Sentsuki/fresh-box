@@ -11,7 +11,7 @@ import {
   useConnectionsStream,
 } from "../../hooks/useConnectionsStream";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { coreRequest } from "../../services/coreClient";
+import { closeConnection } from "../../services/api";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
 
 export default function Connections() {
@@ -181,9 +181,7 @@ export default function Connections() {
   );
 
   const disconnectConnection = useCallback(async (id: string) => {
-    await coreRequest(`connections/${encodeURIComponent(id)}`, {
-      method: "DELETE",
-    });
+    await closeConnection(id);
   }, []);
 
   return (

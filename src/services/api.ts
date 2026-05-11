@@ -211,14 +211,6 @@ export async function checkConfigFields(
   });
 }
 
-export async function getCoreClientConfig(): Promise<
-  import("../types/app").CoreClientConfig
-> {
-  return invokeCommand<import("../types/app").CoreClientConfig>(
-    "get_core_client_config",
-  );
-}
-
 export async function generateRandomPort(): Promise<number> {
   return invokeCommand<number>("generate_random_port");
 }
@@ -260,15 +252,60 @@ export async function cancelCoreUpdate(): Promise<void> {
   return invokeCommand<void>("cancel_core_update");
 }
 
-export async function refreshTrayProxyMenu(
-  proxyGroups: Array<{ name: string; current: string; nodes: string[] }>,
-): Promise<void> {
-  return invokeCommand<void>("refresh_tray_proxy_menu", { proxyGroups });
-}
-
 export async function queryDns(
   name: string,
   type: string = "A",
 ): Promise<unknown> {
   return invokeCommand<unknown>("query_dns", { name, type });
+}
+
+export async function closeAllConnections(): Promise<void> {
+  return invokeCommand<void>("close_all_connections");
+}
+
+export async function closeConnection(id: string): Promise<void> {
+  return invokeCommand<void>("close_connection", { id });
+}
+
+export interface FetchSubscriptionResult {
+  content: string;
+  file_name: string;
+}
+
+export async function fetchSubscription(
+  url: string,
+): Promise<FetchSubscriptionResult> {
+  return invokeCommand<FetchSubscriptionResult>("fetch_subscription", { url });
+}
+
+export async function startTrafficStream(): Promise<void> {
+  return invokeCommand<void>("start_traffic_stream");
+}
+
+export async function stopTrafficStream(): Promise<void> {
+  return invokeCommand<void>("stop_traffic_stream");
+}
+
+export async function startMemoryStream(): Promise<void> {
+  return invokeCommand<void>("start_memory_stream");
+}
+
+export async function stopMemoryStream(): Promise<void> {
+  return invokeCommand<void>("stop_memory_stream");
+}
+
+export async function startConnectionsStream(): Promise<void> {
+  return invokeCommand<void>("start_connections_stream");
+}
+
+export async function stopConnectionsStream(): Promise<void> {
+  return invokeCommand<void>("stop_connections_stream");
+}
+
+export async function startLogsStream(): Promise<void> {
+  return invokeCommand<void>("start_logs_stream");
+}
+
+export async function stopLogsStream(): Promise<void> {
+  return invokeCommand<void>("stop_logs_stream");
 }

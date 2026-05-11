@@ -9,6 +9,7 @@ mod errors;
 mod logger;
 mod priority_config;
 mod singbox;
+mod streams;
 mod tray;
 mod window_utils;
 
@@ -41,6 +42,7 @@ fn main() {
         .plugin(tauri_plugin_http::init())
         .manage(singbox_state)
         .manage(cancel_state)
+        .manage(streams::StreamsState::new())
         .invoke_handler(tauri::generate_handler![
             singbox::start_singbox,
             singbox::stop_singbox,
@@ -92,6 +94,17 @@ fn main() {
             priority_config::generate_random_secret,
             tray::refresh_tray_proxy_menu,
             update_mica_theme,
+            streams::start_traffic_stream,
+            streams::stop_traffic_stream,
+            streams::start_memory_stream,
+            streams::stop_memory_stream,
+            streams::start_connections_stream,
+            streams::stop_connections_stream,
+            streams::start_logs_stream,
+            streams::stop_logs_stream,
+            clash_api::close_all_connections,
+            clash_api::close_connection,
+            config::fetch_subscription,
         ])
         .setup(|app| {
             // 首次启动时生成含完整默认值的 priority_config.json（幂等）

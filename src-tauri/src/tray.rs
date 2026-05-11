@@ -81,6 +81,35 @@ pub async fn refresh_tray_proxy_menu(
     Ok(())
 }
 
+pub(crate) fn sync_tray_from_overview(app: &AppHandle, overview: &crate::clash_api::ClashOverview) {
+    let selector_groups: Vec<TrayProxyGroup> = overview
+        .proxy_groups
+        .iter()
+        .filter(|g| g.kind.to_lowercase() == "selector")
+        .map(|g| TrayProxyGroup {
+            name: g.name.clone(),
+            current: g.current.clone(),
+            nodes: g.options.iter().map(|n| n.name.clone()).collect(),
+        })
+        .collect();
+
+    if let Some(state) = app.try_state::<TrayProxyState>() {
+        let new_menu = {
+            let mut map = match state.proxy_item_map.lock() {
+                Ok(m) => m,
+                Err(_) => return,
+            };
+            match build_tray_menu(app, &selector_groups, &mut map) {
+                Ok(menu) => menu,
+                Err(_) => return,
+            }
+        };
+        if let Some(tray) = app.tray_by_id("main-tray") {
+            let _ = tray.set_menu(Some(new_menu));
+        }
+    }
+}
+
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
     let proxy_item_map: Arc<Mutex<HashMap<String, (String, String)>>> =
         Arc::new(Mutex::new(HashMap::new()));

@@ -897,3 +897,59 @@ pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, Co
 
     Ok(extract_clash_api_url(&config))
 }
+
+#[derive(serde::Serialize)]
+pub struct FetchSubscriptionResult {
+    pub content: String,
+    pub file_name: String,
+}
+
+fn extract_file_name_from_url(url: &str) -> String {
+    let path_part = url.split('?').next().unwrap_or(url);
+    let name = path_part.split('/').last().unwrap_or("subscription");
+    if name.is_empty() {
+        return "subscription.json".to_string();
+    }
+    if name.ends_with(".json") {
+        name.to_string()
+    } else {
+        format!("{}.json", name)
+    }
+}
+
+#[tauri::command]
+pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, CommandError> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(CommandError::validation(
+            "Subscription URL must start with http:// or https://",
+        ));
+    }
+
+    let file_name = extract_file_name_from_url(&url);
+
+    let client = reqwest::Client::builder()
+        .user_agent("fresh-box")
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(CommandError::network(format!(
+            "HTTP error {}",
+            response.status()
+        )));
+    }
+
+    let content = response
+        .text()
+        .await
+        .map_err(|e| CommandError::network(format!("Failed to read subscription content: {}", e)))?;
+
+    Ok(FetchSubscriptionResult { content, file_name })
+}

@@ -1,5 +1,10 @@
+import { useEffect } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { buildCoreWebSocketUrl } from "../services/coreClient";
+import {
+  startMemoryStream as startMemoryStreamCmd,
+  stopMemoryStream as stopMemoryStreamCmd,
+} from "../services/api";
 
 interface MemoryState {
   inuse: number;
@@ -21,78 +26,12 @@ export const useMemoryStore = create<MemoryState & MemoryActions>((set) => ({
   clear: () => set({ inuse: 0, streamStatus: "disconnected" }),
 }));
 
-let ws: WebSocket | null = null;
-let reconnectTimer: number | null = null;
-let shouldReconnect = false;
-
-function clearReconnectTimer() {
-  if (reconnectTimer !== null) {
-    window.clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
-}
-
-function scheduleReconnect() {
-  clearReconnectTimer();
-  reconnectTimer = window.setTimeout(() => {
-    if (shouldReconnect) connectWs();
-  }, 1500);
-}
-
-function connectWs() {
-  clearReconnectTimer();
-  const store = useMemoryStore.getState();
-  store.setStreamStatus("connecting");
-
-  ws = new WebSocket(buildCoreWebSocketUrl("memory"));
-
-  ws.onopen = () => {
-    store.setStreamStatus("connected");
-  };
-
-  ws.onmessage = (e) => {
-    try {
-      const data = JSON.parse(e.data as string) as { inuse: number };
-      // Skip zero values (core not yet reporting)
-      if (data.inuse > 0) {
-        store.setInuse(data.inuse);
-      }
-    } catch {
-      // ignore parse errors
-    }
-  };
-
-  ws.onerror = () => {
-    store.setStreamStatus("error");
-  };
-
-  ws.onclose = () => {
-    ws = null;
-    if (shouldReconnect) {
-      store.setStreamStatus("connecting");
-      scheduleReconnect();
-    } else {
-      store.setStreamStatus("disconnected");
-    }
-  };
-}
-
 export function startMemoryStream() {
-  if (shouldReconnect) return;
-  shouldReconnect = true;
-  connectWs();
+  void startMemoryStreamCmd();
 }
 
 export function stopMemoryStream(clear = false) {
-  shouldReconnect = false;
-  clearReconnectTimer();
-  if (ws) {
-    const activeWs = ws;
-    ws = null;
-    activeWs.close();
-  } else {
-    useMemoryStore.getState().setStreamStatus("disconnected");
-  }
+  void stopMemoryStreamCmd();
   if (clear) {
     useMemoryStore.getState().clear();
   }
@@ -101,6 +40,25 @@ export function stopMemoryStream(clear = false) {
 export function useMemoryStream() {
   const inuse = useMemoryStore((s) => s.inuse);
   const streamStatus = useMemoryStore((s) => s.streamStatus);
+
+  useEffect(() => {
+    const unlistenStatus = listen<string>("stream-memory-status", (e) => {
+      useMemoryStore
+        .getState()
+        .setStreamStatus(e.payload as MemoryState["streamStatus"]);
+    });
+
+    const unlistenData = listen<{ inuse: number }>("stream-memory", (e) => {
+      if (e.payload.inuse > 0) {
+        useMemoryStore.getState().setInuse(e.payload.inuse);
+      }
+    });
+
+    return () => {
+      void unlistenStatus.then((fn) => fn());
+      void unlistenData.then((fn) => fn());
+    };
+  }, []);
 
   return {
     inuse,

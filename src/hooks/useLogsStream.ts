@@ -1,11 +1,11 @@
 import { useCallback, useEffect, useMemo } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { buildCoreWebSocketUrl } from "../services/coreClient";
-import { loadPriorityConfig } from "../services/api";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import { isWindowVisible } from "./useWindowVisibility";
+import { invokeCommand } from "../services/tauri";
 
 const LOG_LEVELS = [
   "trace",
@@ -68,64 +68,29 @@ function extractCategory(payload: string): string {
   return payload.split(/\s+/)[0];
 }
 
-let socket: WebSocket | null = null;
-let reconnectTimer: number | null = null;
-let shouldReconnect = false;
+let unlistenData: (() => void) | null = null;
+let unlistenStatus: (() => void) | null = null;
+let isStreaming = false;
 
-function clearReconnectTimer() {
-  if (reconnectTimer !== null) {
-    window.clearTimeout(reconnectTimer);
-    reconnectTimer = null;
-  }
+function matchesSearch(entry: LogEntry, filter: string): boolean {
+  if (!filter.trim()) return true;
+  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack =
+    `${entry.time} ${entry.type} ${entry.category} ${entry.payload}`.toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
 }
 
-function scheduleReconnect() {
-  clearReconnectTimer();
-  reconnectTimer = window.setTimeout(() => {
-    if (shouldReconnect) void connect();
-  }, 1500);
-}
+export async function startLogsStream() {
+  if (isStreaming) return;
+  isStreaming = true;
 
-async function isLogDisabled(): Promise<boolean> {
-  try {
-    const config = await loadPriorityConfig();
-    return config.log?.disabled === true;
-  } catch {
-    return false;
-  }
-}
-
-async function connect() {
-  clearReconnectTimer();
-  const store = useLogsStore.getState();
-
-  const disabled = await isLogDisabled();
-  if (disabled) {
-    store.setStreamStatus("disabled");
-    store.setStreamError(null);
-    shouldReconnect = false;
-    return;
-  }
-
-  const logLevel = useSettingsStore.getState().settings.logs.log_level;
-
-  store.setStreamStatus("connecting");
-  store.setStreamError(null);
-
-  socket = new WebSocket(buildCoreWebSocketUrl("logs", { level: logLevel }));
-
-  socket.onopen = () => {
-    store.setStreamStatus("connected");
-    store.setStreamError(null);
-  };
-
-  socket.onmessage = (event) => {
-    try {
+  if (!unlistenData) {
+    unlistenData = await listen<CoreLogMessage>("stream-logs", (e) => {
       if (useLogsStore.getState().isPaused) {
         logSeq += 1;
         return;
       }
-      const msg = JSON.parse(event.data as string) as CoreLogMessage;
+      const msg = e.payload;
       const entry: LogEntry = {
         ...msg,
         seq: logSeq++,
@@ -138,63 +103,39 @@ async function connect() {
         category: extractCategory(msg.payload),
       };
       logBuffer.push(entry);
-    } catch {
-      // ignore parse errors
-    }
-  };
+    });
+  }
 
-  socket.onerror = () => {
-    store.setStreamStatus("error");
-    store.setStreamError("Logs stream failed.");
-  };
+  if (!unlistenStatus) {
+    unlistenStatus = await listen<string>("stream-logs-status", (e) => {
+      useLogsStore
+        .getState()
+        .setStreamStatus(e.payload as LogsState["streamStatus"]);
+      useLogsStore.getState().setStreamError(null);
+    });
+  }
 
-  socket.onclose = () => {
-    socket = null;
-    if (shouldReconnect) {
-      store.setStreamStatus("connecting");
-      scheduleReconnect();
-    } else {
-      store.setStreamStatus("disconnected");
-    }
-  };
+  await invokeCommand<void>("start_logs_stream");
 }
 
-function matchesSearch(entry: LogEntry, filter: string): boolean {
-  if (!filter.trim()) return true;
-  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
-  const haystack =
-    `${entry.time} ${entry.type} ${entry.category} ${entry.payload}`.toLowerCase();
-  return tokens.every((token) => haystack.includes(token));
-}
-
-// --- Standalone functions for external control (consistent with other streams) ---
-
-export function startLogsStream() {
-  if (shouldReconnect) return;
-  shouldReconnect = true;
-  void connect();
-}
-
-export function stopLogsStream(clear = false) {
-  shouldReconnect = false;
-  clearReconnectTimer();
-  if (socket) {
-    const s = socket;
-    socket = null;
-    s.close();
+export async function stopLogsStream(clear = false) {
+  isStreaming = false;
+  await invokeCommand<void>("stop_logs_stream");
+  unlistenData?.();
+  unlistenData = null;
+  unlistenStatus?.();
+  unlistenStatus = null;
+  if (clear) {
+    useLogsStore.getState().clearLogs();
   } else {
     useLogsStore.getState().setStreamStatus("disconnected");
   }
-  if (clear) {
-    useLogsStore.getState().clearLogs();
-  }
 }
 
-export function restartLogsStream() {
-  if (!shouldReconnect) return;
-  stopLogsStream(false);
-  shouldReconnect = true;
-  void connect();
+export async function restartLogsStream() {
+  if (!isStreaming) return;
+  await invokeCommand<void>("stop_logs_stream");
+  await invokeCommand<void>("start_logs_stream");
 }
 
 // --- Hook for React components ---
@@ -303,9 +244,9 @@ export function useLogsStream() {
     streamError,
     availableTypes,
     logLevels: LOG_LEVELS as readonly LogLevel[],
-    startStream: startLogsStream,
-    stopStream: stopLogsStream,
-    restartStream: restartLogsStream,
+    startStream: () => void startLogsStream(),
+    stopStream: (clear = false) => void stopLogsStream(clear),
+    restartStream: () => void restartLogsStream(),
     clearLogs,
     downloadLogs,
   };

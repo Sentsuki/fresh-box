@@ -1,6 +1,11 @@
-import { useCallback, useMemo } from "react";
+import { useCallback, useEffect, useMemo } from "react";
+import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import { buildCoreWebSocketUrl, coreRequest } from "../services/coreClient";
+import {
+  closeAllConnections,
+  startConnectionsStream as startConnectionsStreamCmd,
+  stopConnectionsStream as stopConnectionsStreamCmd,
+} from "../services/api";
 import { formatRelativeDuration, formatSpeed } from "../services/utils";
 import type {
   ConnectionColumnKey,
@@ -317,57 +322,15 @@ export const useConnectionsStore = create<
     }),
 }));
 
-let ws: WebSocket | null = null;
-let reconnectTimer: number | null = null;
-let shouldReconnect = false;
+export function startConnectionsStream() {
+  void startConnectionsStreamCmd();
+}
 
-function clearReconnectTimer() {
-  if (reconnectTimer !== null) {
-    window.clearTimeout(reconnectTimer);
-    reconnectTimer = null;
+export function stopConnectionsStream(clear = false) {
+  void stopConnectionsStreamCmd();
+  if (clear) {
+    useConnectionsStore.getState().clear();
   }
-}
-
-function scheduleReconnect() {
-  clearReconnectTimer();
-  reconnectTimer = window.setTimeout(() => {
-    if (shouldReconnect) connectWs();
-  }, 1500);
-}
-
-function connectWs() {
-  clearReconnectTimer();
-  const store = useConnectionsStore.getState();
-  store.setStreamStatus("connecting");
-
-  ws = new WebSocket(buildCoreWebSocketUrl("connections"));
-
-  ws.onopen = () => {
-    store.setStreamStatus("connected");
-  };
-
-  ws.onmessage = (e) => {
-    try {
-      const frame = JSON.parse(e.data as string) as CoreConnectionsFrame;
-      useConnectionsStore.getState().setFrame(frame);
-    } catch {
-      // ignore parse errors
-    }
-  };
-
-  ws.onerror = () => {
-    store.setStreamStatus("error");
-  };
-
-  ws.onclose = () => {
-    ws = null;
-    if (shouldReconnect) {
-      store.setStreamStatus("connecting");
-      scheduleReconnect();
-    } else {
-      store.setStreamStatus("disconnected");
-    }
-  };
 }
 
 function sortEntries(
@@ -502,27 +465,6 @@ export function formatConnectionValue(
   }
 }
 
-export function startConnectionsStream() {
-  if (shouldReconnect) return;
-  shouldReconnect = true;
-  connectWs();
-}
-
-export function stopConnectionsStream(clear = false) {
-  shouldReconnect = false;
-  clearReconnectTimer();
-  if (ws) {
-    const activeWs = ws;
-    ws = null;
-    activeWs.close();
-  } else {
-    useConnectionsStore.getState().setStreamStatus("disconnected");
-  }
-  if (clear) {
-    useConnectionsStore.getState().clear();
-  }
-}
-
 export function useConnectionsStream() {
   const { success, error } = useToast();
   const active = useConnectionsStore((s) => s.active);
@@ -539,6 +481,28 @@ export function useConnectionsStream() {
   const setConnectionGroupCollapsed = useSettingsStore(
     (s) => s.setConnectionGroupCollapsed,
   );
+
+  useEffect(() => {
+    const unlistenStatus = listen<string>("stream-connections-status", (e) => {
+      useConnectionsStore
+        .getState()
+        .setStreamStatus(
+          e.payload as "disconnected" | "connecting" | "connected" | "error",
+        );
+    });
+
+    const unlistenData = listen<CoreConnectionsFrame>(
+      "stream-connections",
+      (e) => {
+        useConnectionsStore.getState().setFrame(e.payload);
+      },
+    );
+
+    return () => {
+      void unlistenStatus.then((fn) => fn());
+      void unlistenData.then((fn) => fn());
+    };
+  }, []);
 
   const visibleColumns = useMemo(
     () => settings.visible_columns.map((k) => columnDefinitions[k]),
@@ -557,24 +521,11 @@ export function useConnectionsStream() {
     : null;
 
   const startStream = useCallback(() => {
-    if (shouldReconnect) return;
-    shouldReconnect = true;
-    connectWs();
+    startConnectionsStream();
   }, []);
 
   const stopStream = useCallback((clear = false) => {
-    shouldReconnect = false;
-    clearReconnectTimer();
-    if (ws) {
-      const activeWs = ws;
-      ws = null;
-      activeWs.close();
-    } else {
-      useConnectionsStore.getState().setStreamStatus("disconnected");
-    }
-    if (clear) {
-      useConnectionsStore.getState().clear();
-    }
+    stopConnectionsStream(clear);
   }, []);
 
   const togglePause = useCallback(() => {
@@ -583,7 +534,7 @@ export function useConnectionsStream() {
 
   const closeAll = useCallback(async () => {
     try {
-      await coreRequest("connections", { method: "DELETE" });
+      await closeAllConnections();
       success("All connections closed");
     } catch {
       error("Failed to close connections");
