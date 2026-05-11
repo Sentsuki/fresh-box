@@ -1,9 +1,9 @@
 use crate::errors::CommandError;
 use futures_util::StreamExt;
+use std::time::Duration;
 use tauri::Emitter;
-use tokio::sync::Mutex;
-use tokio::sync::watch;
-use tokio_tungstenite::connect_async;
+use tokio::sync::{watch, Mutex};
+use tokio_tungstenite::{connect_async, tungstenite::Message};
 
 pub struct StreamsState {
     traffic: Mutex<Option<watch::Sender<bool>>>,
@@ -29,65 +29,75 @@ impl Default for StreamsState {
     }
 }
 
-
-// ── Traffic stream ─────────────────────────────────────────────────────────
-
-pub async fn start_traffic_stream(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, StreamsState>,
-) -> Result<(), CommandError> {
+async fn start_stream_slot(slot: &Mutex<Option<watch::Sender<bool>>>) -> watch::Receiver<bool> {
     let (tx, rx) = watch::channel(false);
-    {
-        let mut guard = state.traffic.lock().await;
-        if let Some(old_tx) = guard.replace(tx) {
-            let _ = old_tx.send(true);
-        }
+    let mut guard = slot.lock().await;
+    if let Some(old_tx) = guard.replace(tx) {
+        let _ = old_tx.send(true);
     }
-    tokio::spawn(run_traffic_stream(app, rx));
-    Ok(())
+    rx
 }
 
-pub async fn stop_traffic_stream(
-    state: tauri::State<'_, StreamsState>,
-) -> Result<(), CommandError> {
-    let mut guard = state.traffic.lock().await;
+async fn stop_stream_slot(slot: &Mutex<Option<watch::Sender<bool>>>) {
+    let mut guard = slot.lock().await;
     if let Some(tx) = guard.take() {
         let _ = tx.send(true);
     }
-    Ok(())
 }
 
-async fn run_traffic_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<bool>) {
+fn base_stream_ws_url(path: &str) -> String {
+    let endpoint = crate::services::clash_client::get_clash_endpoint();
+    format!(
+        "{}/{}?token={}",
+        endpoint.ws_base(),
+        path,
+        urlencoding::encode(&endpoint.secret)
+    )
+}
+
+fn logs_stream_ws_url(log_level: &str) -> String {
+    let endpoint = crate::services::clash_client::get_clash_endpoint();
+    format!(
+        "{}/logs?level={}&token={}",
+        endpoint.ws_base(),
+        urlencoding::encode(log_level),
+        urlencoding::encode(&endpoint.secret)
+    )
+}
+
+async fn run_json_stream<F>(
+    app: tauri::AppHandle,
+    mut stop_rx: watch::Receiver<bool>,
+    status_event: &'static str,
+    data_event: &'static str,
+    build_ws_url: F,
+) where
+    F: Fn() -> String + Send + 'static,
+{
     loop {
         if *stop_rx.borrow() {
             break;
         }
 
-        let endpoint = crate::services::clash_client::get_clash_endpoint();
-        let ws_url = format!(
-            "{}/traffic?token={}",
-            endpoint.ws_base(),
-            urlencoding::encode(&endpoint.secret)
-        );
-
-        let _ = app.emit("stream-traffic-status", "connecting");
+        let ws_url = build_ws_url();
+        let _ = app.emit(status_event, "connecting");
 
         match connect_async(&ws_url).await {
             Ok((mut ws_stream, _)) => {
-                let _ = app.emit("stream-traffic-status", "connected");
+                let _ = app.emit(status_event, "connected");
                 loop {
                     tokio::select! {
                         _ = stop_rx.changed() => {
                             if *stop_rx.borrow() {
-                                let _ = app.emit("stream-traffic-status", "disconnected");
+                                let _ = app.emit(status_event, "disconnected");
                                 return;
                             }
                         }
                         msg = ws_stream.next() => {
                             match msg {
-                                Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
+                                Some(Ok(Message::Text(text))) => {
                                     if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                                        let _ = app.emit("stream-traffic", data);
+                                        let _ = app.emit(data_event, data);
                                     }
                                 }
                                 Some(Ok(_)) => {}
@@ -96,27 +106,52 @@ async fn run_traffic_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<
                         }
                     }
                 }
-                let _ = app.emit("stream-traffic-status", "error");
+                let _ = app.emit(status_event, "error");
             }
             Err(_) => {
-                let _ = app.emit("stream-traffic-status", "error");
+                let _ = app.emit(status_event, "error");
             }
         }
 
         tokio::select! {
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
-                    let _ = app.emit("stream-traffic-status", "disconnected");
+                    let _ = app.emit(status_event, "disconnected");
                     break;
                 }
             }
-            _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
+            _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
         }
 
-        let _ = app.emit("stream-traffic-status", "connecting");
+        let _ = app.emit(status_event, "connecting");
     }
 
-    let _ = app.emit("stream-traffic-status", "disconnected");
+    let _ = app.emit(status_event, "disconnected");
+}
+
+
+// ── Traffic stream ─────────────────────────────────────────────────────────
+
+pub async fn start_traffic_stream(
+    app: tauri::AppHandle,
+    state: tauri::State<'_, StreamsState>,
+) -> Result<(), CommandError> {
+    let rx = start_stream_slot(&state.traffic).await;
+    tokio::spawn(run_json_stream(
+        app,
+        rx,
+        "stream-traffic-status",
+        "stream-traffic",
+        || base_stream_ws_url("traffic"),
+    ));
+    Ok(())
+}
+
+pub async fn stop_traffic_stream(
+    state: tauri::State<'_, StreamsState>,
+) -> Result<(), CommandError> {
+    stop_stream_slot(&state.traffic).await;
+    Ok(())
 }
 
 // ── Memory stream ──────────────────────────────────────────────────────────
@@ -125,87 +160,22 @@ pub async fn start_memory_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let (tx, rx) = watch::channel(false);
-    {
-        let mut guard = state.memory.lock().await;
-        if let Some(old_tx) = guard.replace(tx) {
-            let _ = old_tx.send(true);
-        }
-    }
-    tokio::spawn(run_memory_stream(app, rx));
+    let rx = start_stream_slot(&state.memory).await;
+    tokio::spawn(run_json_stream(
+        app,
+        rx,
+        "stream-memory-status",
+        "stream-memory",
+        || base_stream_ws_url("memory"),
+    ));
     Ok(())
 }
 
 pub async fn stop_memory_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let mut guard = state.memory.lock().await;
-    if let Some(tx) = guard.take() {
-        let _ = tx.send(true);
-    }
+    stop_stream_slot(&state.memory).await;
     Ok(())
-}
-
-async fn run_memory_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<bool>) {
-    loop {
-        if *stop_rx.borrow() {
-            break;
-        }
-
-        let endpoint = crate::services::clash_client::get_clash_endpoint();
-        let ws_url = format!(
-            "{}/memory?token={}",
-            endpoint.ws_base(),
-            urlencoding::encode(&endpoint.secret)
-        );
-
-        let _ = app.emit("stream-memory-status", "connecting");
-
-        match connect_async(&ws_url).await {
-            Ok((mut ws_stream, _)) => {
-                let _ = app.emit("stream-memory-status", "connected");
-                loop {
-                    tokio::select! {
-                        _ = stop_rx.changed() => {
-                            if *stop_rx.borrow() {
-                                let _ = app.emit("stream-memory-status", "disconnected");
-                                return;
-                            }
-                        }
-                        msg = ws_stream.next() => {
-                            match msg {
-                                Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
-                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                                        let _ = app.emit("stream-memory", data);
-                                    }
-                                }
-                                Some(Ok(_)) => {}
-                                _ => break,
-                            }
-                        }
-                    }
-                }
-                let _ = app.emit("stream-memory-status", "error");
-            }
-            Err(_) => {
-                let _ = app.emit("stream-memory-status", "error");
-            }
-        }
-
-        tokio::select! {
-            _ = stop_rx.changed() => {
-                if *stop_rx.borrow() {
-                    let _ = app.emit("stream-memory-status", "disconnected");
-                    break;
-                }
-            }
-            _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
-        }
-
-        let _ = app.emit("stream-memory-status", "connecting");
-    }
-
-    let _ = app.emit("stream-memory-status", "disconnected");
 }
 
 // ── Connections stream ─────────────────────────────────────────────────────
@@ -214,87 +184,22 @@ pub async fn start_connections_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let (tx, rx) = watch::channel(false);
-    {
-        let mut guard = state.connections.lock().await;
-        if let Some(old_tx) = guard.replace(tx) {
-            let _ = old_tx.send(true);
-        }
-    }
-    tokio::spawn(run_connections_stream(app, rx));
+    let rx = start_stream_slot(&state.connections).await;
+    tokio::spawn(run_json_stream(
+        app,
+        rx,
+        "stream-connections-status",
+        "stream-connections",
+        || base_stream_ws_url("connections"),
+    ));
     Ok(())
 }
 
 pub async fn stop_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let mut guard = state.connections.lock().await;
-    if let Some(tx) = guard.take() {
-        let _ = tx.send(true);
-    }
+    stop_stream_slot(&state.connections).await;
     Ok(())
-}
-
-async fn run_connections_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<bool>) {
-    loop {
-        if *stop_rx.borrow() {
-            break;
-        }
-
-        let endpoint = crate::services::clash_client::get_clash_endpoint();
-        let ws_url = format!(
-            "{}/connections?token={}",
-            endpoint.ws_base(),
-            urlencoding::encode(&endpoint.secret)
-        );
-
-        let _ = app.emit("stream-connections-status", "connecting");
-
-        match connect_async(&ws_url).await {
-            Ok((mut ws_stream, _)) => {
-                let _ = app.emit("stream-connections-status", "connected");
-                loop {
-                    tokio::select! {
-                        _ = stop_rx.changed() => {
-                            if *stop_rx.borrow() {
-                                let _ = app.emit("stream-connections-status", "disconnected");
-                                return;
-                            }
-                        }
-                        msg = ws_stream.next() => {
-                            match msg {
-                                Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
-                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                                        let _ = app.emit("stream-connections", data);
-                                    }
-                                }
-                                Some(Ok(_)) => {}
-                                _ => break,
-                            }
-                        }
-                    }
-                }
-                let _ = app.emit("stream-connections-status", "error");
-            }
-            Err(_) => {
-                let _ = app.emit("stream-connections-status", "error");
-            }
-        }
-
-        tokio::select! {
-            _ = stop_rx.changed() => {
-                if *stop_rx.borrow() {
-                    let _ = app.emit("stream-connections-status", "disconnected");
-                    break;
-                }
-            }
-            _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
-        }
-
-        let _ = app.emit("stream-connections-status", "connecting");
-    }
-
-    let _ = app.emit("stream-connections-status", "disconnected");
 }
 
 // ── Logs stream ────────────────────────────────────────────────────────────
@@ -303,13 +208,7 @@ pub async fn start_logs_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let (tx, rx) = watch::channel(false);
-    {
-        let mut guard = state.logs.lock().await;
-        if let Some(old_tx) = guard.replace(tx) {
-            let _ = old_tx.send(true);
-        }
-    }
+    let rx = start_stream_slot(&state.logs).await;
     tokio::spawn(run_logs_stream(app, rx));
     Ok(())
 }
@@ -317,10 +216,7 @@ pub async fn start_logs_stream(
 pub async fn stop_logs_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
-    let mut guard = state.logs.lock().await;
-    if let Some(tx) = guard.take() {
-        let _ = tx.send(true);
-    }
+    stop_stream_slot(&state.logs).await;
     Ok(())
 }
 
@@ -343,65 +239,13 @@ async fn run_logs_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<boo
         .map(|s| s.logs.log_level)
         .unwrap_or_else(|_| "info".to_string());
 
-    loop {
-        if *stop_rx.borrow() {
-            break;
-        }
-
-        let endpoint = crate::services::clash_client::get_clash_endpoint();
-        let ws_url = format!(
-            "{}/logs?level={}&token={}",
-            endpoint.ws_base(),
-            urlencoding::encode(&log_level),
-            urlencoding::encode(&endpoint.secret)
-        );
-
-        let _ = app.emit("stream-logs-status", "connecting");
-
-        match connect_async(&ws_url).await {
-            Ok((mut ws_stream, _)) => {
-                let _ = app.emit("stream-logs-status", "connected");
-                loop {
-                    tokio::select! {
-                        _ = stop_rx.changed() => {
-                            if *stop_rx.borrow() {
-                                let _ = app.emit("stream-logs-status", "disconnected");
-                                return;
-                            }
-                        }
-                        msg = ws_stream.next() => {
-                            match msg {
-                                Some(Ok(tokio_tungstenite::tungstenite::Message::Text(text))) => {
-                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                                        let _ = app.emit("stream-logs", data);
-                                    }
-                                }
-                                Some(Ok(_)) => {}
-                                _ => break,
-                            }
-                        }
-                    }
-                }
-                let _ = app.emit("stream-logs-status", "error");
-            }
-            Err(_) => {
-                let _ = app.emit("stream-logs-status", "error");
-            }
-        }
-
-        tokio::select! {
-            _ = stop_rx.changed() => {
-                if *stop_rx.borrow() {
-                    let _ = app.emit("stream-logs-status", "disconnected");
-                    break;
-                }
-            }
-            _ = tokio::time::sleep(std::time::Duration::from_millis(1500)) => {}
-        }
-
-        let _ = app.emit("stream-logs-status", "connecting");
-    }
-
-    let _ = app.emit("stream-logs-status", "disconnected");
+    run_json_stream(
+        app,
+        stop_rx,
+        "stream-logs-status",
+        "stream-logs",
+        move || logs_stream_ws_url(&log_level),
+    )
+    .await;
 }
 
