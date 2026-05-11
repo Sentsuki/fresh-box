@@ -9,7 +9,7 @@ import {
   SettingsRegular,
   WrenchRegular,
 } from "@fluentui/react-icons";
-import { useCallback, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useAppStore } from "../../stores/appStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
@@ -41,14 +41,30 @@ export function Sidebar() {
   const isRunning = useSingboxStore((s) => s.isRunning);
 
   const [isExpanded, setIsExpanded] = useState(true);
+  const timeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const navigate = useCallback(
-    async (page: AppPage) => {
+    (page: AppPage) => {
       setCurrentPage(page);
-      await setSettingsPage(page);
+      
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+      
+      timeoutRef.current = setTimeout(() => {
+        void setSettingsPage(page);
+      }, 300);
     },
     [setCurrentPage, setSettingsPage],
   );
+
+  useEffect(() => {
+    return () => {
+      if (timeoutRef.current) {
+        clearTimeout(timeoutRef.current);
+      }
+    };
+  }, []);
 
   return (
     <aside
