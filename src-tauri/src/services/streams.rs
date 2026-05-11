@@ -220,7 +220,7 @@ pub async fn stop_logs_stream(
     Ok(())
 }
 
-async fn run_logs_stream(app: tauri::AppHandle, mut stop_rx: watch::Receiver<bool>) {
+async fn run_logs_stream(app: tauri::AppHandle, stop_rx: watch::Receiver<bool>) {
     if *stop_rx.borrow() {
         return;
     }
