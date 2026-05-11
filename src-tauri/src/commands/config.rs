@@ -414,7 +414,7 @@ pub struct FetchSubscriptionResult {
 
 fn extract_file_name_from_url(url: &str) -> String {
     let path_part = url.split('?').next().unwrap_or(url);
-    let name = path_part.split('/').last().unwrap_or("subscription");
+    let name = path_part.split('/').next_back().unwrap_or("subscription");
     if name.is_empty() {
         return "subscription.json".to_string();
     }

@@ -3,14 +3,13 @@
 
 mod commands;
 mod config;
-mod core_update;
 mod errors;
 mod logger;
 mod services;
 mod tray;
 mod window_utils;
 
-use core_update::{
+use services::core_update::{
     auto_select_installed_core, cleanup_staged_core_update_files_directly, CoreUpdateCancelState,
 };
 use services::singbox::{initialize_singbox_directly, refresh_singbox_detection_directly, SingboxState};

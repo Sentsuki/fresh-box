@@ -23,6 +23,12 @@ impl StreamsState {
     }
 }
 
+impl Default for StreamsState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
 
 // ── Traffic stream ─────────────────────────────────────────────────────────
 

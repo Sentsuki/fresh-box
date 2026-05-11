@@ -2,7 +2,6 @@
 
 pub mod commands;
 pub mod config;
-pub mod core_update;
 pub mod errors;
 pub mod logger;
 pub mod services;
