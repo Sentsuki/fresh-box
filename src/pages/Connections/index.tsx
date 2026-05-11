@@ -231,27 +231,29 @@ export default function Connections() {
 
         <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm overflow-hidden flex flex-col">
           {isReady && (
-            <ConnectionTable
-              rows={filteredEntries}
-              columns={visibleColumns}
-              groupedEntries={groupedEntries}
-              sortKey={sortKey}
-              sortDirection={sortDirection}
-              groupedColumnKey={groupedColumn?.key ?? null}
-              pinnedColumnKeys={pinnedColumnKeys}
-              columnSizes={columnSizes}
-              onSort={handleSort}
-              onToggleGrouping={toggleGrouping}
-              onPinnedColumnsChange={(keys) =>
-                void setConnectionsPinnedColumns(keys)
-              }
-              onColumnSizesChange={(sizes) =>
-                void setConnectionsColumnSizes(sizes)
-              }
-              onRowClick={setSelectedConnection}
-              isGroupCollapsed={isGroupCollapsed}
-              onToggleGroupCollapsed={toggleGroupCollapsed}
-            />
+            <div className="animate-pop-in h-full w-full flex flex-col">
+              <ConnectionTable
+                rows={filteredEntries}
+                columns={visibleColumns}
+                groupedEntries={groupedEntries}
+                sortKey={sortKey}
+                sortDirection={sortDirection}
+                groupedColumnKey={groupedColumn?.key ?? null}
+                pinnedColumnKeys={pinnedColumnKeys}
+                columnSizes={columnSizes}
+                onSort={handleSort}
+                onToggleGrouping={toggleGrouping}
+                onPinnedColumnsChange={(keys) =>
+                  void setConnectionsPinnedColumns(keys)
+                }
+                onColumnSizesChange={(sizes) =>
+                  void setConnectionsColumnSizes(sizes)
+                }
+                onRowClick={setSelectedConnection}
+                isGroupCollapsed={isGroupCollapsed}
+                onToggleGroupCollapsed={toggleGroupCollapsed}
+              />
+            </div>
           )}
         </div>
 

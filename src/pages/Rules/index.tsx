@@ -10,7 +10,7 @@ import {
   type ColumnDef,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useMemo, useRef } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -89,6 +89,13 @@ export default function Rules() {
     overscan: 8,
   });
 
+  const [isReady, setIsReady] = useState(false);
+
+  useEffect(() => {
+    const timer = setTimeout(() => setIsReady(true), 10);
+    return () => clearTimeout(timer);
+  }, []);
+
   useEffect(() => {
     void refreshRules();
   }, [refreshRules]);
@@ -136,94 +143,96 @@ export default function Rules() {
         >
           <TabContent value="rules" className="h-full mt-4">
             <div className="h-full rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden">
-              <div
-                ref={containerRef}
-                className="h-full overflow-auto custom-scrollbar"
-              >
+              {!isReady ? null : (
                 <div
-                  style={{
-                    width: "100%",
-                    minWidth: Math.max(table.getTotalSize(), 900),
-                  }}
+                  ref={containerRef}
+                  className="h-full overflow-auto custom-scrollbar animate-pop-in"
                 >
-                  <div className="sticky top-0 z-10 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
-                    {table.getHeaderGroups().map((headerGroup) => (
-                      <div key={headerGroup.id} className="flex">
-                        {headerGroup.headers.map((header, index) => {
-                          const isLast =
-                            index === headerGroup.headers.length - 1;
-                          return (
-                            <div
-                              key={header.id}
-                              className="h-10 px-4 flex items-center text-xs font-medium text-(--wb-text-secondary) border-r border-(--wb-border-subtle)"
-                              style={{
-                                width: isLast ? undefined : header.getSize(),
-                                minWidth: isLast ? header.getSize() : undefined,
-                                flexGrow: isLast ? 1 : undefined,
-                              }}
-                            >
-                              {flexRender(
-                                header.column.columnDef.header,
-                                header.getContext(),
-                              )}
-                            </div>
-                          );
-                        })}
-                      </div>
-                    ))}
-                  </div>
                   <div
                     style={{
-                      height: rowVirtualizer.getTotalSize(),
-                      position: "relative",
+                      width: "100%",
+                      minWidth: Math.max(table.getTotalSize(), 900),
                     }}
                   >
-                    {rowVirtualizer.getVirtualItems().map((virtualRow) => {
-                      const row = rows[virtualRow.index];
-                      return (
-                        <div
-                          key={row.id}
-                          className={[
-                            "absolute left-0 w-full h-10 flex border-b border-(--wb-border-subtle)",
-                            virtualRow.index % 2 === 1
-                              ? "bg-(--wb-surface-active)"
-                              : "",
-                            "hover:bg-(--wb-surface-hover)",
-                          ].join(" ")}
-                          style={{
-                            transform: `translateY(${virtualRow.start}px)`,
-                          }}
-                        >
-                          {row.getVisibleCells().map((cell, index) => {
+                    <div className="sticky top-0 z-10 bg-(--wb-surface-layer) border-b border-(--wb-border-subtle)">
+                      {table.getHeaderGroups().map((headerGroup) => (
+                        <div key={headerGroup.id} className="flex">
+                          {headerGroup.headers.map((header, index) => {
                             const isLast =
-                              index === row.getVisibleCells().length - 1;
+                              index === headerGroup.headers.length - 1;
                             return (
                               <div
-                                key={cell.id}
-                                className="px-4 flex items-center text-[13px] border-r border-(--wb-border-subtle) truncate"
+                                key={header.id}
+                                className="h-10 px-4 flex items-center text-xs font-medium text-(--wb-text-secondary) border-r border-(--wb-border-subtle)"
                                 style={{
-                                  width: isLast
-                                    ? undefined
-                                    : cell.column.getSize(),
-                                  minWidth: isLast
-                                    ? cell.column.getSize()
-                                    : undefined,
+                                  width: isLast ? undefined : header.getSize(),
+                                  minWidth: isLast ? header.getSize() : undefined,
                                   flexGrow: isLast ? 1 : undefined,
                                 }}
                               >
                                 {flexRender(
-                                  cell.column.columnDef.cell,
-                                  cell.getContext(),
+                                  header.column.columnDef.header,
+                                  header.getContext(),
                                 )}
                               </div>
                             );
                           })}
                         </div>
-                      );
-                    })}
+                      ))}
+                    </div>
+                    <div
+                      style={{
+                        height: rowVirtualizer.getTotalSize(),
+                        position: "relative",
+                      }}
+                    >
+                      {rowVirtualizer.getVirtualItems().map((virtualRow) => {
+                        const row = rows[virtualRow.index];
+                        return (
+                          <div
+                            key={row.id}
+                            className={[
+                              "absolute left-0 w-full h-10 flex border-b border-(--wb-border-subtle)",
+                              virtualRow.index % 2 === 1
+                                ? "bg-(--wb-surface-active)"
+                                : "",
+                              "hover:bg-(--wb-surface-hover)",
+                            ].join(" ")}
+                            style={{
+                              transform: `translateY(${virtualRow.start}px)`,
+                            }}
+                          >
+                            {row.getVisibleCells().map((cell, index) => {
+                              const isLast =
+                                index === row.getVisibleCells().length - 1;
+                              return (
+                                <div
+                                  key={cell.id}
+                                  className="px-4 flex items-center text-[13px] border-r border-(--wb-border-subtle) truncate"
+                                  style={{
+                                    width: isLast
+                                      ? undefined
+                                      : cell.column.getSize(),
+                                    minWidth: isLast
+                                      ? cell.column.getSize()
+                                      : undefined,
+                                    flexGrow: isLast ? 1 : undefined,
+                                  }}
+                                >
+                                  {flexRender(
+                                    cell.column.columnDef.cell,
+                                    cell.getContext(),
+                                  )}
+                                </div>
+                              );
+                            })}
+                          </div>
+                        );
+                      })}
+                    </div>
                   </div>
                 </div>
-              </div>
+              )}
             </div>
           </TabContent>
         </Tabs>

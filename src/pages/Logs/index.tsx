@@ -168,7 +168,7 @@ export default function Logs() {
           ) : !isReady ? null : (
             <div
               ref={listRef}
-              className="h-full w-full overflow-auto custom-scrollbar"
+              className="h-full w-full overflow-auto custom-scrollbar animate-pop-in"
             >
               <div
                 style={{
