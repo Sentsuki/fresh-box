@@ -124,12 +124,17 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
     {
         let entry = entry.map_err(|e| CommandError::resource_not_found("directory entry", e))?;
         let path = entry.path();
-        if path.extension().and_then(|s| s.to_str()) == Some("json") {
-            if let Some(name) = path.file_name().and_then(|s| s.to_str()) {
-                on_disk.insert(name.to_string());
-            }
+        if let Some(name) = path
+            .extension()
+            .and_then(|s| s.to_str())
+            .filter(|&ext| ext == "json")
+            .and_then(|_| path.file_name())
+            .and_then(|s| s.to_str())
+        {
+            on_disk.insert(name.to_string());
         }
     }
+
 
     let order = crate::config::profiles::load_file_order()?;
     let mut result: Vec<String> = Vec::with_capacity(on_disk.len());
@@ -220,16 +225,14 @@ pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandErro
     let mut parsed: serde_json::Map<String, Value> = serde_json::from_str(&subscriptions)
         .map_err(|e| CommandError::json("failed to parse subscriptions payload", e))?;
 
-    if !parsed.contains_key(crate::config::profiles::FILE_ORDER_KEY) {
-        if let Ok(existing) = crate::config::profiles::load_subscriptions_json() {
-            if let Some(order) = existing.get(crate::config::profiles::FILE_ORDER_KEY) {
+    if !parsed.contains_key(crate::config::profiles::FILE_ORDER_KEY)
+        && let Ok(existing) = crate::config::profiles::load_subscriptions_json()
+            && let Some(order) = existing.get(crate::config::profiles::FILE_ORDER_KEY) {
                 parsed.insert(
                     crate::config::profiles::FILE_ORDER_KEY.to_string(),
                     order.clone(),
                 );
             }
-        }
-    }
 
     crate::config::profiles::save_subscriptions_json(&parsed)
 }
