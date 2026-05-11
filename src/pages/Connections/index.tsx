@@ -7,7 +7,6 @@ import { ConnectionCtrl } from "../../components/connections/ConnectionCtrl";
 import { ConnectionTable } from "../../components/connections/ConnectionTable";
 import {
   formatConnectionValue,
-  groupConnections,
   useConnectionsStream,
 } from "../../hooks/useConnectionsStream";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -19,7 +18,6 @@ export default function Connections() {
     active,
     closed,
     entries,
-    rawEntries,
     visibleColumns,
     isPaused,
     groupedColumn,
@@ -27,8 +25,6 @@ export default function Connections() {
     togglePause,
     closeAll,
     toggleGrouping,
-    toggleGroupCollapsed,
-    isGroupCollapsed,
   } = useConnectionsStream();
 
   const currentTab = useSettingsStore(
@@ -87,8 +83,8 @@ export default function Connections() {
 
   const sourceIpOptions = useMemo(
     () =>
-      [...new Set(rawEntries.map((entry) => entry.metadata.sourceIP))].sort(),
-    [rawEntries],
+      [...new Set(entries.map((entry) => entry.metadata.sourceIP))].sort(),
+    [entries],
   );
 
   const matchesColumnFilter = useCallback(
@@ -120,25 +116,6 @@ export default function Connections() {
       ),
     [entries, matchesColumnFilter, matchesSourceIpFilter, search],
   );
-
-  const filteredRawEntries = useMemo(
-    () =>
-      rawEntries.filter(
-        (entry) =>
-          matchesColumnFilter(entry, search) && matchesSourceIpFilter(entry),
-      ),
-    [matchesColumnFilter, matchesSourceIpFilter, rawEntries, search],
-  );
-
-  const groupedEntries = useMemo(() => {
-    if (!groupedColumn) return null;
-    return groupConnections(
-      filteredRawEntries,
-      groupedColumn.key,
-      sortKey,
-      sortDirection,
-    );
-  }, [filteredRawEntries, groupedColumn, sortDirection, sortKey]);
 
   const handleSort = useCallback(
     (key: ConnectionColumnKey) => {
@@ -235,7 +212,6 @@ export default function Connections() {
               <ConnectionTable
                 rows={filteredEntries}
                 columns={visibleColumns}
-                groupedEntries={groupedEntries}
                 sortKey={sortKey}
                 sortDirection={sortDirection}
                 groupedColumnKey={groupedColumn?.key ?? null}
@@ -250,8 +226,6 @@ export default function Connections() {
                   void setConnectionsColumnSizes(sizes)
                 }
                 onRowClick={setSelectedConnection}
-                isGroupCollapsed={isGroupCollapsed}
-                onToggleGroupCollapsed={toggleGroupCollapsed}
               />
             </div>
           )}

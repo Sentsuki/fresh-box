@@ -2,10 +2,14 @@ import { ColumnRegular } from "@fluentui/react-icons";
 import {
   flexRender,
   getCoreRowModel,
+  getExpandedRowModel,
+  getGroupedRowModel,
   useReactTable,
   type ColumnDef,
   type ColumnPinningState,
   type ColumnSizingState,
+  type ExpandedState,
+  type GroupingState,
   type Updater,
 } from "@tanstack/react-table";
 import { useVirtualizer } from "@tanstack/react-virtual";
@@ -20,7 +24,6 @@ import {
 import {
   formatConnectionValue,
   type ConnectionColumnOption,
-  type ConnectionGroup,
 } from "../../hooks/useConnectionsStream";
 import { useToast } from "../../hooks/useToast";
 import type {
@@ -32,7 +35,6 @@ import type {
 interface ConnectionTableProps {
   rows: ConnectionEntry[];
   columns: ConnectionColumnOption[];
-  groupedEntries: ConnectionGroup[] | null;
   sortKey: ConnectionColumnKey;
   sortDirection: SortDirection;
   groupedColumnKey: ConnectionColumnKey | null;
@@ -43,8 +45,6 @@ interface ConnectionTableProps {
   onPinnedColumnsChange: (keys: ConnectionColumnKey[]) => void;
   onColumnSizesChange: (sizes: Record<string, number>) => void;
   onRowClick: (row: ConnectionEntry) => void;
-  isGroupCollapsed: (id: string) => boolean;
-  onToggleGroupCollapsed: (id: string) => void;
 }
 
 function getPinnedStyles(
@@ -68,7 +68,6 @@ function getPinnedStyles(
 export function ConnectionTable({
   rows,
   columns,
-  groupedEntries,
   sortKey,
   sortDirection,
   groupedColumnKey,
@@ -79,10 +78,9 @@ export function ConnectionTable({
   onPinnedColumnsChange,
   onColumnSizesChange,
   onRowClick,
-  isGroupCollapsed,
-  onToggleGroupCollapsed,
 }: ConnectionTableProps) {
   const [localColumnSizes, setLocalColumnSizes] = useState(columnSizes);
+  const [expanded, setExpanded] = useState<ExpandedState>({});
 
   // Only sync from store on initial mount (columnSizes is stable unless
   // an external actor changes it). We do NOT unconditionally reset on every
@@ -105,6 +103,11 @@ export function ConnectionTable({
       return prev;
     });
   }, [columnSizes]);
+
+  // Collapse all groups whenever the active grouping column changes.
+  useEffect(() => {
+    setExpanded({});
+  }, [groupedColumnKey]);
 
   const saveSizesRef = useRef(onColumnSizesChange);
   saveSizesRef.current = onColumnSizesChange;
@@ -129,6 +132,14 @@ export function ConnectionTable({
       right: [],
     }),
     [pinnedColumnKeys],
+  );
+  const groupingState = useMemo<GroupingState>(
+    () => (groupedColumnKey ? [groupedColumnKey] : []),
+    [groupedColumnKey],
+  );
+  const groupedColOption = useMemo(
+    () => columns.find((c) => c.key === groupedColumnKey) ?? null,
+    [columns, groupedColumnKey],
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -162,6 +173,7 @@ export function ConnectionTable({
                   ? 130
                   : 170,
         enableSorting: col.sortable,
+        enableGrouping: col.groupable,
         header: () => {
           const isGrouped = groupedColumnKey === col.key;
           const isPinned = pinnedColumnKeys.includes(col.key);
@@ -223,11 +235,19 @@ export function ConnectionTable({
     data: rows,
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
+    getGroupedRowModel: getGroupedRowModel(),
+    getExpandedRowModel: getExpandedRowModel(),
     enableColumnPinning: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
-    state: { columnPinning, columnSizing: localColumnSizes },
+    state: {
+      columnPinning,
+      columnSizing: localColumnSizes,
+      grouping: groupingState,
+      expanded,
+    },
     onColumnSizingChange: handleColumnSizingChange,
+    onExpandedChange: setExpanded,
     onColumnPinningChange: (updater) => {
       const nextValue =
         typeof updater === "function" ? updater(columnPinning) : updater;
@@ -293,23 +313,6 @@ export function ConnectionTable({
   const onMouseUp = useCallback(() => {
     dragRef.current.active = false;
   }, []);
-
-  if (groupedEntries) {
-    return (
-      <GroupedTable
-        groups={groupedEntries}
-        columns={columns}
-        groupedColumnKey={groupedColumnKey}
-        sortKey={sortKey}
-        sortDirection={sortDirection}
-        onSort={onSort}
-        onToggleGrouping={onToggleGrouping}
-        onRowClick={onRowClick}
-        isGroupCollapsed={isGroupCollapsed}
-        onToggleGroupCollapsed={onToggleGroupCollapsed}
-      />
-    );
-  }
 
   return (
     <div
@@ -392,6 +395,38 @@ export function ConnectionTable({
         >
           {rowVirtualizer.getVirtualItems().map((virtualRow) => {
             const row = flatRows[virtualRow.index];
+
+            if (row.getIsGrouped()) {
+              const groupValue = String(
+                groupedColumnKey ? row.getValue(groupedColumnKey) : "",
+              );
+              const isExpanded = row.getIsExpanded();
+              return (
+                <div
+                  key={row.id}
+                  className="absolute left-0 w-full flex items-center justify-between border-b border-(--wb-border-subtle) px-3 cursor-pointer transition-colors bg-(--wb-accent)/15 hover:bg-(--wb-accent)/25"
+                  style={{
+                    transform: `translateY(${virtualRow.start}px)`,
+                    height: virtualRow.size,
+                  }}
+                  onClick={() => row.toggleExpanded()}
+                >
+                  <div className="flex items-center gap-2 min-w-0">
+                    <span className="text-(--wb-text-secondary) text-xs shrink-0">
+                      {isExpanded ? "▼" : "▶"}
+                    </span>
+                    <span className="text-xs font-semibold text-(--wb-text-primary) truncate">
+                      {groupedColOption?.label}: {groupValue}
+                    </span>
+                  </div>
+                  <span className="shrink-0 text-xs text-(--wb-text-secondary) bg-(--wb-surface-base) px-2 py-0.5 rounded-full border border-(--wb-border-subtle)">
+                    {row.subRows.length}{" "}
+                    {row.subRows.length === 1 ? "item" : "items"}
+                  </span>
+                </div>
+              );
+            }
+
             return (
               <div
                 key={row.id}
@@ -442,154 +477,6 @@ export function ConnectionTable({
           })}
         </div>
       </div>
-    </div>
-  );
-}
-
-interface GroupedTableProps {
-  groups: ConnectionGroup[];
-  columns: ConnectionColumnOption[];
-  groupedColumnKey: ConnectionColumnKey | null;
-  sortKey: ConnectionColumnKey;
-  sortDirection: SortDirection;
-  onSort: (key: ConnectionColumnKey) => void;
-  onToggleGrouping: (key: ConnectionColumnKey) => void;
-  onRowClick: (row: ConnectionEntry) => void;
-  isGroupCollapsed: (id: string) => boolean;
-  onToggleGroupCollapsed: (id: string) => void;
-}
-
-function GroupedTable({
-  groups,
-  columns,
-  groupedColumnKey,
-  sortKey,
-  sortDirection,
-  onSort,
-  onToggleGrouping,
-  onRowClick,
-  isGroupCollapsed,
-  onToggleGroupCollapsed,
-}: GroupedTableProps) {
-  return (
-    <div className="h-full overflow-auto">
-      <table className="w-full border-collapse">
-        <thead className="sticky top-0 z-10 bg-(--wb-surface-layer)">
-          <tr>
-            {columns.map((col) => {
-              const isSorted = sortKey === col.key;
-              const isGrouped = groupedColumnKey === col.key;
-              const isClickable = col.sortable;
-              return (
-                <th
-                  key={col.key}
-                  onClick={isClickable ? () => onSort(col.key) : undefined}
-                  className={[
-                    "px-4 py-2.5 text-xs font-medium text-(--wb-text-secondary)",
-                    "border-b border-(--wb-border-subtle) whitespace-nowrap select-none",
-                    col.align === "end" ? "text-right" : "text-left",
-                    isClickable
-                      ? "cursor-pointer hover:text-(--wb-text-primary) hover:bg-(--wb-surface-hover)"
-                      : "",
-                    isSorted ? "text-(--wb-text-primary)" : "",
-                  ].join(" ")}
-                >
-                  <span className="inline-flex items-center gap-1.5">
-                    <span>{col.label}</span>
-                    {col.groupable && (
-                      <button
-                        onClick={(event) => {
-                          event.stopPropagation();
-                          onToggleGrouping(col.key);
-                        }}
-                        className={[
-                          "p-0.5 rounded transition-all inline-flex items-center justify-center shrink-0",
-                          isGrouped
-                            ? "bg-(--wb-accent) text-(--wb-accent-fg)"
-                            : "bg-transparent text-(--wb-text-tertiary) hover:text-(--wb-text-primary) hover:bg-(--wb-surface-active)",
-                        ].join(" ")}
-                        title={isGrouped ? "Ungroup" : `Group by ${col.label}`}
-                      >
-                        <ColumnRegular className="w-3.5 h-3.5" />
-                      </button>
-                    )}
-                    {isSorted && (
-                      <span className="text-(--wb-accent)">
-                        {sortDirection === "asc" ? "↑" : "↓"}
-                      </span>
-                    )}
-                  </span>
-                </th>
-              );
-            })}
-          </tr>
-        </thead>
-        <tbody>
-          {groups.map((group) => {
-            const collapsed = isGroupCollapsed(group.id);
-            return (
-              <tr key={`group-wrap-${group.id}`}>
-                <td colSpan={columns.length} className="p-0">
-                  <table className="w-full border-collapse">
-                    <tbody>
-                      <tr
-                        onClick={() => onToggleGroupCollapsed(group.id)}
-                        className="cursor-pointer transition-colors bg-(--wb-accent)/15 hover:bg-(--wb-accent)/25"
-                      >
-                        <td
-                          colSpan={columns.length}
-                          className="border-b border-(--wb-border-subtle) px-3 py-2"
-                        >
-                          <div className="flex items-center justify-between gap-3">
-                            <div className="flex items-center gap-2 min-w-0">
-                              <span className="text-(--wb-text-secondary) text-xs shrink-0">
-                                {collapsed ? "▶" : "▼"}
-                              </span>
-                              <span className="text-xs font-semibold text-(--wb-text-primary) truncate">
-                                {group.column.label}: {group.label}
-                              </span>
-                            </div>
-                            <span className="shrink-0 text-xs text-(--wb-text-secondary) bg-(--wb-surface-base) px-2 py-0.5 rounded-full border border-(--wb-border-subtle)">
-                              {group.items.length}{" "}
-                              {group.items.length === 1 ? "item" : "items"}
-                            </span>
-                          </div>
-                        </td>
-                      </tr>
-                      {!collapsed &&
-                        group.items.map((row, index) => (
-                          <tr
-                            key={row.id}
-                            onClick={() => onRowClick(row)}
-                            className={[
-                              "border-b border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) transition-colors duration-75 cursor-pointer",
-                              index % 2 === 1 ? "bg-(--wb-surface-active)" : "",
-                            ].join(" ")}
-                            style={{ height: 40 }}
-                          >
-                            {columns.map((col) => (
-                              <td
-                                key={`${row.id}-${col.key}`}
-                                className={[
-                                  "px-4 text-[13px] text-(--wb-text-primary) truncate max-w-0",
-                                  col.align === "end"
-                                    ? "text-right"
-                                    : "text-left",
-                                ].join(" ")}
-                              >
-                                {formatConnectionValue(col.key, row)}
-                              </td>
-                            ))}
-                          </tr>
-                        ))}
-                    </tbody>
-                  </table>
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
     </div>
   );
 }

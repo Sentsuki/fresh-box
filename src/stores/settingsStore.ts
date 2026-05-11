@@ -40,10 +40,6 @@ interface SettingsActions {
   setConnectionsGroupedColumn: (
     column: ConnectionColumnKey | null,
   ) => Promise<void>;
-  setConnectionGroupExpanded: (
-    group: string,
-    expanded: boolean,
-  ) => Promise<void>;
   setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
@@ -134,13 +130,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
         s.connections.grouped_column = column;
-        s.connections.expanded_groups = {};
-      });
-    },
-
-    setConnectionGroupExpanded: async (group, expanded) => {
-      await get().updateSettings((s) => {
-        s.connections.expanded_groups[group] = expanded;
       });
     },
 

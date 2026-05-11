@@ -87,7 +87,6 @@ export interface ConnectionPageSettings {
   sort_key: ConnectionColumnKey;
   sort_direction: SortDirection;
   grouped_column: ConnectionColumnKey | null;
-  expanded_groups: Record<string, boolean>;
   column_sizes: Record<string, number>;
 }
 
@@ -166,7 +165,6 @@ export function createDefaultAppSettings(): AppSettings {
       sort_key: "downloadSpeed",
       sort_direction: "desc",
       grouped_column: null,
-      expanded_groups: {},
       column_sizes: {},
     },
     logs: {
@@ -325,9 +323,6 @@ export function normalizeAppSettings(
       )
         ? (settings.connections?.grouped_column ?? null)
         : null,
-      expanded_groups: normalizeBooleanRecord(
-        settings.connections?.expanded_groups,
-      ),
       column_sizes: normalizeNumberRecord(settings.connections?.column_sizes),
     },
     logs: {
