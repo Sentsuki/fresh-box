@@ -63,6 +63,12 @@ export default function Connections() {
   const setConnectionsColumnSizes = useSettingsStore(
     (state) => state.setConnectionsColumnSizes,
   );
+  const connectionExpandedGroups = useSettingsStore(
+    (state) => state.connectionExpandedGroups,
+  );
+  const setConnectionExpandedGroups = useSettingsStore(
+    (state) => state.setConnectionExpandedGroups,
+  );
 
   const [search, setSearch] = useState("");
   const [sourceIpFilter, setSourceIpFilter] = useState("all");
@@ -217,6 +223,7 @@ export default function Connections() {
                 groupedColumnKey={groupedColumn?.key ?? null}
                 pinnedColumnKeys={pinnedColumnKeys}
                 columnSizes={columnSizes}
+                expandedGroups={connectionExpandedGroups}
                 onSort={handleSort}
                 onToggleGrouping={toggleGrouping}
                 onPinnedColumnsChange={(keys) =>
@@ -225,6 +232,7 @@ export default function Connections() {
                 onColumnSizesChange={(sizes) =>
                   void setConnectionsColumnSizes(sizes)
                 }
+                onExpandedGroupsChange={setConnectionExpandedGroups}
                 onRowClick={setSelectedConnection}
               />
             </div>

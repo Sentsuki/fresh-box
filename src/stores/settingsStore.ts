@@ -16,6 +16,7 @@ import { createDefaultAppSettings, normalizeAppSettings } from "../types/app";
 interface SettingsState {
   settings: AppSettings;
   hydrated: boolean;
+  connectionExpandedGroups: Record<string, boolean>;
 }
 
 interface SettingsActions {
@@ -41,6 +42,7 @@ interface SettingsActions {
     column: ConnectionColumnKey | null,
   ) => Promise<void>;
   setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
+  setConnectionExpandedGroups: (groups: Record<string, boolean>) => void;
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
@@ -57,6 +59,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
   (set, get) => ({
     settings: createDefaultAppSettings(),
     hydrated: false,
+    connectionExpandedGroups: {},
 
     hydrate: async () => {
       const settings = await loadAppSettings();
@@ -137,6 +140,10 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       await get().updateSettings((s) => {
         s.connections.column_sizes = sizes;
       });
+    },
+
+    setConnectionExpandedGroups: (groups) => {
+      set({ connectionExpandedGroups: groups });
     },
 
     setLogLevel: async (level) => {

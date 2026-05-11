@@ -40,10 +40,12 @@ interface ConnectionTableProps {
   groupedColumnKey: ConnectionColumnKey | null;
   pinnedColumnKeys: ConnectionColumnKey[];
   columnSizes: Record<string, number>;
+  expandedGroups: Record<string, boolean>;
   onSort: (key: ConnectionColumnKey) => void;
   onToggleGrouping: (key: ConnectionColumnKey) => void;
   onPinnedColumnsChange: (keys: ConnectionColumnKey[]) => void;
   onColumnSizesChange: (sizes: Record<string, number>) => void;
+  onExpandedGroupsChange: (groups: Record<string, boolean>) => void;
   onRowClick: (row: ConnectionEntry) => void;
 }
 
@@ -73,14 +75,16 @@ export function ConnectionTable({
   groupedColumnKey,
   pinnedColumnKeys,
   columnSizes,
+  expandedGroups,
   onSort,
   onToggleGrouping,
   onPinnedColumnsChange,
   onColumnSizesChange,
+  onExpandedGroupsChange,
   onRowClick,
 }: ConnectionTableProps) {
   const [localColumnSizes, setLocalColumnSizes] = useState(columnSizes);
-  const [expanded, setExpanded] = useState<ExpandedState>({});
+  const [expanded, setExpanded] = useState<ExpandedState>(expandedGroups);
 
   // Only sync from store on initial mount (columnSizes is stable unless
   // an external actor changes it). We do NOT unconditionally reset on every
@@ -104,9 +108,13 @@ export function ConnectionTable({
     });
   }, [columnSizes]);
 
+  const onExpandedGroupsChangeRef = useRef(onExpandedGroupsChange);
+  onExpandedGroupsChangeRef.current = onExpandedGroupsChange;
+
   // Collapse all groups whenever the active grouping column changes.
   useEffect(() => {
     setExpanded({});
+    onExpandedGroupsChangeRef.current({});
   }, [groupedColumnKey]);
 
   const saveSizesRef = useRef(onColumnSizesChange);
@@ -248,7 +256,15 @@ export function ConnectionTable({
       expanded,
     },
     onColumnSizingChange: handleColumnSizingChange,
-    onExpandedChange: setExpanded,
+    onExpandedChange: (updater) => {
+      setExpanded((prev) => {
+        const next = typeof updater === "function" ? updater(prev) : updater;
+        if (next !== true) {
+          onExpandedGroupsChangeRef.current(next as Record<string, boolean>);
+        }
+        return next;
+      });
+    },
     onColumnPinningChange: (updater) => {
       const nextValue =
         typeof updater === "function" ? updater(columnPinning) : updater;
