@@ -343,15 +343,6 @@ function sortEntries(
   });
 }
 
-function compareValues(a: number | string, b: number | string): number {
-  if (typeof a === "number" && typeof b === "number") return a - b;
-  return String(a).localeCompare(String(b));
-}
-
-// compareValues kept for potential future use; groupConnections removed in favour
-// of TanStack Table's getGroupedRowModel.
-void compareValues;
-
 export function formatConnectionValue(
   key: ConnectionColumnKey,
   entry: ConnectionEntry,
