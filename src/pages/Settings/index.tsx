@@ -71,7 +71,7 @@ export default function Settings() {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
-  } = useCoreUpdate(true);
+  } = useCoreUpdate(false);
   const availableOptions = coreStatus?.available_options ?? [];
 
   // Priority Config (TUN & Core Logs)
