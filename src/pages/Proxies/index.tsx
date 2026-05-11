@@ -261,8 +261,10 @@ const GroupCard = memo(function GroupCard({
   );
 });
 
+const EMPTY_GROUPS: ClashProxyGroup[] = [];
+
 export default function Proxies() {
-  const groups = useClashStore((s) => s.overview?.proxy_groups) ?? [];
+  const groups = useClashStore((s) => s.overview?.proxy_groups) ?? EMPTY_GROUPS;
   const overview = useClashStore((s) => s.overview);
   const isRunning = useSingboxStore((s) => s.isRunning);
   const isRefreshing = useClashStore((s) => s.isRefreshing);

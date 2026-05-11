@@ -30,7 +30,7 @@ export function Tabs({
       onValueChange={onValueChange}
       className={["flex flex-col min-h-0", className].join(" ")}
     >
-      <RadixTabs.List className="flex gap-1 border-b border-(--wb-border-subtle) mb-4 flex-shrink-0">
+      <RadixTabs.List className="flex gap-1 border-b border-(--wb-border-subtle) mb-4 shrink-0">
         {tabs.map((tab) => (
           <RadixTabs.Trigger
             key={tab.value}
@@ -59,4 +59,6 @@ export function Tabs({
   );
 }
 
-export const TabContent = RadixTabs.Content;
+export function TabContent(props: React.ComponentProps<typeof RadixTabs.Content>) {
+  return <RadixTabs.Content {...props} />;
+}

@@ -556,14 +556,13 @@ fn get_singbox_process_info_by_pid(
             refresh_process_table(process_state);
         }
 
-        if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid)) {
-            if is_singbox_process_name(process.name()) {
+        if let Some(process) = process_state.system.process(sysinfo::Pid::from_u32(pid))
+            && is_singbox_process_name(process.name()) {
                 let memory_kb = process.memory() / 1024;
                 let cpu_usage = process.cpu_usage();
 
                 return Ok(format!("Memory: {} KB, CPU: {:.1}%", memory_kb, cpu_usage));
             }
-        }
     }
 
     #[cfg(not(windows))]

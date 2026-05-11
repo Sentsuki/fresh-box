@@ -65,8 +65,8 @@ pub(crate) fn is_config_override_enabled_inner() -> Result<bool, CommandError> {
 }
 
 pub fn apply_config_override(base_config: &mut Value, override_config: &Value) {
-    if let Some(obj) = base_config.as_object_mut() {
-        if let Some(override_obj) = override_config.as_object() {
+    if let Some(obj) = base_config.as_object_mut()
+        && let Some(override_obj) = override_config.as_object() {
             for (key, value) in override_obj {
                 if let Some(existing_value) = obj.get_mut(key) {
                     if existing_value.is_object() && value.is_object() {
@@ -79,7 +79,6 @@ pub fn apply_config_override(base_config: &mut Value, override_config: &Value) {
                 }
             }
         }
-    }
 }
 
 pub async fn get_override_config_if_enabled() -> Result<Option<Value>, CommandError> {

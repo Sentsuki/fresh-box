@@ -165,7 +165,7 @@ export default function Profiles() {
         <SettingGroup title="Remote Subscriptions">
           {subscriptionFiles.length === 0 ? (
             <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
-              No subscriptions. Click "Add Subscription" to add one.
+              No subscriptions. Click &quot;Add Subscription&quot; to add one.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -200,7 +200,7 @@ export default function Profiles() {
         <SettingGroup title="Local Files">
           {localFiles.length === 0 ? (
             <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
-              No local config files. Click "Import Local" to add one.
+              No local config files. Click &quot;Import Local&quot; to add one.
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

@@ -155,13 +155,11 @@ fn main() {
                         move || async move {
                             if let Ok(has_process) =
                                 refresh_singbox_detection_directly(&state_clone).await
-                            {
-                                if has_process {
+                                && has_process {
                                     println!(
                                         "Window focused: sing-box process detected and under management"
                                     );
                                 }
-                            }
                         },
                     );
                 }

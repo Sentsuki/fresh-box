@@ -355,11 +355,10 @@ pub fn cleanup_staged_core_update_files_directly() -> Result<(), CommandError> {
 /// and automatically selects one so the app can start without internet access.
 pub fn auto_select_installed_core() -> Result<(), CommandError> {
     // If active selection is already set and the binary is present, nothing to do.
-    if let Ok(Some((channel, version))) = get_active_singbox_core_selection() {
-        if core_version_installed(&channel, &version) {
+    if let Ok(Some((channel, version))) = get_active_singbox_core_selection()
+        && core_version_installed(&channel, &version) {
             return Ok(());
         }
-    }
 
     let bin_dir = get_bin_dir()?;
 
@@ -471,13 +470,11 @@ fn get_update_paths(release: &CoreReleaseMetadata) -> Result<CoreUpdatePaths, Co
 async fn fetch_available_core_releases(
     force_refresh: bool,
 ) -> Result<Vec<CoreReleaseMetadata>, CommandError> {
-    if !force_refresh {
-        if let Some(cache) = load_cached_core_releases()? {
-            if is_release_cache_fresh(&cache)? {
+    if !force_refresh
+        && let Some(cache) = load_cached_core_releases()?
+            && is_release_cache_fresh(&cache)? {
                 return Ok(cache.releases);
             }
-        }
-    }
 
     match fetch_available_core_releases_from_github().await {
         Ok(releases) => {
