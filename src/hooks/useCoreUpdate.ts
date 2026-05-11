@@ -40,12 +40,12 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   const { success, error: toastError } = useToast();
 
   const refreshCoreStatus = useCallback(
-    async (showErrorToast = false, forceRefresh = false) => {
+    async (showErrorToast = false, forceRefresh = false, localOnly = false) => {
       if (isRefreshing) return;
       setIsRefreshing(true);
       setCoreStatusError("");
       try {
-        const status = await getSingboxCoreStatus(forceRefresh);
+        const status = await getSingboxCoreStatus(forceRefresh, localOnly);
         setCoreStatus(status);
         // Auto-select an option if none selected
         const options = status.available_options ?? [];
@@ -145,7 +145,8 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   useEffect(() => {
     if (autoRefreshOnMount && !hasAutoRefreshed.current) {
       hasAutoRefreshed.current = true;
-      void refreshCoreStatus();
+      // local_only=true: read from disk only, no GitHub/cache request
+      void refreshCoreStatus(false, false, true);
     }
 
     const unlistenPromise = listen<CoreUpdateProgressEvent>(

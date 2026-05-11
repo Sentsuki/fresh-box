@@ -138,12 +138,33 @@ struct CoreUpdatePaths {
 pub async fn get_singbox_core_status(
     state: State<'_, SingboxState>,
     force_refresh: Option<bool>,
+    local_only: Option<bool>,
 ) -> Result<SingboxCoreStatus, CommandError> {
     cleanup_staged_core_update_files()?;
 
     let is_running = crate::services::singbox::is_singbox_running(state).await?;
     let installed = get_active_singbox_core_executable().is_ok();
     let active_selection = get_active_singbox_core_selection()?;
+
+    // When local_only=true, skip all network/cache activity entirely.
+    // This is used by the auto-refresh on page mount so that opening Settings
+    // never triggers a GitHub request.
+    if local_only.unwrap_or(false) {
+        let available_options = scan_locally_installed_cores(&active_selection)?;
+        let (current_channel, current_version) = active_selection
+            .filter(|(ch, ver)| core_version_installed(ch, ver))
+            .map_or((None, None), |(ch, ver)| (Some(ch), Some(ver)));
+        return Ok(SingboxCoreStatus {
+            installed,
+            current_channel,
+            current_version,
+            latest_version: None,
+            update_available: false,
+            is_running,
+            available_options,
+            releases_loaded: false,
+        });
+    }
 
     // Try to fetch the release list from GitHub or local cache.
     // If both fail (e.g. first launch, no network), fall back to a local directory
