@@ -223,5 +223,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
+    releasesLoaded: coreStatus?.releases_loaded ?? false,
   };
 }

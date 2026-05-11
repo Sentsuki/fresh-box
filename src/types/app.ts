@@ -448,6 +448,8 @@ export interface SingboxCoreStatus {
   update_available: boolean;
   is_running: boolean;
   available_options: SingboxCoreOption[];
+  /** true = options come from GitHub/cache; false = local-scan fallback only */
+  releases_loaded: boolean;
 }
 
 export interface SingboxCoreUpdateResult {

@@ -71,6 +71,7 @@ export default function Settings() {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
+    releasesLoaded,
   } = useCoreUpdate(false);
   const availableOptions = coreStatus?.available_options ?? [];
 
@@ -310,6 +311,11 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
+                {coreStatus && !releasesLoaded && (
+                  <span className="text-[11px] text-(--wb-text-tertiary) italic">
+                    Release list unavailable offline — Check to enable install/switch.
+                  </span>
+                )}
               </div>
             }
             control={
@@ -333,7 +339,7 @@ export default function Settings() {
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                     <select
                       value={selectedCoreOptionKey}
-                      disabled={isUpdatingCore}
+                      disabled={isUpdatingCore || !releasesLoaded}
                       onChange={(e) => {
                         const newKey = e.target.value;
                         void setSelectedCoreOptionKey(newKey);
@@ -366,6 +372,7 @@ export default function Settings() {
                       </Button>
                     )}
                     {!isUpdatingCore &&
+                      releasesLoaded &&
                       selectedOption?.installed &&
                       selectedOption?.is_active && (
                         <Button

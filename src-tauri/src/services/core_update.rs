@@ -116,6 +116,9 @@ pub struct SingboxCoreStatus {
     pub update_available: bool,
     pub is_running: bool,
     pub available_options: Vec<SingboxCoreOption>,
+    /// `true` when available_options comes from GitHub / local cache;
+    /// `false` when it is a local-only scan (no network and no cache).
+    pub releases_loaded: bool,
 }
 
 #[derive(Serialize)]
@@ -138,56 +141,150 @@ pub async fn get_singbox_core_status(
 ) -> Result<SingboxCoreStatus, CommandError> {
     cleanup_staged_core_update_files()?;
 
-    let releases = fetch_available_core_releases(force_refresh.unwrap_or(false)).await?;
-    let active_selection = get_active_singbox_core_selection()?;
-    cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
-
     let is_running = crate::services::singbox::is_singbox_running(state).await?;
     let installed = get_active_singbox_core_executable().is_ok();
-    let (current_channel, current_version) = active_selection
-        .clone()
-        .filter(|(channel, version)| core_version_installed(channel, version))
-        .map_or((None, None), |(channel, version)| {
-            (Some(channel), Some(version))
-        });
+    let active_selection = get_active_singbox_core_selection()?;
 
-    let available_options = releases
-        .iter()
-        .map(|release| {
-            let installed = core_version_installed(&release.channel, &release.version);
-            let is_active = current_channel.as_deref() == Some(release.channel.as_str())
-                && current_version.as_deref() == Some(release.version.as_str());
-            SingboxCoreOption {
-                channel: release.channel.clone(),
-                version: release.version.clone(),
-                label: format!("{} · {}", channel_label(&release.channel), release.version),
-                installed,
-                is_active,
+    // Try to fetch the release list from GitHub or local cache.
+    // If both fail (e.g. first launch, no network), fall back to a local directory
+    // scan so that the UI can still display installed cores.
+    let (releases_loaded, available_options) =
+        match fetch_available_core_releases(force_refresh.unwrap_or(false)).await {
+            Ok(releases) => {
+                cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
+
+                let (current_channel, current_version) = active_selection
+                    .clone()
+                    .filter(|(ch, ver)| core_version_installed(ch, ver))
+                    .map_or((None, None), |(ch, ver)| (Some(ch), Some(ver)));
+
+                let options = releases
+                    .iter()
+                    .map(|release| {
+                        let installed =
+                            core_version_installed(&release.channel, &release.version);
+                        let is_active =
+                            current_channel.as_deref() == Some(release.channel.as_str())
+                                && current_version.as_deref()
+                                    == Some(release.version.as_str());
+                        SingboxCoreOption {
+                            channel: release.channel.clone(),
+                            version: release.version.clone(),
+                            label: format!(
+                                "{} · {}",
+                                channel_label(&release.channel),
+                                release.version
+                            ),
+                            installed,
+                            is_active,
+                        }
+                    })
+                    .collect::<Vec<_>>();
+
+                let latest_version = current_channel
+                    .as_deref()
+                    .and_then(|ch| latest_version_for_channel(&releases, ch))
+                    .or_else(|| latest_version_for_channel(&releases, CORE_CHANNEL_STABLE));
+
+                let update_available =
+                    match (current_channel.as_deref(), current_version.as_deref()) {
+                        (Some(ch), Some(ver)) => latest_version_for_channel(&releases, ch)
+                            .is_some_and(|latest| latest != ver),
+                        _ => false,
+                    };
+
+                let status = SingboxCoreStatus {
+                    installed,
+                    current_channel,
+                    current_version,
+                    latest_version,
+                    update_available,
+                    is_running,
+                    available_options: options,
+                    releases_loaded: true,
+                };
+                return Ok(status);
             }
-        })
-        .collect::<Vec<_>>();
+            Err(fetch_err) => {
+                eprintln!(
+                    "Failed to fetch sing-box release list, falling back to local scan: {}",
+                    fetch_err
+                );
+                (false, scan_locally_installed_cores(&active_selection)?)
+            }
+        };
 
-    let latest_version = current_channel
-        .as_deref()
-        .and_then(|channel| latest_version_for_channel(&releases, channel))
-        .or_else(|| latest_version_for_channel(&releases, CORE_CHANNEL_STABLE));
-
-    let update_available = match (current_channel.as_deref(), current_version.as_deref()) {
-        (Some(channel), Some(version)) => {
-            latest_version_for_channel(&releases, channel).is_some_and(|latest| latest != version)
-        }
-        _ => false,
-    };
+    let (current_channel, current_version) = active_selection
+        .filter(|(ch, ver)| core_version_installed(ch, ver))
+        .map_or((None, None), |(ch, ver)| (Some(ch), Some(ver)));
 
     Ok(SingboxCoreStatus {
         installed,
         current_channel,
         current_version,
-        latest_version,
-        update_available,
+        latest_version: None,
+        update_available: false,
         is_running,
         available_options,
+        releases_loaded,
     })
+}
+
+/// Scan `bin/<channel>/<version>/` directories for locally installed cores.
+/// This is used as a fallback when neither GitHub nor the local cache is reachable.
+/// The returned options are marked `installed = true` and `is_active` is set from the
+/// active selection stored in `app_settings.json`.
+fn scan_locally_installed_cores(
+    active_selection: &Option<(String, String)>,
+) -> Result<Vec<SingboxCoreOption>, CommandError> {
+    let mut options: Vec<SingboxCoreOption> = Vec::new();
+
+    let bin_dir = get_bin_dir()?;
+
+    for channel in [CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING] {
+        let channel_dir = bin_dir.join(channel);
+        if !channel_dir.exists() {
+            continue;
+        }
+
+        let mut versions: Vec<String> = fs::read_dir(&channel_dir)
+            .map_err(|e| CommandError::io(format!("failed to scan {}", channel_dir.display()), e))?
+            .flatten()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".new") {
+                    return None;
+                }
+                if path.join(CORE_EXECUTABLE_NAME).exists() {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Newest first, matching the ordering from the GitHub list.
+        versions.sort_by(|a, b| b.cmp(a));
+
+        for version in versions {
+            let is_active = active_selection
+                .as_ref()
+                .is_some_and(|(ach, aver)| ach == channel && aver == &version);
+            options.push(SingboxCoreOption {
+                channel: channel.to_string(),
+                version: version.clone(),
+                label: format!("{} · {} (local)", channel_label(channel), version),
+                installed: true,
+                is_active,
+            });
+        }
+    }
+
+    Ok(options)
 }
 
 pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
