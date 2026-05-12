@@ -256,35 +256,15 @@ export const useConnectionsStore = create<
   setFrame: (frame) => {
     if (get().isPaused) return;
     const prevActive = get().active;
-    const prevMap = new Map(prevActive.map((c) => [c.id, c]));
-
-    const newActive: ConnectionEntry[] = frame.connections.map((snap) => {
-      const prev = prevMap.get(snap.id);
-      return {
-        ...snap,
-        downloadSpeed: prev ? snap.download - prev.download : 0,
-        uploadSpeed: prev ? snap.upload - prev.upload : 0,
-      };
-    });
-
-    const totalDownloadSpeed = newActive.reduce(
-      (sum, c) => sum + c.downloadSpeed,
-      0,
-    );
-    const totalUploadSpeed = newActive.reduce(
-      (sum, c) => sum + c.uploadSpeed,
-      0,
-    );
-
     const newIds = new Set(frame.connections.map((c) => c.id));
     const disappeared = prevActive.filter((c) => !newIds.has(c.id));
 
     set((state) => ({
-      active: newActive,
+      active: frame.connections,
       downloadTotal: frame.downloadTotal,
       uploadTotal: frame.uploadTotal,
-      totalDownloadSpeed,
-      totalUploadSpeed,
+      totalDownloadSpeed: frame.totalDownloadSpeed,
+      totalUploadSpeed: frame.totalUploadSpeed,
       closed:
         disappeared.length > 0
           ? [...disappeared, ...state.closed].slice(0, MAX_CLOSED)

@@ -68,7 +68,7 @@ export interface AppDisplaySettings {
   theme_mode: ThemeMode;
   singbox_core: SingboxCoreSettings;
   test_url: string;
-  close_behavior: "hide" | "quit";
+  close_behavior: "hide" | "destroy";
 }
 
 export interface SingboxCoreSettings {
@@ -371,7 +371,7 @@ export function normalizeAppSettings(
           ? settings.Settings.test_url
           : DEFAULT_TEST_URL,
       close_behavior:
-        settings.Settings?.close_behavior === "quit" ? "quit" : "hide",
+        settings.Settings?.close_behavior === "destroy" ? "destroy" : "hide",
     },
   };
 }
@@ -566,7 +566,9 @@ export interface CoreConnectionsFrame {
   downloadTotal: number;
   uploadTotal: number;
   memory?: number;
-  connections: CoreConnectionSnapshot[];
+  connections: ConnectionEntry[];
+  totalDownloadSpeed: number;
+  totalUploadSpeed: number;
 }
 
 export interface CoreLogMessage {

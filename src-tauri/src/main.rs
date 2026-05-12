@@ -149,8 +149,8 @@ fn main() {
                         .unwrap_or_else(|_| "hide".to_string())
                 };
 
-                if close_behavior == "quit" {
-                    // Allow window to destroy naturally; Destroyed handler will cleanup + exit
+                if close_behavior == "destroy" {
+                    // Allow window to destroy naturally, keeping tray + process alive
                     return;
                 }
 
@@ -181,14 +181,7 @@ fn main() {
                 }
             }
             tauri::WindowEvent::Destroyed => {
-                println!("Window destroyed, performing cleanup");
-                let app = window.app_handle().clone();
-                if let Some(state) = app.try_state::<SingboxState>() {
-                    services::singbox::cleanup_process(&state);
-                }
-                window_utils::run_after_delay(Duration::from_millis(200), || {
-                    std::process::exit(0);
-                });
+                println!("Window destroyed, keeping tray alive");
             }
             _ => {}
         })
@@ -199,9 +192,7 @@ fn main() {
             );
             let app_clone = app.clone();
             window_utils::run_after_delay(Duration::from_millis(50), move || {
-                if let Err(e) = window_utils::safe_show_window(&app_clone, "main") {
-                    eprintln!("Failed to show window on second instance: {}", e);
-                }
+                window_utils::safe_show_or_create_window(&app_clone, "main");
             });
         }))
         .run(tauri::generate_context!())

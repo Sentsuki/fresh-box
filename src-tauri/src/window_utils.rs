@@ -46,7 +46,43 @@ pub fn safe_show_window(app: &AppHandle, window_label: &str) -> Result<(), Strin
     }
 }
 
-/// 安全地切换窗口显示状态
+/// 安全地显示窗口，若窗口已销毁则重新创建
+pub fn safe_show_or_create_window(app: &AppHandle, window_label: &str) {
+    if app.get_webview_window(window_label).is_some() {
+        if let Err(e) = safe_show_window(app, window_label) {
+            eprintln!("Failed to show window: {}", e);
+        }
+        return;
+    }
+
+    // Window was destroyed (destroy mode) — recreate it
+    let app_clone = app.clone();
+    let label = window_label.to_string();
+    tauri::async_runtime::spawn(async move {
+        match tauri::WebviewWindowBuilder::new(
+            &app_clone,
+            label,
+            tauri::WebviewUrl::App("index.html".into()),
+        )
+        .title("fresh-box")
+        .inner_size(1200.0, 750.0)
+        .decorations(false)
+        .transparent(true)
+        .center()
+        .build()
+        {
+            Ok(window) => {
+                let _ = window.show();
+                let _ = window.set_focus();
+            }
+            Err(e) => {
+                eprintln!("Failed to recreate window: {}", e);
+            }
+        }
+    });
+}
+
+
 pub fn safe_toggle_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
     if let Some(window) = app.get_webview_window(window_label) {
         match window.is_visible() {

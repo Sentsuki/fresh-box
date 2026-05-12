@@ -197,9 +197,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                 "show" => {
                     let app_clone = app.clone();
                     crate::window_utils::run_after_delay(Duration::from_millis(10), move || {
-                        if let Err(e) = crate::window_utils::safe_show_window(&app_clone, "main") {
-                            eprintln!("Failed to show window: {}", e);
-                        }
+                        crate::window_utils::safe_show_or_create_window(&app_clone, "main");
                     });
                 }
                 _ => {}

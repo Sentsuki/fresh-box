@@ -442,12 +442,12 @@ export default function Settings() {
               <select
                 value={closeBehavior}
                 onChange={(e) =>
-                  void setCloseBehavior(e.target.value as "hide" | "quit")
+                  void setCloseBehavior(e.target.value as "hide" | "destroy")
                 }
                 className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="hide">Hide to tray</option>
-                <option value="quit">Quit application</option>
+                <option value="destroy">Destroy window (save memory)</option>
               </select>
             }
           />

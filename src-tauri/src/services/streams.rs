@@ -1,5 +1,7 @@
 use crate::errors::CommandError;
 use futures_util::StreamExt;
+use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
 use tauri::Emitter;
 use tokio::sync::{Mutex, watch};
@@ -10,6 +12,7 @@ pub struct StreamsState {
     memory: Mutex<Option<watch::Sender<bool>>>,
     connections: Mutex<Option<watch::Sender<bool>>>,
     logs: Mutex<Option<watch::Sender<bool>>>,
+    connection_speeds: Arc<Mutex<HashMap<String, (u64, u64)>>>,
 }
 
 impl StreamsState {
@@ -19,6 +22,7 @@ impl StreamsState {
             memory: Mutex::new(None),
             connections: Mutex::new(None),
             logs: Mutex::new(None),
+            connection_speeds: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -182,13 +186,9 @@ pub async fn start_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
     let rx = start_stream_slot(&state.connections).await;
-    tokio::spawn(run_json_stream(
-        app,
-        rx,
-        "stream-connections-status",
-        "stream-connections",
-        || base_stream_ws_url("connections"),
-    ));
+    let speeds = state.connection_speeds.clone();
+    speeds.lock().await.clear();
+    tokio::spawn(run_connections_stream(app, rx, speeds));
     Ok(())
 }
 
@@ -196,7 +196,144 @@ pub async fn stop_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
     stop_stream_slot(&state.connections).await;
+    state.connection_speeds.lock().await.clear();
     Ok(())
+}
+
+async fn enrich_and_emit_connections(
+    app: &tauri::AppHandle,
+    speeds: &Arc<Mutex<HashMap<String, (u64, u64)>>>,
+    text: &str,
+) {
+    let Ok(mut frame) = serde_json::from_str::<serde_json::Value>(text) else {
+        return;
+    };
+
+    let Some(connections) = frame
+        .get_mut("connections")
+        .and_then(|v| v.as_array_mut())
+    else {
+        let _ = app.emit("stream-connections", frame);
+        return;
+    };
+
+    let mut speeds_map = speeds.lock().await;
+    let mut total_download_speed: u64 = 0;
+    let mut total_upload_speed: u64 = 0;
+    let mut new_speeds: HashMap<String, (u64, u64)> = HashMap::with_capacity(connections.len());
+
+    for conn in connections.iter_mut() {
+        let id = conn
+            .get("id")
+            .and_then(|v| v.as_str())
+            .unwrap_or("")
+            .to_string();
+        let download = conn
+            .get("download")
+            .and_then(|v| v.as_u64())
+            .unwrap_or(0);
+        let upload = conn.get("upload").and_then(|v| v.as_u64()).unwrap_or(0);
+
+        let (dl_speed, ul_speed) = speeds_map
+            .get(&id)
+            .map(|&(prev_dl, prev_ul)| {
+                (
+                    download.saturating_sub(prev_dl),
+                    upload.saturating_sub(prev_ul),
+                )
+            })
+            .unwrap_or((0, 0));
+
+        total_download_speed += dl_speed;
+        total_upload_speed += ul_speed;
+        new_speeds.insert(id, (download, upload));
+
+        if let Some(obj) = conn.as_object_mut() {
+            obj.insert(
+                "downloadSpeed".to_string(),
+                serde_json::json!(dl_speed),
+            );
+            obj.insert(
+                "uploadSpeed".to_string(),
+                serde_json::json!(ul_speed),
+            );
+        }
+    }
+
+    *speeds_map = new_speeds;
+    drop(speeds_map);
+
+    if let Some(obj) = frame.as_object_mut() {
+        obj.insert(
+            "totalDownloadSpeed".to_string(),
+            serde_json::json!(total_download_speed),
+        );
+        obj.insert(
+            "totalUploadSpeed".to_string(),
+            serde_json::json!(total_upload_speed),
+        );
+    }
+
+    let _ = app.emit("stream-connections", frame);
+}
+
+async fn run_connections_stream(
+    app: tauri::AppHandle,
+    mut stop_rx: watch::Receiver<bool>,
+    speeds: Arc<Mutex<HashMap<String, (u64, u64)>>>,
+) {
+    loop {
+        if *stop_rx.borrow() {
+            break;
+        }
+
+        let ws_url = base_stream_ws_url("connections");
+        let _ = app.emit("stream-connections-status", "connecting");
+
+        match connect_async(&ws_url).await {
+            Ok((mut ws_stream, _)) => {
+                let _ = app.emit("stream-connections-status", "connected");
+                loop {
+                    tokio::select! {
+                        _ = stop_rx.changed() => {
+                            if *stop_rx.borrow() {
+                                speeds.lock().await.clear();
+                                let _ = app.emit("stream-connections-status", "disconnected");
+                                return;
+                            }
+                        }
+                        msg = ws_stream.next() => {
+                            match msg {
+                                Some(Ok(Message::Text(text))) => {
+                                    enrich_and_emit_connections(&app, &speeds, &text).await;
+                                }
+                                Some(Ok(_)) => {}
+                                _ => break,
+                            }
+                        }
+                    }
+                }
+                let _ = app.emit("stream-connections-status", "error");
+            }
+            Err(_) => {
+                let _ = app.emit("stream-connections-status", "error");
+            }
+        }
+
+        tokio::select! {
+            _ = stop_rx.changed() => {
+                if *stop_rx.borrow() {
+                    let _ = app.emit("stream-connections-status", "disconnected");
+                    break;
+                }
+            }
+            _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
+        }
+
+        let _ = app.emit("stream-connections-status", "connecting");
+    }
+
+    let _ = app.emit("stream-connections-status", "disconnected");
 }
 
 // ── Logs stream ────────────────────────────────────────────────────────────
