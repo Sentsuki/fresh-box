@@ -68,6 +68,7 @@ export interface AppDisplaySettings {
   theme_mode: ThemeMode;
   singbox_core: SingboxCoreSettings;
   test_url: string;
+  close_behavior: "hide" | "quit";
 }
 
 export interface SingboxCoreSettings {
@@ -189,6 +190,7 @@ export function createDefaultAppSettings(): AppSettings {
         selected_option_key: "",
       },
       test_url: DEFAULT_TEST_URL,
+      close_behavior: "hide",
     },
   };
 }
@@ -368,6 +370,8 @@ export function normalizeAppSettings(
         settings.Settings.test_url.trim() !== ""
           ? settings.Settings.test_url
           : DEFAULT_TEST_URL,
+      close_behavior:
+        settings.Settings?.close_behavior === "quit" ? "quit" : "hide",
     },
   };
 }

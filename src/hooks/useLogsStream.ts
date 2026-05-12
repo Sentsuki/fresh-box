@@ -103,6 +103,10 @@ export async function startLogsStream() {
         category: extractCategory(msg.payload),
       };
       logBuffer.push(entry);
+      // Cap the buffer to avoid unbounded memory growth when the Logs page is not mounted.
+      if (logBuffer.length > LOG_LIMIT) {
+        logBuffer.shift();
+      }
     });
   }
 

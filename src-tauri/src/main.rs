@@ -102,6 +102,8 @@ fn main() {
             commands::clash::close_all_connections,
             commands::clash::close_connection,
             commands::config::fetch_subscription,
+            commands::config::add_subscription,
+            commands::config::update_subscription,
         ])
         .setup(|app| {
             // 首次启动时生成含完整默认值的 priority_config.json（幂等）
@@ -141,6 +143,17 @@ fn main() {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
+                let close_behavior = {
+                    crate::config::app_settings::load_app_settings_file()
+                        .map(|s| s.settings.close_behavior.clone())
+                        .unwrap_or_else(|_| "hide".to_string())
+                };
+
+                if close_behavior == "quit" {
+                    // Allow window to destroy naturally; Destroyed handler will cleanup + exit
+                    return;
+                }
+
                 api.prevent_close();
                 let window_clone = window.clone();
                 window_utils::run_after_delay(Duration::from_millis(10), move || {
@@ -169,6 +182,13 @@ fn main() {
             }
             tauri::WindowEvent::Destroyed => {
                 println!("Window destroyed, performing cleanup");
+                let app = window.app_handle().clone();
+                if let Some(state) = app.try_state::<SingboxState>() {
+                    services::singbox::cleanup_process(&state);
+                }
+                window_utils::run_after_delay(Duration::from_millis(200), || {
+                    std::process::exit(0);
+                });
             }
             _ => {}
         })

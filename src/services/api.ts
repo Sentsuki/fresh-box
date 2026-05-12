@@ -14,7 +14,7 @@ import type {
 import { normalizeAppSettings } from "../types/app";
 import { invokeCommand } from "./tauri";
 
-function normalizeSubscriptions(
+export function normalizeSubscriptions(
   parsed: Record<string, SubscriptionInfo | string>,
 ): SubscriptionRecord {
   return Object.fromEntries(
@@ -23,6 +23,26 @@ function normalizeSubscriptions(
       typeof value === "string" ? { url: value } : value,
     ]),
   );
+}
+
+export interface SubscriptionOperationResult {
+  file_name: string;
+  config_files: string[];
+  subscriptions: string;
+}
+
+export async function addSubscription(
+  url: string,
+): Promise<SubscriptionOperationResult> {
+  return invokeCommand<SubscriptionOperationResult>("add_subscription", { url });
+}
+
+export async function updateSubscription(
+  fileName: string,
+): Promise<SubscriptionOperationResult> {
+  return invokeCommand<SubscriptionOperationResult>("update_subscription", {
+    fileName,
+  });
 }
 
 export async function listConfigs(): Promise<string[]> {

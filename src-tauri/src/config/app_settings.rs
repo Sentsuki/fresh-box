@@ -47,6 +47,7 @@ pub struct AppDisplaySettings {
     pub theme_mode: String,
     pub singbox_core: SingboxCoreSettings,
     pub test_url: String,
+    pub close_behavior: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -126,6 +127,7 @@ impl Default for AppDisplaySettings {
             theme_mode: "system".to_string(),
             singbox_core: SingboxCoreSettings::default(),
             test_url: DEFAULT_TEST_URL.to_string(),
+            close_behavior: "hide".to_string(),
         }
     }
 }

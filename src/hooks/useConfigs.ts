@@ -1,15 +1,17 @@
 import { useCallback } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
+  addSubscription as addSubscriptionCmd,
   copyConfigToBin,
   deleteConfigFile,
-  fetchSubscription,
   listConfigs,
   loadSubscriptions,
+  normalizeSubscriptions,
   openConfigFile as openConfigFileCmd,
   renameConfigFile,
-  saveSubscriptionConfig,
   saveSubscriptions,
+  updateSubscription as updateSubscriptionCmd,
+  type SubscriptionOperationResult,
 } from "../services/api";
 import { getCleanFileName } from "../services/utils";
 import { getErrorMessage } from "../services/tauri";
@@ -59,6 +61,32 @@ async function syncConfigFiles(preferredDisplayName?: string | null) {
 async function persistSubscriptions(subscriptions: SubscriptionRecord) {
   await saveSubscriptions(subscriptions);
   useConfigStore.getState().setSubscriptions(subscriptions);
+}
+
+/** Apply the result of an atomic add/update subscription backend command. */
+async function applySubscriptionResult(result: SubscriptionOperationResult) {
+  const configFiles = buildConfigEntries(result.config_files);
+  useConfigStore.getState().setConfigFiles(configFiles);
+  useConfigStore
+    .getState()
+    .setSubscriptions(
+      normalizeSubscriptions(
+        JSON.parse(result.subscriptions) as Record<string, SubscriptionInfo | string>,
+      ),
+    );
+
+  const settings = useSettingsStore.getState();
+  const currentPath = settings.settings.Profiles.selected_config_path;
+  if (currentPath && configFiles.find((c) => c.path === currentPath)) return;
+
+  const target =
+    configFiles.find((c) => c.displayName === result.file_name) ||
+    configFiles[0] ||
+    null;
+  await settings.setSelectedConfig(
+    target?.path ?? null,
+    target?.displayName ?? null,
+  );
 }
 
 export function useConfigs() {
@@ -142,25 +170,9 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const result = await fetchSubscription(url);
-        const targetPath = await saveSubscriptionConfig(
-          result.file_name,
-          result.content,
-        );
-        const cleanFileName = getCleanFileName(targetPath);
-
-        const current = useConfigStore.getState().subscriptions;
-        await persistSubscriptions({
-          ...current,
-          [cleanFileName]: {
-            ...current[cleanFileName],
-            url,
-            lastUpdated: new Date().toISOString(),
-          },
-        });
-
-        await syncConfigFiles(cleanFileName);
-        toastSuccess(`Subscribed to: ${cleanFileName}`);
+        const result = await addSubscriptionCmd(url);
+        await applySubscriptionResult(result);
+        toastSuccess(`Subscribed to: ${result.file_name}`);
       } catch (err) {
         toastError(`Error adding subscription: ${getErrorMessage(err)}`);
       } finally {
@@ -178,17 +190,9 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const result = await fetchSubscription(subscription.url);
-        await saveSubscriptionConfig(`${fileName}.json`, result.content);
-        await persistSubscriptions({
-          ...config.subscriptions,
-          [fileName]: {
-            ...subscription,
-            lastUpdated: new Date().toISOString(),
-          },
-        });
-        await syncConfigFiles(fileName);
-        toastSuccess(`Updated subscription: ${fileName}`);
+        const result = await updateSubscriptionCmd(fileName);
+        await applySubscriptionResult(result);
+        toastSuccess(`Updated subscription: ${result.file_name}`);
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
       } finally {

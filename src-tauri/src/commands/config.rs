@@ -114,8 +114,8 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
     Ok(target_config_path.to_string_lossy().into_owned())
 }
 
-#[tauri::command]
-pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
+/// Shared synchronous implementation for listing config files in order.
+pub fn list_configs_inner() -> Result<Vec<String>, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
 
     let mut on_disk: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -154,6 +154,11 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
     }
 
     Ok(result)
+}
+
+#[tauri::command]
+pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
+    list_configs_inner()
 }
 
 #[tauri::command]
@@ -354,6 +359,159 @@ pub async fn open_url(url: String) -> Result<(), CommandError> {
     }
 
     Ok(())
+}
+
+/// Return the subscriptions map serialised to JSON, with the internal
+/// `_file_order` key stripped so the frontend only sees user data.
+fn serialize_subscriptions_for_frontend() -> Result<String, CommandError> {
+    let mut map = crate::config::profiles::load_subscriptions_json()?;
+    map.remove(crate::config::profiles::FILE_ORDER_KEY);
+    serde_json::to_string(&Value::Object(map))
+        .map_err(|e| CommandError::json("failed to serialize subscriptions", e))
+}
+
+/// Result returned by the atomic add / update subscription commands.
+#[derive(serde::Serialize)]
+pub struct SubscriptionOperationResult {
+    /// Stem (no `.json`) of the subscription file.
+    pub file_name: String,
+    /// Ordered list of all config full paths (same as `list_configs`).
+    pub config_files: Vec<String>,
+    /// Updated subscription map serialised to JSON (without `_file_order`).
+    pub subscriptions: String,
+}
+
+/// Atomically fetch a subscription URL, save the config file, and update
+/// `subscriptions.json`. Returns enough data for the frontend to refresh
+/// its state in a single IPC round-trip.
+#[tauri::command]
+pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult, CommandError> {
+    if !url.starts_with("http://") && !url.starts_with("https://") {
+        return Err(CommandError::validation(
+            "Subscription URL must start with http:// or https://",
+        ));
+    }
+
+    let client = reqwest::Client::builder()
+        .user_agent("fresh-box")
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(CommandError::network(format!(
+            "HTTP error {}",
+            response.status()
+        )));
+    }
+
+    let content = response.text().await.map_err(|e| {
+        CommandError::network(format!("Failed to read subscription content: {}", e))
+    })?;
+
+    let file_name = extract_file_name_from_url(&url);
+    let stem = crate::config::profiles::stem_from_filename(&file_name).to_string();
+
+    let sub_dir = crate::config::paths::get_sub_dir()?;
+    let target_path = sub_dir.join(&file_name);
+    fs::write(&target_path, &content)
+        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
+
+    crate::config::profiles::append_to_file_order(&stem)?;
+
+    let mut subs_map = crate::config::profiles::load_subscriptions_json()?;
+    let entry = subs_map
+        .entry(stem.clone())
+        .or_insert_with(|| Value::Object(serde_json::Map::new()));
+    if let Some(obj) = entry.as_object_mut() {
+        obj.insert("url".to_string(), Value::String(url));
+        obj.insert(
+            "lastUpdated".to_string(),
+            Value::String(chrono::Utc::now().to_rfc3339()),
+        );
+    }
+    crate::config::profiles::save_subscriptions_json(&subs_map)?;
+
+    Ok(SubscriptionOperationResult {
+        file_name: stem,
+        config_files: list_configs_inner()?,
+        subscriptions: serialize_subscriptions_for_frontend()?,
+    })
+}
+
+/// Atomically re-fetch an existing subscription, overwrite the config file,
+/// and update `lastUpdated` in `subscriptions.json`.
+#[tauri::command]
+pub async fn update_subscription(
+    file_name: String,
+) -> Result<SubscriptionOperationResult, CommandError> {
+    let stem = crate::config::profiles::stem_from_filename(&file_name).to_string();
+
+    let url = {
+        let subs_map = crate::config::profiles::load_subscriptions_json()?;
+        subs_map
+            .get(&stem)
+            .and_then(|v| v.get("url"))
+            .and_then(|u| u.as_str())
+            .ok_or_else(|| {
+                CommandError::resource_not_found(
+                    "subscription",
+                    format!("No URL found for '{}'", stem),
+                )
+            })?
+            .to_string()
+    };
+
+    let client = reqwest::Client::builder()
+        .user_agent("fresh-box")
+        .timeout(std::time::Duration::from_secs(30))
+        .build()
+        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+
+    let response = client
+        .get(&url)
+        .send()
+        .await
+        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
+
+    if !response.status().is_success() {
+        return Err(CommandError::network(format!(
+            "HTTP error {}",
+            response.status()
+        )));
+    }
+
+    let content = response.text().await.map_err(|e| {
+        CommandError::network(format!("Failed to read subscription content: {}", e))
+    })?;
+
+    let sub_dir = crate::config::paths::get_sub_dir()?;
+    let target_path = sub_dir.join(format!("{}.json", stem));
+    fs::write(&target_path, &content)
+        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
+
+    let mut subs_map = crate::config::profiles::load_subscriptions_json()?;
+    if let Some(entry) = subs_map.get_mut(&stem) {
+        if let Some(obj) = entry.as_object_mut() {
+            obj.insert(
+                "lastUpdated".to_string(),
+                Value::String(chrono::Utc::now().to_rfc3339()),
+            );
+        }
+    }
+    crate::config::profiles::save_subscriptions_json(&subs_map)?;
+
+    Ok(SubscriptionOperationResult {
+        file_name: stem,
+        config_files: list_configs_inner()?,
+        subscriptions: serialize_subscriptions_for_frontend()?,
+    })
 }
 
 fn extract_clash_api_url(config: &Value) -> Option<String> {
