@@ -1,6 +1,7 @@
 import {
   ArrowSyncRegular,
   BoxRegular,
+  DismissRegular,
   DocumentTextRegular,
   FolderOpenRegular,
   GlobeRegular,
@@ -36,6 +37,10 @@ export default function Settings() {
   const testUrl = useSettingsStore((s) => s.settings.Settings.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
   const [testUrlInput, setTestUrlInput] = useState(testUrl);
+  const closeBehavior = useSettingsStore(
+    (s) => s.settings.Settings.close_behavior,
+  );
+  const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
 
   const currentThemeMode = settings.Settings.theme_mode;
 
@@ -426,6 +431,24 @@ export default function Settings() {
                   className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
                 />
               </div>
+            }
+          />
+
+          <SettingCard
+            icon={<DismissRegular />}
+            title="Close Button Behavior"
+            description="Choose what happens when the window close button is clicked"
+            control={
+              <select
+                value={closeBehavior}
+                onChange={(e) =>
+                  void setCloseBehavior(e.target.value as "hide" | "destroy")
+                }
+                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
+              >
+                <option value="hide">Hide to tray</option>
+                <option value="destroy">Destroy window (save memory)</option>
+              </select>
             }
           />
 

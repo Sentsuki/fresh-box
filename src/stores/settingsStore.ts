@@ -49,6 +49,7 @@ interface SettingsActions {
   setAdvancedTab: (tab: AdvancedPageTab) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setTestUrl: (url: string) => Promise<void>;
+  setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
 }
 
 function cloneSettings(s: AppSettings): AppSettings {
@@ -179,6 +180,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setTestUrl: async (url) => {
       await get().updateSettings((s) => {
         s.Settings.test_url = url;
+      });
+    },
+
+    setCloseBehavior: async (behavior) => {
+      await get().updateSettings((s) => {
+        s.Settings.close_behavior = behavior;
       });
     },
   }),
