@@ -128,6 +128,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 
     let tray_builder = TrayIconBuilder::with_id("main-tray")
         .menu(&initial_menu)
+        .show_menu_on_left_click(false)
         .tooltip("fresh-box");
 
     let tray_builder = if let Some(icon) = app.default_window_icon() {
