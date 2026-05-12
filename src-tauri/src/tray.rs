@@ -147,9 +147,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             {
                 let app = tray.app_handle().clone();
                 crate::window_utils::run_after_delay(Duration::from_millis(10), move || {
-                    if let Err(e) = crate::window_utils::safe_toggle_window(&app, "main") {
-                        eprintln!("Failed to toggle window: {}", e);
-                    }
+                    crate::window_utils::safe_toggle_or_create_window(&app, "main");
                 });
             }
         })

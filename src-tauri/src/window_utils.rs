@@ -83,29 +83,23 @@ pub fn safe_show_or_create_window(app: &AppHandle, window_label: &str) {
 }
 
 
-pub fn safe_toggle_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
+/// 切换窗口显示状态，若窗口已销毁（destroy 模式）则重新创建
+pub fn safe_toggle_or_create_window(app: &AppHandle, window_label: &str) {
     if let Some(window) = app.get_webview_window(window_label) {
         match window.is_visible() {
-            Ok(visible) => {
-                if visible {
-                    window
-                        .hide()
-                        .map_err(|e| format!("Failed to hide window: {}", e))?;
-                    let _ = window.emit("window-visibility-changed", false);
-                } else {
-                    window
-                        .show()
-                        .map_err(|e| format!("Failed to show window: {}", e))?;
-                    window
-                        .set_focus()
-                        .map_err(|e| format!("Failed to focus window: {}", e))?;
-                    let _ = window.emit("window-visibility-changed", true);
-                }
-                Ok(())
+            Ok(true) => {
+                let _ = window.hide();
+                let _ = window.emit("window-visibility-changed", false);
             }
-            Err(e) => Err(format!("Failed to check window visibility: {}", e)),
+            Ok(false) => {
+                let _ = window.show();
+                let _ = window.set_focus();
+                let _ = window.emit("window-visibility-changed", true);
+            }
+            Err(e) => eprintln!("Failed to check window visibility: {}", e),
         }
     } else {
-        Err("Window not found".to_string())
+        // Window was destroyed in destroy mode — recreate it
+        safe_show_or_create_window(app, window_label);
     }
 }
