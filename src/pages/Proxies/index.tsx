@@ -382,7 +382,7 @@ export default function Proxies() {
               <select
                 value={currentMode}
                 onChange={(e) => void changeMode(e.target.value)}
-                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize shadow-sm"
+                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
               >
                 {availableModes.map((m) => (
                   <option key={m} value={m}>
