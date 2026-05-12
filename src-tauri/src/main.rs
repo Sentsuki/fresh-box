@@ -185,9 +185,7 @@ fn main() {
                     );
                 }
             }
-            tauri::WindowEvent::Destroyed => {
-                println!("Window destroyed, keeping tray alive");
-            }
+            tauri::WindowEvent::Destroyed => {}
             _ => {}
         })
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {

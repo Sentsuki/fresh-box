@@ -8,15 +8,19 @@ use tauri::{AppHandle, Manager, WebviewWindowBuilder};
 // destroy 模式下，窗口被销毁后 Tauri 会触发 ExitRequested。
 // 通过 keep_alive_without_windows 标志告知运行时阻止退出，
 // 直到用户明确点击退出（此时 allow_exit 置为 true）。
+//
+// is_creating 用于防止快速双击托盘时同时启动多个窗口重建线程。
 
 struct WindowBehaviorState {
     keep_alive_without_windows: bool,
     allow_exit: bool,
+    is_creating: bool,
 }
 
 static WINDOW_STATE: Mutex<WindowBehaviorState> = Mutex::new(WindowBehaviorState {
     keep_alive_without_windows: false,
     allow_exit: false,
+    is_creating: false,
 });
 
 /// destroy 模式关闭时调用：告知运行时在无窗口时保持存活
@@ -90,6 +94,8 @@ pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
 /// 产生死锁：WebviewWindowBuilder::build() 内部需要主消息循环处理消息，若调用
 /// 线程本身就是主循环线程且被 join 阻塞，webview 将无法完成初始化，表现为窗口
 /// 仅出现在任务栏而无法显示。
+///
+/// is_creating 标志防止快速双击托盘时同时启动多个重建线程（Label already exists）。
 pub fn show_or_create_main_window(app: &AppHandle) {
     if app.get_webview_window("main").is_some() {
         if let Err(e) = show_window(app, "main") {
@@ -98,16 +104,36 @@ pub fn show_or_create_main_window(app: &AppHandle) {
         return;
     }
 
+    // 防止并发重建：若已有线程正在创建窗口，直接跳过
+    {
+        let Ok(mut s) = WINDOW_STATE.lock() else { return };
+        if s.is_creating {
+            return;
+        }
+        s.is_creating = true;
+    }
+
     // 窗口已被销毁，在独立后台线程中重建，避免阻塞调用线程（主消息循环）
     let app_clone = app.clone();
     std::thread::spawn(move || {
-        let Some(window_config) = app_clone.config().app.windows.first().cloned() else {
-            eprintln!("No window config found in tauri.conf.json");
-            return;
-        };
-        match WebviewWindowBuilder::from_config(&app_clone, &window_config)
-            .and_then(|b| b.build())
-        {
+        let result = (|| {
+            let window_config = app_clone
+                .config()
+                .app
+                .windows
+                .first()
+                .cloned()
+                .ok_or_else(|| "No window config found in tauri.conf.json".to_string())?;
+            WebviewWindowBuilder::from_config(&app_clone, &window_config)
+                .and_then(|b| b.build())
+                .map_err(|e| format!("Failed to build window: {}", e))
+        })();
+
+        if let Ok(mut s) = WINDOW_STATE.lock() {
+            s.is_creating = false;
+        }
+
+        match result {
             Ok(window) => {
                 let _ = window.unminimize();
                 let _ = window.show();
