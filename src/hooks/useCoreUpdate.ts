@@ -201,17 +201,8 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       coreUpdateProgress?.stage === "downloading"
         ? "Downloading..."
         : "Applying...";
-  } else if (selectedOption) {
-    if (selectedOption.installed && selectedOption.is_active) {
-      updateCoreButtonLabel =
-        selectedOption.channel === "testing"
-          ? "Reinstall Testing"
-          : "Reinstall Stable";
-    } else if (selectedOption.installed) {
-      updateCoreButtonLabel = "Switch Core";
-    } else {
-      updateCoreButtonLabel = "Install & Switch";
-    }
+  } else if (selectedOption?.installed && selectedOption?.is_active) {
+    updateCoreButtonLabel = "Reinstall";
   }
 
   return {

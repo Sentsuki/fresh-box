@@ -66,6 +66,7 @@ const RELEASE_CACHE_TTL_SECONDS: u64 = 60 * 60;
 struct ReleaseAsset {
     name: String,
     browser_download_url: String,
+    digest: Option<String>,
 }
 
 #[derive(Deserialize)]
@@ -82,6 +83,7 @@ struct CoreReleaseMetadata {
     version: String,
     archive_name: String,
     archive_url: String,
+    digest: String,
 }
 
 #[derive(Serialize, Deserialize)]
@@ -430,7 +432,7 @@ pub async fn update_singbox_core(
     );
     download_file_with_progress(
         &app,
-        &target_release.archive_url,
+        target_release,
         &update_paths.zip_path,
         "Downloading sing-box package...",
         8,
@@ -710,6 +712,9 @@ fn release_to_core_metadata(
         .iter()
         .find(|asset| asset.name.ends_with(WINDOWS_AMD64_ASSET_SUFFIX))?;
 
+    let full_digest = asset.digest.as_ref()?;
+    let digest = full_digest.strip_prefix("sha256:")?.to_string();
+
     let version = normalized_version(&release.tag_name)?;
 
     Some(CoreReleaseMetadata {
@@ -717,6 +722,7 @@ fn release_to_core_metadata(
         version,
         archive_name: asset.name.clone(),
         archive_url: asset.browser_download_url.clone(),
+        digest,
     })
 }
 
@@ -849,15 +855,17 @@ fn prune_channel_versions(channel: &str, keep_versions: &[String]) -> Result<(),
 
 async fn download_file_with_progress(
     app: &AppHandle,
-    url: &str,
+    release: &CoreReleaseMetadata,
     destination: &Path,
     message: &str,
     start_percent: u8,
     end_percent: u8,
     cancel: &CoreUpdateCancelState,
 ) -> Result<(), CommandError> {
+    use sha2::{Digest, Sha256};
+
     let response = github_client()?
-        .get(url)
+        .get(&release.archive_url)
         .header("Accept", "application/octet-stream")
         .send()
         .await
@@ -889,6 +897,7 @@ async fn download_file_with_progress(
     let total_size = response.content_length();
     let mut downloaded = 0_u64;
     let mut last_percent = start_percent;
+    let mut hasher = Sha256::new();
     emit_progress(app, "downloading", start_percent, message);
 
     let mut stream = response.bytes_stream();
@@ -905,6 +914,7 @@ async fn download_file_with_progress(
                 error,
             )
         })?;
+        hasher.update(&chunk);
         downloaded += chunk.len() as u64;
 
         if let Some(total_size) = total_size {
@@ -923,6 +933,18 @@ async fn download_file_with_progress(
             error,
         )
     })?;
+
+    let actual_hash = hasher
+        .finalize()
+        .iter()
+        .map(|b| format!("{:02x}", b))
+        .collect::<String>();
+    if actual_hash != release.digest {
+        return Err(CommandError::validation(format!(
+            "SHA256 checksum failed! Expected: {}, Got: {}",
+            release.digest, actual_hash
+        )));
+    }
 
     Ok(())
 }
