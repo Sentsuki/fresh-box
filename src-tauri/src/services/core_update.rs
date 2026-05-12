@@ -107,6 +107,20 @@ pub struct SingboxCoreOption {
     pub is_active: bool,
 }
 
+/// Describes the source and freshness of the release list in `SingboxCoreStatus`.
+#[derive(Serialize, Clone, PartialEq)]
+#[serde(rename_all = "snake_case")]
+pub enum ReleaseCacheState {
+    /// No cached release list exists; `available_options` contains only
+    /// locally installed cores. Install/switch controls should be disabled.
+    NoCache,
+    /// Release list is within the 1-hour TTL (or was just fetched from GitHub).
+    Fresh,
+    /// Release list comes from an expired local cache because GitHub was
+    /// unreachable. Controls remain enabled but the UI should warn the user.
+    Stale,
+}
+
 #[derive(Serialize)]
 pub struct SingboxCoreStatus {
     pub installed: bool,
@@ -116,6 +130,12 @@ pub struct SingboxCoreStatus {
     pub update_available: bool,
     pub is_running: bool,
     pub available_options: Vec<SingboxCoreOption>,
+    /// Freshness of the release list. The frontend uses this to decide
+    /// whether install/switch controls are enabled and what hint to show.
+    pub cache_state: ReleaseCacheState,
+    /// Non-fatal error message when a GitHub fetch was attempted but failed.
+    /// Present only when `force_refresh` was true and the network request failed.
+    pub fetch_error: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -138,30 +158,102 @@ pub async fn get_singbox_core_status(
 ) -> Result<SingboxCoreStatus, CommandError> {
     cleanup_staged_core_update_files()?;
 
-    let releases = fetch_available_core_releases(force_refresh.unwrap_or(false)).await?;
-    let active_selection = get_active_singbox_core_selection()?;
-    cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
-
     let is_running = crate::services::singbox::is_singbox_running(state).await?;
     let installed = get_active_singbox_core_executable().is_ok();
+    let active_selection = get_active_singbox_core_selection()?;
+    let force = force_refresh.unwrap_or(false);
+
+    // Decide which release data to use and what the cache state is.
+    //
+    // - force_refresh=false (normal page load): read the local cache only.
+    //   Fresh cache -> Fresh state. Expired cache -> Stale state. No cache -> NoCache.
+    //   NEVER touches the network so that opening the Settings page is side-effect-free.
+    //
+    // - force_refresh=true (Check button): try GitHub first, gracefully fall back.
+    let (releases_opt, cache_state, fetch_error) = if force {
+        match fetch_and_cache_github_releases().await {
+            Ok(releases) => (Some(releases), ReleaseCacheState::Fresh, None),
+            Err(err) => {
+                let msg = err.to_string();
+                eprintln!("GitHub fetch failed (force refresh): {}", msg);
+                match load_cached_core_releases()? {
+                    Some(cache) => (Some(cache.releases), ReleaseCacheState::Stale, Some(msg)),
+                    None => (None, ReleaseCacheState::NoCache, Some(msg)),
+                }
+            }
+        }
+    } else {
+        match load_cached_core_releases()? {
+            Some(cache) => {
+                let state = if is_release_cache_fresh(&cache)? {
+                    ReleaseCacheState::Fresh
+                } else {
+                    ReleaseCacheState::Stale
+                };
+                (Some(cache.releases), state, None)
+            }
+            None => (None, ReleaseCacheState::NoCache, None),
+        }
+    };
+
+    match releases_opt {
+        Some(releases) => {
+            cleanup_unused_core_versions(active_selection.as_ref(), &releases)?;
+            build_status_with_releases(
+                installed,
+                is_running,
+                active_selection,
+                releases,
+                cache_state,
+                fetch_error,
+            )
+        }
+        None => {
+            // No cache and no network: show only locally installed cores.
+            let available_options = scan_locally_installed_cores(&active_selection)?;
+            let (current_channel, current_version) = active_selection
+                .filter(|(ch, ver)| core_version_installed(ch, ver))
+                .map_or((None, None), |(ch, ver)| (Some(ch), Some(ver)));
+            Ok(SingboxCoreStatus {
+                installed,
+                current_channel,
+                current_version,
+                latest_version: None,
+                update_available: false,
+                is_running,
+                available_options,
+                cache_state: ReleaseCacheState::NoCache,
+                fetch_error,
+            })
+        }
+    }
+}
+
+/// Build a full `SingboxCoreStatus` from a resolved release list.
+fn build_status_with_releases(
+    installed: bool,
+    is_running: bool,
+    active_selection: Option<(String, String)>,
+    releases: Vec<CoreReleaseMetadata>,
+    cache_state: ReleaseCacheState,
+    fetch_error: Option<String>,
+) -> Result<SingboxCoreStatus, CommandError> {
     let (current_channel, current_version) = active_selection
         .clone()
-        .filter(|(channel, version)| core_version_installed(channel, version))
-        .map_or((None, None), |(channel, version)| {
-            (Some(channel), Some(version))
-        });
+        .filter(|(ch, ver)| core_version_installed(ch, ver))
+        .map_or((None, None), |(ch, ver)| (Some(ch), Some(ver)));
 
     let available_options = releases
         .iter()
         .map(|release| {
-            let installed = core_version_installed(&release.channel, &release.version);
+            let inst = core_version_installed(&release.channel, &release.version);
             let is_active = current_channel.as_deref() == Some(release.channel.as_str())
                 && current_version.as_deref() == Some(release.version.as_str());
             SingboxCoreOption {
                 channel: release.channel.clone(),
                 version: release.version.clone(),
                 label: format!("{} · {}", channel_label(&release.channel), release.version),
-                installed,
+                installed: inst,
                 is_active,
             }
         })
@@ -169,12 +261,12 @@ pub async fn get_singbox_core_status(
 
     let latest_version = current_channel
         .as_deref()
-        .and_then(|channel| latest_version_for_channel(&releases, channel))
+        .and_then(|ch| latest_version_for_channel(&releases, ch))
         .or_else(|| latest_version_for_channel(&releases, CORE_CHANNEL_STABLE));
 
     let update_available = match (current_channel.as_deref(), current_version.as_deref()) {
-        (Some(channel), Some(version)) => {
-            latest_version_for_channel(&releases, channel).is_some_and(|latest| latest != version)
+        (Some(ch), Some(ver)) => {
+            latest_version_for_channel(&releases, ch).is_some_and(|latest| latest != ver)
         }
         _ => false,
     };
@@ -187,7 +279,73 @@ pub async fn get_singbox_core_status(
         update_available,
         is_running,
         available_options,
+        cache_state,
+        fetch_error,
     })
+}
+
+/// Fetch the latest release list from GitHub and persist it to the local cache.
+async fn fetch_and_cache_github_releases() -> Result<Vec<CoreReleaseMetadata>, CommandError> {
+    let releases = fetch_available_core_releases_from_github().await?;
+    store_cached_core_releases(&releases)?;
+    Ok(releases)
+}
+
+/// Scan `bin/<channel>/<version>/` directories for locally installed cores.
+/// This is used as a fallback when neither GitHub nor the local cache is reachable.
+/// The returned options are marked `installed = true` and `is_active` is set from the
+/// active selection stored in `app_settings.json`.
+fn scan_locally_installed_cores(
+    active_selection: &Option<(String, String)>,
+) -> Result<Vec<SingboxCoreOption>, CommandError> {
+    let mut options: Vec<SingboxCoreOption> = Vec::new();
+
+    let bin_dir = get_bin_dir()?;
+
+    for channel in [CORE_CHANNEL_STABLE, CORE_CHANNEL_TESTING] {
+        let channel_dir = bin_dir.join(channel);
+        if !channel_dir.exists() {
+            continue;
+        }
+
+        let mut versions: Vec<String> = fs::read_dir(&channel_dir)
+            .map_err(|e| CommandError::io(format!("failed to scan {}", channel_dir.display()), e))?
+            .flatten()
+            .filter_map(|entry| {
+                let path = entry.path();
+                if !path.is_dir() {
+                    return None;
+                }
+                let name = entry.file_name().to_string_lossy().to_string();
+                if name.ends_with(".new") {
+                    return None;
+                }
+                if path.join(CORE_EXECUTABLE_NAME).exists() {
+                    Some(name)
+                } else {
+                    None
+                }
+            })
+            .collect();
+
+        // Newest first, matching the ordering from the GitHub list.
+        versions.sort_by(|a, b| b.cmp(a));
+
+        for version in versions {
+            let is_active = active_selection
+                .as_ref()
+                .is_some_and(|(ach, aver)| ach == channel && aver == &version);
+            options.push(SingboxCoreOption {
+                channel: channel.to_string(),
+                version: version.clone(),
+                label: format!("{} · {}", channel_label(channel), version),
+                installed: true,
+                is_active,
+            });
+        }
+    }
+
+    Ok(options)
 }
 
 pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {

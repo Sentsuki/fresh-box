@@ -87,7 +87,6 @@ export interface ConnectionPageSettings {
   sort_key: ConnectionColumnKey;
   sort_direction: SortDirection;
   grouped_column: ConnectionColumnKey | null;
-  collapsed_groups: Record<string, boolean>;
   column_sizes: Record<string, number>;
 }
 
@@ -166,7 +165,6 @@ export function createDefaultAppSettings(): AppSettings {
       sort_key: "downloadSpeed",
       sort_direction: "desc",
       grouped_column: null,
-      collapsed_groups: {},
       column_sizes: {},
     },
     logs: {
@@ -325,9 +323,6 @@ export function normalizeAppSettings(
       )
         ? (settings.connections?.grouped_column ?? null)
         : null,
-      collapsed_groups: normalizeBooleanRecord(
-        settings.connections?.collapsed_groups,
-      ),
       column_sizes: normalizeNumberRecord(settings.connections?.column_sizes),
     },
     logs: {
@@ -440,6 +435,14 @@ export interface SingboxCoreOption {
   is_active: boolean;
 }
 
+/**
+ * Describes the freshness of the release list returned by the backend.
+ * - `no_cache`  No cached list; only local cores shown; install/switch disabled.
+ * - `fresh`     List is within the 1-hour TTL or just fetched from GitHub.
+ * - `stale`     List is from an expired cache; controls enabled but warn the user.
+ */
+export type ReleaseCacheState = "no_cache" | "fresh" | "stale";
+
 export interface SingboxCoreStatus {
   installed: boolean;
   current_channel: SingboxCoreChannel | null;
@@ -448,6 +451,9 @@ export interface SingboxCoreStatus {
   update_available: boolean;
   is_running: boolean;
   available_options: SingboxCoreOption[];
+  cache_state: ReleaseCacheState;
+  /** Set when a GitHub fetch was attempted (Check button) but failed. */
+  fetch_error?: string | null;
 }
 
 export interface SingboxCoreUpdateResult {

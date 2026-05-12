@@ -10,6 +10,7 @@ import {
   WrenchRegular,
 } from "@fluentui/react-icons";
 import { useCallback, useState } from "react";
+import { motion } from "framer-motion";
 import { useAppStore } from "../../stores/appStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
@@ -94,7 +95,11 @@ export function Sidebar() {
               ].join(" ")}
             >
               {active && (
-                <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
+                <motion.span
+                  layoutId="sidebar-active-indicator"
+                  className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full"
+                  transition={{ type: "spring", stiffness: 400, damping: 33 }}
+                />
               )}
               <Icon className="shrink-0 text-xl" />
               {isExpanded && (
@@ -122,7 +127,11 @@ export function Sidebar() {
           ].join(" ")}
         >
           {currentPage === "settings" && (
-            <span className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full" />
+            <motion.span
+              layoutId="sidebar-active-indicator"
+              className="absolute left-0 top-2 bottom-2 w-1 bg-(--wb-accent) rounded-full"
+              transition={{ type: "spring", stiffness: 400, damping: 33 }}
+            />
           )}
           <SettingsRegular className="shrink-0 text-xl" />
           {isExpanded && <span className="truncate text-sm">Settings</span>}

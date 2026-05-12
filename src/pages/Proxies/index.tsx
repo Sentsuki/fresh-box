@@ -1,5 +1,4 @@
 import {
-  ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
@@ -267,7 +266,7 @@ export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups) ?? EMPTY_GROUPS;
   const overview = useClashStore((s) => s.overview);
   const isRunning = useSingboxStore((s) => s.isRunning);
-  const isRefreshing = useClashStore((s) => s.isRefreshing);
+
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
   const {
     refreshOverview,
@@ -383,7 +382,7 @@ export default function Proxies() {
               <select
                 value={currentMode}
                 onChange={(e) => void changeMode(e.target.value)}
-                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize shadow-sm"
+                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
               >
                 {availableModes.map((m) => (
                   <option key={m} value={m}>
@@ -393,14 +392,7 @@ export default function Proxies() {
               </select>
             </div>
           )}
-          <Button
-            icon={<ArrowClockwiseRegular />}
-            variant="accent"
-            loading={isRefreshing}
-            onClick={() => void refreshOverview()}
-          >
-            Refresh
-          </Button>
+
         </div>
       </PageHeader>
 

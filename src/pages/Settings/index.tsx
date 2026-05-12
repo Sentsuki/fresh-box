@@ -71,8 +71,10 @@ export default function Settings() {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
+    cacheState,
   } = useCoreUpdate(true);
   const availableOptions = coreStatus?.available_options ?? [];
+  const controlsEnabled = cacheState === "fresh" || cacheState === "stale";
 
   // Priority Config (TUN & Core Logs)
   const {
@@ -260,30 +262,25 @@ export default function Settings() {
           />
           <SettingCard
             icon={<ArrowSyncRegular />}
-            title="Flush Fake-IP Cache"
-            description="Clears the Fake-IP mappings if enabled"
+            title="Flush Cache"
+            description="Clear internal DNS cache or Fake-IP mappings"
             control={
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => void flushFakeIpCache()}
-              >
-                Flush
-              </Button>
-            }
-          />
-          <SettingCard
-            icon={<ArrowSyncRegular />}
-            title="Flush DNS Cache"
-            description="Clears the internal DNS cache"
-            control={
-              <Button
-                size="sm"
-                variant="subtle"
-                onClick={() => void flushDnsCache()}
-              >
-                Flush
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => void flushFakeIpCache()}
+                >
+                  Flush Fake-IP
+                </Button>
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  onClick={() => void flushDnsCache()}
+                >
+                  Flush DNS
+                </Button>
+              </div>
             }
           />
         </SettingGroup>
@@ -315,6 +312,16 @@ export default function Settings() {
                     </div>
                   </div>
                 )}
+                {coreStatus && cacheState === "no_cache" && (
+                  <span className="text-[11px] text-(--wb-text-tertiary) italic">
+                    No version list — click Check to load available releases.
+                  </span>
+                )}
+                {coreStatus && cacheState === "stale" && (
+                  <span className="text-[11px] text-amber-500/80 italic">
+                    Version list may be outdated — click Check to refresh.
+                  </span>
+                )}
               </div>
             }
             control={
@@ -338,7 +345,7 @@ export default function Settings() {
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                     <select
                       value={selectedCoreOptionKey}
-                      disabled={isUpdatingCore}
+                      disabled={isUpdatingCore || !controlsEnabled}
                       onChange={(e) => {
                         const newKey = e.target.value;
                         void setSelectedCoreOptionKey(newKey);
@@ -371,6 +378,7 @@ export default function Settings() {
                       </Button>
                     )}
                     {!isUpdatingCore &&
+                      controlsEnabled &&
                       selectedOption?.installed &&
                       selectedOption?.is_active && (
                         <Button

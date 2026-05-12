@@ -47,7 +47,13 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       try {
         const status = await getSingboxCoreStatus(forceRefresh);
         setCoreStatus(status);
-        // Auto-select an option if none selected
+        // Surface a non-fatal network error embedded in the status
+        // (e.g. GitHub unreachable during Check) without throwing.
+        if (status.fetch_error) {
+          setCoreStatusError(status.fetch_error);
+          if (showErrorToast) toastError(status.fetch_error);
+        }
+        // Auto-select an option if none is selected yet
         const options = status.available_options ?? [];
         if (options.length > 0) {
           const currentExists = options.some(
@@ -145,6 +151,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   useEffect(() => {
     if (autoRefreshOnMount && !hasAutoRefreshed.current) {
       hasAutoRefreshed.current = true;
+      // Backend decides everything: normal page load reads cache only, no network.
       void refreshCoreStatus();
     }
 
@@ -223,5 +230,6 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     refreshCoreStatus,
     applySelectedCore,
     cancelUpdate,
+    cacheState: coreStatus?.cache_state ?? "no_cache",
   };
 }

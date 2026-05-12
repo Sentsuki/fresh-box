@@ -16,6 +16,7 @@ import { createDefaultAppSettings, normalizeAppSettings } from "../types/app";
 interface SettingsState {
   settings: AppSettings;
   hydrated: boolean;
+  connectionExpandedGroups: Record<string, boolean>;
 }
 
 interface SettingsActions {
@@ -40,11 +41,8 @@ interface SettingsActions {
   setConnectionsGroupedColumn: (
     column: ConnectionColumnKey | null,
   ) => Promise<void>;
-  setConnectionGroupCollapsed: (
-    group: string,
-    collapsed: boolean,
-  ) => Promise<void>;
   setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
+  setConnectionExpandedGroups: (groups: Record<string, boolean>) => void;
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setRulesTab: (tab: RulesTab) => Promise<void>;
@@ -61,6 +59,7 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
   (set, get) => ({
     settings: createDefaultAppSettings(),
     hydrated: false,
+    connectionExpandedGroups: {},
 
     hydrate: async () => {
       const settings = await loadAppSettings();
@@ -134,13 +133,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setConnectionsGroupedColumn: async (column) => {
       await get().updateSettings((s) => {
         s.connections.grouped_column = column;
-        s.connections.collapsed_groups = {};
-      });
-    },
-
-    setConnectionGroupCollapsed: async (group, collapsed) => {
-      await get().updateSettings((s) => {
-        s.connections.collapsed_groups[group] = collapsed;
       });
     },
 
@@ -148,6 +140,10 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       await get().updateSettings((s) => {
         s.connections.column_sizes = sizes;
       });
+    },
+
+    setConnectionExpandedGroups: (groups) => {
+      set({ connectionExpandedGroups: groups });
     },
 
     setLogLevel: async (level) => {

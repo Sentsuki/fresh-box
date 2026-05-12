@@ -1,10 +1,10 @@
 import {
-  DismissRegular,
-  InfoRegular,
-  GlobeRegular,
   ArrowRightRegular,
   DeleteRegular,
+  DismissRegular,
   DocumentRegular,
+  GlobeRegular,
+  InfoRegular,
 } from "@fluentui/react-icons";
 import {
   formatBytes,
@@ -33,7 +33,7 @@ export function ConnectionDetailsModal({
 
   return (
     <div
-      className="fixed inset-0 z-50 flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200"
+      className="fixed inset-0 z-60 flex items-center justify-center p-4 sm:p-6 bg-black/50 animate-in fade-in duration-200"
       onClick={(e) => {
         if (e.target === e.currentTarget) onClose();
       }}
