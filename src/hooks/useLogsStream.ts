@@ -4,7 +4,6 @@ import { create } from "zustand";
 import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import { isWindowVisible } from "./useWindowVisibility";
 import { invokeCommand } from "../services/tauri";
 
 const LOG_LEVELS = [
@@ -103,10 +102,6 @@ export async function startLogsStream() {
         category: extractCategory(msg.payload),
       };
       logBuffer.push(entry);
-      // Cap the buffer to avoid unbounded memory growth when the Logs page is not mounted.
-      if (logBuffer.length > LOG_LIMIT) {
-        logBuffer.shift();
-      }
     });
   }
 
@@ -164,7 +159,7 @@ export function useLogsStream() {
   useEffect(() => {
     let timerId: ReturnType<typeof setTimeout>;
     const flush = () => {
-      if (isWindowVisible() && logBuffer.length > 0) {
+      if (logBuffer.length > 0) {
         const batch = logBuffer.splice(0);
         useLogsStore.setState((state) => {
           const next = [...state.logs, ...batch];
