@@ -84,29 +84,12 @@ pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
     Ok(())
 }
 
-/// 使用 tauri.conf.json 中的窗口配置重建主窗口。
-/// 在新线程中同步完成，避免在 tokio 上下文中执行阻塞调用。
-fn create_main_window(app: &AppHandle) -> Result<(), String> {
-    let window_config = app
-        .config()
-        .app
-        .windows
-        .first()
-        .cloned()
-        .ok_or_else(|| "No window config found in tauri.conf.json".to_string())?;
-    let app_handle = app.clone();
-    std::thread::spawn(move || {
-        WebviewWindowBuilder::from_config(&app_handle, &window_config)
-            .map_err(|e| format!("Failed to create window builder: {}", e))?
-            .build()
-            .map(|_| ())
-            .map_err(|e| format!("Failed to build window: {}", e))
-    })
-    .join()
-    .map_err(|_| "Window creation thread panicked".to_string())?
-}
-
-/// 显示主窗口。若窗口已在 destroy 模式下被销毁，则先重建再显示。
+/// 显示主窗口。若窗口已在 destroy 模式下被销毁，则在后台线程中重建并显示。
+///
+/// 重建时故意不阻塞调用线程（不使用 join），避免在 Windows 主消息循环线程上
+/// 产生死锁：WebviewWindowBuilder::build() 内部需要主消息循环处理消息，若调用
+/// 线程本身就是主循环线程且被 join 阻塞，webview 将无法完成初始化，表现为窗口
+/// 仅出现在任务栏而无法显示。
 pub fn show_or_create_main_window(app: &AppHandle) {
     if app.get_webview_window("main").is_some() {
         if let Err(e) = show_window(app, "main") {
@@ -115,14 +98,23 @@ pub fn show_or_create_main_window(app: &AppHandle) {
         return;
     }
 
-    // 窗口已被 destroy，重建后再显示
-    if let Err(e) = create_main_window(app) {
-        eprintln!("Failed to recreate window: {}", e);
-        return;
-    }
-    if let Err(e) = show_window(app, "main") {
-        eprintln!("Failed to show recreated window: {}", e);
-    }
-    // 窗口已重建，解除保活标志
-    set_keep_alive(false);
+    // 窗口已被销毁，在独立后台线程中重建，避免阻塞调用线程（主消息循环）
+    let app_clone = app.clone();
+    std::thread::spawn(move || {
+        let Some(window_config) = app_clone.config().app.windows.first().cloned() else {
+            eprintln!("No window config found in tauri.conf.json");
+            return;
+        };
+        match WebviewWindowBuilder::from_config(&app_clone, &window_config)
+            .and_then(|b| b.build())
+        {
+            Ok(window) => {
+                let _ = window.unminimize();
+                let _ = window.show();
+                let _ = window.set_focus();
+                set_keep_alive(false);
+            }
+            Err(e) => eprintln!("Failed to recreate window: {}", e),
+        }
+    });
 }
