@@ -1,5 +1,4 @@
 import {
-  ArrowClockwiseRegular,
   ChevronDownRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
@@ -267,7 +266,7 @@ export default function Proxies() {
   const groups = useClashStore((s) => s.overview?.proxy_groups) ?? EMPTY_GROUPS;
   const overview = useClashStore((s) => s.overview);
   const isRunning = useSingboxStore((s) => s.isRunning);
-  const isRefreshing = useClashStore((s) => s.isRefreshing);
+
   const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
   const {
     refreshOverview,
@@ -393,14 +392,7 @@ export default function Proxies() {
               </select>
             </div>
           )}
-          <Button
-            icon={<ArrowClockwiseRegular />}
-            variant="accent"
-            loading={isRefreshing}
-            onClick={() => void refreshOverview()}
-          >
-            Refresh
-          </Button>
+
         </div>
       </PageHeader>
 
