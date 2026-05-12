@@ -1,0 +1,225 @@
+use super::extract_nodes_from_subscription;
+
+#[test]
+fn parse_uri_list_vless_trojan() {
+    let content = r#"
+trojan://password@example.com:443?allowInsecure=1&type=ws&sni=example.com#Trojan%20Node
+vless://26a1d547-b031-4139-9fc5-6671e1d0408a@example.com:443?type=tcp&encryption=none&security=tls&flow=xtls-rprx-vision&sni=example.com#VLESS%20Node
+"#;
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+    assert_eq!(nodes.len(), 2);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "trojan");
+    assert_eq!(nodes[1]["type"].as_str().unwrap(), "vless");
+}
+
+#[test]
+fn parse_vless_reality_uri_preserves_reality_fields() {
+    let content = "vless://26a1d547-b031-4139-9fc5-6671e1d0408a@example.com:443?type=tcp&encryption=none&security=reality&pbk=PUBLIC_KEY&sid=SHORT_ID&fp=firefox&sni=www.example.com&flow=xtls-rprx-vision#VLESS%20Reality";
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "vless");
+    assert_eq!(nodes[0]["flow"].as_str().unwrap(), "xtls-rprx-vision");
+    assert_eq!(
+        nodes[0]["tls"]["server_name"].as_str().unwrap(),
+        "www.example.com"
+    );
+    assert_eq!(
+        nodes[0]["tls"]["utls"]["fingerprint"].as_str().unwrap(),
+        "firefox"
+    );
+    assert!(nodes[0]["tls"]["reality"]["enabled"].as_bool().unwrap());
+    assert_eq!(
+        nodes[0]["tls"]["reality"]["public_key"].as_str().unwrap(),
+        "PUBLIC_KEY"
+    );
+    assert_eq!(
+        nodes[0]["tls"]["reality"]["short_id"].as_str().unwrap(),
+        "SHORT_ID"
+    );
+}
+
+#[test]
+fn parse_vless_reality_uri_defaults_fingerprint_to_chrome() {
+    let content = "vless://26a1d547-b031-4139-9fc5-6671e1d0408a@example.com:443?type=tcp&encryption=none&security=reality&pbk=PUBLIC_KEY&sid=SHORT_ID&sni=www.example.com#VLESS%20Reality";
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(
+        nodes[0]["tls"]["utls"]["fingerprint"].as_str().unwrap(),
+        "chrome"
+    );
+    assert_eq!(
+        nodes[0]["tls"]["reality"]["public_key"].as_str().unwrap(),
+        "PUBLIC_KEY"
+    );
+    assert_eq!(
+        nodes[0]["tls"]["reality"]["short_id"].as_str().unwrap(),
+        "SHORT_ID"
+    );
+}
+
+#[test]
+fn parse_clash_yaml_ss() {
+    let yaml = r#"
+proxies:
+  - name: "ss-test"
+    type: ss
+    server: 1.1.1.1
+    port: 8388
+    cipher: aes-128-gcm
+    password: "pass"
+"#;
+    let nodes = extract_nodes_from_subscription(yaml).expect("should parse");
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "shadowsocks");
+    assert_eq!(nodes[0]["tag"].as_str().unwrap(), "ss-test");
+}
+
+#[test]
+fn parse_uri_list_hysteria2() {
+    let content =
+        "hysteria2://password@example.com:443?peer=example.com&insecure=1&alpn=h3#Hysteria2";
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "hysteria2");
+    assert_eq!(nodes[0]["tag"].as_str().unwrap(), "Hysteria2");
+}
+
+#[test]
+fn parse_uri_list_tuic_basic() {
+    let content = "tuic://2DD61D93-75D8-4DA4-AC0E-6AECE7EAC365:hello@example.com:10443#TUIC";
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "tuic");
+    assert_eq!(nodes[0]["server"].as_str().unwrap(), "example.com");
+    assert_eq!(nodes[0]["server_port"].as_u64().unwrap(), 10443);
+    assert_eq!(
+        nodes[0]["uuid"].as_str().unwrap(),
+        "2DD61D93-75D8-4DA4-AC0E-6AECE7EAC365"
+    );
+    assert_eq!(nodes[0]["password"].as_str().unwrap(), "hello");
+    assert!(nodes[0]["tls"]["enabled"].as_bool().unwrap());
+}
+
+#[test]
+fn parse_uri_list_tuic_with_options() {
+    let content = concat!(
+        "tuic://2DD61D93-75D8-4DA4-AC0E-6AECE7EAC365:hello@example.com:10443",
+        "?congestion_control=bbr",
+        "&udp_relay_mode=native",
+        "&udp_over_stream=1",
+        "&zero_rtt_handshake=true",
+        "&heartbeat=10s",
+        "&network=tcp",
+        "&alpn=h3,hq-29",
+        "&sni=edge.example.com",
+        "&insecure=1",
+        "#TUIC%20Advanced"
+    );
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["tag"].as_str().unwrap(), "TUIC Advanced");
+    assert_eq!(nodes[0]["congestion_control"].as_str().unwrap(), "bbr");
+    assert_eq!(nodes[0]["udp_relay_mode"].as_str().unwrap(), "native");
+    assert!(nodes[0]["udp_over_stream"].as_bool().unwrap());
+    assert!(nodes[0]["zero_rtt_handshake"].as_bool().unwrap());
+    assert_eq!(nodes[0]["heartbeat"].as_str().unwrap(), "10s");
+    assert_eq!(nodes[0]["network"].as_str().unwrap(), "tcp");
+    assert_eq!(nodes[0]["tls"]["server_name"].as_str().unwrap(), "edge.example.com");
+    assert!(nodes[0]["tls"]["insecure"].as_bool().unwrap());
+    assert_eq!(nodes[0]["tls"]["alpn"][0].as_str().unwrap(), "h3");
+    assert_eq!(nodes[0]["tls"]["alpn"][1].as_str().unwrap(), "hq-29");
+}
+
+#[test]
+fn parse_uri_list_anytls_basic() {
+    let content = "anytls://secret@example.com:443?sni=cdn.example.com#AnyTLS";
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "anytls");
+    assert_eq!(nodes[0]["server"].as_str().unwrap(), "example.com");
+    assert_eq!(nodes[0]["server_port"].as_u64().unwrap(), 443);
+    assert_eq!(nodes[0]["password"].as_str().unwrap(), "secret");
+    assert_eq!(nodes[0]["tls"]["server_name"].as_str().unwrap(), "cdn.example.com");
+}
+
+#[test]
+fn parse_uri_list_anytls_with_idle_options() {
+    let content = concat!(
+        "anytls://secret@example.com:8443",
+        "?sni=cdn.example.com",
+        "&alpn=h2,http/1.1",
+        "&insecure=true",
+        "&idle_session_check_interval=45s",
+        "&idle_session_timeout=90s",
+        "&min_idle_session=5"
+    );
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 1);
+    assert_eq!(nodes[0]["tag"].as_str().unwrap(), "anytls-example.com:8443");
+    assert!(nodes[0]["tls"]["insecure"].as_bool().unwrap());
+    assert_eq!(nodes[0]["tls"]["alpn"][0].as_str().unwrap(), "h2");
+    assert_eq!(nodes[0]["tls"]["alpn"][1].as_str().unwrap(), "http/1.1");
+    assert_eq!(
+        nodes[0]["idle_session_check_interval"].as_str().unwrap(),
+        "45s"
+    );
+    assert_eq!(nodes[0]["idle_session_timeout"].as_str().unwrap(), "90s");
+    assert_eq!(nodes[0]["min_idle_session"].as_u64().unwrap(), 5);
+}
+
+#[test]
+fn extract_json_outbounds_should_include_tuic_and_anytls() {
+    let content = r#"{
+  "outbounds": [
+    {
+      "type": "tuic",
+      "tag": "tuic-node",
+      "server": "tuic.example.com",
+      "server_port": 10443,
+      "uuid": "2DD61D93-75D8-4DA4-AC0E-6AECE7EAC365",
+      "password": "hello",
+      "tls": {
+        "enabled": true
+      }
+    },
+    {
+      "type": "anytls",
+      "tag": "anytls-node",
+      "server": "anytls.example.com",
+      "server_port": 443,
+      "password": "secret",
+      "tls": {
+        "enabled": true
+      }
+    }
+  ]
+}"#;
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 2);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "tuic");
+    assert_eq!(nodes[1]["type"].as_str().unwrap(), "anytls");
+}
+
+#[test]
+fn mixed_uri_list_should_parse_old_and_new_protocols() {
+    let content = r#"
+vless://26a1d547-b031-4139-9fc5-6671e1d0408a@example.com:443?security=tls&sni=example.com#VLESS
+tuic://2DD61D93-75D8-4DA4-AC0E-6AECE7EAC365:hello@tuic.example.com:10443#TUIC
+anytls://secret@anytls.example.com:443?sni=cdn.example.com#AnyTLS
+hysteria2://password@hy2.example.com:443?peer=example.com#Hysteria2
+"#;
+    let nodes = extract_nodes_from_subscription(content).expect("should parse");
+
+    assert_eq!(nodes.len(), 4);
+    assert_eq!(nodes[0]["type"].as_str().unwrap(), "vless");
+    assert_eq!(nodes[1]["type"].as_str().unwrap(), "tuic");
+    assert_eq!(nodes[2]["type"].as_str().unwrap(), "anytls");
+    assert_eq!(nodes[3]["type"].as_str().unwrap(), "hysteria2");
+}

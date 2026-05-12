@@ -16,7 +16,7 @@ use services::singbox::{
     SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly,
 };
 use std::time::Duration;
-use tauri::{Emitter, Manager, Window};
+use tauri::{Manager, Window};
 
 #[tauri::command]
 fn update_mica_theme(window: Window, is_light: Option<bool>) {
@@ -143,23 +143,28 @@ fn main() {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::CloseRequested { api, .. } => {
-                let close_behavior = {
-                    crate::config::app_settings::load_app_settings_file()
-                        .map(|s| s.settings.close_behavior.clone())
-                        .unwrap_or_else(|_| "hide".to_string())
-                };
-
-                if close_behavior == "destroy" {
-                    // Allow window to destroy naturally, keeping tray + process alive
-                    return;
-                }
-
+                // 始终阻止默认关闭行为，由我们决定后续动作
                 api.prevent_close();
+
+                let close_behavior = crate::config::app_settings::load_app_settings_file()
+                    .map(|s| s.settings.close_behavior.clone())
+                    .unwrap_or_else(|_| "hide".to_string());
+
                 let window_clone = window.clone();
-                window_utils::run_after_delay(Duration::from_millis(10), move || {
-                    let _ = window_clone.hide();
-                    let _ = window_clone.emit("window-visibility-changed", false);
-                });
+                if close_behavior == "destroy" {
+                    // 通知运行时：窗口将销毁，保持进程存活
+                    window_utils::set_keep_alive(true);
+                    // 直接销毁窗口（不会再次触发 CloseRequested）
+                    if let Err(e) = window_clone.destroy() {
+                        eprintln!("Failed to destroy window: {}", e);
+                        window_utils::set_keep_alive(false);
+                    }
+                } else {
+                    // hide 模式：隐藏窗口，保持后台运行
+                    window_utils::run_after_delay(Duration::from_millis(10), move || {
+                        let _ = window_clone.hide();
+                    });
+                }
             }
             tauri::WindowEvent::Focused(true) => {
                 let app = window.app_handle();
@@ -191,13 +196,20 @@ fn main() {
                 argv, cwd
             );
             let app_clone = app.clone();
-            window_utils::run_after_delay(Duration::from_millis(50), move || {
-                window_utils::safe_show_or_create_window(&app_clone, "main");
-            });
+            window_utils::show_or_create_main_window(&app_clone);
         }))
-        .run(tauri::generate_context!())
+        .build(tauri::generate_context!())
         .unwrap_or_else(|err| {
-            eprintln!("Failed to run fresh-box: {}", err);
+            eprintln!("Failed to build fresh-box: {}", err);
             std::process::exit(1);
+        })
+        .run(|_app, event| {
+            if let tauri::RunEvent::ExitRequested { api, .. } = event {
+                // destroy 模式下窗口被销毁后阻止应用退出，保持托盘存活
+                if window_utils::should_prevent_exit() {
+                    println!("Window destroyed, keeping tray and background tasks alive.");
+                    api.prevent_exit();
+                }
+            }
         });
 }

@@ -1,0 +1,316 @@
+use crate::app::constants::paths;
+use crate::app::core::kernel_service::event::start_websocket_relay;
+use crate::app::core::kernel_service::state::KERNEL_STATE;
+use crate::app::core::kernel_service::status::is_kernel_running;
+use crate::app::core::kernel_service::utils::{
+    emit_kernel_error, emit_kernel_error_with_context, emit_kernel_started, emit_kernel_stopped,
+    resolve_config_path_or_default,
+};
+use crate::app::core::kernel_service::PROCESS_MANAGER;
+use crate::app::storage::enhanced_storage_service::db_get_app_config;
+use std::sync::atomic::{AtomicBool, AtomicU16, Ordering};
+use std::time::Duration;
+use std::time::Instant;
+use tauri::AppHandle;
+use tokio::sync::Mutex;
+use tokio::task::JoinHandle;
+use tracing::{info, warn};
+
+static KEEP_ALIVE_ENABLED: AtomicBool = AtomicBool::new(false);
+static GUARDED_API_PORT: AtomicU16 = AtomicU16::new(0);
+static GUARDED_TUN_ENABLED: AtomicBool = AtomicBool::new(false);
+
+const TUN_CONNECTIVITY_FAIL_THRESHOLD: u8 = 3;
+const TUN_SELF_HEAL_WARMUP_SECS: u64 = 20;
+
+#[derive(Debug, Clone, Copy)]
+struct TunSelfHealPolicy {
+    enabled: bool,
+    cooldown_secs: u64,
+}
+
+impl TunSelfHealPolicy {
+    fn default_policy() -> Self {
+        Self {
+            enabled: true,
+            cooldown_secs: 90,
+        }
+    }
+}
+
+lazy_static::lazy_static! {
+    pub(super) static ref KERNEL_GUARD_HANDLE: Mutex<Option<JoinHandle<()>>> =
+        Mutex::new(None);
+}
+
+async fn load_tun_self_heal_policy(app_handle: &AppHandle) -> TunSelfHealPolicy {
+    match db_get_app_config(app_handle.clone()).await {
+        Ok(config) => TunSelfHealPolicy {
+            enabled: config.tun_self_heal_enabled,
+            cooldown_secs: u64::from(config.tun_self_heal_cooldown_secs).clamp(15, 600),
+        },
+        Err(err) => {
+            warn!("读取 TUN 自愈策略失败，回退默认值: {}", err);
+            TunSelfHealPolicy::default_policy()
+        }
+    }
+}
+
+pub(super) async fn enable_kernel_guard(app_handle: AppHandle, api_port: u16, tun_enabled: bool) {
+    GUARDED_API_PORT.store(api_port, Ordering::Relaxed);
+    GUARDED_TUN_ENABLED.store(tun_enabled, Ordering::Relaxed);
+    if KEEP_ALIVE_ENABLED.swap(true, Ordering::Relaxed) {
+        return;
+    }
+
+    let mut handle_slot = KERNEL_GUARD_HANDLE.lock().await;
+    let guard_handle = tokio::spawn(async move {
+        info!("内核守护已启动");
+        let mut tun_connectivity_failures: u8 = 0;
+        let mut next_tun_self_heal_at =
+            Instant::now() + Duration::from_secs(TUN_SELF_HEAL_WARMUP_SECS);
+
+        loop {
+            if !KEEP_ALIVE_ENABLED.load(Ordering::Relaxed) {
+                break;
+            }
+
+            tokio::time::sleep(Duration::from_secs(8)).await;
+
+            if !KEEP_ALIVE_ENABLED.load(Ordering::Relaxed) {
+                break;
+            }
+
+            match is_kernel_running().await {
+                Ok(true) => {
+                    if GUARDED_TUN_ENABLED.load(Ordering::Relaxed) {
+                        let policy = load_tun_self_heal_policy(&app_handle).await;
+                        if !policy.enabled {
+                            tun_connectivity_failures = 0;
+                            next_tun_self_heal_at =
+                                Instant::now() + Duration::from_secs(TUN_SELF_HEAL_WARMUP_SECS);
+                            continue;
+                        }
+
+                        let mut should_attempt_self_heal = false;
+                        match crate::app::system::system_service::check_network_connectivity(Some(
+                            false,
+                        ))
+                        .await
+                        {
+                            Ok(true) => {
+                                if tun_connectivity_failures > 0 {
+                                    info!("TUN 连通性已恢复，清空失败计数");
+                                }
+                                tun_connectivity_failures = 0;
+                            }
+                            Ok(false) => {
+                                tun_connectivity_failures =
+                                    tun_connectivity_failures.saturating_add(1);
+                                warn!(
+                                    "TUN 连通性检测失败，计数: {}/{}",
+                                    tun_connectivity_failures, TUN_CONNECTIVITY_FAIL_THRESHOLD
+                                );
+                                should_attempt_self_heal =
+                                    tun_connectivity_failures >= TUN_CONNECTIVITY_FAIL_THRESHOLD;
+                            }
+                            Err(err) => {
+                                tun_connectivity_failures =
+                                    tun_connectivity_failures.saturating_add(1);
+                                warn!(
+                                    "TUN 连通性检测异常，计数: {}/{}，错误: {}",
+                                    tun_connectivity_failures, TUN_CONNECTIVITY_FAIL_THRESHOLD, err
+                                );
+                                should_attempt_self_heal =
+                                    tun_connectivity_failures >= TUN_CONNECTIVITY_FAIL_THRESHOLD;
+                            }
+                        }
+
+                        if should_attempt_self_heal && Instant::now() >= next_tun_self_heal_at {
+                            let port_value = GUARDED_API_PORT.load(Ordering::Relaxed);
+                            info!(
+                                "触发 TUN 自愈重启，准备重启内核进程: api_port={}, failures={}, cooldown_secs={}",
+                                port_value, tun_connectivity_failures, policy.cooldown_secs
+                            );
+
+                            let config_path = resolve_config_path_or_default(&app_handle).await;
+                            let tun_enabled = GUARDED_TUN_ENABLED.load(Ordering::Relaxed);
+
+                            match PROCESS_MANAGER
+                                .restart(&app_handle, &config_path, tun_enabled)
+                                .await
+                            {
+                                Ok(_) => {
+                                    KERNEL_STATE.mark_running(port_value);
+                                    if port_value > 0 {
+                                        if let Err(e) = start_websocket_relay(
+                                            app_handle.clone(),
+                                            Some(port_value),
+                                        )
+                                        .await
+                                        {
+                                            warn!("TUN 自愈后启动事件中继失败: {}", e);
+                                        }
+                                    }
+
+                                    emit_kernel_started(&app_handle, "auto", port_value, 0, true);
+                                    tun_connectivity_failures = 0;
+                                    next_tun_self_heal_at =
+                                        Instant::now() + Duration::from_secs(policy.cooldown_secs);
+                                    info!("TUN 自愈重启完成");
+                                }
+                                Err(err) => {
+                                    warn!("TUN 自愈重启失败: {}", err);
+                                    KERNEL_STATE.mark_failed();
+                                    next_tun_self_heal_at =
+                                        Instant::now() + Duration::from_secs(policy.cooldown_secs);
+
+                                    let err_str = err.to_string();
+                                    if err_str.contains("SUDO_PASSWORD_REQUIRED")
+                                        || err_str.contains("SUDO_PASSWORD_INVALID")
+                                    {
+                                        emit_kernel_error(
+                                            &app_handle,
+                                            "TUN 提权失败：sudo 密码无效，请重新输入系统密码后重启内核。",
+                                        );
+                                        KEEP_ALIVE_ENABLED.store(false, Ordering::Relaxed);
+                                        GUARDED_API_PORT.store(0, Ordering::Relaxed);
+                                        GUARDED_TUN_ENABLED.store(false, Ordering::Relaxed);
+                                        break;
+                                    }
+
+                                    emit_kernel_error_with_context(
+                                        &app_handle,
+                                        "KERNEL_GUARD_SELF_HEAL_FAILED",
+                                        "内核自愈重启失败",
+                                        Some(&err_str),
+                                        Some("kernel.guard.self_heal"),
+                                        true,
+                                    );
+                                }
+                            }
+                        }
+                    } else {
+                        tun_connectivity_failures = 0;
+                        next_tun_self_heal_at =
+                            Instant::now() + Duration::from_secs(TUN_SELF_HEAL_WARMUP_SECS);
+                    }
+
+                    continue;
+                }
+                _ => {
+                    let port_value = GUARDED_API_PORT.load(Ordering::Relaxed);
+                    let tun_enabled = GUARDED_TUN_ENABLED.load(Ordering::Relaxed);
+                    info!(
+                        "守护检测到内核停止，尝试自动重启: api_port={}, tun_enabled={}",
+                        port_value, tun_enabled
+                    );
+                    KERNEL_STATE.mark_crashed();
+
+                    emit_kernel_stopped(&app_handle);
+
+                    let config_path = resolve_config_path_or_default(&app_handle).await;
+
+                    let kernel_path = paths::get_kernel_path();
+                    if !kernel_path.exists() {
+                        warn!("守护跳过重启：内核文件不存在 {:?}", kernel_path);
+                        KERNEL_STATE.mark_failed();
+                        emit_kernel_error_with_context(
+                            &app_handle,
+                            "KERNEL_BINARY_MISSING",
+                            "自动重启失败：内核文件不存在",
+                            Some(&format!("{:?}", kernel_path)),
+                            Some("kernel.guard.restart"),
+                            false,
+                        );
+                        KEEP_ALIVE_ENABLED.store(false, Ordering::Relaxed);
+                        GUARDED_API_PORT.store(0, Ordering::Relaxed);
+                        break;
+                    }
+                    if !config_path.exists() {
+                        warn!("守护跳过重启：配置不存在 {:?}", config_path);
+                        KERNEL_STATE.mark_failed();
+                        emit_kernel_error_with_context(
+                            &app_handle,
+                            "KERNEL_CONFIG_MISSING",
+                            "自动重启失败：配置文件不存在",
+                            Some(&format!("{:?}", config_path)),
+                            Some("kernel.guard.restart"),
+                            false,
+                        );
+                        KEEP_ALIVE_ENABLED.store(false, Ordering::Relaxed);
+                        GUARDED_API_PORT.store(0, Ordering::Relaxed);
+                        break;
+                    }
+
+                    if let Err(err) = PROCESS_MANAGER
+                        .start(&app_handle, &config_path, tun_enabled)
+                        .await
+                    {
+                        warn!("守护重启内核失败: {}", err);
+                        KERNEL_STATE.mark_failed();
+
+                        let err_str = err.to_string();
+                        if err_str.contains("SUDO_PASSWORD_REQUIRED")
+                            || err_str.contains("SUDO_PASSWORD_INVALID")
+                        {
+                            // 若因 sudo 密码失效而重启失败，停止守护并提示用户重新设置密码。
+                            emit_kernel_error(
+                                &app_handle,
+                                "TUN 提权失败：sudo 密码无效，请重新输入系统密码后重启内核。",
+                            );
+                            KEEP_ALIVE_ENABLED.store(false, Ordering::Relaxed);
+                            GUARDED_API_PORT.store(0, Ordering::Relaxed);
+                            GUARDED_TUN_ENABLED.store(false, Ordering::Relaxed);
+                            break;
+                        }
+
+                        emit_kernel_error_with_context(
+                            &app_handle,
+                            "KERNEL_GUARD_RESTART_FAILED",
+                            "守护自动重启失败",
+                            Some(&err_str),
+                            Some("kernel.guard.restart"),
+                            true,
+                        );
+
+                        continue;
+                    }
+
+                    KERNEL_STATE.mark_running(port_value);
+                    if port_value > 0 {
+                        if let Err(e) =
+                            start_websocket_relay(app_handle.clone(), Some(port_value)).await
+                        {
+                            warn!("守护启动事件中继失败: {}", e);
+                        }
+                    }
+
+                    tun_connectivity_failures = 0;
+                    next_tun_self_heal_at =
+                        Instant::now() + Duration::from_secs(TUN_SELF_HEAL_WARMUP_SECS);
+
+                    // Guard restart uses port 0 since we don't have full state
+                    emit_kernel_started(&app_handle, "auto", port_value, 0, true);
+                }
+            }
+        }
+
+        info!("内核守护任务结束");
+    });
+
+    *handle_slot = Some(guard_handle);
+}
+
+pub(super) async fn disable_kernel_guard() {
+    if !KEEP_ALIVE_ENABLED.swap(false, Ordering::Relaxed) {
+        return;
+    }
+
+    GUARDED_API_PORT.store(0, Ordering::Relaxed);
+    GUARDED_TUN_ENABLED.store(false, Ordering::Relaxed);
+    let mut handle_slot = KERNEL_GUARD_HANDLE.lock().await;
+    if let Some(handle) = handle_slot.take() {
+        handle.abort();
+    }
+}

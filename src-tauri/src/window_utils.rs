@@ -1,7 +1,48 @@
-// window_utils.rs - 安全的窗口操作工具
+// window_utils.rs - 窗口操作工具与生命周期状态管理
 
-use std::{future::Future, time::Duration};
-use tauri::{AppHandle, Emitter, Manager};
+use std::{future::Future, sync::Mutex, time::Duration};
+use tauri::{AppHandle, Manager, WebviewWindowBuilder};
+
+// ─── 全局窗口行为状态 ──────────────────────────────────────────────
+//
+// destroy 模式下，窗口被销毁后 Tauri 会触发 ExitRequested。
+// 通过 keep_alive_without_windows 标志告知运行时阻止退出，
+// 直到用户明确点击退出（此时 allow_exit 置为 true）。
+
+struct WindowBehaviorState {
+    keep_alive_without_windows: bool,
+    allow_exit: bool,
+}
+
+static WINDOW_STATE: Mutex<WindowBehaviorState> = Mutex::new(WindowBehaviorState {
+    keep_alive_without_windows: false,
+    allow_exit: false,
+});
+
+/// destroy 模式关闭时调用：告知运行时在无窗口时保持存活
+pub fn set_keep_alive(enabled: bool) {
+    if let Ok(mut s) = WINDOW_STATE.lock() {
+        s.keep_alive_without_windows = enabled;
+    }
+}
+
+/// 用户主动退出前调用：解除保活，允许 ExitRequested 正常放行
+pub fn allow_exit() {
+    if let Ok(mut s) = WINDOW_STATE.lock() {
+        s.keep_alive_without_windows = false;
+        s.allow_exit = true;
+    }
+}
+
+/// 供 RunEvent::ExitRequested 查询：是否应阻止退出
+pub fn should_prevent_exit() -> bool {
+    WINDOW_STATE
+        .lock()
+        .map(|s| s.keep_alive_without_windows && !s.allow_exit)
+        .unwrap_or(false)
+}
+
+// ─── 延迟执行工具 ──────────────────────────────────────────────────
 
 pub fn run_after_delay<F>(delay: Duration, action: F)
 where
@@ -23,83 +64,62 @@ where
     });
 }
 
-/// 安全地显示窗口
-pub fn safe_show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
-    if let Some(window) = app.get_webview_window(window_label) {
-        match window.is_visible() {
-            Ok(visible) => {
-                if !visible {
-                    window
-                        .show()
-                        .map_err(|e| format!("Failed to show window: {}", e))?;
-                    let _ = window.emit("window-visibility-changed", true);
-                }
-                window
-                    .set_focus()
-                    .map_err(|e| format!("Failed to focus window: {}", e))?;
-                Ok(())
-            }
-            Err(e) => Err(format!("Failed to check window visibility: {}", e)),
-        }
-    } else {
-        Err("Window not found".to_string())
-    }
+// ─── 窗口操作 ──────────────────────────────────────────────────────
+
+/// 显示并聚焦窗口。unminimize 确保最小化状态下也能正确显示。
+pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
+    let window = app
+        .get_webview_window(window_label)
+        .ok_or_else(|| "Window not found".to_string())?;
+    let _ = window.unminimize();
+    window
+        .show()
+        .map_err(|e| format!("Failed to show window: {}", e))?;
+    window
+        .set_focus()
+        .map_err(|e| format!("Failed to focus window: {}", e))?;
+    Ok(())
 }
 
-/// 安全地显示窗口，若窗口已销毁则重新创建
-pub fn safe_show_or_create_window(app: &AppHandle, window_label: &str) {
-    if app.get_webview_window(window_label).is_some() {
-        if let Err(e) = safe_show_window(app, window_label) {
+/// 使用 tauri.conf.json 中的窗口配置重建主窗口。
+/// 在新线程中同步完成，避免污染调用方线程的异步上下文。
+fn create_main_window(app: &AppHandle) -> Result<(), String> {
+    let window_config = app
+        .config()
+        .app
+        .windows
+        .first()
+        .cloned()
+        .ok_or_else(|| "No window config found in tauri.conf.json".to_string())?;
+    let app_handle = app.clone();
+    std::thread::spawn(move || {
+        WebviewWindowBuilder::from_config(&app_handle, &window_config)
+            .map_err(|e| format!("Failed to create window builder: {}", e))?
+            .build()
+            .map(|_| ())
+            .map_err(|e| format!("Failed to build window: {}", e))
+    })
+    .join()
+    .map_err(|_| "Window creation thread panicked".to_string())?
+}
+
+/// 显示主窗口。若窗口已在 destroy 模式下被销毁，则先重建再显示。
+pub fn show_or_create_main_window(app: &AppHandle) {
+    if app.get_webview_window("main").is_some() {
+        if let Err(e) = show_window(app, "main") {
             eprintln!("Failed to show window: {}", e);
         }
         return;
     }
 
-    // Window was destroyed (destroy mode) — recreate it
-    let app_clone = app.clone();
-    let label = window_label.to_string();
-    tauri::async_runtime::spawn(async move {
-        match tauri::WebviewWindowBuilder::new(
-            &app_clone,
-            label,
-            tauri::WebviewUrl::App("index.html".into()),
-        )
-        .title("fresh-box")
-        .inner_size(1200.0, 750.0)
-        .decorations(false)
-        .transparent(true)
-        .center()
-        .build()
-        {
-            Ok(window) => {
-                let _ = window.show();
-                let _ = window.set_focus();
-            }
-            Err(e) => {
-                eprintln!("Failed to recreate window: {}", e);
-            }
-        }
-    });
-}
-
-
-/// 切换窗口显示状态，若窗口已销毁（destroy 模式）则重新创建
-pub fn safe_toggle_or_create_window(app: &AppHandle, window_label: &str) {
-    if let Some(window) = app.get_webview_window(window_label) {
-        match window.is_visible() {
-            Ok(true) => {
-                let _ = window.hide();
-                let _ = window.emit("window-visibility-changed", false);
-            }
-            Ok(false) => {
-                let _ = window.show();
-                let _ = window.set_focus();
-                let _ = window.emit("window-visibility-changed", true);
-            }
-            Err(e) => eprintln!("Failed to check window visibility: {}", e),
-        }
-    } else {
-        // Window was destroyed in destroy mode — recreate it
-        safe_show_or_create_window(app, window_label);
+    // 窗口已被 destroy，重建后再显示
+    if let Err(e) = create_main_window(app) {
+        eprintln!("Failed to recreate window: {}", e);
+        return;
     }
+    if let Err(e) = show_window(app, "main") {
+        eprintln!("Failed to show recreated window: {}", e);
+    }
+    // 窗口已重建，解除保活标志
+    set_keep_alive(false);
 }

@@ -1,0 +1,13 @@
+{
+  "identifier": "desktop-capability",
+  "platforms": [
+    "macOS",
+    "windows",
+    "linux"
+  ],
+  "permissions": [
+    "autostart:default",
+    "window-state:default",
+    "websocket:default"
+  ]
+}

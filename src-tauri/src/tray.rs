@@ -146,9 +146,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             } = event
             {
                 let app = tray.app_handle().clone();
-                crate::window_utils::run_after_delay(Duration::from_millis(10), move || {
-                    crate::window_utils::safe_toggle_or_create_window(&app, "main");
-                });
+                crate::window_utils::show_or_create_main_window(&app);
             }
         })
         .on_menu_event(move |app, event| {
@@ -179,24 +177,20 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
 
             match id {
                 "quit" => {
+                    crate::window_utils::allow_exit();
                     let app_clone = app.clone();
-                    crate::window_utils::run_after_delay(Duration::from_millis(0), move || {
+                    tauri::async_runtime::spawn(async move {
                         if let Some(state) = app_clone.try_state::<SingboxState>() {
                             crate::services::singbox::cleanup_process(&state);
                         }
-                        if let Some(window) = app_clone.get_webview_window("main") {
-                            let _ = window.close();
-                        }
-                        crate::window_utils::run_after_delay(Duration::from_millis(200), || {
-                            std::process::exit(0);
-                        });
+                        // 稍作等待以确保 cleanup 完成
+                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        app_clone.exit(0);
                     });
                 }
                 "show" => {
                     let app_clone = app.clone();
-                    crate::window_utils::run_after_delay(Duration::from_millis(10), move || {
-                        crate::window_utils::safe_show_or_create_window(&app_clone, "main");
-                    });
+                    crate::window_utils::show_or_create_main_window(&app_clone);
                 }
                 _ => {}
             }
