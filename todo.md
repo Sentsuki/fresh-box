@@ -35,3 +35,8 @@
 - [ ] **日志缓冲区内存泄露修复**
   - **位置**：`src/hooks/useLogsStream.ts`
   - **内容**：修复应用在后台（不可见）时，`logBuffer` 不断堆积导致的内存泄露问题。即使不可见也应清空或限制缓冲区大小。
+
+## 6. 托盘功能优化 (Tray Optimization)
+- [ ] **支持“销毁窗口”模式**
+  - **位置**：`src-tauri/src/window_utils.rs` 和 `src-tauri/src/tray.rs`
+  - **内容**：在托盘点击显示时，如果窗口已被销毁，则动态创建新窗口，以节省后台挂机时的内存占用。
