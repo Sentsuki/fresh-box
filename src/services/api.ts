@@ -34,7 +34,9 @@ export interface SubscriptionOperationResult {
 export async function addSubscription(
   url: string,
 ): Promise<SubscriptionOperationResult> {
-  return invokeCommand<SubscriptionOperationResult>("add_subscription", { url });
+  return invokeCommand<SubscriptionOperationResult>("add_subscription", {
+    url,
+  });
 }
 
 export async function updateSubscription(

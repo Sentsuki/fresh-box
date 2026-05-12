@@ -106,7 +106,9 @@ pub fn show_or_create_main_window(app: &AppHandle) {
 
     // 防止并发重建：若已有线程正在创建窗口，直接跳过
     {
-        let Ok(mut s) = WINDOW_STATE.lock() else { return };
+        let Ok(mut s) = WINDOW_STATE.lock() else {
+            return;
+        };
         if s.is_creating {
             return;
         }

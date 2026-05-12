@@ -71,7 +71,10 @@ async function applySubscriptionResult(result: SubscriptionOperationResult) {
     .getState()
     .setSubscriptions(
       normalizeSubscriptions(
-        JSON.parse(result.subscriptions) as Record<string, SubscriptionInfo | string>,
+        JSON.parse(result.subscriptions) as Record<
+          string,
+          SubscriptionInfo | string
+        >,
       ),
     );
 

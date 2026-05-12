@@ -497,13 +497,13 @@ pub async fn update_subscription(
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
     let mut subs_map = crate::config::profiles::load_subscriptions_json()?;
-    if let Some(entry) = subs_map.get_mut(&stem) {
-        if let Some(obj) = entry.as_object_mut() {
-            obj.insert(
-                "lastUpdated".to_string(),
-                Value::String(chrono::Utc::now().to_rfc3339()),
-            );
-        }
+    if let Some(entry) = subs_map.get_mut(&stem)
+        && let Some(obj) = entry.as_object_mut()
+    {
+        obj.insert(
+            "lastUpdated".to_string(),
+            Value::String(chrono::Utc::now().to_rfc3339()),
+        );
     }
     crate::config::profiles::save_subscriptions_json(&subs_map)?;
 

@@ -53,8 +53,20 @@ fn build_tray_menu(
         menu.append(&PredefinedMenuItem::separator(app)?)?;
     }
 
-    menu.append(&MenuItem::with_id(app, MENU_SHOW, "Show", true, None::<&str>)?)?;
-    menu.append(&MenuItem::with_id(app, MENU_QUIT, "Quit", true, None::<&str>)?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        MENU_SHOW,
+        "Show",
+        true,
+        None::<&str>,
+    )?)?;
+    menu.append(&MenuItem::with_id(
+        app,
+        MENU_QUIT,
+        "Quit",
+        true,
+        None::<&str>,
+    )?)?;
 
     Ok(menu)
 }
@@ -102,12 +114,11 @@ pub(crate) fn sync_tray_from_overview(
         })
         .collect();
 
-    if let Some(state) = app.try_state::<TrayProxyState>() {
-        if let Ok(mut map) = state.proxy_item_map.lock() {
-            if let Err(e) = apply_tray_menu(app, &selector_groups, &mut map) {
-                eprintln!("Failed to sync tray menu: {}", e);
-            }
-        }
+    if let Some(state) = app.try_state::<TrayProxyState>()
+        && let Ok(mut map) = state.proxy_item_map.lock()
+        && let Err(e) = apply_tray_menu(app, &selector_groups, &mut map)
+    {
+        eprintln!("Failed to sync tray menu: {}", e);
     }
 }
 

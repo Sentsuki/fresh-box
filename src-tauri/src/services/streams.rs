@@ -209,10 +209,7 @@ async fn enrich_and_emit_connections(
         return;
     };
 
-    let Some(connections) = frame
-        .get_mut("connections")
-        .and_then(|v| v.as_array_mut())
-    else {
+    let Some(connections) = frame.get_mut("connections").and_then(|v| v.as_array_mut()) else {
         let _ = app.emit("stream-connections", frame);
         return;
     };
@@ -228,10 +225,7 @@ async fn enrich_and_emit_connections(
             .and_then(|v| v.as_str())
             .unwrap_or("")
             .to_string();
-        let download = conn
-            .get("download")
-            .and_then(|v| v.as_u64())
-            .unwrap_or(0);
+        let download = conn.get("download").and_then(|v| v.as_u64()).unwrap_or(0);
         let upload = conn.get("upload").and_then(|v| v.as_u64()).unwrap_or(0);
 
         let (dl_speed, ul_speed) = speeds_map
@@ -249,14 +243,8 @@ async fn enrich_and_emit_connections(
         new_speeds.insert(id, (download, upload));
 
         if let Some(obj) = conn.as_object_mut() {
-            obj.insert(
-                "downloadSpeed".to_string(),
-                serde_json::json!(dl_speed),
-            );
-            obj.insert(
-                "uploadSpeed".to_string(),
-                serde_json::json!(ul_speed),
-            );
+            obj.insert("downloadSpeed".to_string(), serde_json::json!(dl_speed));
+            obj.insert("uploadSpeed".to_string(), serde_json::json!(ul_speed));
         }
     }
 
