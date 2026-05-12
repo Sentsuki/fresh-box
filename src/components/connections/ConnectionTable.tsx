@@ -260,8 +260,7 @@ export function ConnectionTable({
     },
     onColumnSizingChange: handleColumnSizingChange,
     onExpandedChange: (updater) => {
-      const next =
-        typeof updater === "function" ? updater(expanded) : updater;
+      const next = typeof updater === "function" ? updater(expanded) : updater;
       if (next !== true) {
         setConnectionExpandedGroups(next as Record<string, boolean>);
       }

@@ -299,19 +299,25 @@ function RuleDetailsModal({ rule, open, onClose }: RuleDetailsModalProps) {
         <div className="flex-1 overflow-y-auto p-6 scrollbar-thin">
           <div className="grid gap-px bg-(--wb-border-subtle) rounded-lg border border-(--wb-border-subtle) overflow-hidden shadow-sm">
             <div className="flex items-center justify-between px-4 py-2.5 bg-(--wb-surface-layer) group hover:bg-(--wb-surface-hover) transition-colors">
-              <dt className="text-xs font-medium text-(--wb-text-secondary)">Type</dt>
+              <dt className="text-xs font-medium text-(--wb-text-secondary)">
+                Type
+              </dt>
               <dd className="text-xs font-semibold text-(--wb-text-primary) text-right truncate ml-4">
                 <Badge variant="subtle">{rule.type}</Badge>
               </dd>
             </div>
             <div className="flex items-center justify-between px-4 py-2.5 bg-(--wb-surface-layer) group hover:bg-(--wb-surface-hover) transition-colors">
-              <dt className="text-xs font-medium text-(--wb-text-secondary)">Payload</dt>
+              <dt className="text-xs font-medium text-(--wb-text-secondary)">
+                Payload
+              </dt>
               <dd className="text-xs font-semibold text-(--wb-text-primary) text-right break-all ml-4">
                 {rule.payload}
               </dd>
             </div>
             <div className="flex items-center justify-between px-4 py-2.5 bg-(--wb-surface-layer) group hover:bg-(--wb-surface-hover) transition-colors">
-              <dt className="text-xs font-medium text-(--wb-text-secondary)">Proxy</dt>
+              <dt className="text-xs font-medium text-(--wb-text-secondary)">
+                Proxy
+              </dt>
               <dd className="text-xs font-semibold text-(--wb-text-primary) text-right truncate ml-4">
                 <Badge
                   variant={

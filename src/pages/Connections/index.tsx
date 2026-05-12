@@ -82,8 +82,7 @@ export default function Connections() {
   }, [startStream]);
 
   const sourceIpOptions = useMemo(
-    () =>
-      [...new Set(entries.map((entry) => entry.metadata.sourceIP))].sort(),
+    () => [...new Set(entries.map((entry) => entry.metadata.sourceIP))].sort(),
     [entries],
   );
 

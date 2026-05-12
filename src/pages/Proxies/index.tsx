@@ -1,7 +1,4 @@
-import {
-  ChevronDownRegular,
-  TimerRegular,
-} from "@fluentui/react-icons";
+import { ChevronDownRegular, TimerRegular } from "@fluentui/react-icons";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { JumpingDots } from "../../components/ui/JumpingDots";
@@ -392,7 +389,6 @@ export default function Proxies() {
               </select>
             </div>
           )}
-
         </div>
       </PageHeader>
 
