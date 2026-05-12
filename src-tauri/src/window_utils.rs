@@ -44,23 +44,26 @@ pub fn should_prevent_exit() -> bool {
 
 // ─── 延迟执行工具 ──────────────────────────────────────────────────
 
+/// 在当前 tokio 运行时上延迟执行同步回调，避免创建额外 OS 线程
 pub fn run_after_delay<F>(delay: Duration, action: F)
 where
     F: FnOnce() + Send + 'static,
 {
-    std::thread::spawn(move || {
-        std::thread::sleep(delay);
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(delay).await;
         action();
     });
 }
 
+/// 在当前 tokio 运行时上延迟执行异步回调
 pub fn spawn_async_after_delay<F, Fut>(delay: Duration, action: F)
 where
     F: FnOnce() -> Fut + Send + 'static,
     Fut: Future<Output = ()> + Send + 'static,
 {
-    run_after_delay(delay, move || {
-        tauri::async_runtime::spawn(action());
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(delay).await;
+        action().await;
     });
 }
 
@@ -82,7 +85,7 @@ pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
 }
 
 /// 使用 tauri.conf.json 中的窗口配置重建主窗口。
-/// 在新线程中同步完成，避免污染调用方线程的异步上下文。
+/// 在新线程中同步完成，避免在 tokio 上下文中执行阻塞调用。
 fn create_main_window(app: &AppHandle) -> Result<(), String> {
     let window_config = app
         .config()
