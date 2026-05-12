@@ -447,7 +447,7 @@ export default function Settings() {
                 className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="hide">Hide to tray</option>
-                <option value="destroy">Destroy window (save memory)</option>
+                <option value="destroy">Destroy window</option>
               </select>
             }
           />
@@ -489,7 +489,7 @@ export default function Settings() {
             title="Fresh Box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version 1.6.8</span>
+                <span>Version 1.6.9</span>
               </div>
             }
           />

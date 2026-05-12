@@ -169,9 +169,15 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             eprintln!("Failed to switch proxy from tray: {}", e);
                             return;
                         }
-                        // Notify the frontend to refresh its state and sync the tray menu.
-                        // The frontend (clashStore.syncTrayMenu) is the single source of truth
-                        // for tray menu state, so we don't rebuild it here.
+                        // 无论前端是否存活，后端都主动获取最新状态并更新托盘菜单
+                        // 防止窗口销毁后菜单项多选的问题
+                        if let Ok(overview) =
+                            crate::services::clash_client::fetch_clash_overview_inner().await
+                        {
+                            sync_tray_from_overview(&app_clone, &overview);
+                        }
+
+                        // 依然通知前端（如果前端活着的话，它会刷新页面上的显示）
                         let _ = app_clone.emit("tray-proxy-switched", ());
                     });
                 }
