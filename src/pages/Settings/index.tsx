@@ -486,7 +486,7 @@ export default function Settings() {
         <SettingGroup title="About">
           <SettingCard
             icon={<InfoRegular />}
-            title="Fresh Box"
+            title="fresh-box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
                 <span>Version 1.6.10</span>

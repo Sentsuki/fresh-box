@@ -67,7 +67,7 @@ export function Sidebar() {
         {isExpanded && (
           <div className="ml-2 flex flex-col justify-center overflow-hidden whitespace-nowrap">
             <span className="text-sm font-semibold text-(--wb-text-primary) leading-tight">
-              Fresh Box
+              fresh-box
             </span>
             <span className="text-[10px] text-(--wb-text-secondary) leading-tight">
               sing-box client

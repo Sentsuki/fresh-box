@@ -31,7 +31,7 @@ export function TitleBar() {
         className="flex items-center gap-2 flex-1 min-w-0 h-full"
       >
         <span className="text-sm font-semibold text-(--wb-text-primary) pointer-events-none">
-          Fresh Box
+          fresh-box
         </span>
         <span className="text-(--wb-text-tertiary) text-sm pointer-events-none">
           ·
