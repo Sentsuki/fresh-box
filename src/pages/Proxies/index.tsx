@@ -58,7 +58,8 @@ function NodeName({
         code={finalCode}
         size="s"
         hasBorder={false}
-        className="inline-block mx-0.5"
+        gradient="real-linear"
+        className="inline-block mx-0.5 translate-y-[2px]"
       />,
     );
     lastIndex = regex.lastIndex;
