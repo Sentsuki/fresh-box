@@ -51,11 +51,13 @@ function NodeName({
     const code = [...emoji]
       .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 65))
       .join("");
+    const finalCode = code === "GB" ? "GBR" : code;
     parts.push(
       <Flag
         key={`i-${match.index}`}
-        code={code}
-        size="S"
+        code={finalCode}
+        size="s"
+        hasBorder={false}
         className="inline-block mx-0.5"
       />,
     );
