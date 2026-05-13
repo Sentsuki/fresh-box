@@ -1,10 +1,10 @@
 {
   "name": "fresh-box",
   "private": true,
-  "version": "1.6.10",
+  "version": "1.6.11",
   "type": "module",
   "scripts": {
-    "postinstall": "react-flagpack",
+    "//postinstall": "react-flagpack",
     "dev": "vite",
     "build": "tsc && vite build",
     "preview": "vite preview",

@@ -258,7 +258,7 @@ pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
     let mut rng = rand::rng();
 
     let mut chars = Vec::with_capacity(32);
-    
+
     // 保证各有 3 个
     for _ in 0..3 {
         chars.push(UPPER[rng.random_range(0..UPPER.len())] as char);
