@@ -49,14 +49,14 @@ function NodeName({
     }
     const emoji = match[0];
     const code = [...emoji]
-      .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 97))
+      .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 65))
       .join("");
     parts.push(
       <Flag
         key={`i-${match.index}`}
-        code={code.toUpperCase()}
+        code={code}
         size="S"
-        className="inline-block mx-0.5 rounded-[2px] -translate-y-px"
+        className="inline-block mx-0.5"
       />,
     );
     lastIndex = regex.lastIndex;
