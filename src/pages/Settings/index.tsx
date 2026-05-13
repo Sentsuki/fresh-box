@@ -428,7 +428,7 @@ export default function Settings() {
                     if (e.key === "Enter") void setTestUrl(testUrlInput);
                   }}
                   placeholder="https://www.gstatic.com/generate_204"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-66"
                 />
               </div>
             }
