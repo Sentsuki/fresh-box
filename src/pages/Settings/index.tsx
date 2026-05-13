@@ -214,7 +214,7 @@ export default function Settings() {
                   value={clashApiController}
                   onChange={(e) => setClashApiController(e.target.value)}
                   placeholder="127.0.0.1:8964"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-30"
                 />
                 <Button
                   size="sm"
@@ -245,7 +245,7 @@ export default function Settings() {
                   value={clashApiSecret}
                   onChange={(e) => setClashApiSecret(e.target.value)}
                   placeholder="secret"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-48"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-74"
                 />
                 <Button
                   size="sm"
@@ -428,7 +428,7 @@ export default function Settings() {
                     if (e.key === "Enter") void setTestUrl(testUrlInput);
                   }}
                   placeholder="https://www.gstatic.com/generate_204"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-64"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-66"
                 />
               </div>
             }
@@ -476,7 +476,7 @@ export default function Settings() {
                 disabled={isRefreshingStatus}
                 onClick={() => void refreshProcessStatus()}
               >
-                Refresh
+                Check
               </Button>
             }
           />
@@ -486,7 +486,7 @@ export default function Settings() {
         <SettingGroup title="About">
           <SettingCard
             icon={<InfoRegular />}
-            title="Fresh Box"
+            title="fresh-box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
                 <span>Version 1.6.10</span>

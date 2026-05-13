@@ -250,14 +250,38 @@ pub(crate) fn generate_random_port_inner() -> Result<u16, CommandError> {
 }
 
 pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
-    const CHARS: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+    const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
+    const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
+    const DIGIT: &[u8] = b"0123456789";
+    const ALL: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
+
     let mut rng = rand::rng();
-    let secret: String = (0..32)
-        .map(|_| {
-            let idx = rng.random_range(0..CHARS.len());
-            CHARS[idx] as char
-        })
-        .collect();
+
+    let mut chars = Vec::with_capacity(32);
+    
+    // 保证各有 3 个
+    for _ in 0..3 {
+        chars.push(UPPER[rng.random_range(0..UPPER.len())] as char);
+    }
+    for _ in 0..3 {
+        chars.push(LOWER[rng.random_range(0..LOWER.len())] as char);
+    }
+    for _ in 0..3 {
+        chars.push(DIGIT[rng.random_range(0..DIGIT.len())] as char);
+    }
+
+    // 补齐剩下的 23 个
+    for _ in 0..23 {
+        chars.push(ALL[rng.random_range(0..ALL.len())] as char);
+    }
+
+    // Fisher-Yates shuffle
+    for i in (1..chars.len()).rev() {
+        let j = rng.random_range(0..=i);
+        chars.swap(i, j);
+    }
+
+    let secret: String = chars.into_iter().collect();
     Ok(secret)
 }
 

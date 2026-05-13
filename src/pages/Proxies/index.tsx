@@ -1,5 +1,7 @@
 import { ChevronDownRegular, TimerRegular } from "@fluentui/react-icons";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import Flag from "react-flagpack";
+import "react-flagpack/dist/style.css";
 import { Button } from "../../components/ui/Button";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
@@ -47,14 +49,17 @@ function NodeName({
     }
     const emoji = match[0];
     const code = [...emoji]
-      .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 97))
+      .map((c) => String.fromCharCode((c.codePointAt(0) ?? 0) - 0x1f1e6 + 65))
       .join("");
+    const finalCode = code === "GB" ? "GBR" : code;
     parts.push(
-      <img
+      <Flag
         key={`i-${match.index}`}
-        src={`https://flagcdn.com/256x192/${code}.png`}
-        alt={emoji}
-        className="inline-block w-[18px] h-[13px] mx-0.5 rounded-[2px] object-cover -translate-y-px"
+        code={finalCode}
+        size="s"
+        hasBorder={false}
+        gradient="real-linear"
+        className="inline-block mx-0.5 translate-y-[2px]"
       />,
     );
     lastIndex = regex.lastIndex;
