@@ -58,6 +58,8 @@ function NodeName({
         code={finalCode}
         size="s"
         hasBorder={false}
+        hasBorderRadius
+        hasDropShadow
         gradient="real-linear"
         className="inline-block mx-0.5 translate-y-[2px]"
       />,
