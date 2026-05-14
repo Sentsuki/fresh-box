@@ -180,16 +180,18 @@ export function useLogsStream() {
 
   const visibleLogs = useMemo(
     () =>
-      logs.filter((entry) => {
-        if (
-          typeFilter &&
-          entry.category !== typeFilter &&
-          entry.type !== typeFilter
-        ) {
-          return false;
-        }
-        return matchesSearch(entry, search);
-      }),
+      logs
+        .filter((entry) => {
+          if (
+            typeFilter &&
+            entry.category !== typeFilter &&
+            entry.type !== typeFilter
+          ) {
+            return false;
+          }
+          return matchesSearch(entry, search);
+        })
+        .reverse(),
     [logs, search, typeFilter],
   );
 
