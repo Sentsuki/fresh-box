@@ -169,15 +169,17 @@ export function useConfigs() {
   const addSubscription = useCallback(
     async (url: string) => {
       const config = useConfigStore.getState();
-      if (!url.trim() || config.pendingOperation) return;
+      if (!url.trim() || config.pendingOperation) return false;
 
       config.setPending(true);
       try {
         const result = await addSubscriptionCmd(url);
         await applySubscriptionResult(result);
         toastSuccess(`Subscribed to: ${result.file_name}`);
+        return true;
       } catch (err) {
         toastError(`Error adding subscription: ${getErrorMessage(err)}`);
+        return false;
       } finally {
         config.setPending(false);
       }
@@ -189,15 +191,17 @@ export function useConfigs() {
     async (fileName: string) => {
       const config = useConfigStore.getState();
       const subscription = config.subscriptions[fileName];
-      if (!subscription || config.pendingOperation) return;
+      if (!subscription || config.pendingOperation) return false;
 
       config.setPending(true);
       try {
         const result = await updateSubscriptionCmd(fileName);
         await applySubscriptionResult(result);
         toastSuccess(`Updated subscription: ${result.file_name}`);
+        return true;
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
+        return false;
       } finally {
         config.setPending(false);
       }
