@@ -105,7 +105,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) => c.chains.join(" → "),
+    getValue: (c) => [...c.chains].reverse().join(" → "),
   },
   rule: {
     key: "rule",
@@ -337,7 +337,7 @@ export function formatConnectionValue(
     case "upload":
       return formatSpeed(entry.upload);
     case "chain":
-      return entry.chains.join(" → ");
+      return [...entry.chains].reverse().join(" → ");
     case "start":
       return formatRelativeDuration(entry.start);
     case "host":
