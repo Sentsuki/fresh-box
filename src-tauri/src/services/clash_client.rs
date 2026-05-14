@@ -99,6 +99,8 @@ struct ClashProxy {
     now: String,
     #[serde(default)]
     alive: Option<bool>,
+    #[serde(default)]
+    udp: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -133,6 +135,7 @@ pub struct ClashProxyNode {
     pub delay: Option<i64>,
     pub alive: Option<bool>,
     pub is_selected: bool,
+    pub udp: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -402,6 +405,7 @@ fn build_clash_overview(
                     delay: last_delay(&node.history),
                     alive: node.alive,
                     is_selected: node.name == group.now,
+                    udp: node.udp,
                 })
                 .collect::<Vec<_>>();
 

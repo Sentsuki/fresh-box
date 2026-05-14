@@ -487,6 +487,7 @@ export interface ClashProxyNode {
   delay: number | null;
   alive?: boolean;
   is_selected?: boolean;
+  udp: boolean;
 }
 
 export interface ClashProxyGroup {
