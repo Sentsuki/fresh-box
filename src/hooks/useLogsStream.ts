@@ -93,7 +93,7 @@ export async function startLogsStream() {
       const entry: LogEntry = {
         ...msg,
         seq: logSeq++,
-        time: new Date().toLocaleTimeString("zh-CN", {
+        time: new Date().toLocaleTimeString(undefined, {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
