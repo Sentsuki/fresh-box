@@ -125,8 +125,16 @@ export default function Rules() {
               )}
             </div>
             <Button
-              icon={<ArrowClockwiseRegular />}
+              icon={
+                <ArrowClockwiseRegular
+                  className={[
+                    "transition-transform duration-500",
+                    isRefreshing ? "animate-spin" : "group-hover:rotate-180",
+                  ].join(" ")}
+                />
+              }
               variant="accent"
+              className="group active:scale-95 transition-transform"
               disabled={isRefreshing}
               onClick={() => void refreshRules(true)}
             >

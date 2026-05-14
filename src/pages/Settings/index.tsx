@@ -214,7 +214,7 @@ export default function Settings() {
                   value={clashApiController}
                   onChange={(e) => setClashApiController(e.target.value)}
                   placeholder="127.0.0.1:8964"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-30"
+                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-32"
                 />
                 <Button
                   size="sm"

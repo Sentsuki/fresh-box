@@ -58,6 +58,8 @@ function NodeName({
         code={finalCode}
         size="s"
         hasBorder={false}
+        hasBorderRadius
+        hasDropShadow
         gradient="real-linear"
         className="inline-block mx-0.5 translate-y-[2px]"
       />,
@@ -121,9 +123,16 @@ const NodeCard = memo(function NodeCard({
         />
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
-        <span className="text-xs font-medium uppercase tracking-wider truncate text-(--wb-text-tertiary)">
-          {abbreviateType(node.kind)}
-        </span>
+        <div className="flex items-center gap-1.5 min-w-0">
+          <span className="text-xs font-medium lowercase tracking-wider truncate text-(--wb-text-tertiary)">
+            {abbreviateType(node.kind)}
+          </span>
+          {node.udp && (
+            <span className="text-xs font-medium lowercase tracking-wider text-(--wb-text-disabled)">
+              udp
+            </span>
+          )}
+        </div>
         <button
           onClick={(e) => {
             e.stopPropagation();

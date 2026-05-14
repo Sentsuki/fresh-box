@@ -1,6 +1,7 @@
 import {
   AddRegular,
   ArrowClockwiseRegular,
+  CheckmarkRegular,
   CloudArrowDownRegular,
   DeleteRegular,
   DismissRegular,
@@ -178,7 +179,7 @@ export default function Profiles() {
                     sub={sub}
                     selected={selectedDisplay === file.displayName}
                     onSelect={() => void selectConfig(file)}
-                    onUpdate={() => void updateSubscription(file.displayName)}
+                    onUpdate={() => updateSubscription(file.displayName)}
                     onOpen={() => void openConfigFile(file.displayName)}
                     onDelete={() => void deleteConfig(file.displayName)}
                     onRename={(newName, newUrl) =>
@@ -408,12 +409,13 @@ function SubscriptionCard({
   sub: SubscriptionInfo;
   selected: boolean;
   onSelect: () => void;
-  onUpdate: () => void;
+  onUpdate: () => Promise<boolean | void>;
   onOpen: () => void;
   onDelete: () => void;
   onRename: (newName: string, newUrl: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
+  const [updateStatus, setUpdateStatus] = useState<"idle" | "updating" | "success">("idle");
   const [nameInput, setNameInput] = useState(name);
   const [urlInput, setUrlInput] = useState(sub.url);
 
@@ -531,11 +533,29 @@ function SubscriptionCard({
           <Button
             size="sm"
             variant="ghost"
-            icon={<ArrowClockwiseRegular />}
-            onClick={(e) => {
+            className="group active:scale-90 transition-transform"
+            icon={
+              updateStatus === "updating" ? (
+                <ArrowClockwiseRegular className="animate-spin" />
+              ) : updateStatus === "success" ? (
+                <CheckmarkRegular className="text-(--wb-accent) animate-pop-in" />
+              ) : (
+                <ArrowClockwiseRegular className="transition-transform duration-500 group-hover:rotate-180" />
+              )
+            }
+            onClick={async (e) => {
               e.stopPropagation();
-              onUpdate();
+              if (updateStatus !== "idle") return;
+              setUpdateStatus("updating");
+              const success = await onUpdate();
+              if (success) {
+                setUpdateStatus("success");
+                setTimeout(() => setUpdateStatus("idle"), 2000);
+              } else {
+                setUpdateStatus("idle");
+              }
             }}
+            disabled={updateStatus === "updating"}
             title="Update"
           />
           <Button

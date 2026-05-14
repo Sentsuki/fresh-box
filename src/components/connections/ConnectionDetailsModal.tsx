@@ -130,7 +130,7 @@ export function ConnectionDetailsModal({
                     </p>
                     <div className="flex flex-wrap items-center gap-1.5">
                       {connection.chains.length > 0 ? (
-                        connection.chains.map((node, i) => (
+                        [...connection.chains].reverse().map((node, i) => (
                           <div
                             // eslint-disable-next-line react/no-array-index-key
                             key={`${node}-${i}`}

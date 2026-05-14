@@ -93,7 +93,7 @@ export async function startLogsStream() {
       const entry: LogEntry = {
         ...msg,
         seq: logSeq++,
-        time: new Date().toLocaleTimeString("zh-CN", {
+        time: new Date().toLocaleTimeString(undefined, {
           hour: "2-digit",
           minute: "2-digit",
           second: "2-digit",
@@ -107,10 +107,14 @@ export async function startLogsStream() {
 
   if (!unlistenStatus) {
     unlistenStatus = await listen<string>("stream-logs-status", (e) => {
-      useLogsStore
-        .getState()
-        .setStreamStatus(e.payload as LogsState["streamStatus"]);
+      const status = e.payload as LogsState["streamStatus"];
+      useLogsStore.getState().setStreamStatus(status);
       useLogsStore.getState().setStreamError(null);
+
+      // 解开前端的锁，允许下次进入页面时重新请求后端
+      if (status === "disabled" || status === "error") {
+        isStreaming = false;
+      }
     });
   }
 
@@ -176,16 +180,18 @@ export function useLogsStream() {
 
   const visibleLogs = useMemo(
     () =>
-      logs.filter((entry) => {
-        if (
-          typeFilter &&
-          entry.category !== typeFilter &&
-          entry.type !== typeFilter
-        ) {
-          return false;
-        }
-        return matchesSearch(entry, search);
-      }),
+      logs
+        .filter((entry) => {
+          if (
+            typeFilter &&
+            entry.category !== typeFilter &&
+            entry.type !== typeFilter
+          ) {
+            return false;
+          }
+          return matchesSearch(entry, search);
+        })
+        .reverse(),
     [logs, search, typeFilter],
   );
 

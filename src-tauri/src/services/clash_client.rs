@@ -2,8 +2,7 @@ use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
-use std::cmp::Ordering;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::time::Duration;
 
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
@@ -78,7 +77,7 @@ struct ClashConfigResponse {
 
 #[derive(Debug, Deserialize)]
 struct ClashProxiesResponse {
-    proxies: HashMap<String, ClashProxy>,
+    proxies: indexmap::IndexMap<String, ClashProxy>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -100,6 +99,8 @@ struct ClashProxy {
     now: String,
     #[serde(default)]
     alive: Option<bool>,
+    #[serde(default)]
+    udp: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -134,6 +135,7 @@ pub struct ClashProxyNode {
     pub delay: Option<i64>,
     pub alive: Option<bool>,
     pub is_selected: bool,
+    pub udp: bool,
 }
 
 #[derive(Debug, Deserialize, Serialize, Clone)]
@@ -380,20 +382,15 @@ fn build_clash_overview(
         ]
     };
 
-    let sort_index = proxies
-        .proxies
-        .get(GLOBAL_GROUP_NAME)
-        .map(|proxy| proxy.all.clone())
-        .unwrap_or_default();
-
-    let mut proxy_groups = proxies
+    let proxy_groups = proxies
         .proxies
         .values()
-        .filter(|proxy| !proxy.all.is_empty() && proxy.name != GLOBAL_GROUP_NAME)
+        .filter(|proxy| {
+            let kind = proxy.kind.to_lowercase();
+            (kind == "selector" || kind == "urltest") && proxy.name != GLOBAL_GROUP_NAME
+        })
         .cloned()
         .collect::<Vec<_>>();
-
-    proxy_groups.sort_by(|left, right| compare_group_order(&sort_index, &left.name, &right.name));
 
     let groups = proxy_groups
         .into_iter()
@@ -408,6 +405,7 @@ fn build_clash_overview(
                     delay: last_delay(&node.history),
                     alive: node.alive,
                     is_selected: node.name == group.now,
+                    udp: node.udp,
                 })
                 .collect::<Vec<_>>();
 
@@ -435,17 +433,7 @@ fn build_clash_overview(
     }
 }
 
-fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Ordering {
-    match (
-        sort_index.iter().position(|name| name == left),
-        sort_index.iter().position(|name| name == right),
-    ) {
-        (Some(left_index), Some(right_index)) => left_index.cmp(&right_index),
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => left.cmp(right),
-    }
-}
+
 
 fn last_delay(history: &[ClashDelayHistory]) -> Option<i64> {
     history.last().map(|entry| entry.delay)
@@ -526,7 +514,7 @@ pub async fn test_clash_proxy_group_delay(
     proxy_group: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
-) -> Result<HashMap<String, i64>, CommandError> {
+) -> Result<IndexMap<String, i64>, CommandError> {
     let normalized_group = proxy_group.trim();
     if normalized_group.is_empty() {
         return Err(CommandError::validation("Proxy group cannot be empty."));
@@ -561,7 +549,7 @@ pub async fn test_clash_proxy_group_delay(
         .map_err(|error| map_clash_network_error("Failed to test group delay", error))?;
 
     let data = response
-        .json::<HashMap<String, i64>>()
+        .json::<IndexMap<String, i64>>()
         .await
         .map_err(|error| {
             CommandError::network(format!("Failed to parse group delay response: {}", error))
