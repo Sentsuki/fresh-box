@@ -106,7 +106,10 @@ pub(crate) fn sync_tray_from_overview(
     let selector_groups: Vec<TrayProxyGroup> = overview
         .proxy_groups
         .iter()
-        .filter(|g| g.kind.to_lowercase() == "selector")
+        .filter(|g| {
+            let kind = g.kind.to_lowercase();
+            kind == "selector" || kind == "urltest"
+        })
         .map(|g| TrayProxyGroup {
             name: g.name.clone(),
             current: g.current.clone(),
