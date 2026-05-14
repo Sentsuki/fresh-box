@@ -1,8 +1,8 @@
 use crate::errors::CommandError;
+use indexmap::IndexMap;
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
-use indexmap::IndexMap;
 use std::time::Duration;
 
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
@@ -432,8 +432,6 @@ fn build_clash_overview(
         proxy_groups: groups,
     }
 }
-
-
 
 fn last_delay(history: &[ClashDelayHistory]) -> Option<i64> {
     history.last().map(|entry| entry.delay)

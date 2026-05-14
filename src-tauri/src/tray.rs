@@ -3,8 +3,8 @@
 use crate::errors::CommandError;
 use crate::services::clash_client::select_proxy_inner;
 use crate::services::singbox::SingboxState;
-use serde::Deserialize;
 use indexmap::IndexMap;
+use serde::Deserialize;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{

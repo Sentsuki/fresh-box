@@ -415,7 +415,9 @@ function SubscriptionCard({
   onRename: (newName: string, newUrl: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<"idle" | "updating" | "success">("idle");
+  const [updateStatus, setUpdateStatus] = useState<
+    "idle" | "updating" | "success"
+  >("idle");
   const [nameInput, setNameInput] = useState(name);
   const [urlInput, setUrlInput] = useState(sub.url);
 
