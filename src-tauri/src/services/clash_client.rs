@@ -2,7 +2,6 @@ use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
-use std::cmp::Ordering;
 use std::collections::HashMap;
 use std::time::Duration;
 
@@ -78,7 +77,7 @@ struct ClashConfigResponse {
 
 #[derive(Debug, Deserialize)]
 struct ClashProxiesResponse {
-    proxies: HashMap<String, ClashProxy>,
+    proxies: indexmap::IndexMap<String, ClashProxy>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -380,20 +379,15 @@ fn build_clash_overview(
         ]
     };
 
-    let sort_index = proxies
-        .proxies
-        .get(GLOBAL_GROUP_NAME)
-        .map(|proxy| proxy.all.clone())
-        .unwrap_or_default();
-
-    let mut proxy_groups = proxies
+    let proxy_groups = proxies
         .proxies
         .values()
-        .filter(|proxy| !proxy.all.is_empty() && proxy.name != GLOBAL_GROUP_NAME)
+        .filter(|proxy| {
+            let kind = proxy.kind.to_lowercase();
+            (kind == "selector" || kind == "urltest") && proxy.name != GLOBAL_GROUP_NAME
+        })
         .cloned()
         .collect::<Vec<_>>();
-
-    proxy_groups.sort_by(|left, right| compare_group_order(&sort_index, &left.name, &right.name));
 
     let groups = proxy_groups
         .into_iter()
@@ -435,17 +429,7 @@ fn build_clash_overview(
     }
 }
 
-fn compare_group_order(sort_index: &[String], left: &str, right: &str) -> Ordering {
-    match (
-        sort_index.iter().position(|name| name == left),
-        sort_index.iter().position(|name| name == right),
-    ) {
-        (Some(left_index), Some(right_index)) => left_index.cmp(&right_index),
-        (Some(_), None) => Ordering::Less,
-        (None, Some(_)) => Ordering::Greater,
-        (None, None) => left.cmp(right),
-    }
-}
+
 
 fn last_delay(history: &[ClashDelayHistory]) -> Option<i64> {
     history.last().map(|entry| entry.delay)

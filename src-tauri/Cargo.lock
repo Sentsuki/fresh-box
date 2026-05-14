@@ -1200,6 +1200,7 @@ version = "1.6.11"
 dependencies = [
  "chrono",
  "futures-util",
+ "indexmap 2.14.0",
  "rand 0.10.1",
  "reqwest",
  "serde",
