@@ -107,10 +107,14 @@ export async function startLogsStream() {
 
   if (!unlistenStatus) {
     unlistenStatus = await listen<string>("stream-logs-status", (e) => {
-      useLogsStore
-        .getState()
-        .setStreamStatus(e.payload as LogsState["streamStatus"]);
+      const status = e.payload as LogsState["streamStatus"];
+      useLogsStore.getState().setStreamStatus(status);
       useLogsStore.getState().setStreamError(null);
+
+      // 解开前端的锁，允许下次进入页面时重新请求后端
+      if (status === "disabled" || status === "error") {
+        isStreaming = false;
+      }
     });
   }
 
