@@ -1,6 +1,6 @@
 use crate::errors::CommandError;
 use crate::services::clash_client::ClashOverview;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 
 #[tauri::command]
 pub async fn get_clash_overview(app: tauri::AppHandle) -> Result<ClashOverview, CommandError> {
@@ -39,7 +39,7 @@ pub async fn test_clash_proxy_group_delay(
     proxy_group: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
-) -> Result<HashMap<String, i64>, CommandError> {
+) -> Result<IndexMap<String, i64>, CommandError> {
     crate::services::clash_client::test_clash_proxy_group_delay(app, proxy_group, url, timeout_ms)
         .await
 }

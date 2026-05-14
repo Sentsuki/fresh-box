@@ -4,7 +4,7 @@ use crate::errors::CommandError;
 use crate::services::clash_client::select_proxy_inner;
 use crate::services::singbox::SingboxState;
 use serde::Deserialize;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tauri::{
@@ -26,13 +26,13 @@ pub struct TrayProxyGroup {
 }
 
 pub struct TrayProxyState {
-    pub proxy_item_map: Arc<Mutex<HashMap<String, (String, String)>>>,
+    pub proxy_item_map: Arc<Mutex<IndexMap<String, (String, String)>>>,
 }
 
 fn build_tray_menu(
     app: &AppHandle,
     proxy_groups: &[TrayProxyGroup],
-    proxy_item_map: &mut HashMap<String, (String, String)>,
+    proxy_item_map: &mut IndexMap<String, (String, String)>,
 ) -> tauri::Result<Menu<tauri::Wry>> {
     proxy_item_map.clear();
     let menu = Menu::new(app)?;
@@ -75,7 +75,7 @@ fn build_tray_menu(
 fn apply_tray_menu(
     app: &AppHandle,
     proxy_groups: &[TrayProxyGroup],
-    map: &mut HashMap<String, (String, String)>,
+    map: &mut IndexMap<String, (String, String)>,
 ) -> Result<(), String> {
     let menu = build_tray_menu(app, proxy_groups, map)
         .map_err(|e| format!("Failed to build tray menu: {}", e))?;
@@ -123,12 +123,12 @@ pub(crate) fn sync_tray_from_overview(
 }
 
 pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Error>> {
-    let proxy_item_map: Arc<Mutex<HashMap<String, (String, String)>>> =
-        Arc::new(Mutex::new(HashMap::new()));
+    let proxy_item_map: Arc<Mutex<IndexMap<String, (String, String)>>> =
+        Arc::new(Mutex::new(IndexMap::new()));
     let proxy_map_for_event = proxy_item_map.clone();
 
     // 初始菜单复用 build_tray_menu（无代理节点时仅含 Show / Quit）
-    let initial_menu = build_tray_menu(app.handle(), &[], &mut HashMap::new())?;
+    let initial_menu = build_tray_menu(app.handle(), &[], &mut IndexMap::new())?;
 
     let tray_builder = TrayIconBuilder::with_id(TRAY_ID)
         .menu(&initial_menu)

@@ -2,7 +2,7 @@ use crate::errors::CommandError;
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
-use std::collections::HashMap;
+use indexmap::IndexMap;
 use std::time::Duration;
 
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
@@ -514,7 +514,7 @@ pub async fn test_clash_proxy_group_delay(
     proxy_group: String,
     url: Option<String>,
     timeout_ms: Option<u64>,
-) -> Result<HashMap<String, i64>, CommandError> {
+) -> Result<IndexMap<String, i64>, CommandError> {
     let normalized_group = proxy_group.trim();
     if normalized_group.is_empty() {
         return Err(CommandError::validation("Proxy group cannot be empty."));
@@ -549,7 +549,7 @@ pub async fn test_clash_proxy_group_delay(
         .map_err(|error| map_clash_network_error("Failed to test group delay", error))?;
 
     let data = response
-        .json::<HashMap<String, i64>>()
+        .json::<IndexMap<String, i64>>()
         .await
         .map_err(|error| {
             CommandError::network(format!("Failed to parse group delay response: {}", error))
