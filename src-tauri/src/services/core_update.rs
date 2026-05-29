@@ -55,7 +55,7 @@ pub async fn cancel_core_update(
 }
 
 const GITHUB_RELEASES_API: &str =
-    "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=12";
+    "https://api.github.com/repos/SagerNet/sing-box/releases?per_page=50";
 const WINDOWS_AMD64_ASSET_SUFFIX: &str = "windows-amd64.zip";
 const CORE_UPDATE_PROGRESS_EVENT: &str = "core-update-progress";
 const CORE_EXECUTABLE_NAME: &str = "sing-box.exe";
