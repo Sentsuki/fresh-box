@@ -100,6 +100,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             selectedOption.channel,
             selectedOption.version,
           );
+          void setSelectedCoreOptionKey(key);
           success(`Switched to ${selectedOption.label}`);
         } else {
           // Download + install (new version, or reinstall of active version).
@@ -107,6 +108,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             selectedOption.channel,
             selectedOption.version,
           );
+          void setSelectedCoreOptionKey(key);
           success(
             result.restart_required
               ? `Core updated to ${result.current_version}. Restart sing-box to apply.`

@@ -364,12 +364,16 @@ export default function Settings() {
                       disabled={isUpdatingCore || !controlsEnabled}
                       onChange={(e) => {
                         const newKey = e.target.value;
-                        void setSelectedCoreOptionKey(newKey);
                         const opt = availableOptions.find(
                           (o) => `${o.channel}:${o.version}` === newKey,
                         );
                         if (opt && !(opt.installed && opt.is_active)) {
+                          // Trigger install/activate first; setSelectedCoreOptionKey
+                          // is called inside applySelectedCore after success.
                           void applySelectedCore(newKey);
+                        } else {
+                          // Already active — just persist the selection.
+                          void setSelectedCoreOptionKey(newKey);
                         }
                       }}
                     >
