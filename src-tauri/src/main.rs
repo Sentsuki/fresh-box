@@ -16,7 +16,7 @@ use services::singbox::{
     SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly,
 };
 use std::time::Duration;
-use tauri::{Manager, Window};
+use tauri::{Emitter, Manager, Window};
 
 #[tauri::command]
 fn update_mica_theme(window: Window, is_light: Option<bool>) {

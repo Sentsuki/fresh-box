@@ -1,7 +1,7 @@
 // window_utils.rs - 窗口操作工具与生命周期状态管理
 
 use std::{future::Future, sync::Mutex, time::Duration};
-use tauri::{AppHandle, Manager, WebviewWindowBuilder};
+use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
 
 // ─── 全局窗口行为状态 ──────────────────────────────────────────────
 //
