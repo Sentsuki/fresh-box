@@ -171,38 +171,38 @@ pub(crate) fn check_config_fields_inner(
     // Reuse the existing abstraction rather than reading the file directly.
     let override_enabled = super::config_override::is_config_override_enabled_inner()
         .unwrap_or(false);
-    if override_enabled {
-        if let Ok(override_config) = super::config_override::load_config_override_inner() {
-            if !result.has_stack_field
-                && let Some(override_inbounds) = override_config.get("inbounds")
-                && let Some(override_inbounds_array) = override_inbounds.as_array()
-            {
-                for inbound in override_inbounds_array {
-                    if let Some(inbound_obj) = inbound.as_object()
-                        && let Some(stack_value) = inbound_obj.get("stack")
-                    {
-                        result.has_stack_field = true;
-                        if let Some(stack_str) = stack_value.as_str() {
-                            result.current_stack_value = Some(stack_str.to_string());
-                        }
-                        break;
+    if override_enabled
+        && let Ok(override_config) = super::config_override::load_config_override_inner()
+    {
+        if !result.has_stack_field
+            && let Some(override_inbounds) = override_config.get("inbounds")
+            && let Some(override_inbounds_array) = override_inbounds.as_array()
+        {
+            for inbound in override_inbounds_array {
+                if let Some(inbound_obj) = inbound.as_object()
+                    && let Some(stack_value) = inbound_obj.get("stack")
+                {
+                    result.has_stack_field = true;
+                    if let Some(stack_str) = stack_value.as_str() {
+                        result.current_stack_value = Some(stack_str.to_string());
                     }
+                    break;
                 }
             }
+        }
 
-            if !result.has_log_field
-                && let Some(override_log_obj) = override_config.get("log")
-                && override_log_obj.is_object()
+        if !result.has_log_field
+            && let Some(override_log_obj) = override_config.get("log")
+            && override_log_obj.is_object()
+        {
+            result.has_log_field = true;
+            if let Some(disabled_value) = override_log_obj.get("disabled") {
+                result.current_log_disabled = disabled_value.as_bool();
+            }
+            if let Some(level_value) = override_log_obj.get("level")
+                && let Some(level_str) = level_value.as_str()
             {
-                result.has_log_field = true;
-                if let Some(disabled_value) = override_log_obj.get("disabled") {
-                    result.current_log_disabled = disabled_value.as_bool();
-                }
-                if let Some(level_value) = override_log_obj.get("level")
-                    && let Some(level_str) = level_value.as_str()
-                {
-                    result.current_log_level = Some(level_str.to_string());
-                }
+                result.current_log_level = Some(level_str.to_string());
             }
         }
     }
