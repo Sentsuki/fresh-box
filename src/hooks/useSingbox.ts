@@ -88,6 +88,11 @@ export function useSingbox() {
       startMemoryStream();
       void startLogsStream();
       startPolling(() => {
+        stopConnectionsStream(true);
+        stopTrafficStream(true);
+        stopMemoryStream(true);
+        void stopLogsStream(true);
+        useClashStore.getState().clearOverview();
         toastError("sing-box has stopped unexpectedly.");
         void notifySingboxStatus("sing-box has stopped unexpectedly.");
       });

@@ -10,6 +10,7 @@ import {
 } from "../services/api";
 import { buildConfigEntries } from "../services/utils";
 import { startConnectionsStream } from "./useConnectionsStream";
+import { startLogsStream } from "./useLogsStream";
 import { startTrafficStream } from "./useTrafficStream";
 import { startMemoryStream } from "./useMemoryStream";
 
@@ -55,6 +56,7 @@ export async function initializeApp() {
     startConnectionsStream();
     startTrafficStream();
     startMemoryStream();
+    void startLogsStream();
     await clash.refreshOverview(false);
   }
 
