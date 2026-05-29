@@ -4,7 +4,7 @@ export function getCleanFileName(filePath: string): string {
 }
 
 export function formatLastUpdated(lastUpdated?: string): string {
-  if (!lastUpdated) return "从未更新";
+  if (!lastUpdated) return "Never updated";
   const date = new Date(lastUpdated);
   return date.toLocaleString(undefined, {
     year: "numeric",

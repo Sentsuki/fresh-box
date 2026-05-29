@@ -12,8 +12,10 @@ import {
   WeatherMoonRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Select } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
@@ -49,6 +51,12 @@ export default function Settings() {
   );
 
   const currentThemeMode = settings.Settings.theme_mode;
+
+  // App version
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    void getVersion().then(setAppVersion).catch(() => null);
+  }, []);
 
   // Process Management
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
@@ -128,15 +136,14 @@ export default function Settings() {
             title="App Theme"
             description="Select the color theme for the application"
             control={
-              <select
+              <Select
                 value={currentThemeMode}
                 onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
-                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="system">Follow System</option>
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
-              </select>
+              </Select>
             }
           />
         </SettingGroup>
@@ -149,21 +156,20 @@ export default function Settings() {
               title="TUN Stack"
               description="Select the network stack for the TUN interface (applied on restart)"
               control={
-                <select
+                <Select
                   value={selectedStack}
                   onChange={(e) =>
                     void setStackOption(
                       e.target.value as (typeof STACK_OPTIONS)[number],
                     )
                   }
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                 >
                   {STACK_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>
                   ))}
-                </select>
+                </Select>
               }
             />
           )}
@@ -175,7 +181,7 @@ export default function Settings() {
               description="Log output detail from the sing-box core"
               control={
                 <div className="flex items-center gap-3">
-                  <select
+                  <Select
                     value={selectedLogLevel}
                     onChange={(e) => {
                       const level = e.target
@@ -184,14 +190,13 @@ export default function Settings() {
                       void updateLogConfiguration(logDisabled, level);
                     }}
                     disabled={logDisabled}
-                    className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                   >
                     {LOG_LEVELS.map((l) => (
                       <option key={l} value={l}>
                         {l}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                   <div className="flex items-center gap-2.5">
                     <span className="text-sm text-(--wb-text-secondary)">
@@ -354,7 +359,7 @@ export default function Settings() {
                 {availableOptions.length > 0 && (
                   <>
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-                    <select
+                    <Select
                       value={selectedCoreOptionKey}
                       disabled={isUpdatingCore || !controlsEnabled}
                       onChange={(e) => {
@@ -367,7 +372,6 @@ export default function Settings() {
                           void applySelectedCore(newKey);
                         }
                       }}
-                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                     >
                       {availableOptions.map((opt) => (
                         <option
@@ -378,7 +382,7 @@ export default function Settings() {
                           {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {isUpdatingCore && (
                       <Button
                         size="sm"
@@ -445,16 +449,15 @@ export default function Settings() {
             title="Close Button Behavior"
             description="Choose what happens when the window close button is clicked"
             control={
-              <select
+              <Select
                 value={closeBehavior}
                 onChange={(e) =>
                   void setCloseBehavior(e.target.value as "hide" | "destroy")
                 }
-                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="hide">Hide to tray</option>
                 <option value="destroy">Destroy window</option>
-              </select>
+              </Select>
             }
           />
 
@@ -509,7 +512,7 @@ export default function Settings() {
             title="fresh-box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version 1.6.12</span>
+                <span>Version {appVersion ?? "..."}</span>
               </div>
             }
           />

@@ -21,58 +21,58 @@ function buildConfigEntries(files: string[]): ConfigFileEntry[] {
   }));
 }
 
-export function useInit() {
-  async function initialize() {
-    const settings = useSettingsStore.getState();
-    const singbox = useSingboxStore.getState();
-    const clash = useClashStore.getState();
-    const config = useConfigStore.getState();
-    const app = useAppStore.getState();
+export async function initializeApp() {
+  const settings = useSettingsStore.getState();
+  const singbox = useSingboxStore.getState();
+  const clash = useClashStore.getState();
+  const config = useConfigStore.getState();
+  const app = useAppStore.getState();
 
-    await settings.hydrate();
+  await settings.hydrate();
 
-    const [files, subscriptions, running] = await Promise.all([
-      listConfigs(),
-      loadSubscriptions(),
-      isSingboxRunning(),
-    ]);
+  const [files, subscriptions, running] = await Promise.all([
+    listConfigs(),
+    loadSubscriptions(),
+    isSingboxRunning(),
+  ]);
 
-    const configFiles = buildConfigEntries(files);
-    config.setConfigFiles(configFiles);
-    config.setSubscriptions(subscriptions);
+  const configFiles = buildConfigEntries(files);
+  config.setConfigFiles(configFiles);
+  config.setSubscriptions(subscriptions);
 
-    const savedDisplay =
-      useSettingsStore.getState().settings.Profiles.selected_config_display;
-    const target =
-      (savedDisplay &&
-        configFiles.find((c) => c.displayName === savedDisplay)) ||
-      (useSettingsStore.getState().settings.Profiles.selected_config_path &&
-        configFiles.find(
-          (c) =>
-            c.path ===
-            useSettingsStore.getState().settings.Profiles.selected_config_path,
-        )) ||
-      configFiles[0] ||
-      null;
+  const savedDisplay =
+    useSettingsStore.getState().settings.Profiles.selected_config_display;
+  const target =
+    (savedDisplay &&
+      configFiles.find((c) => c.displayName === savedDisplay)) ||
+    (useSettingsStore.getState().settings.Profiles.selected_config_path &&
+      configFiles.find(
+        (c) =>
+          c.path ===
+          useSettingsStore.getState().settings.Profiles.selected_config_path,
+      )) ||
+    configFiles[0] ||
+    null;
 
-    await settings.setSelectedConfig(
-      target?.path ?? null,
-      target?.displayName ?? null,
-    );
+  await settings.setSelectedConfig(
+    target?.path ?? null,
+    target?.displayName ?? null,
+  );
 
-    singbox.setRunning(running);
-    if (running) {
-      startConnectionsStream();
-      startTrafficStream();
-      startMemoryStream();
-      await clash.refreshOverview(false);
-    }
-
-    // sync currentPage from persisted settings
-    const savedPage = useSettingsStore.getState().settings.app.current_page;
-    app.setCurrentPage(savedPage);
-    app.markInitialized();
+  singbox.setRunning(running);
+  if (running) {
+    startConnectionsStream();
+    startTrafficStream();
+    startMemoryStream();
+    await clash.refreshOverview(false);
   }
 
-  return { initialize };
+  const savedPage = useSettingsStore.getState().settings.app.current_page;
+  app.setCurrentPage(savedPage);
+  app.markInitialized();
+}
+
+/** @deprecated Use `initializeApp()` directly instead. */
+export function useInit() {
+  return { initialize: initializeApp };
 }
