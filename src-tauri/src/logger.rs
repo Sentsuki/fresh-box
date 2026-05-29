@@ -19,16 +19,15 @@ pub fn install_panic_hook() {
             panic_info
         );
 
-        if std::fs::write(&log_path, &crash_msg).is_err() {
-            let _ = std::fs::OpenOptions::new()
-                .create(true)
-                .append(true)
-                .open(&log_path)
-                .and_then(|mut file| {
-                    use std::io::Write;
-                    file.write_all(crash_msg.as_bytes())
-                });
-        }
+        // Always append so multiple crash entries are preserved in the same file.
+        let _ = std::fs::OpenOptions::new()
+            .create(true)
+            .append(true)
+            .open(&log_path)
+            .and_then(|mut file| {
+                use std::io::Write;
+                file.write_all(crash_msg.as_bytes())
+            });
 
         eprintln!("{}", crash_msg);
     }));

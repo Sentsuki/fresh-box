@@ -2,6 +2,52 @@ use crate::config::AppSettings;
 use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
+use std::sync::OnceLock;
+
+// ── Shared HTTP client for subscription fetching ───────────────────────────
+
+static SUBSCRIPTION_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn subscription_client() -> Result<&'static reqwest::Client, CommandError> {
+    Ok(SUBSCRIPTION_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent("fresh-box")
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to initialize the subscription HTTP client")
+    }))
+}
+
+// ── Platform-agnostic shell-open helper ───────────────────────────────────
+
+/// Open `path` with the OS default handler (Explorer / open / xdg-open).
+fn open_with_system(path: &str) -> Result<(), CommandError> {
+    #[cfg(target_os = "windows")]
+    {
+        use std::os::windows::process::CommandExt;
+        const CREATE_NO_WINDOW: u32 = 0x08000000;
+        std::process::Command::new("cmd")
+            .args(["/C", "start", "", path])
+            .creation_flags(CREATE_NO_WINDOW)
+            .spawn()
+            .map_err(|e| CommandError::resource_not_found("path", e))?;
+    }
+    #[cfg(target_os = "macos")]
+    {
+        std::process::Command::new("open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| CommandError::resource_not_found("path", e))?;
+    }
+    #[cfg(target_os = "linux")]
+    {
+        std::process::Command::new("xdg-open")
+            .arg(path)
+            .spawn()
+            .map_err(|e| CommandError::resource_not_found("path", e))?;
+    }
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
@@ -10,35 +56,7 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
     let exe_dir = exe_path.parent().ok_or_else(|| {
         CommandError::resource_not_found("executable directory", "parent path missing")
     })?;
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("explorer")
-            .arg(exe_dir)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(exe_dir)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(exe_dir)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    Ok(())
+    open_with_system(&exe_dir.to_string_lossy())
 }
 
 #[tauri::command]
@@ -262,36 +280,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
         ));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &full_path.to_string_lossy()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("config file", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&full_path)
-            .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
-            })?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&full_path)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("config file", e))?;
-    }
-
-    Ok(())
+    open_with_system(&full_path.to_string_lossy())
 }
 
 #[tauri::command]
@@ -331,34 +320,7 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
 
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), CommandError> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &url])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    Ok(())
+    open_with_system(&url)
 }
 
 /// Return the subscriptions map serialised to JSON, with the internal
@@ -392,11 +354,7 @@ pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult
         ));
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)
@@ -468,11 +426,7 @@ pub async fn update_subscription(
             .to_string()
     };
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)
@@ -594,11 +548,7 @@ pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, 
 
     let file_name = extract_file_name_from_url(&url);
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)

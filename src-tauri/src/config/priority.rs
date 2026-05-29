@@ -1,8 +1,9 @@
 use crate::errors::CommandError;
 use rand::RngExt as _;
+use rand::seq::SliceRandom as _;
 use serde_json::{Value, json};
 
-const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+pub(crate) const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
 pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:8964";
 pub const DEFAULT_CLASH_SECRET: &str = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
@@ -161,42 +162,42 @@ pub(crate) fn check_config_fields_inner(
         }
     }
 
-    let config_dir = super::paths::get_config_dir()?;
-    let override_path = config_dir.join("config_override.json");
-
-    if override_path.exists()
-        && let Ok(override_content) = fs::read_to_string(&override_path)
-        && let Ok(override_config) = serde_json::from_str::<Value>(&override_content)
-    {
-        if !result.has_stack_field
-            && let Some(override_inbounds) = override_config.get("inbounds")
-            && let Some(override_inbounds_array) = override_inbounds.as_array()
-        {
-            for inbound in override_inbounds_array {
-                if let Some(inbound_obj) = inbound.as_object()
-                    && let Some(stack_value) = inbound_obj.get("stack")
-                {
-                    result.has_stack_field = true;
-                    if let Some(stack_str) = stack_value.as_str() {
-                        result.current_stack_value = Some(stack_str.to_string());
+    // Fall back to the override config for fields not present in the main config.
+    // Reuse the existing abstraction rather than reading the file directly.
+    let override_enabled = super::config_override::is_config_override_enabled_inner()
+        .unwrap_or(false);
+    if override_enabled {
+        if let Ok(override_config) = super::config_override::load_config_override_inner() {
+            if !result.has_stack_field
+                && let Some(override_inbounds) = override_config.get("inbounds")
+                && let Some(override_inbounds_array) = override_inbounds.as_array()
+            {
+                for inbound in override_inbounds_array {
+                    if let Some(inbound_obj) = inbound.as_object()
+                        && let Some(stack_value) = inbound_obj.get("stack")
+                    {
+                        result.has_stack_field = true;
+                        if let Some(stack_str) = stack_value.as_str() {
+                            result.current_stack_value = Some(stack_str.to_string());
+                        }
+                        break;
                     }
-                    break;
                 }
             }
-        }
 
-        if !result.has_log_field
-            && let Some(override_log_obj) = override_config.get("log")
-            && override_log_obj.is_object()
-        {
-            result.has_log_field = true;
-            if let Some(disabled_value) = override_log_obj.get("disabled") {
-                result.current_log_disabled = disabled_value.as_bool();
-            }
-            if let Some(level_value) = override_log_obj.get("level")
-                && let Some(level_str) = level_value.as_str()
+            if !result.has_log_field
+                && let Some(override_log_obj) = override_config.get("log")
+                && override_log_obj.is_object()
             {
-                result.current_log_level = Some(level_str.to_string());
+                result.has_log_field = true;
+                if let Some(disabled_value) = override_log_obj.get("disabled") {
+                    result.current_log_disabled = disabled_value.as_bool();
+                }
+                if let Some(level_value) = override_log_obj.get("level")
+                    && let Some(level_str) = level_value.as_str()
+                {
+                    result.current_log_level = Some(level_str.to_string());
+                }
             }
         }
     }
@@ -256,10 +257,9 @@ pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
     const ALL: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
 
     let mut rng = rand::rng();
-
     let mut chars = Vec::with_capacity(32);
 
-    // 保证各有 3 个
+    // Guarantee at least 3 of each character class.
     for _ in 0..3 {
         chars.push(UPPER[rng.random_range(0..UPPER.len())] as char);
     }
@@ -269,20 +269,13 @@ pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
     for _ in 0..3 {
         chars.push(DIGIT[rng.random_range(0..DIGIT.len())] as char);
     }
-
-    // 补齐剩下的 23 个
     for _ in 0..23 {
         chars.push(ALL[rng.random_range(0..ALL.len())] as char);
     }
 
-    // Fisher-Yates shuffle
-    for i in (1..chars.len()).rev() {
-        let j = rng.random_range(0..=i);
-        chars.swap(i, j);
-    }
+    chars.shuffle(&mut rng);
 
-    let secret: String = chars.into_iter().collect();
-    Ok(secret)
+    Ok(chars.into_iter().collect())
 }
 
 pub fn apply_priority_config(
@@ -330,14 +323,16 @@ pub fn apply_stack_config(config: &mut Value, stack_value: &str) -> Result<(), C
             }
 
             if !found_stack {
-                return Err(CommandError::ResourceNotFound(
-                    "No stack field found in inbounds configuration".to_string(),
+                return Err(CommandError::resource_not_found(
+                    "inbounds configuration",
+                    "no stack field found",
                 ));
             }
         }
     } else {
-        return Err(CommandError::ResourceNotFound(
-            "No inbounds configuration found".to_string(),
+        return Err(CommandError::resource_not_found(
+            "config",
+            "no inbounds configuration found",
         ));
     }
 
@@ -348,7 +343,7 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
     if config.get("log").is_none() {
         config
             .as_object_mut()
-            .ok_or_else(|| CommandError::ResourceNotFound("Invalid config format".to_string()))?
+            .ok_or_else(|| CommandError::invalid_state("apply_log_config", "invalid config format"))?
             .insert("log".to_string(), Value::Object(serde_json::Map::new()));
     }
 
@@ -356,7 +351,7 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
         .get_mut("log")
         .and_then(|v| v.as_object_mut())
         .ok_or_else(|| {
-            CommandError::ResourceNotFound("Invalid log configuration format".to_string())
+            CommandError::invalid_state("apply_log_config", "invalid log configuration format")
         })?;
 
     log_obj.insert("disabled".to_string(), Value::Bool(log_config.disabled));
@@ -384,7 +379,9 @@ pub fn apply_clash_api_config(
     if config.get("experimental").is_none() {
         config
             .as_object_mut()
-            .ok_or_else(|| CommandError::ResourceNotFound("Invalid config format".to_string()))?
+            .ok_or_else(|| {
+                CommandError::invalid_state("apply_clash_api_config", "invalid config format")
+            })?
             .insert(
                 "experimental".to_string(),
                 Value::Object(serde_json::Map::new()),
@@ -395,7 +392,10 @@ pub fn apply_clash_api_config(
         .get_mut("experimental")
         .and_then(|v| v.as_object_mut())
         .ok_or_else(|| {
-            CommandError::ResourceNotFound("Invalid experimental config format".to_string())
+            CommandError::invalid_state(
+                "apply_clash_api_config",
+                "invalid experimental config format",
+            )
         })?;
 
     experimental.insert(

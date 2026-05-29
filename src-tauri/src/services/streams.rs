@@ -112,7 +112,8 @@ async fn run_json_stream<F>(
                 }
                 let _ = app.emit(status_event, "error");
             }
-            Err(_) => {
+            Err(e) => {
+                eprintln!("[stream] {} WebSocket connect failed: {}", status_event, e);
                 let _ = app.emit(status_event, "error");
             }
         }
@@ -303,7 +304,8 @@ async fn run_connections_stream(
                 }
                 let _ = app.emit("stream-connections-status", "error");
             }
-            Err(_) => {
+            Err(e) => {
+                eprintln!("[stream] connections WebSocket connect failed: {}", e);
                 let _ = app.emit("stream-connections-status", "error");
             }
         }
@@ -345,10 +347,9 @@ async fn run_logs_stream(app: tauri::AppHandle, stop_rx: watch::Receiver<bool>) 
         return;
     }
 
-    // Check if logs are disabled
-    const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
     let priority_config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(PRIORITY_CONFIG_FILE).unwrap_or_default();
+        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)
+            .unwrap_or_default();
 
     if priority_config.log.disabled {
         let _ = app.emit("stream-logs-status", "disabled");

@@ -363,7 +363,9 @@ pub async fn start_singbox(
         }
 
         let priority_config: crate::config::PriorityConfig =
-            crate::config::load_named_config_or_default("priority_config.json")?;
+            crate::config::load_named_config_or_default(
+                crate::config::priority::PRIORITY_CONFIG_FILE,
+            )?;
         if let Err(error) = crate::config::apply_priority_config(&mut base_config, &priority_config)
         {
             eprintln!(

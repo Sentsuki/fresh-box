@@ -3,11 +3,27 @@ use indexmap::IndexMap;
 use reqwest::Client;
 use serde::{Deserialize, Serialize, de::DeserializeOwned};
 use serde_json::json;
+use std::sync::OnceLock;
 use std::time::Duration;
 
 const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 const DEFAULT_TEST_TIMEOUT_MS: u64 = 5_000;
 const GLOBAL_GROUP_NAME: &str = "GLOBAL";
+
+/// A single shared `reqwest::Client` for all Clash API calls.
+/// `reqwest::Client` is cheap to clone and manages its own connection pool.
+static CLASH_HTTP_CLIENT: OnceLock<Client> = OnceLock::new();
+
+fn clash_client() -> Result<&'static Client, CommandError> {
+    Ok(CLASH_HTTP_CLIENT.get_or_init(|| {
+        Client::builder()
+            .user_agent("fresh-box")
+            .connect_timeout(Duration::from_secs(5))
+            .timeout(Duration::from_secs(20))
+            .build()
+            .expect("Failed to initialize the Clash API HTTP client")
+    }))
+}
 
 /// Resolved Clash API endpoint configuration.  Shared by the HTTP client
 /// (`clash_client`) and the WebSocket stream client (`streams`).
@@ -168,20 +184,6 @@ pub struct ClashRule {
 #[serde(rename_all = "snake_case")]
 pub struct ClashRulesSnapshot {
     rules: Vec<ClashRule>,
-}
-
-fn clash_client() -> Result<Client, CommandError> {
-    Client::builder()
-        .user_agent("fresh-box")
-        .connect_timeout(Duration::from_secs(5))
-        .timeout(Duration::from_secs(20))
-        .build()
-        .map_err(|error| {
-            CommandError::network(format!(
-                "Failed to initialize the Clash API client: {}",
-                error
-            ))
-        })
 }
 
 fn build_clash_url(base_url: &str, path: &str) -> String {
