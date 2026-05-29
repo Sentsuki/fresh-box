@@ -85,14 +85,14 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     setSelectedConfig: async (path, displayName) => {
       await get().updateSettings((s) => {
-        s.Profiles.selected_config_path = path;
-        s.Profiles.selected_config_display = displayName;
+        s.profiles.selected_config_path = path;
+        s.profiles.selected_config_display = displayName;
       });
     },
 
     setSelectedCoreOptionKey: async (value) => {
       await get().updateSettings((s) => {
-        s.Settings.singbox_core.selected_option_key = value;
+        s.settings.singbox_core.selected_option_key = value;
       });
     },
 
@@ -174,25 +174,25 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
-        s.Settings.theme_mode = mode;
+        s.settings.theme_mode = mode;
       });
     },
 
     setTestUrl: async (url) => {
       await get().updateSettings((s) => {
-        s.Settings.test_url = url;
+        s.settings.test_url = url;
       });
     },
 
     setCloseBehavior: async (behavior) => {
       await get().updateSettings((s) => {
-        s.Settings.close_behavior = behavior;
+        s.settings.close_behavior = behavior;
       });
     },
 
     setAutoCloseConnections: async (enabled) => {
       await get().updateSettings((s) => {
-        s.Settings.auto_close_connections = enabled;
+        s.settings.auto_close_connections = enabled;
       });
     },
   }),

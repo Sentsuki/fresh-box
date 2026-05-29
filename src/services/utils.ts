@@ -3,6 +3,15 @@ export function getCleanFileName(filePath: string): string {
   return fileNameWithExt.replace(".json", "");
 }
 
+export function buildConfigEntries(
+  files: string[],
+): Array<{ path: string; displayName: string }> {
+  return files.map((path) => ({
+    path,
+    displayName: getCleanFileName(path),
+  }));
+}
+
 export function formatLastUpdated(lastUpdated?: string): string {
   if (!lastUpdated) return "Never updated";
   const date = new Date(lastUpdated);

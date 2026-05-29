@@ -36,21 +36,21 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const testUrl = useSettingsStore((s) => s.settings.Settings.test_url);
+  const testUrl = useSettingsStore((s) => s.settings.settings.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
   const [testUrlInput, setTestUrlInput] = useState(testUrl);
   const closeBehavior = useSettingsStore(
-    (s) => s.settings.Settings.close_behavior,
+    (s) => s.settings.settings.close_behavior,
   );
   const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
   const autoCloseConnections = useSettingsStore(
-    (s) => s.settings.Settings.auto_close_connections,
+    (s) => s.settings.settings.auto_close_connections,
   );
   const setAutoCloseConnections = useSettingsStore(
     (s) => s.setAutoCloseConnections,
   );
 
-  const currentThemeMode = settings.Settings.theme_mode;
+  const currentThemeMode = settings.settings.theme_mode;
 
   // App version
   const [appVersion, setAppVersion] = useState<string | null>(null);

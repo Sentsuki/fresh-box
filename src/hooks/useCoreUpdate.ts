@@ -32,7 +32,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
   const isRefreshingRef = useRef(false);
 
   const selectedCoreOptionKey = useSettingsStore(
-    (s) => s.settings.Settings.singbox_core.selected_option_key,
+    (s) => s.settings.settings.singbox_core.selected_option_key,
   );
   const setSelectedCoreOptionKey = useSettingsStore(
     (s) => s.setSelectedCoreOptionKey,

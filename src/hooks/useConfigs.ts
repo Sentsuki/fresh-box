@@ -13,7 +13,7 @@ import {
   updateSubscription as updateSubscriptionCmd,
   type SubscriptionOperationResult,
 } from "../services/api";
-import { getCleanFileName } from "../services/utils";
+import { buildConfigEntries, getCleanFileName } from "../services/utils";
 import { getErrorMessage } from "../services/tauri";
 import { useConfigStore } from "../stores/configStore";
 import { useSettingsStore } from "../stores/settingsStore";
@@ -25,20 +25,13 @@ import type {
   SubscriptionRecord,
 } from "../types/app";
 
-function buildConfigEntries(files: string[]): ConfigFileEntry[] {
-  return files.map((path) => ({
-    path,
-    displayName: getCleanFileName(path),
-  }));
-}
-
 async function syncConfigFiles(preferredDisplayName?: string | null) {
   const files = await listConfigs();
   const configFiles = buildConfigEntries(files);
   useConfigStore.getState().setConfigFiles(configFiles);
 
   const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.Profiles.selected_config_path;
+  const currentPath = settings.settings.profiles.selected_config_path;
 
   // Keep current selection if it still exists in the new list
   if (currentPath && configFiles.find((c) => c.path === currentPath)) {
@@ -79,7 +72,7 @@ async function applySubscriptionResult(result: SubscriptionOperationResult) {
     );
 
   const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.Profiles.selected_config_path;
+  const currentPath = settings.settings.profiles.selected_config_path;
   if (currentPath && configFiles.find((c) => c.path === currentPath)) return;
 
   const target =
@@ -108,13 +101,13 @@ export function useConfigs() {
       config.setSubscriptions(subscriptions);
 
       const settings = useSettingsStore.getState();
-      const savedDisplay = settings.settings.Profiles.selected_config_display;
+      const savedDisplay = settings.settings.profiles.selected_config_display;
       const target =
         (savedDisplay &&
           configFiles.find((c) => c.displayName === savedDisplay)) ||
-        (settings.settings.Profiles.selected_config_path &&
+        (settings.settings.profiles.selected_config_path &&
           configFiles.find(
-            (c) => c.path === settings.settings.Profiles.selected_config_path,
+            (c) => c.path === settings.settings.profiles.selected_config_path,
           )) ||
         configFiles[0] ||
         null;
@@ -272,7 +265,7 @@ export function useConfigs() {
       const cfg = config.configFiles.find((c) => c.displayName === fileName);
       const settings = useSettingsStore.getState();
       if (
-        cfg?.path === settings.settings.Profiles.selected_config_path &&
+        cfg?.path === settings.settings.profiles.selected_config_path &&
         useSingboxStore.getState().isRunning
       ) {
         toastError(

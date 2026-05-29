@@ -8,18 +8,10 @@ import {
   listConfigs,
   loadSubscriptions,
 } from "../services/api";
-import { getCleanFileName } from "../services/utils";
-import type { ConfigFileEntry } from "../types/app";
+import { buildConfigEntries } from "../services/utils";
 import { startConnectionsStream } from "./useConnectionsStream";
 import { startTrafficStream } from "./useTrafficStream";
 import { startMemoryStream } from "./useMemoryStream";
-
-function buildConfigEntries(files: string[]): ConfigFileEntry[] {
-  return files.map((path) => ({
-    path,
-    displayName: getCleanFileName(path),
-  }));
-}
 
 export async function initializeApp() {
   const settings = useSettingsStore.getState();
@@ -41,15 +33,15 @@ export async function initializeApp() {
   config.setSubscriptions(subscriptions);
 
   const savedDisplay =
-    useSettingsStore.getState().settings.Profiles.selected_config_display;
+    useSettingsStore.getState().settings.profiles.selected_config_display;
   const target =
     (savedDisplay &&
       configFiles.find((c) => c.displayName === savedDisplay)) ||
-    (useSettingsStore.getState().settings.Profiles.selected_config_path &&
+    (useSettingsStore.getState().settings.profiles.selected_config_path &&
       configFiles.find(
         (c) =>
           c.path ===
-          useSettingsStore.getState().settings.Profiles.selected_config_path,
+          useSettingsStore.getState().settings.profiles.selected_config_path,
       )) ||
     configFiles[0] ||
     null;
