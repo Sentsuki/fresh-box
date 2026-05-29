@@ -72,7 +72,7 @@ export const useLogsStore = create<LogsState>((set, get) => ({
     });
   },
 
-  clearLogs: () => set({ logs: [], _buffer: [], _seq: 1, streamStatus: "disconnected", isPaused: false }),
+  clearLogs: () => set({ logs: [], _buffer: [], _seq: 1, isPaused: false }),
 }));
 
 function extractCategory(payload: string): string {
@@ -134,7 +134,10 @@ export async function stopLogsStream(clear = false) {
   await invokeCommand<void>("stop_logs_stream");
   if (clear) {
     useLogsStore.getState().clearLogs();
-  } else {
+  }
+  // Only reset to disconnected if not disabled — "disabled" is a core config
+  // state that should persist until the backend explicitly changes it.
+  if (useLogsStore.getState().streamStatus !== "disabled") {
     useLogsStore.getState().setStreamStatus("disconnected");
   }
 }
