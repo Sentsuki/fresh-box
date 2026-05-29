@@ -144,7 +144,7 @@ export default function Overview() {
           {isRunning ? (
             overview ? (
               <div className="flex flex-col gap-6">
-                <StatusCards overview={overview} />
+                <StatusCards />
                 <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) p-4 shadow-sm">
                   <TrafficChart />
                 </div>

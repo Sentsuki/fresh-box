@@ -459,7 +459,7 @@ pub async fn update_singbox_core(
 
     emit_progress(
         &app,
-        "applying",
+        "installing",
         90,
         if restart_required {
             "Switching fresh-box to the new sing-box version. Restart sing-box after the update finishes."

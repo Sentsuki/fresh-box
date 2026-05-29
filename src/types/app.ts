@@ -415,18 +415,6 @@ export interface PriorityConfig {
   experimental: PriorityExperimental;
 }
 
-export interface ClashApiConfig {
-  external_controller?: string;
-  secret?: string;
-}
-
-export interface CoreClientConfig {
-  http_url: string;
-  ws_url: string;
-  secret: string;
-  test_url: string;
-}
-
 export interface ConfigFieldsCheck {
   has_stack_field: boolean;
   has_log_field: boolean;
@@ -465,9 +453,9 @@ export interface SingboxCoreStatus {
 }
 
 export interface SingboxCoreUpdateResult {
-  success: boolean;
-  message: string;
+  previous_version: string | null;
   current_version: string;
+  latest_version: string;
   restart_required: boolean;
 }
 
@@ -506,14 +494,6 @@ export interface ClashOverview {
   current_mode: string;
   available_modes?: string[];
   proxy_groups: ClashProxyGroup[];
-  traffic?: {
-    upload: number;
-    download: number;
-    upload_total: number;
-    download_total: number;
-  };
-  connections_count?: number;
-  memory_usage?: number;
 }
 
 export interface ClashRulesSnapshot {
