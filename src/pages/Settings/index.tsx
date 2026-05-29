@@ -41,6 +41,12 @@ export default function Settings() {
     (s) => s.settings.Settings.close_behavior,
   );
   const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
+  const autoCloseConnections = useSettingsStore(
+    (s) => s.settings.Settings.auto_close_connections,
+  );
+  const setAutoCloseConnections = useSettingsStore(
+    (s) => s.setAutoCloseConnections,
+  );
 
   const currentThemeMode = settings.Settings.theme_mode;
 
@@ -449,6 +455,20 @@ export default function Settings() {
                 <option value="hide">Hide to tray</option>
                 <option value="destroy">Destroy window</option>
               </select>
+            }
+          />
+
+          <SettingCard
+            icon={<LinkRegular />}
+            title="Auto Close Connections on Switch"
+            description="When switching proxy nodes, automatically close active connections that pass through the affected group"
+            control={
+              <Switch
+                checked={autoCloseConnections}
+                onCheckedChange={(checked) =>
+                  void setAutoCloseConnections(checked)
+                }
+              />
             }
           />
 

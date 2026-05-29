@@ -172,6 +172,15 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             eprintln!("Failed to switch proxy from tray: {}", e);
                             return;
                         }
+
+                        let auto_close = crate::config::load_app_settings_file()
+                            .map(|s| s.settings.auto_close_connections)
+                            .unwrap_or(true);
+
+                        if auto_close {
+                            crate::services::clash_client::close_connections_by_group_pub(&group).await;
+                        }
+
                         // 无论前端是否存活，后端都主动获取最新状态并更新托盘菜单
                         // 防止窗口销毁后菜单项多选的问题
                         if let Ok(overview) =

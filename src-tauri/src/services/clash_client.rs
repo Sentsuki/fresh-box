@@ -494,6 +494,14 @@ pub async fn select_clash_proxy(
     )
     .await?;
 
+    let auto_close = crate::config::load_app_settings_file()
+        .map(|s| s.settings.auto_close_connections)
+        .unwrap_or(true);
+
+    if auto_close {
+        close_connections_by_group(&proxy_group).await;
+    }
+
     let overview = fetch_clash_overview_inner().await?;
     crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
@@ -629,6 +637,70 @@ pub async fn flush_dns_cache() -> Result<(), CommandError> {
         .map_err(|error| map_clash_network_error("Failed to flush DNS cache", error))?;
 
     Ok(())
+}
+
+/// Fetch the list of active connection IDs and their proxy chains from the
+/// Clash API.  Returns a vec of `(id, chains)` pairs.
+async fn fetch_active_connections_inner() -> Result<Vec<(String, Vec<String>)>, CommandError> {
+    #[derive(Deserialize)]
+    struct ConnectionsResponse {
+        connections: Option<Vec<ConnectionEntry>>,
+    }
+
+    #[derive(Deserialize)]
+    struct ConnectionEntry {
+        id: String,
+        chains: Vec<String>,
+    }
+
+    let data = clash_get::<ConnectionsResponse>("/connections", "Failed to fetch connections").await?;
+    Ok(data
+        .connections
+        .unwrap_or_default()
+        .into_iter()
+        .map(|c| (c.id, c.chains))
+        .collect())
+}
+
+/// Close all active connections whose chain includes `proxy_group_name`.
+/// Errors from individual DELETE calls are logged but do not abort the loop.
+async fn close_connections_by_group(proxy_group_name: &str) {
+    let connections = match fetch_active_connections_inner().await {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("auto-close: failed to fetch connections: {}", e);
+            return;
+        }
+    };
+
+    let endpoint = get_clash_endpoint();
+    let client = match clash_client() {
+        Ok(c) => c,
+        Err(e) => {
+            eprintln!("auto-close: failed to build HTTP client: {}", e);
+            return;
+        }
+    };
+
+    for (id, chains) in connections {
+        if chains.iter().any(|c| c == proxy_group_name) {
+            let path = format!("/connections/{}", urlencoding::encode(&id));
+            let url = build_clash_url(&endpoint.http_base(), &path);
+            if let Err(e) = client
+                .delete(&url)
+                .bearer_auth(&endpoint.secret)
+                .send()
+                .await
+            {
+                eprintln!("auto-close: failed to close connection {}: {}", id, e);
+            }
+        }
+    }
+}
+
+/// Public wrapper so `tray.rs` can call the group-close logic.
+pub async fn close_connections_by_group_pub(proxy_group_name: &str) {
+    close_connections_by_group(proxy_group_name).await;
 }
 
 pub async fn close_all_connections() -> Result<(), CommandError> {

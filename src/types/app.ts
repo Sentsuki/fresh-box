@@ -69,6 +69,7 @@ export interface AppDisplaySettings {
   singbox_core: SingboxCoreSettings;
   test_url: string;
   close_behavior: "hide" | "destroy";
+  auto_close_connections: boolean;
 }
 
 export interface SingboxCoreSettings {
@@ -191,6 +192,7 @@ export function createDefaultAppSettings(): AppSettings {
       },
       test_url: DEFAULT_TEST_URL,
       close_behavior: "hide",
+      auto_close_connections: true,
     },
   };
 }
@@ -372,6 +374,8 @@ export function normalizeAppSettings(
           : DEFAULT_TEST_URL,
       close_behavior:
         settings.Settings?.close_behavior === "destroy" ? "destroy" : "hide",
+      auto_close_connections:
+        settings.Settings?.auto_close_connections ?? true,
     },
   };
 }

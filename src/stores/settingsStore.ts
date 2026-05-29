@@ -50,6 +50,7 @@ interface SettingsActions {
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setTestUrl: (url: string) => Promise<void>;
   setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
+  setAutoCloseConnections: (enabled: boolean) => Promise<void>;
 }
 
 function cloneSettings(s: AppSettings): AppSettings {
@@ -186,6 +187,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setCloseBehavior: async (behavior) => {
       await get().updateSettings((s) => {
         s.Settings.close_behavior = behavior;
+      });
+    },
+
+    setAutoCloseConnections: async (enabled) => {
+      await get().updateSettings((s) => {
+        s.Settings.auto_close_connections = enabled;
       });
     },
   }),
