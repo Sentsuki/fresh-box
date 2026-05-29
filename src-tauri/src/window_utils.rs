@@ -85,6 +85,8 @@ pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
     window
         .set_focus()
         .map_err(|e| format!("Failed to focus window: {}", e))?;
+    // 通知前端窗口已重新可见，恢复流
+    let _ = window.emit("window-visibility-changed", true);
     Ok(())
 }
 
@@ -140,6 +142,8 @@ pub fn show_or_create_main_window(app: &AppHandle) {
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();
+                // 通知前端窗口已重新可见，恢复流
+                let _ = window.emit("window-visibility-changed", true);
                 set_keep_alive(false);
             }
             Err(e) => eprintln!("Failed to recreate window: {}", e),

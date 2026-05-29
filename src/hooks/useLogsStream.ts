@@ -72,7 +72,7 @@ export const useLogsStore = create<LogsState>((set, get) => ({
     });
   },
 
-  clearLogs: () => set({ logs: [], _buffer: [], _seq: 1 }),
+  clearLogs: () => set({ logs: [], _buffer: [], _seq: 1, streamStatus: "disconnected", isPaused: false }),
 }));
 
 function extractCategory(payload: string): string {

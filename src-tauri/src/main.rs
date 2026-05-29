@@ -150,6 +150,9 @@ fn main() {
                     .map(|s| s.settings.close_behavior.clone())
                     .unwrap_or_else(|_| "hide".to_string());
 
+                // 通知前端窗口即将不可见，触发流暂停与缓存清理
+                let _ = window.emit("window-visibility-changed", false);
+
                 let window_clone = window.clone();
                 if close_behavior == "destroy" {
                     // 通知运行时：窗口将销毁，保持进程存活
