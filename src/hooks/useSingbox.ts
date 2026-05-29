@@ -13,6 +13,7 @@ import {
   startConnectionsStream,
   stopConnectionsStream,
 } from "./useConnectionsStream";
+import { startLogsStream, stopLogsStream } from "./useLogsStream";
 import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
 import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
 import { useToast } from "./useToast";
@@ -85,6 +86,7 @@ export function useSingbox() {
       startConnectionsStream();
       startTrafficStream();
       startMemoryStream();
+      void startLogsStream();
       startPolling(() => {
         toastError("sing-box has stopped unexpectedly.");
         void notifySingboxStatus("sing-box has stopped unexpectedly.");
@@ -116,6 +118,7 @@ export function useSingbox() {
       stopConnectionsStream(true);
       stopTrafficStream(true);
       stopMemoryStream(true);
+      void stopLogsStream(true);
       clash.clearOverview();
       toastSuccess("sing-box is stopped.");
       void notifySingboxStatus("sing-box is stopped.");
