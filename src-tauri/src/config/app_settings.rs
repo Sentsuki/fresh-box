@@ -22,9 +22,9 @@ pub struct AppSettings {
     pub rules: RulesPageSettings,
     #[serde(default)]
     pub advanced: AdvancedPageSettings,
-    #[serde(default, rename = "Profiles")]
+    #[serde(default)]
     pub profiles: ProfilesSettings,
-    #[serde(default, rename = "Settings")]
+    #[serde(default)]
     pub settings: AppDisplaySettings,
 }
 
