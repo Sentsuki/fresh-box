@@ -18,34 +18,59 @@ fn subscription_client() -> Result<&'static reqwest::Client, CommandError> {
     }))
 }
 
-// ── Platform-agnostic shell-open helper ───────────────────────────────────
+// ── Safe path resolution ──────────────────────────────────────────────────
 
-/// Open `path` with the OS default handler (Explorer / open / xdg-open).
+/// Resolve `file_name` relative to `base_dir` and verify the result stays
+/// inside `base_dir`.  Returns an error if the resolved path escapes the
+/// base directory (path traversal attempt).
+fn resolve_safe_path(
+    base_dir: &std::path::Path,
+    file_name: &str,
+) -> Result<std::path::PathBuf, CommandError> {
+    let full = base_dir.join(file_name);
+    // Canonicalize the base dir so we can compare prefixes reliably.
+    // The file doesn't need to exist yet, so we canonicalize the base only.
+    let canonical_base = base_dir
+        .canonicalize()
+        .map_err(|e| CommandError::resource_not_found("config directory", e))?;
+    // Normalize the target path without requiring it to exist.
+    let normalized = normalize_path(&full);
+    if !normalized.starts_with(&canonical_base) {
+        return Err(CommandError::validation(format!(
+            "Path '{}' escapes the config directory",
+            file_name
+        )));
+    }
+    Ok(full)
+}
+
+/// Lexically normalize a path (resolve `.` and `..`) without hitting the
+/// filesystem.  This is sufficient for traversal detection after we have
+/// already canonicalized the base directory.
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Open `path` with the OS default handler (Explorer on Windows).
 fn open_with_system(path: &str) -> Result<(), CommandError> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", path])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("path", e))?;
-    }
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("path", e))?;
-    }
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(path)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("path", e))?;
-    }
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    std::process::Command::new("cmd")
+        .args(["/C", "start", "", path])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| CommandError::resource_not_found("path", e))?;
     Ok(())
 }
 
@@ -182,7 +207,7 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
 #[tauri::command]
 pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let rm_full_path = sub_dir.join(&config_path);
+    let rm_full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !rm_full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -204,8 +229,8 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
 #[tauri::command]
 pub async fn rename_config(old_path: String, new_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let old_full_path = sub_dir.join(&old_path);
-    let new_full_path = sub_dir.join(&new_path);
+    let old_full_path = resolve_safe_path(&sub_dir, &old_path)?;
+    let new_full_path = resolve_safe_path(&sub_dir, &new_path)?;
 
     if !old_full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -271,7 +296,7 @@ pub async fn load_subscriptions() -> Result<String, CommandError> {
 #[tauri::command]
 pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -286,7 +311,7 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
 #[tauri::command]
 pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -307,7 +332,7 @@ pub async fn load_config_content(config_path: String) -> Result<Value, CommandEr
 #[tauri::command]
 pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     let _: Value =
         serde_json::from_str(&content).map_err(|e| CommandError::json("invalid config JSON", e))?;

@@ -84,6 +84,11 @@ pub fn ensure_priority_config_initialized() {
         return;
     }
 
+    // Generate a random secret on first run so every installation has a
+    // unique credential rather than sharing the compiled-in default.
+    let secret = generate_random_secret_inner()
+        .unwrap_or_else(|_| DEFAULT_CLASH_SECRET.to_string());
+
     let default_config = PriorityConfig {
         inbounds: vec![PriorityInbound {
             stack: DEFAULT_STACK.to_string(),
@@ -92,7 +97,7 @@ pub fn ensure_priority_config_initialized() {
         experimental: ExperimentalConfig {
             clash_api: Some(ClashApiConfig {
                 external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
-                secret: Some(DEFAULT_CLASH_SECRET.to_string()),
+                secret: Some(secret),
             }),
         },
     };
