@@ -29,9 +29,10 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
     useState<CoreUpdateProgressEvent | null>(null);
 
   const hasAutoRefreshed = useRef(false);
+  const isRefreshingRef = useRef(false);
 
   const selectedCoreOptionKey = useSettingsStore(
-    (s) => s.settings.Settings.singbox_core.selected_option_key,
+    (s) => s.settings.settings.singbox_core.selected_option_key,
   );
   const setSelectedCoreOptionKey = useSettingsStore(
     (s) => s.setSelectedCoreOptionKey,
@@ -41,19 +42,17 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
 
   const refreshCoreStatus = useCallback(
     async (showErrorToast = false, forceRefresh = false) => {
-      if (isRefreshing) return;
+      if (isRefreshingRef.current) return;
+      isRefreshingRef.current = true;
       setIsRefreshing(true);
       setCoreStatusError("");
       try {
         const status = await getSingboxCoreStatus(forceRefresh);
         setCoreStatus(status);
-        // Surface a non-fatal network error embedded in the status
-        // (e.g. GitHub unreachable during Check) without throwing.
         if (status.fetch_error) {
           setCoreStatusError(status.fetch_error);
           if (showErrorToast) toastError(status.fetch_error);
         }
-        // Auto-select an option if none is selected yet
         const options = status.available_options ?? [];
         if (options.length > 0) {
           const currentExists = options.some(
@@ -70,10 +69,13 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
         setCoreStatusError(msg);
         if (showErrorToast) toastError(msg);
       } finally {
+        isRefreshingRef.current = false;
         setIsRefreshing(false);
       }
     },
-    [isRefreshing, selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
+    // isRefreshing removed from deps — tracked via ref to avoid stale closure churn
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
   );
 
   const applySelectedCore = useCallback(
@@ -98,6 +100,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             selectedOption.channel,
             selectedOption.version,
           );
+          void setSelectedCoreOptionKey(key);
           success(`Switched to ${selectedOption.label}`);
         } else {
           // Download + install (new version, or reinstall of active version).
@@ -105,6 +108,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
             selectedOption.channel,
             selectedOption.version,
           );
+          void setSelectedCoreOptionKey(key);
           success(
             result.restart_required
               ? `Core updated to ${result.current_version}. Restart sing-box to apply.`

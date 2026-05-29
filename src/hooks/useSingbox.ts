@@ -73,7 +73,7 @@ export function useSingbox() {
     const singbox = useSingboxStore.getState();
     const clash = useClashStore.getState();
     const settings = useSettingsStore.getState();
-    const configPath = settings.settings.Profiles.selected_config_path;
+    const configPath = settings.settings.profiles.selected_config_path;
 
     if (singbox.isRunning || singbox.pendingOperation || !configPath) return;
 

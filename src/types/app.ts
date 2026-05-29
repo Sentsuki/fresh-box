@@ -69,6 +69,7 @@ export interface AppDisplaySettings {
   singbox_core: SingboxCoreSettings;
   test_url: string;
   close_behavior: "hide" | "destroy";
+  auto_close_connections: boolean;
 }
 
 export interface SingboxCoreSettings {
@@ -114,8 +115,8 @@ export interface AppSettings {
   logs: LogsPageSettings;
   rules: RulesPageSettings;
   advanced: AdvancedPageSettings;
-  Profiles: ProfilesSettings;
-  Settings: AppDisplaySettings;
+  profiles: ProfilesSettings;
+  settings: AppDisplaySettings;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -178,11 +179,11 @@ export function createDefaultAppSettings(): AppSettings {
     advanced: {
       current_tab: "override",
     },
-    Profiles: {
+    profiles: {
       selected_config_path: null,
       selected_config_display: null,
     },
-    Settings: {
+    settings: {
       theme_mode: "system",
       singbox_core: {
         active_channel: null,
@@ -191,6 +192,7 @@ export function createDefaultAppSettings(): AppSettings {
       },
       test_url: DEFAULT_TEST_URL,
       close_behavior: "hide",
+      auto_close_connections: true,
     },
   };
 }
@@ -343,35 +345,37 @@ export function normalizeAppSettings(
         ? settings.advanced.current_tab
         : defaults.advanced.current_tab,
     },
-    Profiles: {
-      selected_config_path: settings.Profiles?.selected_config_path ?? null,
+    profiles: {
+      selected_config_path: settings.profiles?.selected_config_path ?? null,
       selected_config_display:
-        settings.Profiles?.selected_config_display ?? null,
+        settings.profiles?.selected_config_display ?? null,
     },
-    Settings: {
+    settings: {
       theme_mode:
-        settings.Settings?.theme_mode === "light" ||
-        settings.Settings?.theme_mode === "dark" ||
-        settings.Settings?.theme_mode === "system"
-          ? settings.Settings.theme_mode
+        settings.settings?.theme_mode === "light" ||
+        settings.settings?.theme_mode === "dark" ||
+        settings.settings?.theme_mode === "system"
+          ? settings.settings.theme_mode
           : "system",
       singbox_core: {
         active_channel:
-          settings.Settings?.singbox_core?.active_channel === "stable" ||
-          settings.Settings?.singbox_core?.active_channel === "testing"
-            ? settings.Settings.singbox_core.active_channel
+          settings.settings?.singbox_core?.active_channel === "stable" ||
+          settings.settings?.singbox_core?.active_channel === "testing"
+            ? settings.settings.singbox_core.active_channel
             : null,
-        active_version: settings.Settings?.singbox_core?.active_version ?? null,
+        active_version: settings.settings?.singbox_core?.active_version ?? null,
         selected_option_key:
-          settings.Settings?.singbox_core?.selected_option_key ?? "",
+          settings.settings?.singbox_core?.selected_option_key ?? "",
       },
       test_url:
-        typeof settings.Settings?.test_url === "string" &&
-        settings.Settings.test_url.trim() !== ""
-          ? settings.Settings.test_url
+        typeof settings.settings?.test_url === "string" &&
+        settings.settings.test_url.trim() !== ""
+          ? settings.settings.test_url
           : DEFAULT_TEST_URL,
       close_behavior:
-        settings.Settings?.close_behavior === "destroy" ? "destroy" : "hide",
+        settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
+      auto_close_connections:
+        settings.settings?.auto_close_connections ?? true,
     },
   };
 }
@@ -409,18 +413,6 @@ export interface PriorityConfig {
   inbounds: PriorityInbound[];
   log: LogConfig;
   experimental: PriorityExperimental;
-}
-
-export interface ClashApiConfig {
-  external_controller?: string;
-  secret?: string;
-}
-
-export interface CoreClientConfig {
-  http_url: string;
-  ws_url: string;
-  secret: string;
-  test_url: string;
 }
 
 export interface ConfigFieldsCheck {
@@ -461,9 +453,9 @@ export interface SingboxCoreStatus {
 }
 
 export interface SingboxCoreUpdateResult {
-  success: boolean;
-  message: string;
+  previous_version: string | null;
   current_version: string;
+  latest_version: string;
   restart_required: boolean;
 }
 
@@ -502,14 +494,6 @@ export interface ClashOverview {
   current_mode: string;
   available_modes?: string[];
   proxy_groups: ClashProxyGroup[];
-  traffic?: {
-    upload: number;
-    download: number;
-    upload_total: number;
-    download_total: number;
-  };
-  connections_count?: number;
-  memory_usage?: number;
 }
 
 export interface ClashRulesSnapshot {

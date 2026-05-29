@@ -27,7 +27,7 @@ export default function Profiles() {
   const configFiles = useConfigStore((s) => s.configFiles);
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const selectedDisplay = useSettingsStore(
-    (s) => s.settings.Profiles.selected_config_display,
+    (s) => s.settings.profiles.selected_config_display,
   );
   const pendingOperation = useConfigStore((s) => s.pendingOperation);
 
@@ -56,6 +56,22 @@ export default function Profiles() {
     (f) => !!subscriptions[f.displayName],
   );
 
+  async function handleAddSubscription() {
+    if (!newSubUrl.trim()) {
+      setUrlError("URL is required");
+      return;
+    }
+    try {
+      new URL(newSubUrl);
+    } catch {
+      setUrlError("Please enter a valid URL");
+      return;
+    }
+    await addSubscription(newSubUrl);
+    setIsAddSubOpen(false);
+    setNewSubUrl("");
+    setUrlError("");
+  }
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
       <PageHeader
@@ -105,21 +121,7 @@ export default function Profiles() {
             </Button>
             <Button
               variant="accent"
-              onClick={async () => {
-                if (!newSubUrl.trim()) {
-                  setUrlError("URL is required");
-                  return;
-                }
-                try {
-                  new URL(newSubUrl);
-                  await addSubscription(newSubUrl);
-                  setIsAddSubOpen(false);
-                  setNewSubUrl("");
-                  setUrlError("");
-                } catch {
-                  setUrlError("Please enter a valid URL");
-                }
-              }}
+              onClick={() => void handleAddSubscription()}
               disabled={pendingOperation}
             >
               {pendingOperation ? "Adding..." : "Add"}
@@ -141,21 +143,7 @@ export default function Profiles() {
             placeholder="https://example.com/config.json"
             onKeyDown={(e) => {
               if (e.key === "Enter" && !pendingOperation) {
-                void (async () => {
-                  if (!newSubUrl.trim()) {
-                    setUrlError("URL is required");
-                    return;
-                  }
-                  try {
-                    new URL(newSubUrl);
-                    await addSubscription(newSubUrl);
-                    setIsAddSubOpen(false);
-                    setNewSubUrl("");
-                    setUrlError("");
-                  } catch {
-                    setUrlError("Please enter a valid URL");
-                  }
-                })();
+                void handleAddSubscription();
               }
             }}
           />

@@ -7,13 +7,8 @@ import { Card } from "../../components/ui/Card";
 import { useTrafficStore } from "../../hooks/useTrafficStream";
 import { useMemoryStore } from "../../hooks/useMemoryStream";
 import { formatBytes, formatSpeed } from "../../services/utils";
-import type { ClashOverview } from "../../types/app";
 
-interface StatusCardsProps {
-  overview: ClashOverview;
-}
-
-export default function StatusCards({ overview: _overview }: StatusCardsProps) {
+export default function StatusCards() {
   const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
   const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
   const inuse = useMemoryStore((s) => s.inuse);

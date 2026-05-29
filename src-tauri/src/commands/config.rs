@@ -2,6 +2,77 @@ use crate::config::AppSettings;
 use crate::errors::CommandError;
 use serde_json::Value;
 use std::fs;
+use std::sync::OnceLock;
+
+// ── Shared HTTP client for subscription fetching ───────────────────────────
+
+static SUBSCRIPTION_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
+
+fn subscription_client() -> Result<&'static reqwest::Client, CommandError> {
+    Ok(SUBSCRIPTION_CLIENT.get_or_init(|| {
+        reqwest::Client::builder()
+            .user_agent("fresh-box")
+            .timeout(std::time::Duration::from_secs(30))
+            .build()
+            .expect("Failed to initialize the subscription HTTP client")
+    }))
+}
+
+// ── Safe path resolution ──────────────────────────────────────────────────
+
+/// Resolve `file_name` relative to `base_dir` and verify the result stays
+/// inside `base_dir`.  Returns an error if the resolved path escapes the
+/// base directory (path traversal attempt).
+fn resolve_safe_path(
+    base_dir: &std::path::Path,
+    file_name: &str,
+) -> Result<std::path::PathBuf, CommandError> {
+    let full = base_dir.join(file_name);
+    // Canonicalize the base dir so we can compare prefixes reliably.
+    // The file doesn't need to exist yet, so we canonicalize the base only.
+    let canonical_base = base_dir
+        .canonicalize()
+        .map_err(|e| CommandError::resource_not_found("config directory", e))?;
+    // Normalize the target path without requiring it to exist.
+    let normalized = normalize_path(&full);
+    if !normalized.starts_with(&canonical_base) {
+        return Err(CommandError::validation(format!(
+            "Path '{}' escapes the config directory",
+            file_name
+        )));
+    }
+    Ok(full)
+}
+
+/// Lexically normalize a path (resolve `.` and `..`) without hitting the
+/// filesystem.  This is sufficient for traversal detection after we have
+/// already canonicalized the base directory.
+fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
+    use std::path::Component;
+    let mut out = std::path::PathBuf::new();
+    for component in path.components() {
+        match component {
+            Component::ParentDir => {
+                out.pop();
+            }
+            Component::CurDir => {}
+            c => out.push(c),
+        }
+    }
+    out
+}
+
+/// Open `path` with the OS default handler (Explorer on Windows).
+fn open_with_system(path: &str) -> Result<(), CommandError> {
+    use std::os::windows::process::CommandExt;
+    const CREATE_NO_WINDOW: u32 = 0x08000000;
+    std::process::Command::new("cmd")
+        .args(["/C", "start", "", path])
+        .creation_flags(CREATE_NO_WINDOW)
+        .spawn()
+        .map_err(|e| CommandError::resource_not_found("path", e))?;
+    Ok(())
+}
 
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
@@ -10,35 +81,7 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
     let exe_dir = exe_path.parent().ok_or_else(|| {
         CommandError::resource_not_found("executable directory", "parent path missing")
     })?;
-
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("explorer")
-            .arg(exe_dir)
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(exe_dir)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(exe_dir)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("application directory", e))?;
-    }
-
-    Ok(())
+    open_with_system(&exe_dir.to_string_lossy())
 }
 
 #[tauri::command]
@@ -164,7 +207,7 @@ pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, 
 #[tauri::command]
 pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let rm_full_path = sub_dir.join(&config_path);
+    let rm_full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !rm_full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -186,8 +229,8 @@ pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
 #[tauri::command]
 pub async fn rename_config(old_path: String, new_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let old_full_path = sub_dir.join(&old_path);
-    let new_full_path = sub_dir.join(&new_path);
+    let old_full_path = resolve_safe_path(&sub_dir, &old_path)?;
+    let new_full_path = resolve_safe_path(&sub_dir, &new_path)?;
 
     if !old_full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -253,7 +296,7 @@ pub async fn load_subscriptions() -> Result<String, CommandError> {
 #[tauri::command]
 pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -262,42 +305,13 @@ pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
         ));
     }
 
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &full_path.to_string_lossy()])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("config file", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&full_path)
-            .spawn()
-            .map_err(|e| {
-                CommandError::ResourceNotFound(format!("Failed to open config file: {}", e))
-            })?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&full_path)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("config file", e))?;
-    }
-
-    Ok(())
+    open_with_system(&full_path.to_string_lossy())
 }
 
 #[tauri::command]
 pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     if !full_path.exists() {
         return Err(CommandError::resource_not_found(
@@ -318,7 +332,7 @@ pub async fn load_config_content(config_path: String) -> Result<Value, CommandEr
 #[tauri::command]
 pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
+    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
 
     let _: Value =
         serde_json::from_str(&content).map_err(|e| CommandError::json("invalid config JSON", e))?;
@@ -331,34 +345,7 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
 
 #[tauri::command]
 pub async fn open_url(url: String) -> Result<(), CommandError> {
-    #[cfg(target_os = "windows")]
-    {
-        use std::os::windows::process::CommandExt;
-        const CREATE_NO_WINDOW: u32 = 0x08000000;
-        std::process::Command::new("cmd")
-            .args(["/C", "start", "", &url])
-            .creation_flags(CREATE_NO_WINDOW)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    #[cfg(target_os = "macos")]
-    {
-        std::process::Command::new("open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    #[cfg(target_os = "linux")]
-    {
-        std::process::Command::new("xdg-open")
-            .arg(&url)
-            .spawn()
-            .map_err(|e| CommandError::resource_not_found("URL", e))?;
-    }
-
-    Ok(())
+    open_with_system(&url)
 }
 
 /// Return the subscriptions map serialised to JSON, with the internal
@@ -392,11 +379,7 @@ pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult
         ));
     }
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)
@@ -468,11 +451,7 @@ pub async fn update_subscription(
             .to_string()
     };
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)
@@ -594,11 +573,7 @@ pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, 
 
     let file_name = extract_file_name_from_url(&url);
 
-    let client = reqwest::Client::builder()
-        .user_agent("fresh-box")
-        .timeout(std::time::Duration::from_secs(30))
-        .build()
-        .map_err(|e| CommandError::network(format!("Failed to create HTTP client: {}", e)))?;
+    let client = subscription_client()?;
 
     let response = client
         .get(&url)

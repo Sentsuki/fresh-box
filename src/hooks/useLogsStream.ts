@@ -20,6 +20,10 @@ const LOG_LIMIT = 2000;
 
 interface LogsState {
   logs: LogEntry[];
+  // Buffer lives in the store so it's co-located with the state it feeds.
+  // Using a plain array (not reactive) avoids triggering renders on every push.
+  _buffer: LogEntry[];
+  _seq: number;
   search: string;
   isPaused: boolean;
   streamStatus:
@@ -35,14 +39,15 @@ interface LogsState {
     s: "disconnected" | "connecting" | "connected" | "error" | "disabled",
   ) => void;
   setStreamError: (e: string | null) => void;
+  pushEntry: (entry: LogEntry) => void;
+  flushBuffer: () => void;
   clearLogs: () => void;
 }
 
-let logSeq = 1;
-const logBuffer: LogEntry[] = [];
-
-export const useLogsStore = create<LogsState>((set) => ({
+export const useLogsStore = create<LogsState>((set, get) => ({
   logs: [],
+  _buffer: [],
+  _seq: 1,
   search: "",
   isPaused: false,
   streamStatus: "disconnected",
@@ -51,11 +56,24 @@ export const useLogsStore = create<LogsState>((set) => ({
   setIsPaused: (isPaused) => set({ isPaused }),
   setStreamStatus: (streamStatus) => set({ streamStatus }),
   setStreamError: (streamError) => set({ streamError }),
-  clearLogs: () => {
-    logSeq = 1;
-    logBuffer.length = 0;
-    set({ logs: [] });
+
+  pushEntry: (entry) => {
+    // Mutate the buffer array directly — no re-render triggered here.
+    get()._buffer.push(entry);
   },
+
+  flushBuffer: () => {
+    const buffer = get()._buffer;
+    if (buffer.length === 0) return;
+    const batch = buffer.splice(0);
+    set((state) => {
+      const next = [...state.logs, ...batch];
+      return { logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next };
+    });
+  },
+
+  clearLogs: () =>
+    set({ logs: [], _buffer: [], _seq: 1 }),
 }));
 
 function extractCategory(payload: string): string {
@@ -67,67 +85,54 @@ function extractCategory(payload: string): string {
   return payload.split(/\s+/)[0];
 }
 
-let unlistenData: (() => void) | null = null;
-let unlistenStatus: (() => void) | null = null;
+// ---------------------------------------------------------------------------
+// Module-level stream management — mirrors the pattern used by
+// useTrafficStream and useConnectionsStream for consistency.
+// ---------------------------------------------------------------------------
+
 let isStreaming = false;
 
-function matchesSearch(entry: LogEntry, filter: string): boolean {
-  if (!filter.trim()) return true;
-  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
-  const haystack =
-    `${entry.time} ${entry.type} ${entry.category} ${entry.payload}`.toLowerCase();
-  return tokens.every((token) => haystack.includes(token));
-}
+// Register event listeners once at module load, always active.
+void listen<CoreLogMessage>("stream-logs", (e) => {
+  if (!isStreaming) return; // guard: ignore events after stream is stopped
+  const store = useLogsStore.getState();
+  if (store.isPaused) return;
+  const msg = e.payload;
+  const seq = store._seq;
+  // Increment seq in the store without triggering a render.
+  useLogsStore.setState((s) => ({ _seq: s._seq + 1 }));
+  const entry: LogEntry = {
+    ...msg,
+    seq,
+    time: new Date().toLocaleTimeString(undefined, {
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
+      hour12: false,
+    }),
+    category: extractCategory(msg.payload),
+  };
+  store.pushEntry(entry);
+});
+
+void listen<string>("stream-logs-status", (e) => {
+  const status = e.payload as LogsState["streamStatus"];
+  useLogsStore.getState().setStreamStatus(status);
+  useLogsStore.getState().setStreamError(null);
+  if (status === "disabled" || status === "error") {
+    isStreaming = false;
+  }
+});
 
 export async function startLogsStream() {
   if (isStreaming) return;
   isStreaming = true;
-
-  if (!unlistenData) {
-    unlistenData = await listen<CoreLogMessage>("stream-logs", (e) => {
-      if (useLogsStore.getState().isPaused) {
-        logSeq += 1;
-        return;
-      }
-      const msg = e.payload;
-      const entry: LogEntry = {
-        ...msg,
-        seq: logSeq++,
-        time: new Date().toLocaleTimeString(undefined, {
-          hour: "2-digit",
-          minute: "2-digit",
-          second: "2-digit",
-          hour12: false,
-        }),
-        category: extractCategory(msg.payload),
-      };
-      logBuffer.push(entry);
-    });
-  }
-
-  if (!unlistenStatus) {
-    unlistenStatus = await listen<string>("stream-logs-status", (e) => {
-      const status = e.payload as LogsState["streamStatus"];
-      useLogsStore.getState().setStreamStatus(status);
-      useLogsStore.getState().setStreamError(null);
-
-      // 解开前端的锁，允许下次进入页面时重新请求后端
-      if (status === "disabled" || status === "error") {
-        isStreaming = false;
-      }
-    });
-  }
-
   await invokeCommand<void>("start_logs_stream");
 }
 
 export async function stopLogsStream(clear = false) {
   isStreaming = false;
   await invokeCommand<void>("stop_logs_stream");
-  unlistenData?.();
-  unlistenData = null;
-  unlistenStatus?.();
-  unlistenStatus = null;
   if (clear) {
     useLogsStore.getState().clearLogs();
   } else {
@@ -143,6 +148,14 @@ export async function restartLogsStream() {
 
 // --- Hook for React components ---
 
+function matchesSearch(entry: LogEntry, filter: string): boolean {
+  if (!filter.trim()) return true;
+  const tokens = filter.toLowerCase().split(/\s+/).filter(Boolean);
+  const haystack =
+    `${entry.time} ${entry.type} ${entry.category} ${entry.payload}`.toLowerCase();
+  return tokens.every((token) => haystack.includes(token));
+}
+
 export function useLogsStream() {
   const logs = useLogsStore((s) => s.logs);
   const search = useLogsStore((s) => s.search);
@@ -152,6 +165,7 @@ export function useLogsStream() {
   const setSearch = useLogsStore((s) => s.setSearch);
   const setIsPaused = useLogsStore((s) => s.setIsPaused);
   const clearLogsState = useLogsStore((s) => s.clearLogs);
+  const flushBuffer = useLogsStore((s) => s.flushBuffer);
 
   const logLevel = useSettingsStore((s) => s.settings.logs.log_level);
   const typeFilter = useSettingsStore((s) => s.settings.logs.type_filter);
@@ -160,23 +174,11 @@ export function useLogsStream() {
 
   const { success, info } = useToast();
 
+  // Flush the buffer into reactive state every 100 ms.
   useEffect(() => {
-    let timerId: ReturnType<typeof setTimeout>;
-    const flush = () => {
-      if (logBuffer.length > 0) {
-        const batch = logBuffer.splice(0);
-        useLogsStore.setState((state) => {
-          const next = [...state.logs, ...batch];
-          return {
-            logs: next.length > LOG_LIMIT ? next.slice(-LOG_LIMIT) : next,
-          };
-        });
-      }
-      timerId = setTimeout(flush, 100);
-    };
-    timerId = setTimeout(flush, 100);
-    return () => clearTimeout(timerId);
-  }, []);
+    const timerId = setInterval(flushBuffer, 100);
+    return () => clearInterval(timerId);
+  }, [flushBuffer]);
 
   const visibleLogs = useMemo(
     () =>

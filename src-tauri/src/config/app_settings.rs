@@ -22,9 +22,9 @@ pub struct AppSettings {
     pub rules: RulesPageSettings,
     #[serde(default)]
     pub advanced: AdvancedPageSettings,
-    #[serde(default, rename = "Profiles")]
+    #[serde(default)]
     pub profiles: ProfilesSettings,
-    #[serde(default, rename = "Settings")]
+    #[serde(default)]
     pub settings: AppDisplaySettings,
 }
 
@@ -48,6 +48,7 @@ pub struct AppDisplaySettings {
     pub singbox_core: SingboxCoreSettings,
     pub test_url: String,
     pub close_behavior: String,
+    pub auto_close_connections: bool,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -128,6 +129,7 @@ impl Default for AppDisplaySettings {
             singbox_core: SingboxCoreSettings::default(),
             test_url: DEFAULT_TEST_URL.to_string(),
             close_behavior: "hide".to_string(),
+            auto_close_connections: true,
         }
     }
 }

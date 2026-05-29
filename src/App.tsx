@@ -7,7 +7,7 @@ import { PageTransition } from "./components/layout/PageTransition";
 import { Sidebar } from "./components/layout/Sidebar";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Spinner } from "./components/ui/Spinner";
-import { useInit } from "./hooks/useInit";
+import { initializeApp } from "./hooks/useInit";
 import { useTheme } from "./hooks/useTheme";
 import Connections from "./pages/Connections";
 import Advanced from "./pages/Advanced";
@@ -58,16 +58,15 @@ function PageContent({ page }: { page: string }) {
 export default function App() {
   const initialized = useAppStore((s) => s.initialized);
   const currentPage = useAppStore((s) => s.currentPage);
-  const { initialize } = useInit();
   const fluentTheme = useTheme();
   useWindowVisibilityListener();
 
   useEffect(() => {
-    void initialize().catch((err: unknown) => {
+    void initializeApp().catch((err: unknown) => {
       console.error("Failed to initialize:", err);
       useAppStore.getState().markInitialized();
     });
-  }, [initialize]);
+  }, []);
 
   useEffect(() => {
     const unlisten = listen("tray-proxy-switched", () => {

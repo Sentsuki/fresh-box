@@ -12,8 +12,10 @@ import {
   WeatherMoonRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
+import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Select } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import { useCoreUpdate } from "../../hooks/useCoreUpdate";
@@ -34,15 +36,27 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const testUrl = useSettingsStore((s) => s.settings.Settings.test_url);
+  const testUrl = useSettingsStore((s) => s.settings.settings.test_url);
   const setTestUrl = useSettingsStore((s) => s.setTestUrl);
   const [testUrlInput, setTestUrlInput] = useState(testUrl);
   const closeBehavior = useSettingsStore(
-    (s) => s.settings.Settings.close_behavior,
+    (s) => s.settings.settings.close_behavior,
   );
   const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
+  const autoCloseConnections = useSettingsStore(
+    (s) => s.settings.settings.auto_close_connections,
+  );
+  const setAutoCloseConnections = useSettingsStore(
+    (s) => s.setAutoCloseConnections,
+  );
 
-  const currentThemeMode = settings.Settings.theme_mode;
+  const currentThemeMode = settings.settings.theme_mode;
+
+  // App version
+  const [appVersion, setAppVersion] = useState<string | null>(null);
+  useEffect(() => {
+    void getVersion().then(setAppVersion).catch(() => null);
+  }, []);
 
   // Process Management
   const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
@@ -122,15 +136,14 @@ export default function Settings() {
             title="App Theme"
             description="Select the color theme for the application"
             control={
-              <select
+              <Select
                 value={currentThemeMode}
                 onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
-                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="system">Follow System</option>
                 <option value="dark">Dark</option>
                 <option value="light">Light</option>
-              </select>
+              </Select>
             }
           />
         </SettingGroup>
@@ -143,21 +156,20 @@ export default function Settings() {
               title="TUN Stack"
               description="Select the network stack for the TUN interface (applied on restart)"
               control={
-                <select
+                <Select
                   value={selectedStack}
                   onChange={(e) =>
                     void setStackOption(
                       e.target.value as (typeof STACK_OPTIONS)[number],
                     )
                   }
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
                 >
                   {STACK_OPTIONS.map((opt) => (
                     <option key={opt} value={opt}>
                       {opt}
                     </option>
                   ))}
-                </select>
+                </Select>
               }
             />
           )}
@@ -169,7 +181,7 @@ export default function Settings() {
               description="Log output detail from the sing-box core"
               control={
                 <div className="flex items-center gap-3">
-                  <select
+                  <Select
                     value={selectedLogLevel}
                     onChange={(e) => {
                       const level = e.target
@@ -178,14 +190,13 @@ export default function Settings() {
                       void updateLogConfiguration(logDisabled, level);
                     }}
                     disabled={logDisabled}
-                    className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                   >
                     {LOG_LEVELS.map((l) => (
                       <option key={l} value={l}>
                         {l}
                       </option>
                     ))}
-                  </select>
+                  </Select>
                   <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
                   <div className="flex items-center gap-2.5">
                     <span className="text-sm text-(--wb-text-secondary)">
@@ -348,20 +359,23 @@ export default function Settings() {
                 {availableOptions.length > 0 && (
                   <>
                     <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-                    <select
+                    <Select
                       value={selectedCoreOptionKey}
                       disabled={isUpdatingCore || !controlsEnabled}
                       onChange={(e) => {
                         const newKey = e.target.value;
-                        void setSelectedCoreOptionKey(newKey);
                         const opt = availableOptions.find(
                           (o) => `${o.channel}:${o.version}` === newKey,
                         );
                         if (opt && !(opt.installed && opt.is_active)) {
+                          // Trigger install/activate first; setSelectedCoreOptionKey
+                          // is called inside applySelectedCore after success.
                           void applySelectedCore(newKey);
+                        } else {
+                          // Already active — just persist the selection.
+                          void setSelectedCoreOptionKey(newKey);
                         }
                       }}
-                      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
                     >
                       {availableOptions.map((opt) => (
                         <option
@@ -372,7 +386,7 @@ export default function Settings() {
                           {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
                         </option>
                       ))}
-                    </select>
+                    </Select>
                     {isUpdatingCore && (
                       <Button
                         size="sm"
@@ -439,16 +453,29 @@ export default function Settings() {
             title="Close Button Behavior"
             description="Choose what happens when the window close button is clicked"
             control={
-              <select
+              <Select
                 value={closeBehavior}
                 onChange={(e) =>
                   void setCloseBehavior(e.target.value as "hide" | "destroy")
                 }
-                className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent)"
               >
                 <option value="hide">Hide to tray</option>
                 <option value="destroy">Destroy window</option>
-              </select>
+              </Select>
+            }
+          />
+
+          <SettingCard
+            icon={<LinkRegular />}
+            title="Auto Close Connections on Switch"
+            description="When switching proxy nodes, automatically close active connections that pass through the affected group"
+            control={
+              <Switch
+                checked={autoCloseConnections}
+                onCheckedChange={(checked) =>
+                  void setAutoCloseConnections(checked)
+                }
+              />
             }
           />
 
@@ -489,7 +516,7 @@ export default function Settings() {
             title="fresh-box"
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version 1.6.12</span>
+                <span>Version {appVersion ?? "..."}</span>
               </div>
             }
           />

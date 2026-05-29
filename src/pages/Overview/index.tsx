@@ -21,10 +21,10 @@ export default function Overview() {
   const isRunning = useSingboxStore((s) => s.isRunning);
   const isPending = useSingboxStore((s) => s.pendingOperation);
   const selectedDisplay = useSettingsStore(
-    (s) => s.settings.Profiles.selected_config_display,
+    (s) => s.settings.profiles.selected_config_display,
   );
   const selectedPath = useSettingsStore(
-    (s) => s.settings.Profiles.selected_config_path,
+    (s) => s.settings.profiles.selected_config_path,
   );
   const subscriptions = useConfigStore((s) => s.subscriptions);
   const overview = useClashStore((s) => s.overview);
@@ -144,7 +144,7 @@ export default function Overview() {
           {isRunning ? (
             overview ? (
               <div className="flex flex-col gap-6">
-                <StatusCards overview={overview} />
+                <StatusCards />
                 <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) p-4 shadow-sm">
                   <TrafficChart />
                 </div>

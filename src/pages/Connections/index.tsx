@@ -13,6 +13,36 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { closeConnection } from "../../services/api";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
 
+function useConnectionSettings() {
+  const currentTab = useSettingsStore((s) => s.settings.connections.current_tab);
+  const visibleColumnKeys = useSettingsStore((s) => s.settings.connections.visible_columns);
+  const pinnedColumnKeys = useSettingsStore((s) => s.settings.connections.pinned_columns);
+  const sortKey = useSettingsStore((s) => s.settings.connections.sort_key);
+  const sortDirection = useSettingsStore((s) => s.settings.connections.sort_direction);
+  const columnSizes = useSettingsStore((s) => s.settings.connections.column_sizes);
+  const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
+  const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
+  const setConnectionsPinnedColumns = useSettingsStore((s) => s.setConnectionsPinnedColumns);
+  const setConnectionsSortKey = useSettingsStore((s) => s.setConnectionsSortKey);
+  const setConnectionsSortDirection = useSettingsStore((s) => s.setConnectionsSortDirection);
+  const setConnectionsColumnSizes = useSettingsStore((s) => s.setConnectionsColumnSizes);
+
+  return {
+    currentTab,
+    visibleColumnKeys,
+    pinnedColumnKeys,
+    sortKey,
+    sortDirection,
+    columnSizes,
+    setConnectionsTab,
+    setConnectionsVisibleColumns,
+    setConnectionsPinnedColumns,
+    setConnectionsSortKey,
+    setConnectionsSortDirection,
+    setConnectionsColumnSizes,
+  };
+}
+
 export default function Connections() {
   const {
     active,
@@ -27,42 +57,20 @@ export default function Connections() {
     toggleGrouping,
   } = useConnectionsStream();
 
-  const currentTab = useSettingsStore(
-    (state) => state.settings.connections.current_tab,
-  );
-  const visibleColumnKeys = useSettingsStore(
-    (state) => state.settings.connections.visible_columns,
-  );
-  const pinnedColumnKeys = useSettingsStore(
-    (state) => state.settings.connections.pinned_columns,
-  );
-  const sortKey = useSettingsStore(
-    (state) => state.settings.connections.sort_key,
-  );
-  const sortDirection = useSettingsStore(
-    (state) => state.settings.connections.sort_direction,
-  );
-  const columnSizes = useSettingsStore(
-    (state) => state.settings.connections.column_sizes,
-  );
-  const setConnectionsTab = useSettingsStore(
-    (state) => state.setConnectionsTab,
-  );
-  const setConnectionsVisibleColumns = useSettingsStore(
-    (state) => state.setConnectionsVisibleColumns,
-  );
-  const setConnectionsPinnedColumns = useSettingsStore(
-    (state) => state.setConnectionsPinnedColumns,
-  );
-  const setConnectionsSortKey = useSettingsStore(
-    (state) => state.setConnectionsSortKey,
-  );
-  const setConnectionsSortDirection = useSettingsStore(
-    (state) => state.setConnectionsSortDirection,
-  );
-  const setConnectionsColumnSizes = useSettingsStore(
-    (state) => state.setConnectionsColumnSizes,
-  );
+  const {
+    currentTab,
+    visibleColumnKeys,
+    pinnedColumnKeys,
+    sortKey,
+    sortDirection,
+    columnSizes,
+    setConnectionsTab,
+    setConnectionsVisibleColumns,
+    setConnectionsPinnedColumns,
+    setConnectionsSortKey,
+    setConnectionsSortDirection,
+    setConnectionsColumnSizes,
+  } = useConnectionSettings();
 
   const [search, setSearch] = useState("");
   const [sourceIpFilter, setSourceIpFilter] = useState("all");
