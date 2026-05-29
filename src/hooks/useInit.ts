@@ -35,8 +35,7 @@ export async function initializeApp() {
   const savedDisplay =
     useSettingsStore.getState().settings.profiles.selected_config_display;
   const target =
-    (savedDisplay &&
-      configFiles.find((c) => c.displayName === savedDisplay)) ||
+    (savedDisplay && configFiles.find((c) => c.displayName === savedDisplay)) ||
     (useSettingsStore.getState().settings.profiles.selected_config_path &&
       configFiles.find(
         (c) =>

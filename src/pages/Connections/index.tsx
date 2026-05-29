@@ -14,18 +14,38 @@ import { closeConnection } from "../../services/api";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
 
 function useConnectionSettings() {
-  const currentTab = useSettingsStore((s) => s.settings.connections.current_tab);
-  const visibleColumnKeys = useSettingsStore((s) => s.settings.connections.visible_columns);
-  const pinnedColumnKeys = useSettingsStore((s) => s.settings.connections.pinned_columns);
+  const currentTab = useSettingsStore(
+    (s) => s.settings.connections.current_tab,
+  );
+  const visibleColumnKeys = useSettingsStore(
+    (s) => s.settings.connections.visible_columns,
+  );
+  const pinnedColumnKeys = useSettingsStore(
+    (s) => s.settings.connections.pinned_columns,
+  );
   const sortKey = useSettingsStore((s) => s.settings.connections.sort_key);
-  const sortDirection = useSettingsStore((s) => s.settings.connections.sort_direction);
-  const columnSizes = useSettingsStore((s) => s.settings.connections.column_sizes);
+  const sortDirection = useSettingsStore(
+    (s) => s.settings.connections.sort_direction,
+  );
+  const columnSizes = useSettingsStore(
+    (s) => s.settings.connections.column_sizes,
+  );
   const setConnectionsTab = useSettingsStore((s) => s.setConnectionsTab);
-  const setConnectionsVisibleColumns = useSettingsStore((s) => s.setConnectionsVisibleColumns);
-  const setConnectionsPinnedColumns = useSettingsStore((s) => s.setConnectionsPinnedColumns);
-  const setConnectionsSortKey = useSettingsStore((s) => s.setConnectionsSortKey);
-  const setConnectionsSortDirection = useSettingsStore((s) => s.setConnectionsSortDirection);
-  const setConnectionsColumnSizes = useSettingsStore((s) => s.setConnectionsColumnSizes);
+  const setConnectionsVisibleColumns = useSettingsStore(
+    (s) => s.setConnectionsVisibleColumns,
+  );
+  const setConnectionsPinnedColumns = useSettingsStore(
+    (s) => s.setConnectionsPinnedColumns,
+  );
+  const setConnectionsSortKey = useSettingsStore(
+    (s) => s.setConnectionsSortKey,
+  );
+  const setConnectionsSortDirection = useSettingsStore(
+    (s) => s.setConnectionsSortDirection,
+  );
+  const setConnectionsColumnSizes = useSettingsStore(
+    (s) => s.setConnectionsColumnSizes,
+  );
 
   return {
     currentTab,

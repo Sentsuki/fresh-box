@@ -178,7 +178,8 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             .unwrap_or(true);
 
                         if auto_close {
-                            crate::services::clash_client::close_connections_by_group_pub(&group).await;
+                            crate::services::clash_client::close_connections_by_group_pub(&group)
+                                .await;
                         }
 
                         // 无论前端是否存活，后端都主动获取最新状态并更新托盘菜单

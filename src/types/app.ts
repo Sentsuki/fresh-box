@@ -374,8 +374,7 @@ export function normalizeAppSettings(
           : DEFAULT_TEST_URL,
       close_behavior:
         settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
-      auto_close_connections:
-        settings.settings?.auto_close_connections ?? true,
+      auto_close_connections: settings.settings?.auto_close_connections ?? true,
     },
   };
 }

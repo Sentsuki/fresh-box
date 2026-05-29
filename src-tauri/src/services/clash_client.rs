@@ -655,7 +655,8 @@ async fn fetch_active_connections_inner() -> Result<Vec<(String, Vec<String>)>, 
         chains: Vec<String>,
     }
 
-    let data = clash_get::<ConnectionsResponse>("/connections", "Failed to fetch connections").await?;
+    let data =
+        clash_get::<ConnectionsResponse>("/connections", "Failed to fetch connections").await?;
     Ok(data
         .connections
         .unwrap_or_default()

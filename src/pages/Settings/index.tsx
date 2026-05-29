@@ -55,7 +55,9 @@ export default function Settings() {
   // App version
   const [appVersion, setAppVersion] = useState<string | null>(null);
   useEffect(() => {
-    void getVersion().then(setAppVersion).catch(() => null);
+    void getVersion()
+      .then(setAppVersion)
+      .catch(() => null);
   }, []);
 
   // Process Management

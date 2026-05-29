@@ -299,7 +299,10 @@ fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> 
     let mut ps = state.lock("initialize_singbox_state")?;
     match detect_and_track_existing_process(&mut ps)? {
         Some((pid, info)) => {
-            println!("Found existing sing-box process (PID: {}), taking over", pid);
+            println!(
+                "Found existing sing-box process (PID: {}), taking over",
+                pid
+            );
             Ok(format!("sing-box is running (PID: {}) - {}", pid, info))
         }
         None => {
@@ -340,7 +343,10 @@ pub async fn start_singbox(
         let data_dir = crate::config::get_data_dir()?;
 
         if !std::path::Path::new(&config_path).exists() {
-            return Err(CommandError::resource_not_found("config file", &config_path));
+            return Err(CommandError::resource_not_found(
+                "config file",
+                &config_path,
+            ));
         }
 
         let config_content = fs::read_to_string(&config_path)?;
@@ -359,7 +365,10 @@ pub async fn start_singbox(
         }
 
         let temp_config_path = data_dir.join("temp_config.json");
-        fs::write(&temp_config_path, serde_json::to_string_pretty(&base_config)?)?;
+        fs::write(
+            &temp_config_path,
+            serde_json::to_string_pretty(&base_config)?,
+        )?;
 
         use std::os::windows::process::CommandExt;
         const CREATE_NO_WINDOW: u32 = 0x08000000;
@@ -449,15 +458,24 @@ pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String
     match inspect_running_process(&mut ps)? {
         Some(ProcessOrigin::Direct(pid)) => {
             let info = get_singbox_process_info_by_pid(&mut ps, pid, true);
-            Ok(format!("sing-box is running (Direct, PID: {}) - {}", pid, info))
+            Ok(format!(
+                "sing-box is running (Direct, PID: {}) - {}",
+                pid, info
+            ))
         }
         Some(ProcessOrigin::Tracked(pid)) => {
             let info = get_singbox_process_info_by_pid(&mut ps, pid, false);
-            Ok(format!("sing-box is running (Tracked, PID: {}) - {}", pid, info))
+            Ok(format!(
+                "sing-box is running (Tracked, PID: {}) - {}",
+                pid, info
+            ))
         }
         Some(ProcessOrigin::Detected(pid)) => {
             let info = get_singbox_process_info_by_pid(&mut ps, pid, false);
-            Ok(format!("sing-box is running (Detected, PID: {}) - {}", pid, info))
+            Ok(format!(
+                "sing-box is running (Detected, PID: {}) - {}",
+                pid, info
+            ))
         }
         None => Ok("sing-box is not running".to_string()),
     }
@@ -470,9 +488,15 @@ pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<Stri
         return match child.try_wait() {
             Ok(Some(status)) => {
                 clear_process_state(&mut ps);
-                Ok(format!("Direct managed process exited with status: {}", status))
+                Ok(format!(
+                    "Direct managed process exited with status: {}",
+                    status
+                ))
             }
-            Ok(None) => Ok(format!("Direct managed process running (PID: {})", child.id())),
+            Ok(None) => Ok(format!(
+                "Direct managed process running (PID: {})",
+                child.id()
+            )),
             Err(e) => {
                 clear_process_state(&mut ps);
                 Ok(format!("Direct managed process check failed: {}", e))

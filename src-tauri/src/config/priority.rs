@@ -86,8 +86,8 @@ pub fn ensure_priority_config_initialized() {
 
     // Generate a random secret on first run so every installation has a
     // unique credential rather than sharing the compiled-in default.
-    let secret = generate_random_secret_inner()
-        .unwrap_or_else(|_| DEFAULT_CLASH_SECRET.to_string());
+    let secret =
+        generate_random_secret_inner().unwrap_or_else(|_| DEFAULT_CLASH_SECRET.to_string());
 
     let default_config = PriorityConfig {
         inbounds: vec![PriorityInbound {
@@ -169,8 +169,8 @@ pub(crate) fn check_config_fields_inner(
 
     // Fall back to the override config for fields not present in the main config.
     // Reuse the existing abstraction rather than reading the file directly.
-    let override_enabled = super::config_override::is_config_override_enabled_inner()
-        .unwrap_or(false);
+    let override_enabled =
+        super::config_override::is_config_override_enabled_inner().unwrap_or(false);
     if override_enabled
         && let Ok(override_config) = super::config_override::load_config_override_inner()
     {
@@ -348,7 +348,9 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
     if config.get("log").is_none() {
         config
             .as_object_mut()
-            .ok_or_else(|| CommandError::invalid_state("apply_log_config", "invalid config format"))?
+            .ok_or_else(|| {
+                CommandError::invalid_state("apply_log_config", "invalid config format")
+            })?
             .insert("log".to_string(), Value::Object(serde_json::Map::new()));
     }
 

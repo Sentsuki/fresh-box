@@ -74,7 +74,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       }
     },
     // isRefreshing removed from deps — tracked via ref to avoid stale closure churn
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+
     [selectedCoreOptionKey, setSelectedCoreOptionKey, toastError],
   );
 
@@ -137,6 +137,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       coreStatus,
       isUpdating,
       selectedCoreOptionKey,
+      setSelectedCoreOptionKey,
       success,
       toastError,
       refreshCoreStatus,
