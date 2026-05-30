@@ -18,8 +18,8 @@ function delayColor(delay: number | null): string {
   if (delay === null || delay === undefined) return "text-(--wb-text-disabled)";
   if (delay <= 0) return "text-(--wb-error)";
   if (delay < 200) return "text-(--wb-success)";
-  if (delay < 500) return "text-(--wb-warning)";
-  return "text-(--wb-error)";
+  if (delay < 500) return "text-(--wb-accent)";
+  return "text-(--wb-warning)";
 }
 
 function abbreviateType(type: string | undefined): string {

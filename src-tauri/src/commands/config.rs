@@ -33,6 +33,10 @@ fn resolve_safe_path(
     let canonical_base = base_dir
         .canonicalize()
         .map_err(|e| CommandError::resource_not_found("config directory", e))?;
+    // On Windows, canonicalize() returns a verbatim UNC path (\\?\C:\...)
+    // while normalize_path() produces a regular path (C:\...).
+    // Strip the verbatim prefix so both sides use the same format.
+    let canonical_base = strip_verbatim_prefix(&canonical_base);
     // Normalize the target path without requiring it to exist.
     let normalized = normalize_path(&full);
     if !normalized.starts_with(&canonical_base) {
@@ -60,6 +64,18 @@ fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
         }
     }
     out
+}
+
+/// On Windows, `Path::canonicalize` returns a verbatim UNC path prefixed with
+/// `\\?\` (e.g. `\\?\C:\Users\...`).  Strip that prefix so the result can be
+/// compared with paths produced by `normalize_path`, which never adds it.
+fn strip_verbatim_prefix(path: &std::path::Path) -> std::path::PathBuf {
+    let s = path.to_string_lossy();
+    if let Some(stripped) = s.strip_prefix(r"\\?\") {
+        std::path::PathBuf::from(stripped)
+    } else {
+        path.to_path_buf()
+    }
 }
 
 /// Open `path` with the OS default handler (Explorer on Windows).
