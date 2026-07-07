@@ -27,11 +27,7 @@ interface LogsState {
   search: string;
   isPaused: boolean;
   streamStatus:
-    | "disconnected"
-    | "connecting"
-    | "connected"
-    | "error"
-    | "disabled";
+    "disconnected" | "connecting" | "connected" | "error" | "disabled";
   streamError: string | null;
   setSearch: (s: string) => void;
   setIsPaused: (p: boolean) => void;

@@ -35,13 +35,7 @@ export type ConnectionColumnKey =
   | "inboundUser";
 export type RulesTab = "rules";
 export type LogLevel =
-  | "trace"
-  | "debug"
-  | "info"
-  | "warn"
-  | "error"
-  | "fatal"
-  | "panic";
+  "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
 export interface SubscriptionInfo {
   url: string;
