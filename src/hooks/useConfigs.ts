@@ -19,6 +19,7 @@ import { useConfigStore } from "../stores/configStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useToast } from "./useToast";
+import { useSingbox } from "./useSingbox";
 import type {
   ConfigFileEntry,
   SubscriptionInfo,
@@ -86,7 +87,12 @@ async function applySubscriptionResult(result: SubscriptionOperationResult) {
 }
 
 export function useConfigs() {
-  const { error: toastError, success: toastSuccess } = useToast();
+  const {
+    error: toastError,
+    success: toastSuccess,
+    info: toastInfo,
+  } = useToast();
+  const { startService, stopService } = useSingbox();
 
   const initializeConfigs = useCallback(async () => {
     const config = useConfigStore.getState();
@@ -123,18 +129,20 @@ export function useConfigs() {
 
   const selectConfig = useCallback(
     async (cfg: ConfigFileEntry) => {
-      if (useSingboxStore.getState().isRunning) {
-        toastError(
-          "Cannot change config while service is running. Stop the service first.",
-        );
-        return;
+      const settings = useSettingsStore.getState();
+      const singbox = useSingboxStore.getState();
+
+      await settings.setSelectedConfig(cfg.path, cfg.displayName);
+
+      if (singbox.isRunning) {
+        toastInfo("Config changed. Restarting service...");
+        await stopService();
+        await startService();
+      } else {
+        toastSuccess(`Selected config: ${cfg.displayName}`);
       }
-      await useSettingsStore
-        .getState()
-        .setSelectedConfig(cfg.path, cfg.displayName);
-      toastSuccess(`Selected config: ${cfg.displayName}`);
     },
-    [toastError, toastSuccess],
+    [toastInfo, toastSuccess, stopService, startService],
   );
 
   const selectConfigFile = useCallback(async () => {
