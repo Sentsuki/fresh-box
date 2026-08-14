@@ -95,13 +95,17 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
       });
       try {
         if (selectedOption.installed && !selectedOption.is_active) {
-          // Already installed — just activate (no download needed).
-          await activateSingboxCore(
+          // Already installed — activate (and auto-restart if currently running).
+          const restarted = await activateSingboxCore(
             selectedOption.channel,
             selectedOption.version,
           );
           void setSelectedCoreOptionKey(key);
-          success(`Switched to ${selectedOption.label}`);
+          success(
+            restarted
+              ? `Switched to ${selectedOption.label} and restarted sing-box.`
+              : `Switched to ${selectedOption.label}`,
+          );
         } else {
           // Download + install (new version, or reinstall of active version).
           const result: SingboxCoreUpdateResult = await updateSingboxCore(
@@ -112,7 +116,7 @@ export function useCoreUpdate(autoRefreshOnMount = false) {
           success(
             result.restart_required
               ? `Core updated to ${result.current_version}. Restart sing-box to apply.`
-              : `Core updated to ${result.current_version}`,
+              : `Core updated to ${result.current_version}.`,
           );
         }
         // Re-read backend state — it is the single source of truth for active_channel/active_version.

@@ -256,8 +256,8 @@ export async function getSingboxCoreStatus(
 export async function activateSingboxCore(
   channel: SingboxCoreChannel,
   version: string,
-): Promise<void> {
-  return invokeCommand<void>("activate_singbox_core", { channel, version });
+): Promise<boolean> {
+  return invokeCommand<boolean>("activate_singbox_core", { channel, version });
 }
 
 export async function updateSingboxCore(

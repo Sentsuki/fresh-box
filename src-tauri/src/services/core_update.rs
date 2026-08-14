@@ -350,7 +350,36 @@ fn scan_locally_installed_cores(
     Ok(options)
 }
 
-pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
+pub async fn restart_singbox_if_running(
+    app: &AppHandle,
+    state: &State<'_, SingboxState>,
+    was_running: bool,
+) -> Result<bool, CommandError> {
+    if !was_running {
+        return Ok(false);
+    }
+
+    println!("Stopping existing sing-box core for restart...");
+    crate::services::singbox::stop_singbox(state.clone()).await?;
+
+    let settings = crate::config::app_settings::load_app_settings_file()?;
+    if let Some(config_path) = settings.profiles.selected_config_path
+        && Path::new(&config_path).exists()
+    {
+        println!("Restarting sing-box with new active core selection...");
+        crate::services::singbox::start_singbox(app.clone(), state.clone(), config_path).await?;
+        return Ok(true);
+    }
+
+    Ok(false)
+}
+
+pub async fn activate_singbox_core(
+    app: AppHandle,
+    state: State<'_, SingboxState>,
+    channel: String,
+    version: String,
+) -> Result<bool, CommandError> {
     let normalized_channel = normalize_core_channel(&channel)?;
     if !core_version_installed(normalized_channel, &version) {
         return Err(CommandError::resource_not_found(
@@ -364,10 +393,15 @@ pub async fn activate_singbox_core(channel: String, version: String) -> Result<(
         ));
     }
 
+    let was_running = crate::services::singbox::is_singbox_running(state.clone()).await?;
+
     set_active_singbox_core_selection(
         Some(normalized_channel.to_string()),
         Some(version.to_string()),
-    )
+    )?;
+
+    let restarted = restart_singbox_if_running(&app, &state, was_running).await?;
+    Ok(restarted)
 }
 
 pub async fn update_singbox_core(
@@ -389,7 +423,7 @@ pub async fn update_singbox_core(
     let normalized_channel = normalize_core_channel(&channel)?;
     let releases = fetch_available_core_releases(false).await?;
     let previous_selection = get_active_singbox_core_selection()?;
-    cleanup_unused_core_versions(previous_selection.as_ref(), &releases)?;
+    let _ = cleanup_unused_core_versions(previous_selection.as_ref(), &releases);
 
     let target_release = releases
         .iter()
@@ -405,23 +439,7 @@ pub async fn update_singbox_core(
     let previous_version = previous_selection
         .as_ref()
         .map(|(_, version)| version.clone());
-    let restart_required = crate::services::singbox::is_singbox_running(state).await?;
-    if restart_required
-        && previous_selection
-            .as_ref()
-            .is_some_and(|(active_channel, active_version)| {
-                active_channel == normalized_channel && active_version == &version
-            })
-    {
-        return Err(CommandError::invalid_state(
-            "update_singbox_core",
-            format!(
-                "{} {} is currently running. Stop sing-box before reinstalling the same core version.",
-                channel_label(normalized_channel),
-                version
-            ),
-        ));
-    }
+    let was_running = crate::services::singbox::is_singbox_running(state.clone()).await?;
 
     let update_paths = get_update_paths(target_release)?;
     emit_progress(
@@ -461,19 +479,10 @@ pub async fn update_singbox_core(
         &app,
         "installing",
         90,
-        if restart_required {
-            "Switching fresh-box to the new sing-box version. Restart sing-box after the update finishes."
-        } else {
-            "Activating the updated sing-box package..."
-        },
+        "Activating the updated sing-box package...",
     );
     promote_staged_version(&update_paths)?;
     set_active_singbox_core_selection(Some(normalized_channel.to_string()), Some(version.clone()))?;
-    cleanup_unused_core_versions(
-        Some(&(normalized_channel.to_string(), version.clone())),
-        &releases,
-    )?;
-    cleanup_download_artifacts(&update_paths)?;
 
     let current_version = read_active_singbox_core_version()?.ok_or_else(|| {
         CommandError::io(
@@ -488,12 +497,31 @@ pub async fn update_singbox_core(
         )));
     }
 
+    // If sing-box was running, restart it with the newly installed core before cleaning up old cores!
+    let mut restarted = false;
+    if was_running {
+        emit_progress(
+            &app,
+            "restarting",
+            95,
+            "Restarting sing-box with the updated core...",
+        );
+        restarted = restart_singbox_if_running(&app, &state, was_running).await?;
+    }
+
+    // Now that the new core is active (and the old process terminated if it was running), clean up unused cores and temporary archives.
+    let _ = cleanup_unused_core_versions(
+        Some(&(normalized_channel.to_string(), version.clone())),
+        &releases,
+    );
+    let _ = cleanup_download_artifacts(&update_paths);
+
     emit_progress(
         &app,
         "complete",
         100,
-        if restart_required {
-            "Core update completed. Restart sing-box to start using the new version."
+        if restarted {
+            "Core update completed and sing-box restarted."
         } else {
             "Core update completed."
         },
@@ -503,7 +531,7 @@ pub async fn update_singbox_core(
         previous_version,
         current_version,
         latest_version: target_release.version.clone(),
-        restart_required,
+        restart_required: false,
     })
 }
 
@@ -844,10 +872,16 @@ fn prune_channel_versions(channel: &str, keep_versions: &[String]) -> Result<(),
             continue;
         }
 
-        remove_dir_if_exists(
+        if let Err(error) = remove_dir_if_exists(
             &path,
             "Failed to clean an outdated sing-box version directory",
-        )?;
+        ) {
+            eprintln!(
+                "Warning: failed to clean outdated sing-box version directory {}: {}",
+                path.display(),
+                error
+            );
+        }
     }
 
     Ok(())
@@ -990,11 +1024,9 @@ fn extract_package_files(staged_dir: &Path, archive_path: &Path) -> Result<(), C
             continue;
         }
 
-        let relative_path = archive_relative_path(entry.name())?.ok_or_else(|| {
-            CommandError::validation(
-                "The downloaded sing-box archive contains an invalid file path.",
-            )
-        })?;
+        let Some(relative_path) = archive_relative_path(entry.name())? else {
+            continue;
+        };
         let staged_path = staged_dir.join(&relative_path);
 
         if let Some(parent) = staged_path.parent() {

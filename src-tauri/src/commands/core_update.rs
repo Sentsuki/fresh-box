@@ -21,8 +21,13 @@ pub async fn get_singbox_core_status(
 }
 
 #[tauri::command]
-pub async fn activate_singbox_core(channel: String, version: String) -> Result<(), CommandError> {
-    crate::services::core_update::activate_singbox_core(channel, version).await
+pub async fn activate_singbox_core(
+    app: tauri::AppHandle,
+    state: State<'_, SingboxState>,
+    channel: String,
+    version: String,
+) -> Result<bool, CommandError> {
+    crate::services::core_update::activate_singbox_core(app, state, channel, version).await
 }
 
 #[tauri::command]
