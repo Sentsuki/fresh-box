@@ -1,17 +1,20 @@
 import { ColumnRegular } from "@fluentui/react-icons";
 import {
   flexRender,
-  getCoreRowModel,
-  getExpandedRowModel,
-  getGroupedRowModel,
-  useReactTable,
-  type ColumnDef,
+  type ColumnPinningPosition,
   type ColumnPinningState,
   type ColumnSizingState,
   type ExpandedState,
   type GroupingState,
   type Updater,
 } from "@tanstack/react-table";
+import {
+  getCoreRowModel,
+  getExpandedRowModel,
+  getGroupedRowModel,
+  useLegacyTable as useReactTable,
+  type LegacyColumnDef as ColumnDef,
+} from "@tanstack/react-table/legacy";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import {
   useCallback,
@@ -49,20 +52,20 @@ interface ConnectionTableProps {
 }
 
 function getPinnedStyles(
-  pinned: "left" | "right" | false,
+  pinned: ColumnPinningPosition,
   offset: number,
   isHeader = false,
 ): CSSProperties {
   if (!pinned) return {};
+  const isStart = pinned === "start" || (pinned as string) === "left";
   return {
     position: "sticky",
-    ...(pinned === "left" ? { left: offset } : { right: offset }),
+    ...(isStart ? { left: offset } : { right: offset }),
     zIndex: isHeader ? 20 : 10,
     background: "var(--wb-badge-default-bg)",
-    boxShadow:
-      pinned === "left"
-        ? "1px 0 0 var(--wb-border-subtle)"
-        : "-1px 0 0 var(--wb-border-subtle)",
+    boxShadow: isStart
+      ? "1px 0 0 var(--wb-border-subtle)"
+      : "-1px 0 0 var(--wb-border-subtle)",
   };
 }
 
@@ -139,8 +142,8 @@ export function ConnectionTable({
   );
   const columnPinning = useMemo<ColumnPinningState>(
     () => ({
-      left: pinnedColumnKeys,
-      right: [],
+      start: pinnedColumnKeys,
+      end: [],
     }),
     [pinnedColumnKeys],
   );
@@ -268,10 +271,12 @@ export function ConnectionTable({
     onColumnPinningChange: (updater) => {
       const nextValue =
         typeof updater === "function" ? updater(columnPinning) : updater;
-      const nextLeft = (nextValue.left ?? []).filter(
+      const rawList =
+        nextValue.start ?? (nextValue as { left?: unknown[] }).left ?? [];
+      const nextPinned = rawList.filter(
         (id): id is ConnectionColumnKey => typeof id === "string",
       );
-      onPinnedColumnsChange(nextLeft);
+      onPinnedColumnsChange(nextPinned);
     },
   });
 
@@ -349,10 +354,10 @@ export function ConnectionTable({
               {headerGroup.headers.map((header) => {
                 const pinned = header.column.getIsPinned();
                 const pinnedOffset =
-                  pinned === "left"
-                    ? header.column.getStart("left")
-                    : pinned === "right"
-                      ? header.column.getAfter("right")
+                  pinned === "start"
+                    ? header.column.getStart("start")
+                    : pinned === "end"
+                      ? header.column.getAfter("end")
                       : 0;
                 const isSorted = sortKey === header.column.id;
                 return (
@@ -461,10 +466,10 @@ export function ConnectionTable({
                 {row.getVisibleCells().map((cell) => {
                   const pinned = cell.column.getIsPinned();
                   const pinnedOffset =
-                    pinned === "left"
-                      ? cell.column.getStart("left")
-                      : pinned === "right"
-                        ? cell.column.getAfter("right")
+                    pinned === "start"
+                      ? cell.column.getStart("start")
+                      : pinned === "end"
+                        ? cell.column.getAfter("end")
                         : 0;
                   const value = String(cell.getValue() ?? "");
                   return (

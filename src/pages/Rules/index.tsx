@@ -4,12 +4,12 @@ import {
   DocumentRegular,
   SearchRegular,
 } from "@fluentui/react-icons";
+import { flexRender } from "@tanstack/react-table";
 import {
-  flexRender,
   getCoreRowModel,
-  useReactTable,
-  type ColumnDef,
-} from "@tanstack/react-table";
+  useLegacyTable as useReactTable,
+  type LegacyColumnDef as ColumnDef,
+} from "@tanstack/react-table/legacy";
 import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
@@ -290,7 +290,7 @@ function RuleDetailsModal({ rule, open, onClose }: RuleDetailsModalProps) {
               <h3 className="text-lg font-semibold text-(--wb-text-primary) leading-tight">
                 Rule Details
               </h3>
-              <p className="text-sm text-(--wb-text-secondary) truncate max-w-[300px] sm:max-w-md">
+              <p className="text-sm text-(--wb-text-secondary) truncate max-w-75 sm:max-w-md">
                 {rule.payload}
               </p>
             </div>
