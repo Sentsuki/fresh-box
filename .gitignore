@@ -32,3 +32,4 @@ src-tauri/config
 src-tauri/data
 *.db
 sing-box-1.14.0
+boxdd
