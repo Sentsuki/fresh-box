@@ -18,18 +18,12 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Select } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
-import { useCoreUpdate } from "../../hooks/useCoreUpdate";
 import {
   LOG_LEVELS,
   STACK_OPTIONS,
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
-import {
-  flushDnsCache,
-  flushFakeIpCache,
-  getSingboxStatus,
-  openAppDirectory,
-} from "../../services/api";
+import { getSingboxStatus, openAppDirectory } from "../../services/api";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
 
@@ -75,27 +69,6 @@ export default function Settings() {
       setIsRefreshingStatus(false);
     }
   };
-
-  // Core Update Manager
-  const {
-    isRefreshingCoreStatus,
-    isUpdatingCore,
-    coreStatus,
-    coreStatusError,
-    coreUpdateProgress,
-    selectedCoreOptionKey,
-    setSelectedCoreOptionKey,
-    selectedOption,
-    currentCoreLabel,
-    coreStatusText,
-    updateCoreButtonLabel,
-    refreshCoreStatus,
-    applySelectedCore,
-    cancelUpdate,
-    cacheState,
-  } = useCoreUpdate(true);
-  const availableOptions = coreStatus?.available_options ?? [];
-  const controlsEnabled = cacheState === "fresh" || cacheState === "stale";
 
   // Priority Config (TUN & Core Logs)
   const {
@@ -278,143 +251,10 @@ export default function Settings() {
               </div>
             }
           />
-          <SettingCard
-            icon={<ArrowSyncRegular />}
-            title="Flush Cache"
-            description="Clear internal DNS cache or Fake-IP mappings"
-            control={
-              <div className="flex items-center gap-2">
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => void flushFakeIpCache()}
-                >
-                  Flush Fake-IP
-                </Button>
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={() => void flushDnsCache()}
-                >
-                  Flush DNS
-                </Button>
-              </div>
-            }
-          />
         </SettingGroup>
 
         {/* Application */}
         <SettingGroup title="Application">
-          <SettingCard
-            icon={<ArrowSyncRegular />}
-            title="Core Version"
-            description={
-              <div className="flex flex-col gap-1 mt-1">
-                <span>
-                  {coreStatusText} (Current: {currentCoreLabel})
-                </span>
-                {coreStatusError && (
-                  <span className="text-(--wb-error)">{coreStatusError}</span>
-                )}
-                {coreUpdateProgress && (
-                  <div className="flex flex-col gap-1 w-48 mt-1">
-                    <div className="flex justify-between text-[10px] text-(--wb-text-tertiary)">
-                      <span>{coreUpdateProgress.message}</span>
-                      <span>{coreUpdateProgress.percent}%</span>
-                    </div>
-                    <div className="h-1 rounded-full bg-(--wb-border-default) overflow-hidden">
-                      <div
-                        className="h-full bg-(--wb-accent) transition-all duration-200"
-                        style={{ width: `${coreUpdateProgress.percent}%` }}
-                      />
-                    </div>
-                  </div>
-                )}
-                {coreStatus && cacheState === "no_cache" && (
-                  <span className="text-[11px] text-(--wb-text-tertiary) italic">
-                    No version list — click Check to load available releases.
-                  </span>
-                )}
-                {coreStatus && cacheState === "stale" && (
-                  <span className="text-[11px] text-amber-500/80 italic">
-                    Version list may be outdated — click Check to refresh.
-                  </span>
-                )}
-              </div>
-            }
-            control={
-              <div className="flex items-center gap-3">
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  icon={
-                    <ArrowSyncRegular
-                      className={isRefreshingCoreStatus ? "animate-spin" : ""}
-                    />
-                  }
-                  disabled={isRefreshingCoreStatus}
-                  onClick={() => void refreshCoreStatus(true, true)}
-                >
-                  Check
-                </Button>
-
-                {availableOptions.length > 0 && (
-                  <>
-                    <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-                    <Select
-                      value={selectedCoreOptionKey}
-                      disabled={isUpdatingCore || !controlsEnabled}
-                      onChange={(e) => {
-                        const newKey = e.target.value;
-                        const opt = availableOptions.find(
-                          (o) => `${o.channel}:${o.version}` === newKey,
-                        );
-                        if (opt && !(opt.installed && opt.is_active)) {
-                          // Trigger install/activate first; setSelectedCoreOptionKey
-                          // is called inside applySelectedCore after success.
-                          void applySelectedCore(newKey);
-                        } else {
-                          // Already active — just persist the selection.
-                          void setSelectedCoreOptionKey(newKey);
-                        }
-                      }}
-                    >
-                      {availableOptions.map((opt) => (
-                        <option
-                          key={`${opt.channel}:${opt.version}`}
-                          value={`${opt.channel}:${opt.version}`}
-                        >
-                          {opt.label}
-                          {opt.installed ? (opt.is_active ? " ✓" : "") : ""}
-                        </option>
-                      ))}
-                    </Select>
-                    {isUpdatingCore && (
-                      <Button
-                        size="sm"
-                        variant="subtle"
-                        onClick={() => void cancelUpdate()}
-                      >
-                        Cancel
-                      </Button>
-                    )}
-                    {!isUpdatingCore &&
-                      controlsEnabled &&
-                      selectedOption?.installed &&
-                      selectedOption?.is_active && (
-                        <Button
-                          size="sm"
-                          variant="accent"
-                          onClick={() => void applySelectedCore()}
-                        >
-                          {updateCoreButtonLabel}
-                        </Button>
-                      )}
-                  </>
-                )}
-              </div>
-            }
-          />
           <SettingCard
             icon={<FolderOpenRegular />}
             title="App Directory"

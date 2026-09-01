@@ -1,13 +1,9 @@
 import type {
   AppSettings,
   ClashOverview,
-  ClashRulesSnapshot,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
-  SingboxCoreChannel,
-  SingboxCoreStatus,
-  SingboxCoreUpdateResult,
   SubscriptionInfo,
   SubscriptionRecord,
 } from "../types/app";
@@ -177,18 +173,6 @@ export async function testClashProxyGroupDelay(
   });
 }
 
-export async function getClashRules(): Promise<ClashRulesSnapshot> {
-  return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
-}
-
-export async function flushFakeIpCache(): Promise<void> {
-  return invokeCommand<void>("flush_fakeip_cache");
-}
-
-export async function flushDnsCache(): Promise<void> {
-  return invokeCommand<void>("flush_dns_cache");
-}
-
 export async function enableConfigOverride(): Promise<void> {
   return invokeCommand<void>("enable_config_override");
 }
@@ -243,42 +227,6 @@ export async function generateRandomSecret(): Promise<string> {
 
 export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
-}
-
-export async function getSingboxCoreStatus(
-  forceRefresh = false,
-): Promise<SingboxCoreStatus> {
-  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status", {
-    forceRefresh,
-  });
-}
-
-export async function activateSingboxCore(
-  channel: SingboxCoreChannel,
-  version: string,
-): Promise<boolean> {
-  return invokeCommand<boolean>("activate_singbox_core", { channel, version });
-}
-
-export async function updateSingboxCore(
-  channel: SingboxCoreChannel,
-  version: string,
-): Promise<SingboxCoreUpdateResult> {
-  return invokeCommand<SingboxCoreUpdateResult>("update_singbox_core", {
-    channel,
-    version,
-  });
-}
-
-export async function cancelCoreUpdate(): Promise<void> {
-  return invokeCommand<void>("cancel_core_update");
-}
-
-export async function queryDns(
-  name: string,
-  type: string = "A",
-): Promise<unknown> {
-  return invokeCommand<unknown>("query_dns", { name, type });
 }
 
 export async function closeAllConnections(): Promise<void> {

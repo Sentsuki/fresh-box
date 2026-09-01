@@ -3,15 +3,13 @@
 
 mod commands;
 mod config;
+mod daemon;
 mod errors;
 mod logger;
 mod services;
 mod tray;
 mod window_utils;
 
-use services::core_update::{
-    CoreUpdateCancelState, auto_select_installed_core, cleanup_staged_core_update_files_directly,
-};
 use services::singbox::{
     SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly,
 };
@@ -32,13 +30,11 @@ fn main() {
     logger::install_panic_hook();
 
     let singbox_state = SingboxState::new();
-    let cancel_state = CoreUpdateCancelState::new();
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
         .manage(singbox_state)
-        .manage(cancel_state)
         .manage(services::streams::StreamsState::new())
         .invoke_handler(tauri::generate_handler![
             commands::singbox::start_singbox,
@@ -48,19 +44,11 @@ fn main() {
             commands::singbox::initialize_singbox_state,
             commands::singbox::get_singbox_status,
             commands::singbox::refresh_singbox_detection,
-            commands::core_update::get_singbox_core_status,
-            commands::core_update::activate_singbox_core,
-            commands::core_update::update_singbox_core,
-            commands::core_update::cancel_core_update,
             commands::clash::get_clash_overview,
             commands::clash::update_clash_mode,
             commands::clash::select_clash_proxy,
             commands::clash::test_clash_proxy_delay,
             commands::clash::test_clash_proxy_group_delay,
-            commands::clash::get_clash_rules,
-            commands::clash::query_dns,
-            commands::clash::flush_fakeip_cache,
-            commands::clash::flush_dns_cache,
             commands::config::list_configs,
             commands::config::copy_config_to_bin,
             commands::config::save_subscription_config,
@@ -116,14 +104,6 @@ fn main() {
             {
                 use window_vibrancy::apply_mica;
                 let _ = apply_mica(&window, None);
-            }
-
-            if let Err(error) = cleanup_staged_core_update_files_directly() {
-                eprintln!("Failed to clean staged sing-box core files: {}", error);
-            }
-
-            if let Err(error) = auto_select_installed_core() {
-                eprintln!("Failed to auto-select installed sing-box core: {}", error);
             }
 
             let state = app.state::<SingboxState>();

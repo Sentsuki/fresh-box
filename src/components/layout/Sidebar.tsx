@@ -1,5 +1,4 @@
 import {
-  BookNumberRegular,
   DataBarVerticalRegular,
   DocumentEditRegular,
   DocumentTextRegular,
@@ -30,7 +29,6 @@ const NAV_ITEMS = [
     icon: PlugConnectedRegular,
   },
   { id: "logs" as AppPage, label: "Logs", icon: DocumentTextRegular },
-  { id: "rules" as AppPage, label: "Rules", icon: BookNumberRegular },
   { id: "profiles" as AppPage, label: "Profiles", icon: DocumentEditRegular },
   { id: "advanced" as AppPage, label: "Advanced", icon: WrenchRegular },
 ] as const;

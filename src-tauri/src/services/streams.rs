@@ -1,18 +1,34 @@
-use crate::errors::CommandError;
-use futures_util::StreamExt;
+// streams.rs — push traffic/memory/connections/logs updates to the
+// frontend as Tauri events, sourced from `sing-box-daemon.exe`'s gRPC
+// streaming RPCs instead of four separate Clash API WebSockets.
+//
+// Event names and payload shapes are kept identical to the old Clash-API
+// backed implementation (see `src/hooks/use{Traffic,Memory,Connections,Logs}Stream.ts`)
+// so the frontend doesn't need to change. A few fields don't have a clean
+// source in boxdd's API and are approximated — search this file for
+// "NOTE:" to find them.
+
 use std::collections::HashMap;
 use std::sync::Arc;
 use std::time::Duration;
+
+use serde_json::json;
 use tauri::Emitter;
 use tokio::sync::{Mutex, watch};
-use tokio_tungstenite::{connect_async, tungstenite::Message};
+
+use crate::daemon::DaemonConnection;
+use crate::daemon::daemon_api::{ConnectionEvents, Log};
+use crate::errors::CommandError;
+use crate::services::singbox::{SingboxState, get_connection};
+
+const STATUS_INTERVAL_MS: i64 = 1_000;
+const CONNECTIONS_INTERVAL_MS: i64 = 1_000;
 
 pub struct StreamsState {
     traffic: Mutex<Option<watch::Sender<bool>>>,
     memory: Mutex<Option<watch::Sender<bool>>>,
     connections: Mutex<Option<watch::Sender<bool>>>,
     logs: Mutex<Option<watch::Sender<bool>>>,
-    connection_speeds: Arc<Mutex<HashMap<String, (u64, u64)>>>,
 }
 
 impl StreamsState {
@@ -22,7 +38,6 @@ impl StreamsState {
             memory: Mutex::new(None),
             connections: Mutex::new(None),
             logs: Mutex::new(None),
-            connection_speeds: Arc::new(Mutex::new(HashMap::new())),
         }
     }
 }
@@ -49,71 +64,42 @@ async fn stop_stream_slot(slot: &Mutex<Option<watch::Sender<bool>>>) {
     }
 }
 
-fn base_stream_ws_url(path: &str) -> String {
-    let endpoint = crate::services::clash_client::get_clash_endpoint();
-    format!(
-        "{}/{}?token={}",
-        endpoint.ws_base(),
-        path,
-        urlencoding::encode(&endpoint.secret)
-    )
-}
-
-fn logs_stream_ws_url(log_level: &str) -> String {
-    let endpoint = crate::services::clash_client::get_clash_endpoint();
-    format!(
-        "{}/logs?level={}&token={}",
-        endpoint.ws_base(),
-        urlencoding::encode(log_level),
-        urlencoding::encode(&endpoint.secret)
-    )
-}
-
-async fn run_json_stream<F>(
+/// Shared retry loop: (re)connect to the daemon, run `body` until its
+/// subscription ends or errors, back off briefly, repeat until told to
+/// stop. Mirrors the reconnect behavior the old WebSocket loops had.
+async fn run_with_reconnect<F, Fut>(
     app: tauri::AppHandle,
+    singbox: SingboxState,
     mut stop_rx: watch::Receiver<bool>,
     status_event: &'static str,
-    data_event: &'static str,
-    build_ws_url: F,
+    mut body: F,
 ) where
-    F: Fn() -> String + Send + 'static,
+    F: FnMut(tauri::AppHandle, DaemonConnection) -> Fut,
+    Fut: std::future::Future<Output = ()>,
 {
     loop {
         if *stop_rx.borrow() {
             break;
         }
 
-        let ws_url = build_ws_url();
         let _ = app.emit(status_event, "connecting");
-
-        match connect_async(&ws_url).await {
-            Ok((mut ws_stream, _)) => {
+        match get_connection(&singbox).await {
+            Ok(connection) => {
                 let _ = app.emit(status_event, "connected");
-                loop {
-                    tokio::select! {
-                        _ = stop_rx.changed() => {
-                            if *stop_rx.borrow() {
-                                let _ = app.emit(status_event, "disconnected");
-                                return;
-                            }
-                        }
-                        msg = ws_stream.next() => {
-                            match msg {
-                                Some(Ok(Message::Text(text))) => {
-                                    if let Ok(data) = serde_json::from_str::<serde_json::Value>(&text) {
-                                        let _ = app.emit(data_event, data);
-                                    }
-                                }
-                                Some(Ok(_)) => {}
-                                _ => break,
-                            }
+                tokio::select! {
+                    _ = stop_rx.changed() => {
+                        if *stop_rx.borrow() {
+                            let _ = app.emit(status_event, "disconnected");
+                            return;
                         }
                     }
+                    _ = body(app.clone(), connection) => {
+                        let _ = app.emit(status_event, "error");
+                    }
                 }
-                let _ = app.emit(status_event, "error");
             }
             Err(e) => {
-                eprintln!("[stream] {} WebSocket connect failed: {}", status_event, e);
+                eprintln!("[stream] {} not connected: {}", status_event, e);
                 let _ = app.emit(status_event, "error");
             }
         }
@@ -127,8 +113,6 @@ async fn run_json_stream<F>(
             }
             _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
         }
-
-        let _ = app.emit(status_event, "connecting");
     }
 
     let _ = app.emit(status_event, "disconnected");
@@ -139,14 +123,26 @@ async fn run_json_stream<F>(
 pub async fn start_traffic_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
+    singbox: tauri::State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
     let rx = start_stream_slot(&state.traffic).await;
-    tokio::spawn(run_json_stream(
+    let singbox = singbox.inner().clone();
+    tokio::spawn(run_with_reconnect(
         app,
+        singbox,
         rx,
         "stream-traffic-status",
-        "stream-traffic",
-        || base_stream_ws_url("traffic"),
+        |app, connection| async move {
+            let Ok(mut stream) = connection.subscribe_status(STATUS_INTERVAL_MS).await else {
+                return;
+            };
+            while let Ok(Some(status)) = stream.message().await {
+                let _ = app.emit(
+                    "stream-traffic",
+                    json!({ "down": status.downlink, "up": status.uplink }),
+                );
+            }
+        },
     ));
     Ok(())
 }
@@ -163,14 +159,23 @@ pub async fn stop_traffic_stream(
 pub async fn start_memory_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
+    singbox: tauri::State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
     let rx = start_stream_slot(&state.memory).await;
-    tokio::spawn(run_json_stream(
+    let singbox = singbox.inner().clone();
+    tokio::spawn(run_with_reconnect(
         app,
+        singbox,
         rx,
         "stream-memory-status",
-        "stream-memory",
-        || base_stream_ws_url("memory"),
+        |app, connection| async move {
+            let Ok(mut stream) = connection.subscribe_status(STATUS_INTERVAL_MS).await else {
+                return;
+            };
+            while let Ok(Some(status)) = stream.message().await {
+                let _ = app.emit("stream-memory", json!({ "inuse": status.memory }));
+            }
+        },
     ));
     Ok(())
 }
@@ -182,14 +187,161 @@ pub async fn stop_memory_stream(state: tauri::State<'_, StreamsState>) -> Result
 
 // ── Connections stream ─────────────────────────────────────────────────────
 
+/// One entry of client-side connection state, accumulated from the
+/// incremental `ConnectionEvent`s boxdd sends (there is no unary "list all
+/// connections" call — see the module doc comment in `daemon_control.rs`).
+#[derive(Clone)]
+struct TrackedConnection {
+    value: serde_json::Value,
+}
+
+fn split_host_port(address: &str) -> (String, String) {
+    // Handles bracketed IPv6 (`[::1]:80`) and plain `host:port`.
+    if let Some(rest) = address.strip_prefix('[')
+        && let Some(end) = rest.find(']')
+    {
+        let host = &rest[..end];
+        let port = rest[end + 1..].trim_start_matches(':');
+        return (host.to_string(), port.to_string());
+    }
+    match address.rsplit_once(':') {
+        Some((host, port)) => (host.to_string(), port.to_string()),
+        None => (address.to_string(), String::new()),
+    }
+}
+
+fn format_timestamp_millis(millis: i64) -> String {
+    chrono::DateTime::from_timestamp_millis(millis)
+        .map(|dt| dt.to_rfc3339())
+        .unwrap_or_default()
+}
+
+fn apply_connection_event(
+    tracked: &mut HashMap<String, TrackedConnection>,
+    event: &crate::daemon::daemon_api::ConnectionEvent,
+) {
+    // NOTE: matched against the raw proto enum ints (0=NEW, 1=UPDATE,
+    // 2=CLOSED) from `proto/daemon/started_service.proto` rather than the
+    // generated Rust variant names, since prost's naming for enum values
+    // that share a `CONNECTION_EVENT_` prefix isn't pinned down here.
+    match event.r#type {
+        2 => {
+            tracked.remove(&event.id);
+            return;
+        }
+        _ => {}
+    }
+
+    let Some(conn) = event.connection.as_ref() else {
+        return;
+    };
+
+    let (source_ip, source_port) = split_host_port(&conn.source);
+    let (destination_ip, destination_port) = split_host_port(&conn.destination);
+    let process_path = conn.process_info.as_ref().map(|p| p.process_path.clone());
+    let process_name = process_path.as_deref().and_then(|p| {
+        p.rsplit(['/', '\\']).next().map(str::to_string)
+    });
+
+    let value = json!({
+        "id": conn.id,
+        "metadata": {
+            "network": conn.network,
+            "type": conn.inbound_type,
+            "host": if conn.domain.is_empty() { destination_ip.clone() } else { conn.domain.clone() },
+            "sourceIP": source_ip,
+            "sourcePort": source_port,
+            "destinationIP": destination_ip,
+            "destinationPort": destination_port,
+            "dnsMode": "",
+            "processPath": process_path,
+            "remoteDestination": conn.destination,
+            "sniffHost": conn.domain,
+            "inboundUser": conn.user,
+            "inboundName": conn.inbound,
+            "inboundPort": serde_json::Value::Null,
+            "process": process_name,
+        },
+        // NOTE: cumulative bytes for this connection. `Connection` also
+        // carries `uplink`/`downlink`, which we treat as the same figures
+        // `ConnectionEvent.{up,down}linkDelta` already give us more
+        // directly below, so they're unused here.
+        "upload": conn.uplink_total,
+        "download": conn.downlink_total,
+        // NOTE: assumes `createdAt` is Unix milliseconds — unverified
+        // against the actual running daemon.
+        "start": format_timestamp_millis(conn.created_at),
+        "chains": conn.chain_list,
+        "rule": conn.rule,
+        "rulePayload": "",
+        "uploadSpeed": event.uplink_delta.max(0),
+        "downloadSpeed": event.downlink_delta.max(0),
+    });
+
+    tracked.insert(event.id.clone(), TrackedConnection { value });
+}
+
+fn build_frame(tracked: &HashMap<String, TrackedConnection>) -> serde_json::Value {
+    let mut download_total: i64 = 0;
+    let mut upload_total: i64 = 0;
+    let mut download_speed: i64 = 0;
+    let mut upload_speed: i64 = 0;
+    let connections: Vec<&serde_json::Value> = tracked
+        .values()
+        .map(|c| {
+            download_total += c.value["download"].as_i64().unwrap_or(0);
+            upload_total += c.value["upload"].as_i64().unwrap_or(0);
+            download_speed += c.value["downloadSpeed"].as_i64().unwrap_or(0);
+            upload_speed += c.value["uploadSpeed"].as_i64().unwrap_or(0);
+            &c.value
+        })
+        .collect();
+
+    json!({
+        "downloadTotal": download_total,
+        "uploadTotal": upload_total,
+        "connections": connections,
+        "totalDownloadSpeed": download_speed,
+        "totalUploadSpeed": upload_speed,
+    })
+}
+
+async fn run_connections(app: tauri::AppHandle, connection: DaemonConnection) {
+    let Ok(mut stream) = connection.subscribe_connections(CONNECTIONS_INTERVAL_MS).await else {
+        return;
+    };
+
+    let tracked: Arc<Mutex<HashMap<String, TrackedConnection>>> = Arc::new(Mutex::new(HashMap::new()));
+
+    while let Ok(Some(frame)) = stream.message().await {
+        let ConnectionEvents { events, reset } = frame;
+        let mut guard = tracked.lock().await;
+        if reset {
+            guard.clear();
+        }
+        for event in &events {
+            apply_connection_event(&mut guard, event);
+        }
+        let payload = build_frame(&guard);
+        drop(guard);
+        let _ = app.emit("stream-connections", payload);
+    }
+}
+
 pub async fn start_connections_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
+    singbox: tauri::State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
     let rx = start_stream_slot(&state.connections).await;
-    let speeds = state.connection_speeds.clone();
-    speeds.lock().await.clear();
-    tokio::spawn(run_connections_stream(app, rx, speeds));
+    let singbox = singbox.inner().clone();
+    tokio::spawn(run_with_reconnect(
+        app,
+        singbox,
+        rx,
+        "stream-connections-status",
+        run_connections,
+    ));
     Ok(())
 }
 
@@ -197,175 +349,68 @@ pub async fn stop_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
     stop_stream_slot(&state.connections).await;
-    state.connection_speeds.lock().await.clear();
     Ok(())
-}
-
-async fn enrich_and_emit_connections(
-    app: &tauri::AppHandle,
-    speeds: &Arc<Mutex<HashMap<String, (u64, u64)>>>,
-    text: &str,
-) {
-    let Ok(mut frame) = serde_json::from_str::<serde_json::Value>(text) else {
-        return;
-    };
-
-    let Some(connections) = frame.get_mut("connections").and_then(|v| v.as_array_mut()) else {
-        let _ = app.emit("stream-connections", frame);
-        return;
-    };
-
-    let mut speeds_map = speeds.lock().await;
-    let mut total_download_speed: u64 = 0;
-    let mut total_upload_speed: u64 = 0;
-    let mut new_speeds: HashMap<String, (u64, u64)> = HashMap::with_capacity(connections.len());
-
-    for conn in connections.iter_mut() {
-        let id = conn
-            .get("id")
-            .and_then(|v| v.as_str())
-            .unwrap_or("")
-            .to_string();
-        let download = conn.get("download").and_then(|v| v.as_u64()).unwrap_or(0);
-        let upload = conn.get("upload").and_then(|v| v.as_u64()).unwrap_or(0);
-
-        let (dl_speed, ul_speed) = speeds_map
-            .get(&id)
-            .map(|&(prev_dl, prev_ul)| {
-                (
-                    download.saturating_sub(prev_dl),
-                    upload.saturating_sub(prev_ul),
-                )
-            })
-            .unwrap_or((0, 0));
-
-        total_download_speed += dl_speed;
-        total_upload_speed += ul_speed;
-        new_speeds.insert(id, (download, upload));
-
-        if let Some(obj) = conn.as_object_mut() {
-            obj.insert("downloadSpeed".to_string(), serde_json::json!(dl_speed));
-            obj.insert("uploadSpeed".to_string(), serde_json::json!(ul_speed));
-        }
-    }
-
-    *speeds_map = new_speeds;
-    drop(speeds_map);
-
-    if let Some(obj) = frame.as_object_mut() {
-        obj.insert(
-            "totalDownloadSpeed".to_string(),
-            serde_json::json!(total_download_speed),
-        );
-        obj.insert(
-            "totalUploadSpeed".to_string(),
-            serde_json::json!(total_upload_speed),
-        );
-    }
-
-    let _ = app.emit("stream-connections", frame);
-}
-
-async fn run_connections_stream(
-    app: tauri::AppHandle,
-    mut stop_rx: watch::Receiver<bool>,
-    speeds: Arc<Mutex<HashMap<String, (u64, u64)>>>,
-) {
-    loop {
-        if *stop_rx.borrow() {
-            break;
-        }
-
-        let ws_url = base_stream_ws_url("connections");
-        let _ = app.emit("stream-connections-status", "connecting");
-
-        match connect_async(&ws_url).await {
-            Ok((mut ws_stream, _)) => {
-                let _ = app.emit("stream-connections-status", "connected");
-                loop {
-                    tokio::select! {
-                        _ = stop_rx.changed() => {
-                            if *stop_rx.borrow() {
-                                speeds.lock().await.clear();
-                                let _ = app.emit("stream-connections-status", "disconnected");
-                                return;
-                            }
-                        }
-                        msg = ws_stream.next() => {
-                            match msg {
-                                Some(Ok(Message::Text(text))) => {
-                                    enrich_and_emit_connections(&app, &speeds, &text).await;
-                                }
-                                Some(Ok(_)) => {}
-                                _ => break,
-                            }
-                        }
-                    }
-                }
-                let _ = app.emit("stream-connections-status", "error");
-            }
-            Err(e) => {
-                eprintln!("[stream] connections WebSocket connect failed: {}", e);
-                let _ = app.emit("stream-connections-status", "error");
-            }
-        }
-
-        tokio::select! {
-            _ = stop_rx.changed() => {
-                if *stop_rx.borrow() {
-                    let _ = app.emit("stream-connections-status", "disconnected");
-                    break;
-                }
-            }
-            _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
-        }
-
-        let _ = app.emit("stream-connections-status", "connecting");
-    }
-
-    let _ = app.emit("stream-connections-status", "disconnected");
 }
 
 // ── Logs stream ────────────────────────────────────────────────────────────
 
+fn log_level_name(level: crate::daemon::daemon_api::LogLevel) -> &'static str {
+    use crate::daemon::daemon_api::LogLevel;
+    match level {
+        LogLevel::Panic => "panic",
+        LogLevel::Fatal => "fatal",
+        LogLevel::Error => "error",
+        LogLevel::Warn => "warning",
+        LogLevel::Info => "info",
+        LogLevel::Debug => "debug",
+        LogLevel::Trace => "trace",
+    }
+}
+
+async fn run_logs(app: tauri::AppHandle, connection: DaemonConnection) {
+    let Ok(mut stream) = connection.subscribe_log().await else {
+        return;
+    };
+    while let Ok(Some(Log { messages, .. })) = stream.message().await {
+        for message in messages {
+            let _ = app.emit(
+                "stream-logs",
+                json!({
+                    "type": log_level_name(message.level()),
+                    "payload": message.message,
+                }),
+            );
+        }
+    }
+}
+
 pub async fn start_logs_stream(
     app: tauri::AppHandle,
     state: tauri::State<'_, StreamsState>,
+    singbox: tauri::State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
     let rx = start_stream_slot(&state.logs).await;
-    tokio::spawn(run_logs_stream(app, rx));
+
+    let priority_config: crate::config::PriorityConfig =
+        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)
+            .unwrap_or_default();
+    if priority_config.log.disabled {
+        let _ = app.emit("stream-logs-status", "disabled");
+        return Ok(());
+    }
+
+    let singbox = singbox.inner().clone();
+    tokio::spawn(run_with_reconnect(
+        app,
+        singbox,
+        rx,
+        "stream-logs-status",
+        run_logs,
+    ));
     Ok(())
 }
 
 pub async fn stop_logs_stream(state: tauri::State<'_, StreamsState>) -> Result<(), CommandError> {
     stop_stream_slot(&state.logs).await;
     Ok(())
-}
-
-async fn run_logs_stream(app: tauri::AppHandle, stop_rx: watch::Receiver<bool>) {
-    if *stop_rx.borrow() {
-        return;
-    }
-
-    let priority_config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)
-            .unwrap_or_default();
-
-    if priority_config.log.disabled {
-        let _ = app.emit("stream-logs-status", "disabled");
-        return;
-    }
-
-    let log_level = crate::config::load_app_settings_file()
-        .map(|s| s.logs.log_level)
-        .unwrap_or_else(|_| "info".to_string());
-
-    run_json_stream(
-        app,
-        stop_rx,
-        "stream-logs-status",
-        "stream-logs",
-        move || logs_stream_ws_url(&log_level),
-    )
-    .await;
 }

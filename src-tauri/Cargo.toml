@@ -16,6 +16,7 @@ crate-type = ["staticlib", "cdylib", "rlib"]
 
 [build-dependencies]
 tauri-build = { version = "2", features = [] }
+tonic-build = "0.14"
 
 [dependencies]
 tauri = { version = "2", features = ["tray-icon"] }
@@ -25,8 +26,6 @@ tauri-plugin-dialog = "2"
 chrono = { version = "0.4", features = ["serde"] }
 futures-util = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
-tokio-tungstenite = { version = "0.29", features = ["rustls-tls-webpki-roots"] }
-sysinfo = "0.39"
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
 urlencoding = "2"
@@ -36,6 +35,12 @@ tauri-plugin-notification = "2"
 rand = "0.10"
 sha2 = "0.11"
 indexmap = { version = "2.14.0", features = ["serde"] }
+# gRPC client for sing-box-daemon.exe (boxdd). No server feature needed —
+# fresh-box only ever dials out to the daemon/worker pipe.
+tonic = { version = "0.14", default-features = false, features = ["codegen", "prost", "transport"] }
+prost = "0.14"
+tower = { version = "0.5", default-features = false, features = ["util"] }
+hyper-util = { version = "0.1", features = ["tokio"] }
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

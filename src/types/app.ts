@@ -5,12 +5,10 @@ export type AppPage =
   | "proxy"
   | "connections"
   | "logs"
-  | "rules"
   | "profiles"
   | "advanced"
   | "settings";
 
-export type SingboxCoreChannel = "stable" | "testing";
 export type ConnectionPageTab = "active" | "closed";
 export type SortDirection = "asc" | "desc";
 export type ConnectionColumnKey =
@@ -33,7 +31,6 @@ export type ConnectionColumnKey =
   | "destinationType"
   | "remoteAddress"
   | "inboundUser";
-export type RulesTab = "rules";
 export type LogLevel =
   "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
@@ -60,16 +57,9 @@ export interface ProfilesSettings {
 
 export interface AppDisplaySettings {
   theme_mode: ThemeMode;
-  singbox_core: SingboxCoreSettings;
   test_url: string;
   close_behavior: "hide" | "destroy";
   auto_close_connections: boolean;
-}
-
-export interface SingboxCoreSettings {
-  active_channel: SingboxCoreChannel | null;
-  active_version: string | null;
-  selected_option_key: string;
 }
 
 export interface ProxyPageSettings {
@@ -91,24 +81,12 @@ export interface LogsPageSettings {
   type_filter: string;
 }
 
-export interface RulesPageSettings {
-  current_tab: RulesTab;
-}
-
-export type AdvancedPageTab = "override" | "dns";
-
-export interface AdvancedPageSettings {
-  current_tab: AdvancedPageTab;
-}
-
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
   proxies: ProxyPageSettings;
   connections: ConnectionPageSettings;
   logs: LogsPageSettings;
-  rules: RulesPageSettings;
-  advanced: AdvancedPageSettings;
   profiles: ProfilesSettings;
   settings: AppDisplaySettings;
 }
@@ -167,23 +145,12 @@ export function createDefaultAppSettings(): AppSettings {
       log_level: "info",
       type_filter: "",
     },
-    rules: {
-      current_tab: "rules",
-    },
-    advanced: {
-      current_tab: "override",
-    },
     profiles: {
       selected_config_path: null,
       selected_config_display: null,
     },
     settings: {
       theme_mode: "system",
-      singbox_core: {
-        active_channel: null,
-        active_version: null,
-        selected_option_key: "",
-      },
       test_url: DEFAULT_TEST_URL,
       close_behavior: "hide",
       auto_close_connections: true,
@@ -196,7 +163,6 @@ const APP_PAGES: AppPage[] = [
   "proxy",
   "connections",
   "logs",
-  "rules",
   "profiles",
   "advanced",
   "settings",
@@ -206,8 +172,6 @@ const CONNECTION_COLUMNS = new Set<ConnectionColumnKey>(
   DEFAULT_CONNECTION_COLUMN_ORDER,
 );
 const SORT_DIRECTIONS: SortDirection[] = ["asc", "desc"];
-const RULES_TABS: RulesTab[] = ["rules"];
-const ADVANCED_TABS: AdvancedPageTab[] = ["override", "dns"];
 const LOG_LEVELS: LogLevel[] = [
   "trace",
   "debug",
@@ -329,16 +293,6 @@ export function normalizeAppSettings(
         : defaults.logs.log_level,
       type_filter: settings.logs?.type_filter ?? "",
     },
-    rules: {
-      current_tab: RULES_TABS.includes(settings.rules?.current_tab)
-        ? settings.rules.current_tab
-        : defaults.rules.current_tab,
-    },
-    advanced: {
-      current_tab: ADVANCED_TABS.includes(settings.advanced?.current_tab)
-        ? settings.advanced.current_tab
-        : defaults.advanced.current_tab,
-    },
     profiles: {
       selected_config_path: settings.profiles?.selected_config_path ?? null,
       selected_config_display:
@@ -351,16 +305,6 @@ export function normalizeAppSettings(
         settings.settings?.theme_mode === "system"
           ? settings.settings.theme_mode
           : "system",
-      singbox_core: {
-        active_channel:
-          settings.settings?.singbox_core?.active_channel === "stable" ||
-          settings.settings?.singbox_core?.active_channel === "testing"
-            ? settings.settings.singbox_core.active_channel
-            : null,
-        active_version: settings.settings?.singbox_core?.active_version ?? null,
-        selected_option_key:
-          settings.settings?.singbox_core?.selected_option_key ?? "",
-      },
       test_url:
         typeof settings.settings?.test_url === "string" &&
         settings.settings.test_url.trim() !== ""
@@ -416,56 +360,6 @@ export interface ConfigFieldsCheck {
   current_log_level?: string;
 }
 
-export interface SingboxCoreOption {
-  channel: SingboxCoreChannel;
-  version: string;
-  label: string;
-  installed: boolean;
-  is_active: boolean;
-}
-
-/**
- * Describes the freshness of the release list returned by the backend.
- * - `no_cache`  No cached list; only local cores shown; install/switch disabled.
- * - `fresh`     List is within the 1-hour TTL or just fetched from GitHub.
- * - `stale`     List is from an expired cache; controls enabled but warn the user.
- */
-export type ReleaseCacheState = "no_cache" | "fresh" | "stale";
-
-export interface SingboxCoreStatus {
-  installed: boolean;
-  current_channel: SingboxCoreChannel | null;
-  current_version: string | null;
-  latest_version: string | null;
-  update_available: boolean;
-  is_running: boolean;
-  available_options: SingboxCoreOption[];
-  cache_state: ReleaseCacheState;
-  /** Set when a GitHub fetch was attempted (Check button) but failed. */
-  fetch_error?: string | null;
-}
-
-export interface SingboxCoreUpdateResult {
-  previous_version: string | null;
-  current_version: string;
-  latest_version: string;
-  restart_required: boolean;
-}
-
-export type CoreUpdateStage =
-  | "preparing"
-  | "downloading"
-  | "extracting"
-  | "installing"
-  | "complete"
-  | "error";
-
-export interface CoreUpdateProgressEvent {
-  stage: CoreUpdateStage;
-  percent: number;
-  message: string;
-}
-
 export interface ClashProxyNode {
   name: string;
   kind: string;
@@ -487,23 +381,6 @@ export interface ClashOverview {
   current_mode: string;
   available_modes?: string[];
   proxy_groups: ClashProxyGroup[];
-}
-
-export interface ClashRulesSnapshot {
-  rules: RuleEntry[];
-}
-
-export interface RuleEntry {
-  type: string;
-  payload: string;
-  proxy: string;
-  uuid?: string;
-  index?: number;
-  disabled?: boolean;
-  extra?: {
-    disabled?: boolean;
-    [key: string]: unknown;
-  };
 }
 
 export interface ConnectionMetadata {

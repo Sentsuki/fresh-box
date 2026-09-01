@@ -15,7 +15,6 @@ import Logs from "./pages/Logs";
 import Overview from "./pages/Overview";
 import Profiles from "./pages/Profiles";
 import Proxies from "./pages/Proxies";
-import Rules from "./pages/Rules";
 import Settings from "./pages/Settings";
 import { useAppStore } from "./stores/appStore";
 import { useClashStore } from "./stores/clashStore";
@@ -42,8 +41,6 @@ function PageContent({ page }: { page: string }) {
       return <Connections />;
     case "logs":
       return <Logs />;
-    case "rules":
-      return <Rules />;
     case "profiles":
       return <Profiles />;
     case "advanced":

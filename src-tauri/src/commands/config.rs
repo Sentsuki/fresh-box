@@ -106,13 +106,7 @@ pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
 }
 
 #[tauri::command]
-pub async fn save_app_settings(mut settings: AppSettings) -> Result<(), CommandError> {
-    if let Ok(current) = crate::config::app_settings::load_app_settings_file() {
-        settings.settings.singbox_core.active_channel =
-            current.settings.singbox_core.active_channel;
-        settings.settings.singbox_core.active_version =
-            current.settings.singbox_core.active_version;
-    }
+pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
     crate::config::app_settings::save_app_settings_file(&settings)
 }
 
