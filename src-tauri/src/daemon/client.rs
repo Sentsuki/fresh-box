@@ -29,7 +29,7 @@ use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
     ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, DefaultLogLevel, Groups,
     Log, SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
-    SubscribeStatusRequest, URLTestRequest, Version,
+    SubscribeStatusRequest, UrlTestRequest, Version,
 };
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{DaemonInfo, StartOptions, StartServiceRequest};
@@ -224,7 +224,7 @@ impl DaemonConnection {
 
     pub async fn url_test(&self, outbound_tag: String) -> Result<(), CommandError> {
         self.started()
-            .url_test(URLTestRequest { outbound_tag })
+            .url_test(UrlTestRequest { outbound_tag })
             .await
             .map(|_| ())
             .map_err(|e| map_status("test proxy delay", e))
