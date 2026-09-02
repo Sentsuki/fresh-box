@@ -14,7 +14,4 @@ pub use io::{load_named_config_or_default, read_json_file, write_json_file};
 
 pub use paths::{get_app_data_root, get_config_dir, get_data_dir, get_exe_dir, get_log_dir, get_sub_dir};
 
-pub use priority::{
-    DEFAULT_CLASH_CONTROLLER, DEFAULT_CLASH_SECRET, PriorityConfig, apply_priority_config,
-    ensure_priority_config_initialized,
-};
+pub use priority::{PriorityConfig, apply_priority_config, ensure_priority_config_initialized};

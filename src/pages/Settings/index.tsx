@@ -4,9 +4,7 @@ import {
   DismissRegular,
   DocumentTextRegular,
   FolderOpenRegular,
-  GlobeRegular,
   InfoRegular,
-  KeyRegular,
   LinkRegular,
   SettingsRegular,
   ShieldTaskRegular,
@@ -37,9 +35,6 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const testUrl = useSettingsStore((s) => s.settings.settings.test_url);
-  const setTestUrl = useSettingsStore((s) => s.setTestUrl);
-  const [testUrlInput, setTestUrlInput] = useState(testUrl);
   const closeBehavior = useSettingsStore(
     (s) => s.settings.settings.close_behavior,
   );
@@ -124,16 +119,9 @@ export default function Settings() {
     setLogDisabled,
     selectedLogLevel,
     setSelectedLogLevel,
-    clashApiController,
-    setClashApiController,
-    clashApiSecret,
-    setClashApiSecret,
     loadConfiguration,
     setStackOption,
     updateLogConfiguration,
-    updateClashApiConfig,
-    genRandomPort,
-    genRandomSecret,
   } = usePriorityConfig();
 
   useEffect(() => {
@@ -233,68 +221,6 @@ export default function Settings() {
               }
             />
           )}
-          <SettingCard
-            icon={<LinkRegular />}
-            title="API Controller"
-            description="The address:port for the Clash API"
-            control={
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={clashApiController}
-                  onChange={(e) => setClashApiController(e.target.value)}
-                  placeholder="127.0.0.1:8964"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-32"
-                />
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={async () => {
-                    const controller = await genRandomPort();
-                    if (controller) {
-                      await updateClashApiConfig({
-                        external_controller: controller,
-                        secret: clashApiSecret,
-                      });
-                    }
-                  }}
-                >
-                  Random Port
-                </Button>
-              </div>
-            }
-          />
-          <SettingCard
-            icon={<KeyRegular />}
-            title="API Secret"
-            description="Authentication secret for the Clash API"
-            control={
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={clashApiSecret}
-                  onChange={(e) => setClashApiSecret(e.target.value)}
-                  placeholder="secret"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-74"
-                />
-                <Button
-                  size="sm"
-                  variant="subtle"
-                  onClick={async () => {
-                    const secret = await genRandomSecret();
-                    if (secret) {
-                      await updateClashApiConfig({
-                        external_controller: clashApiController,
-                        secret,
-                      });
-                    }
-                  }}
-                >
-                  Random
-                </Button>
-              </div>
-            }
-          />
         </SettingGroup>
 
         {/* Application */}
@@ -313,27 +239,6 @@ export default function Settings() {
               </Button>
             }
           />
-          <SettingCard
-            icon={<GlobeRegular />}
-            title="Test URL"
-            description="URL used for proxy latency tests"
-            control={
-              <div className="flex items-center gap-2">
-                <input
-                  type="text"
-                  value={testUrlInput}
-                  onChange={(e) => setTestUrlInput(e.target.value)}
-                  onBlur={() => void setTestUrl(testUrlInput)}
-                  onKeyDown={(e) => {
-                    if (e.key === "Enter") void setTestUrl(testUrlInput);
-                  }}
-                  placeholder="https://www.gstatic.com/generate_204"
-                  className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) w-66"
-                />
-              </div>
-            }
-          />
-
           <SettingCard
             icon={<DismissRegular />}
             title="Close Button Behavior"

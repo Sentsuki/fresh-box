@@ -36,16 +36,10 @@ pub async fn select_clash_proxy(
 pub async fn test_clash_proxy_delay(
     state: State<'_, SingboxState>,
     proxy_name: String,
-    url: Option<String>,
     timeout_ms: Option<u64>,
 ) -> Result<i64, CommandError> {
-    crate::services::daemon_control::test_clash_proxy_delay(
-        state.inner(),
-        proxy_name,
-        url,
-        timeout_ms,
-    )
-    .await
+    crate::services::daemon_control::test_clash_proxy_delay(state.inner(), proxy_name, timeout_ms)
+        .await
 }
 
 #[tauri::command]
@@ -53,14 +47,12 @@ pub async fn test_clash_proxy_group_delay(
     app: tauri::AppHandle,
     state: State<'_, SingboxState>,
     proxy_group: String,
-    url: Option<String>,
     timeout_ms: Option<u64>,
 ) -> Result<IndexMap<String, i64>, CommandError> {
     crate::services::daemon_control::test_clash_proxy_group_delay(
         app,
         state.inner(),
         proxy_group,
-        url,
         timeout_ms,
     )
     .await

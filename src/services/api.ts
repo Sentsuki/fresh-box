@@ -135,12 +135,6 @@ export async function uninstallDaemonService(): Promise<void> {
   return invokeCommand<void>("uninstall_daemon_service");
 }
 
-export async function getClashApiUrl(
-  configPath: string,
-): Promise<string | null> {
-  return invokeCommand<string | null>("get_clash_api_url", { configPath });
-}
-
 export async function openUrl(url: string): Promise<void> {
   return invokeCommand<void>("open_url", { url });
 }
@@ -165,24 +159,20 @@ export async function selectClashProxy(
 
 export async function testClashProxyDelay(
   proxyName: string,
-  url?: string,
   timeoutMs?: number,
 ): Promise<number> {
   return invokeCommand<number>("test_clash_proxy_delay", {
     proxyName,
-    url,
     timeoutMs,
   });
 }
 
 export async function testClashProxyGroupDelay(
   proxyGroup: string,
-  url?: string,
   timeoutMs?: number,
 ): Promise<Record<string, number>> {
   return invokeCommand<Record<string, number>>("test_clash_proxy_group_delay", {
     proxyGroup,
-    url,
     timeoutMs,
   });
 }
@@ -229,14 +219,6 @@ export async function checkConfigFields(
   return invokeCommand<ConfigFieldsCheck>("check_config_fields", {
     configPath,
   });
-}
-
-export async function generateRandomPort(): Promise<number> {
-  return invokeCommand<number>("generate_random_port");
-}
-
-export async function generateRandomSecret(): Promise<string> {
-  return invokeCommand<string>("generate_random_secret");
 }
 
 export async function openAppDirectory(): Promise<void> {

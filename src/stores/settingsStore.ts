@@ -43,7 +43,6 @@ interface SettingsActions {
   setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
-  setTestUrl: (url: string) => Promise<void>;
   setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
   setAutoCloseConnections: (enabled: boolean) => Promise<void>;
 }
@@ -152,12 +151,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
         s.settings.theme_mode = mode;
-      });
-    },
-
-    setTestUrl: async (url) => {
-      await get().updateSettings((s) => {
-        s.settings.test_url = url;
       });
     },
 

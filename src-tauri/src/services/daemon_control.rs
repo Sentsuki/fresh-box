@@ -11,10 +11,9 @@
 //   * There's no unary "list all connections" call, only
 //     `SubscribeConnections` (streaming). Reading one snapshot off it is
 //     the equivalent of the old `GET /connections`.
-//   * Per-call custom test URL/timeout overrides (the old `?url=&timeout=`
-//     query params) aren't supported by `URLTest` — it always uses the
-//     outbound's own configured test URL. The `url` parameter below is
-//     accepted for frontend/API compatibility but is currently unused.
+//   * Per-call custom test URL overrides (the old `?url=` query param)
+//     aren't supported by `URLTest` — it always uses the outbound's own
+//     configured test URL, so there's no `url` parameter here at all.
 //   * `GroupItem` doesn't carry the Clash API's `alive`/`udp` flags, so
 //     `ClashProxyNode::alive` is always `None` and `::udp` is always
 //     `false` here.
@@ -249,7 +248,6 @@ fn find_item_time_and_delay(groups: &Groups, tag: &str) -> Option<(i64, i64)> {
 pub async fn test_clash_proxy_delay(
     state: &SingboxState,
     proxy_name: String,
-    _url: Option<String>,
     timeout_ms: Option<u64>,
 ) -> Result<i64, CommandError> {
     let proxy_name = proxy_name.trim();
@@ -269,7 +267,6 @@ pub async fn test_clash_proxy_group_delay(
     app: AppHandle,
     state: &SingboxState,
     proxy_group: String,
-    _url: Option<String>,
     timeout_ms: Option<u64>,
 ) -> Result<IndexMap<String, i64>, CommandError> {
     let normalized_group = proxy_group.trim();

@@ -57,7 +57,6 @@ export interface ProfilesSettings {
 
 export interface AppDisplaySettings {
   theme_mode: ThemeMode;
-  test_url: string;
   close_behavior: "hide" | "destroy";
   auto_close_connections: boolean;
 }
@@ -121,8 +120,6 @@ export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
   "destination",
 ];
 
-export const DEFAULT_TEST_URL = "https://www.gstatic.com/generate_204";
-
 export function createDefaultAppSettings(): AppSettings {
   return {
     schema_version: 1,
@@ -151,7 +148,6 @@ export function createDefaultAppSettings(): AppSettings {
     },
     settings: {
       theme_mode: "system",
-      test_url: DEFAULT_TEST_URL,
       close_behavior: "hide",
       auto_close_connections: true,
     },
@@ -305,11 +301,6 @@ export function normalizeAppSettings(
         settings.settings?.theme_mode === "system"
           ? settings.settings.theme_mode
           : "system",
-      test_url:
-        typeof settings.settings?.test_url === "string" &&
-        settings.settings.test_url.trim() !== ""
-          ? settings.settings.test_url
-          : DEFAULT_TEST_URL,
       close_behavior:
         settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
       auto_close_connections: settings.settings?.auto_close_connections ?? true,
@@ -337,19 +328,9 @@ export interface PriorityInbound {
   stack: string;
 }
 
-export interface PriorityClashApiConfig {
-  external_controller?: string;
-  secret?: string;
-}
-
-export interface PriorityExperimental {
-  clash_api?: PriorityClashApiConfig;
-}
-
 export interface PriorityConfig {
   inbounds: PriorityInbound[];
   log: LogConfig;
-  experimental: PriorityExperimental;
 }
 
 export interface ConfigFieldsCheck {

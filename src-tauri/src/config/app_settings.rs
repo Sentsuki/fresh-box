@@ -4,7 +4,6 @@ use serde_json::Value;
 
 const APP_SETTINGS_FILE: &str = "app_settings.json";
 const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
-const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -41,7 +40,6 @@ pub struct ProfilesSettings {
 #[serde(default)]
 pub struct AppDisplaySettings {
     pub theme_mode: String,
-    pub test_url: String,
     pub close_behavior: String,
     pub auto_close_connections: bool,
 }
@@ -99,7 +97,6 @@ impl Default for AppDisplaySettings {
     fn default() -> Self {
         Self {
             theme_mode: "system".to_string(),
-            test_url: DEFAULT_TEST_URL.to_string(),
             close_behavior: "hide".to_string(),
             auto_close_connections: true,
         }
