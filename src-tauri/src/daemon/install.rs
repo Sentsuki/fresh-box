@@ -6,10 +6,19 @@
 // working-directory ACLs, etc.), so this module just shells out to it
 // elevated.
 
+use std::os::windows::process::CommandExt;
 use std::path::PathBuf;
 use std::process::Command;
 
+use base64::Engine as _;
+
 use crate::errors::CommandError;
+
+/// `CREATE_NO_WINDOW` — without this, spawning any console-subsystem
+/// binary (`powershell`, `sc`, ...) from our GUI-subsystem process makes
+/// Windows allocate it a brand new console window, which flashes on
+/// screen for as long as the child runs.
+const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// Must match `serviceName` in `experimental/boxdd/main.go` upstream.
 const SERVICE_NAME: &str = "sing-box-daemon";
@@ -39,42 +48,69 @@ pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {
 /// `security_windows.go`'s `validateInstallationAncestors`).
 struct ElevatedOutput {
     code: i32,
-    stdout: String,
-    stderr: String,
+    /// Combined stdout+stderr+error-stream output from the elevated
+    /// command (captured via PowerShell's `*>` redirect — see
+    /// `run_elevated`).
+    log: String,
+}
+
+fn powershell_quote(value: &str) -> String {
+    format!("'{}'", value.replace('\'', "''"))
 }
 
 fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<ElevatedOutput, CommandError> {
-    let stdout_path = std::env::temp_dir().join(format!("fresh-box-elevated-{}.out.log", std::process::id()));
-    let stderr_path = std::env::temp_dir().join(format!("fresh-box-elevated-{}.err.log", std::process::id()));
+    // `Start-Process -Verb RunAs` (ShellExecute, needed for the UAC prompt)
+    // and `-RedirectStandard{Output,Error}` (needs UseShellExecute=$false)
+    // are mutually exclusive in .NET — combining them makes `Start-Process`
+    // itself throw before ever showing UAC. So instead of elevating the
+    // daemon exe directly with redirection parameters, we elevate a
+    // `powershell.exe` wrapper that does its own file redirection
+    // internally with `*>`, which has no such restriction.
+    let log_path = std::env::temp_dir().join(format!(
+        "fresh-box-elevated-{}-{}.log",
+        std::process::id(),
+        std::time::SystemTime::now()
+            .duration_since(std::time::UNIX_EPOCH)
+            .map(|d| d.as_nanos())
+            .unwrap_or_default()
+    ));
 
-    let arg_list = args
+    let quoted_args = args
         .iter()
-        .map(|a| format!("'{}'", a.replace('\'', "''")))
+        .map(|a| powershell_quote(a))
         .collect::<Vec<_>>()
-        .join(",");
-    let script = format!(
-        "$p = Start-Process -FilePath '{}' -ArgumentList {} -Verb RunAs -Wait -PassThru \
-         -RedirectStandardOutput '{}' -RedirectStandardError '{}'; exit $p.ExitCode",
-        executable.display().to_string().replace('\'', "''"),
-        arg_list,
-        stdout_path.display().to_string().replace('\'', "''"),
-        stderr_path.display().to_string().replace('\'', "''"),
+        .join(" ");
+    let inner_script = format!(
+        "& {} {} *> {}\nexit $LASTEXITCODE",
+        powershell_quote(&executable.display().to_string()),
+        quoted_args,
+        powershell_quote(&log_path.display().to_string()),
+    );
+    let encoded_inner = base64::engine::general_purpose::STANDARD.encode(
+        inner_script
+            .encode_utf16()
+            .flat_map(|unit| unit.to_le_bytes())
+            .collect::<Vec<u8>>(),
+    );
+
+    let outer_script = format!(
+        "$p = Start-Process -FilePath 'powershell' -ArgumentList \
+         @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded_inner}') \
+         -Verb RunAs -Wait -PassThru; exit $p.ExitCode"
     );
 
     let status = Command::new("powershell")
-        .args(["-NoProfile", "-NonInteractive", "-Command", &script])
+        .args(["-NoProfile", "-NonInteractive", "-Command", &outer_script])
+        .creation_flags(CREATE_NO_WINDOW)
         .status()
         .map_err(|e| CommandError::io("launch elevated daemon service command", e))?;
 
-    let stdout = std::fs::read_to_string(&stdout_path).unwrap_or_default();
-    let stderr = std::fs::read_to_string(&stderr_path).unwrap_or_default();
-    let _ = std::fs::remove_file(&stdout_path);
-    let _ = std::fs::remove_file(&stderr_path);
+    let log = std::fs::read_to_string(&log_path).unwrap_or_default();
+    let _ = std::fs::remove_file(&log_path);
 
     Ok(ElevatedOutput {
         code: status.code().unwrap_or(-1),
-        stdout,
-        stderr,
+        log,
     })
 }
 
@@ -83,11 +119,8 @@ fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<ElevatedO
 /// `service install` updates the existing registration in place.
 fn elevated_failure(context: &str, out: &ElevatedOutput) -> CommandError {
     let mut detail = format!("exited with code {}", out.code);
-    if !out.stderr.trim().is_empty() {
-        detail.push_str(&format!("\nstderr: {}", out.stderr.trim()));
-    }
-    if !out.stdout.trim().is_empty() {
-        detail.push_str(&format!("\nstdout: {}", out.stdout.trim()));
+    if !out.log.trim().is_empty() {
+        detail.push_str(&format!("\n{}", out.log.trim()));
     }
     CommandError::invalid_state(context, detail)
 }
@@ -132,6 +165,7 @@ fn daemon_service_working_directory() -> PathBuf {
 pub fn is_service_installed() -> bool {
     Command::new("sc")
         .args(["query", SERVICE_NAME])
+        .creation_flags(CREATE_NO_WINDOW)
         .output()
         .map(|out| out.status.success())
         .unwrap_or(false)
