@@ -370,7 +370,9 @@ export default function Settings() {
             title="sing-box Daemon Service"
             description={
               serviceError ? (
-                <span className="text-(--wb-error)">{serviceError}</span>
+                <span className="text-(--wb-error) whitespace-pre-wrap break-all font-mono text-xs">
+                  {serviceError}
+                </span>
               ) : serviceInstalled === null ? (
                 "Checking whether the sing-box-daemon Windows service is installed..."
               ) : serviceInstalled ? (

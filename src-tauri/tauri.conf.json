@@ -37,6 +37,13 @@
     ],
     "resources": [
       "resources/daemon"
-    ]
+    ],
+    "windows": {
+      "nsis": {
+        "installMode": "perMachine"
+      },
+      "digestAlgorithm": "sha256",
+      "certificateThumbprint": "1349A5283268820E5DDCE77A6DA262DEB2DE711A"
+    }
   }
 }

@@ -30,20 +30,35 @@ pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {
     crate::config::get_exe_dir().map(|dir| dir.join("resources").join("daemon").join("sing-box-daemon.exe"))
 }
 
-fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<i32, CommandError> {
-    // `Start-Process -Verb RunAs -Wait -PassThru` is the standard way to get
-    // an exit code back from a UAC-elevated child on Windows — a plain
-    // `Command::new(...).spawn()` with a "runas" verb has no equivalent in
-    // std, and ShellExecute itself doesn't hand back an exit code.
+/// Output captured from an elevated command — `Start-Process -Verb RunAs`
+/// runs the child through ShellExecute, which has no pipe back to us, so
+/// the only way to see what it printed is to have it write to files we
+/// read back afterwards. Without this, a failed `service install` was
+/// reported as a bare exit code with no way for us or the user to tell
+/// *why* it failed (e.g. the strict install-directory ACL check in
+/// `security_windows.go`'s `validateInstallationAncestors`).
+struct ElevatedOutput {
+    code: i32,
+    stdout: String,
+    stderr: String,
+}
+
+fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<ElevatedOutput, CommandError> {
+    let stdout_path = std::env::temp_dir().join(format!("fresh-box-elevated-{}.out.log", std::process::id()));
+    let stderr_path = std::env::temp_dir().join(format!("fresh-box-elevated-{}.err.log", std::process::id()));
+
     let arg_list = args
         .iter()
         .map(|a| format!("'{}'", a.replace('\'', "''")))
         .collect::<Vec<_>>()
         .join(",");
     let script = format!(
-        "$p = Start-Process -FilePath '{}' -ArgumentList {} -Verb RunAs -Wait -PassThru; exit $p.ExitCode",
+        "$p = Start-Process -FilePath '{}' -ArgumentList {} -Verb RunAs -Wait -PassThru \
+         -RedirectStandardOutput '{}' -RedirectStandardError '{}'; exit $p.ExitCode",
         executable.display().to_string().replace('\'', "''"),
-        arg_list
+        arg_list,
+        stdout_path.display().to_string().replace('\'', "''"),
+        stderr_path.display().to_string().replace('\'', "''"),
     );
 
     let status = Command::new("powershell")
@@ -51,16 +66,36 @@ fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<i32, Comm
         .status()
         .map_err(|e| CommandError::io("launch elevated daemon service command", e))?;
 
-    Ok(status.code().unwrap_or(-1))
+    let stdout = std::fs::read_to_string(&stdout_path).unwrap_or_default();
+    let stderr = std::fs::read_to_string(&stderr_path).unwrap_or_default();
+    let _ = std::fs::remove_file(&stdout_path);
+    let _ = std::fs::remove_file(&stderr_path);
+
+    Ok(ElevatedOutput {
+        code: status.code().unwrap_or(-1),
+        stdout,
+        stderr,
+    })
 }
 
 /// One-time (per install/update), UAC-gated: registers `sing-box-daemon.exe`
 /// as a Windows service. Safe to call when already installed — boxdd's
 /// `service install` updates the existing registration in place.
+fn elevated_failure(context: &str, out: &ElevatedOutput) -> CommandError {
+    let mut detail = format!("exited with code {}", out.code);
+    if !out.stderr.trim().is_empty() {
+        detail.push_str(&format!("\nstderr: {}", out.stderr.trim()));
+    }
+    if !out.stdout.trim().is_empty() {
+        detail.push_str(&format!("\nstdout: {}", out.stdout.trim()));
+    }
+    CommandError::invalid_state(context, detail)
+}
+
 pub fn install_service() -> Result<(), CommandError> {
     let daemon_path = daemon_executable_path()?;
     let working_directory = daemon_service_working_directory();
-    let code = run_elevated(
+    let out = run_elevated(
         &daemon_path,
         &[
             "service",
@@ -71,23 +106,17 @@ pub fn install_service() -> Result<(), CommandError> {
                 .ok_or_else(|| CommandError::validation("daemon working directory is not valid UTF-8"))?,
         ],
     )?;
-    if code != 0 {
-        return Err(CommandError::invalid_state(
-            "install_service",
-            format!("sing-box-daemon service install exited with code {code}"),
-        ));
+    if out.code != 0 {
+        return Err(elevated_failure("install_service", &out));
     }
     Ok(())
 }
 
 pub fn uninstall_service() -> Result<(), CommandError> {
     let daemon_path = daemon_executable_path()?;
-    let code = run_elevated(&daemon_path, &["service", "uninstall"])?;
-    if code != 0 {
-        return Err(CommandError::invalid_state(
-            "uninstall_service",
-            format!("sing-box-daemon service uninstall exited with code {code}"),
-        ));
+    let out = run_elevated(&daemon_path, &["service", "uninstall"])?;
+    if out.code != 0 {
+        return Err(elevated_failure("uninstall_service", &out));
     }
     Ok(())
 }
