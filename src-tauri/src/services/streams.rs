@@ -231,7 +231,29 @@ fn apply_connection_event(
         return;
     }
 
+    // UPDATE events (the ones that actually carry non-zero
+    // `up/downlinkDelta`) come back from `StartedService.buildTrafficUpdates`
+    // upstream *without* a `Connection` payload — only CONNECTION_EVENT_NEW
+    // fills that in (see `daemon/started_service.go`: the UPDATE branches
+    // build `&ConnectionEvent{Type: ..., UplinkDelta: ..., DownlinkDelta:
+    // ...}` with no `Connection` field). Bailing out here whenever
+    // `event.connection` is absent silently dropped every delta after the
+    // initial (always-zero-delta) NEW event, which is why speeds always
+    // read 0. Patch the existing tracked entry's cumulative totals/speed
+    // fields in place instead of discarding the event.
     let Some(conn) = event.connection.as_ref() else {
+        if let Some(existing) = tracked.get_mut(&event.id)
+            && let Some(obj) = existing.value.as_object_mut()
+        {
+            let download_speed = event.downlink_delta.max(0);
+            let upload_speed = event.uplink_delta.max(0);
+            let prev_download = obj["download"].as_i64().unwrap_or(0);
+            let prev_upload = obj["upload"].as_i64().unwrap_or(0);
+            obj["download"] = json!(prev_download + download_speed);
+            obj["upload"] = json!(prev_upload + upload_speed);
+            obj["downloadSpeed"] = json!(download_speed);
+            obj["uploadSpeed"] = json!(upload_speed);
+        }
         return;
     };
 
