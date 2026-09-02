@@ -33,9 +33,21 @@ const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
 pub struct WorkerProcess {
     child: Child,
-    /// The pipe the worker itself listens on — this is what `DaemonClient`
-    /// connects to for every RPC.
+    /// The worker's own listen pipe. The worker's *own* gRPC server only
+    /// registers `ApplicationService` on this (see `cmd_worker.go`
+    /// upstream: `RegisterApplicationServiceServer`) — config
+    /// check/format, profile encode/decode, standalone network tests.
+    /// fresh-box doesn't use any of that today, so nothing currently
+    /// dials this; kept for completeness/future use.
+    #[allow(dead_code)]
     pub socket_path: String,
+    /// The relay pipe — this is what actually forwards an authenticated
+    /// connection through to the real privileged daemon, so it's the one
+    /// that serves `DesktopService`/`StartedService`/`ManagedService`
+    /// (everything `DaemonClient` actually calls). Connecting to
+    /// `socket_path` instead gets `Unimplemented` for all of those, since
+    /// that server never registers them.
+    pub relay_socket_path: String,
 }
 
 fn random_pipe_path() -> String {
@@ -105,6 +117,7 @@ pub async fn spawn(daemon_executable: &std::path::Path) -> Result<WorkerProcess,
     Ok(WorkerProcess {
         child,
         socket_path,
+        relay_socket_path,
     })
 }
 

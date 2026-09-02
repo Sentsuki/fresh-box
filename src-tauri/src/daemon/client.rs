@@ -54,9 +54,11 @@ impl DaemonClient {
     /// discard this instance and connect a new one.
     pub async fn connect(daemon_executable: &std::path::Path) -> Result<Self, CommandError> {
         let worker = worker::spawn(daemon_executable).await?;
-        let channel = super::pipe::connect(worker.socket_path.clone())
+        // Dial the *relay* pipe, not the worker's own `--socket` pipe —
+        // see the doc comment on `WorkerProcess::relay_socket_path`.
+        let channel = super::pipe::connect(worker.relay_socket_path.clone())
             .await
-            .map_err(|e| CommandError::network(format!("connect to daemon worker pipe: {e}")))?;
+            .map_err(|e| CommandError::network(format!("connect to daemon relay pipe: {e}")))?;
 
         Ok(Self {
             worker,
