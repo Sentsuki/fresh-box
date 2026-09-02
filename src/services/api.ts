@@ -127,10 +127,6 @@ export async function uninstallDaemonService(): Promise<void> {
   return invokeCommand<void>("uninstall_daemon_service");
 }
 
-export async function openUrl(url: string): Promise<void> {
-  return invokeCommand<void>("open_url", { url });
-}
-
 export async function getClashOverview(): Promise<ClashOverview> {
   return invokeCommand<ClashOverview>("get_clash_overview");
 }

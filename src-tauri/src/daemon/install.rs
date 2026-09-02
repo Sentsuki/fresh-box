@@ -33,6 +33,35 @@ pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {
     })
 }
 
+/// Run the *bundled* `sing-box-daemon.exe version` (unprivileged — no UAC)
+/// and parse its own reported version, for comparison against whatever
+/// version the already-installed/running Windows service reports via
+/// `DesktopService.GetDaemonInfo`. Mirrors the official desktop client's
+/// `bundledDaemonVersion()` (`src/main/repair.ts`), including its parsing:
+/// `fmt.Println("sing-box-daemon version", C.Version)` in
+/// `experimental/boxdd/main.go` upstream always prints exactly
+/// `sing-box-daemon version <version>`.
+pub fn bundled_daemon_version() -> Result<String, CommandError> {
+    let daemon_path = daemon_executable_path()?;
+    let output = Command::new(&daemon_path)
+        .arg("version")
+        .creation_flags(CREATE_NO_WINDOW)
+        .output()
+        .map_err(|e| CommandError::io("run sing-box-daemon version", e))?;
+
+    let stdout = String::from_utf8_lossy(&output.stdout);
+    stdout
+        .lines()
+        .find_map(|line| line.strip_prefix("sing-box-daemon version "))
+        .map(|version| version.trim().to_string())
+        .ok_or_else(|| {
+            CommandError::invalid_state(
+                "bundled_daemon_version",
+                "could not parse 'sing-box-daemon.exe version' output",
+            )
+        })
+}
+
 /// Output captured from an elevated command — `Start-Process -Verb RunAs`
 /// runs the child through ShellExecute, which has no pipe back to us, so
 /// the only way to see what it printed is to have it write to files we

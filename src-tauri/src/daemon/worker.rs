@@ -37,9 +37,8 @@ pub struct WorkerProcess {
     /// registers `ApplicationService` on this (see `cmd_worker.go`
     /// upstream: `RegisterApplicationServiceServer`) — config
     /// check/format, profile encode/decode, standalone network tests.
-    /// fresh-box doesn't use any of that today, so nothing currently
-    /// dials this; kept for completeness/future use.
-    #[allow(dead_code)]
+    /// `daemon::validate::check_config` dials this to validate untrusted
+    /// config content (subscriptions) before it's ever persisted.
     pub socket_path: String,
     /// The relay pipe — this is what actually forwards an authenticated
     /// connection through to the real privileged daemon, so it's the one

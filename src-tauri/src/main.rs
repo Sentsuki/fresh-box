@@ -61,7 +61,6 @@ fn main() {
             commands::config::save_app_settings,
             commands::config::load_config_content,
             commands::config::save_config_content,
-            commands::config::open_url,
             commands::config_override::enable_config_override,
             commands::config_override::disable_config_override,
             commands::config_override::save_config_override,

@@ -26,6 +26,15 @@ import type {
   SubscriptionRecord,
 } from "../types/app";
 
+/** Subscription content fetched over plain HTTP isn't encrypted or
+ * authenticated in transit, so it can be tampered with in flight (and, per
+ * the backend's config validation, a tampered response now just fails to
+ * save instead of silently applying — but the transport is still worth
+ * flagging to the user up front). */
+function isInsecureSubscriptionUrl(url: string): boolean {
+  return url.trim().toLowerCase().startsWith("http://");
+}
+
 async function syncConfigFiles(preferredDisplayName?: string | null) {
   const files = await listConfigs();
   const configFiles = buildConfigEntries(files);
@@ -91,6 +100,7 @@ export function useConfigs() {
     error: toastError,
     success: toastSuccess,
     info: toastInfo,
+    warning: toastWarning,
   } = useToast();
   const { startService, stopService } = useSingbox();
 
@@ -177,6 +187,12 @@ export function useConfigs() {
         const result = await addSubscriptionCmd(url);
         await applySubscriptionResult(result);
         toastSuccess(`Subscribed to: ${result.file_name}`);
+        if (isInsecureSubscriptionUrl(url)) {
+          toastWarning(
+            "This subscription uses plain HTTP",
+            "Its content isn't encrypted in transit and could be tampered with. Use an HTTPS URL if the provider offers one.",
+          );
+        }
         return true;
       } catch (err) {
         toastError(`Error adding subscription: ${getErrorMessage(err)}`);
@@ -185,7 +201,7 @@ export function useConfigs() {
         config.setPending(false);
       }
     },
-    [toastError, toastSuccess],
+    [toastError, toastSuccess, toastWarning],
   );
 
   const updateSubscription = useCallback(
@@ -223,13 +239,19 @@ export function useConfigs() {
           [fileName]: { ...current[fileName], url: newUrl },
         });
         toastSuccess(`Updated subscription URL for: ${fileName}`);
+        if (isInsecureSubscriptionUrl(newUrl)) {
+          toastWarning(
+            "This subscription uses plain HTTP",
+            "Its content isn't encrypted in transit and could be tampered with. Use an HTTPS URL if the provider offers one.",
+          );
+        }
       } catch (err) {
         toastError(`Error updating subscription URL: ${getErrorMessage(err)}`);
       } finally {
         config.setPending(false);
       }
     },
-    [toastError, toastSuccess],
+    [toastError, toastSuccess, toastWarning],
   );
 
   const renameConfig = useCallback(

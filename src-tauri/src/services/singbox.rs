@@ -89,6 +89,37 @@ async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
     }
 
     let client = DaemonClient::connect(&daemon_path).await?;
+
+    // Best-effort version-consistency check, mirroring the official
+    // client's `state.ts`: if the *running* privileged service reports a
+    // different version than the exe currently bundled with this install
+    // (e.g. the app was updated but the Windows service wasn't
+    // reinstalled), refuse to claim/start against it rather than talking
+    // an unknown protocol to a stale daemon. Skipped (not failed) if we
+    // can't determine the bundled version at all — this is a UX/integrity
+    // guard, not the actual security boundary (that's boxdd's own
+    // signature/ACL checks in `security_windows.go`).
+    if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version() {
+        match client.connection.daemon_info().await {
+            Ok(info) if info.version != bundled_version => {
+                client.shutdown().await;
+                return Err(CommandError::invalid_state(
+                    "sing-box-daemon version mismatch",
+                    format!(
+                        "installed service reports version {}, but this app bundles {}. \
+                         Reinstall the daemon service to continue.",
+                        info.version, bundled_version
+                    ),
+                ));
+            }
+            Ok(_) => {}
+            Err(e) => {
+                client.shutdown().await;
+                return Err(e);
+            }
+        }
+    }
+
     client.connection.claim_service().await?;
     *guard = Some(client);
     drop(guard);
