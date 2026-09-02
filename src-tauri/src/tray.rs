@@ -170,20 +170,19 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                         let Some(state) = app_clone.try_state::<SingboxState>() else {
                             return;
                         };
-                        let connection = match crate::services::singbox::get_connection(
-                            state.inner(),
-                        )
-                        .await
-                        {
-                            Ok(c) => c,
-                            Err(e) => {
-                                eprintln!("Failed to switch proxy from tray: {}", e);
-                                return;
-                            }
-                        };
+                        let connection =
+                            match crate::services::singbox::get_connection(state.inner()).await {
+                                Ok(c) => c,
+                                Err(e) => {
+                                    eprintln!("Failed to switch proxy from tray: {}", e);
+                                    return;
+                                }
+                            };
 
                         if let Err(e) = crate::services::daemon_control::select_proxy_inner(
-                            &connection, &group, &node,
+                            &connection,
+                            &group,
+                            &node,
                         )
                         .await
                         {

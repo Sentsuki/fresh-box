@@ -148,7 +148,10 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to service status", e))
     }
 
-    pub async fn subscribe_status(&self, interval_ms: i64) -> Result<Streaming<Status>, CommandError> {
+    pub async fn subscribe_status(
+        &self,
+        interval_ms: i64,
+    ) -> Result<Streaming<Status>, CommandError> {
         self.started()
             .subscribe_status(SubscribeStatusRequest {
                 interval: interval_ms,

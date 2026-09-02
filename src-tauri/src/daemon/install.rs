@@ -26,7 +26,11 @@ const SERVICE_NAME: &str = "sing-box-daemon";
 /// `<InstallDir>\resources\daemon\sing-box-daemon.exe` — the fixed relative
 /// layout `installedApplicationPath` requires.
 pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {
-    crate::config::get_exe_dir().map(|dir| dir.join("resources").join("daemon").join("sing-box-daemon.exe"))
+    crate::config::get_exe_dir().map(|dir| {
+        dir.join("resources")
+            .join("daemon")
+            .join("sing-box-daemon.exe")
+    })
 }
 
 /// Output captured from an elevated command — `Start-Process -Verb RunAs`
@@ -48,7 +52,10 @@ fn powershell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
-fn run_elevated(executable: &std::path::Path, args: &[&str]) -> Result<ElevatedOutput, CommandError> {
+fn run_elevated(
+    executable: &std::path::Path,
+    args: &[&str],
+) -> Result<ElevatedOutput, CommandError> {
     // `Start-Process -Verb RunAs` (ShellExecute, needed for the UAC prompt)
     // and `-RedirectStandard{Output,Error}` (needs UseShellExecute=$false)
     // are mutually exclusive in .NET — combining them makes `Start-Process`
@@ -124,9 +131,9 @@ pub fn install_service() -> Result<(), CommandError> {
             "service",
             "install",
             "--working-directory",
-            working_directory
-                .to_str()
-                .ok_or_else(|| CommandError::validation("daemon working directory is not valid UTF-8"))?,
+            working_directory.to_str().ok_or_else(|| {
+                CommandError::validation("daemon working directory is not valid UTF-8")
+            })?,
         ],
     )?;
     if out.code != 0 {

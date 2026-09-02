@@ -238,9 +238,9 @@ fn apply_connection_event(
     let (source_ip, source_port) = split_host_port(&conn.source);
     let (destination_ip, destination_port) = split_host_port(&conn.destination);
     let process_path = conn.process_info.as_ref().map(|p| p.process_path.clone());
-    let process_name = process_path.as_deref().and_then(|p| {
-        p.rsplit(['/', '\\']).next().map(str::to_string)
-    });
+    let process_name = process_path
+        .as_deref()
+        .and_then(|p| p.rsplit(['/', '\\']).next().map(str::to_string));
 
     let value = json!({
         "id": conn.id,
@@ -306,11 +306,15 @@ fn build_frame(tracked: &HashMap<String, TrackedConnection>) -> serde_json::Valu
 }
 
 async fn run_connections(app: tauri::AppHandle, connection: DaemonConnection) {
-    let Ok(mut stream) = connection.subscribe_connections(CONNECTIONS_INTERVAL_MS).await else {
+    let Ok(mut stream) = connection
+        .subscribe_connections(CONNECTIONS_INTERVAL_MS)
+        .await
+    else {
         return;
     };
 
-    let tracked: Arc<Mutex<HashMap<String, TrackedConnection>>> = Arc::new(Mutex::new(HashMap::new()));
+    let tracked: Arc<Mutex<HashMap<String, TrackedConnection>>> =
+        Arc::new(Mutex::new(HashMap::new()));
 
     while let Ok(Some(frame)) = stream.message().await {
         let ConnectionEvents { events, reset } = frame;

@@ -66,11 +66,18 @@ fn is_selector_like(kind: &str) -> bool {
     kind == "selector" || kind == "urltest"
 }
 
-fn build_overview(mode: crate::daemon::daemon_api::ClashModeStatus, groups: Groups) -> ClashOverview {
+fn build_overview(
+    mode: crate::daemon::daemon_api::ClashModeStatus,
+    groups: Groups,
+) -> ClashOverview {
     let available_modes = if !mode.mode_list.is_empty() {
         mode.mode_list
     } else {
-        vec!["rule".to_string(), "global".to_string(), "direct".to_string()]
+        vec![
+            "rule".to_string(),
+            "global".to_string(),
+            "direct".to_string(),
+        ]
     };
 
     let proxy_groups = groups
@@ -117,7 +124,9 @@ fn build_overview(mode: crate::daemon::daemon_api::ClashModeStatus, groups: Grou
 
 /// One-shot snapshot: fetch the current Clash mode and the first message
 /// off the groups subscription, then stop subscribing.
-pub(crate) async fn fetch_overview(connection: &DaemonConnection) -> Result<ClashOverview, CommandError> {
+pub(crate) async fn fetch_overview(
+    connection: &DaemonConnection,
+) -> Result<ClashOverview, CommandError> {
     let mode = connection.clash_mode_status().await?;
     let mut stream = connection.subscribe_groups().await?;
     let groups = stream
@@ -334,7 +343,9 @@ async fn close_connections_by_group(connection: &DaemonConnection, proxy_group_n
     };
 
     for event in frame.events {
-        let Some(conn) = event.connection else { continue };
+        let Some(conn) = event.connection else {
+            continue;
+        };
         if conn.chain_list.iter().any(|c| c == proxy_group_name)
             && let Err(e) = connection.close_connection(conn.id).await
         {

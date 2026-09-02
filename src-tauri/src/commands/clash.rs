@@ -28,8 +28,7 @@ pub async fn select_clash_proxy(
     proxy_group: String,
     name: String,
 ) -> Result<ClashOverview, CommandError> {
-    crate::services::daemon_control::select_clash_proxy(app, state.inner(), proxy_group, name)
-        .await
+    crate::services::daemon_control::select_clash_proxy(app, state.inner(), proxy_group, name).await
 }
 
 #[tauri::command]

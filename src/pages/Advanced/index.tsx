@@ -108,7 +108,10 @@ export default function Advanced() {
             </div>
 
             <div className="flex items-center gap-2">
-              <Button variant="subtle" onClick={() => void handleClearOverride()}>
+              <Button
+                variant="subtle"
+                onClick={() => void handleClearOverride()}
+              >
                 Clear
               </Button>
               <Button

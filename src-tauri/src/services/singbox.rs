@@ -14,8 +14,8 @@ use std::time::Duration;
 use tauri::State;
 use tokio::sync::{Mutex, watch};
 
-use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
 use crate::daemon::daemon_api::ServiceStatus;
+use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
 use crate::daemon::{DaemonClient, DaemonConnection};
 use crate::errors::CommandError;
 
@@ -155,9 +155,8 @@ async fn build_config_content(config_path: &str) -> Result<String, CommandError>
         crate::config::apply_config_override(&mut base_config, &override_config);
     }
 
-    let priority_config: crate::config::PriorityConfig = crate::config::load_named_config_or_default(
-        crate::config::priority::PRIORITY_CONFIG_FILE,
-    )?;
+    let priority_config: crate::config::PriorityConfig =
+        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)?;
     if let Err(e) = crate::config::apply_priority_config(&mut base_config, &priority_config) {
         eprintln!("Warning: Failed to apply priority configuration: {:?}", e);
     }

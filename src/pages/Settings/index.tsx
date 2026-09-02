@@ -281,7 +281,6 @@ export default function Settings() {
               </Button>
             }
           />
-
         </SettingGroup>
 
         {/* About */}

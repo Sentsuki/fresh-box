@@ -1,5 +1,9 @@
 import { useCallback, useState } from "react";
-import { checkConfigFields, loadPriorityConfig, savePriorityConfig } from "../services/api";
+import {
+  checkConfigFields,
+  loadPriorityConfig,
+  savePriorityConfig,
+} from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
