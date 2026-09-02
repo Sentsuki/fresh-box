@@ -31,8 +31,83 @@ use super::WORKER_PIPE_PREFIX;
 
 const READY_TIMEOUT: Duration = Duration::from_secs(10);
 
+/// RAII handle to a Windows Job Object created with
+/// `JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE`, with the worker process assigned to
+/// it. Windows has no "die with parent" for ordinary child processes — if
+/// fresh-box.exe is killed (Task Manager, a crash, ...) rather than exiting
+/// cleanly, a plain `tokio::process::Child` like the worker below just keeps
+/// running as an orphan, holding the relay pipe (and the daemon `claim`)
+/// open indefinitely. A job object fixes that: fresh-box.exe is the only
+/// process holding a handle to it, so when Windows tears down all of this
+/// process's handles on exit — clean or not — the job's last handle closes,
+/// and `KILL_ON_JOB_CLOSE` makes Windows terminate the worker right along
+/// with it.
+struct KillOnDropJob(windows::Win32::Foundation::HANDLE);
+
+// SAFETY: a Win32 HANDLE is just an opaque kernel-object reference with no
+// thread affinity — safe to hand to any thread within this process, unlike
+// pseudo-handles such as `GetCurrentProcess()`.
+unsafe impl Send for KillOnDropJob {}
+
+impl Drop for KillOnDropJob {
+    fn drop(&mut self) {
+        unsafe {
+            let _ = windows::Win32::Foundation::CloseHandle(self.0);
+        }
+    }
+}
+
+/// Create an anonymous kill-on-close job object and assign `child` to it.
+/// Best-effort by design: called right after spawning the worker, before
+/// anything else can `.await` and give the process a window to run
+/// unsupervised. A failure here (e.g. some future permissions lockdown)
+/// shouldn't block fresh-box from working — it just means an ungraceful
+/// fresh-box exit could leak this one worker, same as before this existed.
+fn spawn_kill_on_drop_job(child: &Child) -> Result<KillOnDropJob, CommandError> {
+    use windows::Win32::Foundation::{CloseHandle, HANDLE};
+    use windows::Win32::System::JobObjects::{
+        AssignProcessToJobObject, CreateJobObjectW, JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE,
+        JOBOBJECT_EXTENDED_LIMIT_INFORMATION, JobObjectExtendedLimitInformation,
+        SetInformationJobObject,
+    };
+
+    let raw_handle = child.raw_handle().ok_or_else(|| {
+        CommandError::FailedToStartProcess(
+            "daemon worker exited before it could be sandboxed".into(),
+        )
+    })?;
+    let process_handle = HANDLE(raw_handle);
+
+    unsafe {
+        let job = CreateJobObjectW(None, None)
+            .map_err(|e| CommandError::io("create job object for daemon worker", e))?;
+
+        let mut info = JOBOBJECT_EXTENDED_LIMIT_INFORMATION::default();
+        info.BasicLimitInformation.LimitFlags = JOB_OBJECT_LIMIT_KILL_ON_JOB_CLOSE;
+
+        if let Err(e) = SetInformationJobObject(
+            job,
+            JobObjectExtendedLimitInformation,
+            &info as *const _ as *const std::ffi::c_void,
+            std::mem::size_of::<JOBOBJECT_EXTENDED_LIMIT_INFORMATION>() as u32,
+        ) {
+            let _ = CloseHandle(job);
+            return Err(CommandError::io("configure daemon worker job object", e));
+        }
+
+        if let Err(e) = AssignProcessToJobObject(job, process_handle) {
+            let _ = CloseHandle(job);
+            return Err(CommandError::io("assign daemon worker to job object", e));
+        }
+
+        Ok(KillOnDropJob(job))
+    }
+}
+
 pub struct WorkerProcess {
     child: Child,
+    /// Kept alive only for its `Drop` side effect — see `KillOnDropJob`.
+    _job: KillOnDropJob,
     /// The worker's own listen pipe. The worker's *own* gRPC server only
     /// registers `ApplicationService` on this (see `cmd_worker.go`
     /// upstream: `RegisterApplicationServiceServer`) — config
@@ -82,6 +157,11 @@ pub async fn spawn(daemon_executable: &std::path::Path) -> Result<WorkerProcess,
         .spawn()
         .map_err(|e| CommandError::FailedToStartProcess(format!("spawn daemon worker: {e}")))?;
 
+    // Assign to a kill-on-close job immediately, before anything below can
+    // fail/`.await` and leave the process running unsupervised in the
+    // meantime — see `KillOnDropJob`.
+    let job = spawn_kill_on_drop_job(&child)?;
+
     let stdout = child.stdout.take().ok_or_else(|| {
         CommandError::FailedToStartProcess("daemon worker has no stdout pipe".into())
     })?;
@@ -115,6 +195,7 @@ pub async fn spawn(daemon_executable: &std::path::Path) -> Result<WorkerProcess,
 
     Ok(WorkerProcess {
         child,
+        _job: job,
         socket_path,
         relay_socket_path,
     })

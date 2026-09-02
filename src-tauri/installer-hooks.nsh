@@ -14,6 +14,34 @@
 ; as a manual fallback/repair path for anyone who skips this, upgrades the
 ; daemon binary in place, or hits an installer that predates this hook.
 
+!macro NSIS_HOOK_PREINSTALL
+  ; Runs before any files are copied. On an in-place upgrade, `$INSTDIR`
+  ; already points at the *previous* install, and its sing-box-daemon
+  ; Windows service (plus any per-session worker relay processes fresh-box
+  ; itself spawned — see `daemon::worker` on the Rust side) may still be
+  ; running, with `resources\daemon\*.dll` (libcronet.dll, wintun.dll, ...)
+  ; mapped into those processes. Windows refuses to overwrite a DLL that's
+  ; currently loaded by a running process, which is exactly the "Access is
+  ; denied" error users hit partway through an overwrite install. Stop
+  ; everything holding those files open first so the copy can succeed;
+  ; NSIS_HOOK_POSTINSTALL below reinstalls/restarts the service against the
+  ; freshly-copied exe.
+  IfFileExists "$INSTDIR\resources\daemon\sing-box-daemon.exe" 0 skip_daemon_stop
+    DetailPrint "Stopping sing-box-daemon service..."
+    nsExec::ExecToLog '"$INSTDIR\resources\daemon\sing-box-daemon.exe" service stop'
+    Pop $0
+    DetailPrint "sing-box-daemon service stop exit code: $0"
+  skip_daemon_stop:
+
+  ; `service stop` only stops the service's own process (`service run`).
+  ; Worker relay processes are separate children of the *app*, not the
+  ; service, and won't go down with it — make sure nothing left from
+  ; resources\daemon is still holding files open before the copy phase
+  ; starts. Best-effort: ignore the exit code (nothing to kill is fine).
+  nsExec::ExecToLog 'taskkill /F /IM sing-box-daemon.exe /T'
+  Pop $0
+!macroend
+
 !macro NSIS_HOOK_POSTINSTALL
   DetailPrint "Installing sing-box-daemon service..."
   nsExec::ExecToLog '"$INSTDIR\resources\daemon\sing-box-daemon.exe" service install --working-directory "C:\ProgramData\sing-box-daemon"'

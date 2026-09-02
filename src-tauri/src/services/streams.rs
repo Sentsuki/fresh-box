@@ -231,7 +231,29 @@ fn apply_connection_event(
         return;
     }
 
+    // UPDATE events (the ones that actually carry non-zero
+    // `up/downlinkDelta`) come back from `StartedService.buildTrafficUpdates`
+    // upstream *without* a `Connection` payload — only CONNECTION_EVENT_NEW
+    // fills that in (see `daemon/started_service.go`: the UPDATE branches
+    // build `&ConnectionEvent{Type: ..., UplinkDelta: ..., DownlinkDelta:
+    // ...}` with no `Connection` field). Bailing out here whenever
+    // `event.connection` is absent silently dropped every delta after the
+    // initial (always-zero-delta) NEW event, which is why speeds always
+    // read 0. Patch the existing tracked entry's cumulative totals/speed
+    // fields in place instead of discarding the event.
     let Some(conn) = event.connection.as_ref() else {
+        if let Some(existing) = tracked.get_mut(&event.id)
+            && let Some(obj) = existing.value.as_object_mut()
+        {
+            let download_speed = event.downlink_delta.max(0);
+            let upload_speed = event.uplink_delta.max(0);
+            let prev_download = obj["download"].as_i64().unwrap_or(0);
+            let prev_upload = obj["upload"].as_i64().unwrap_or(0);
+            obj["download"] = json!(prev_download + download_speed);
+            obj["upload"] = json!(prev_upload + upload_speed);
+            obj["downloadSpeed"] = json!(download_speed);
+            obj["uploadSpeed"] = json!(upload_speed);
+        }
         return;
     };
 
@@ -370,6 +392,48 @@ fn log_level_name(level: crate::daemon::daemon_api::LogLevel) -> &'static str {
     }
 }
 
+/// Strip terminal color escape codes (`ESC [ ... <final byte>`, e.g. the
+/// SGR sequences `aurora.Colorize`/`aurora.Cyan`/etc. produce) out of a log
+/// message.
+///
+/// This isn't a character-encoding problem — the daemon really does send
+/// these bytes, and they're valid UTF-8 (prost would refuse to decode a
+/// `string` field otherwise). It's an upstream sing-box quirk: the log
+/// entries `StartedService` captures for `SubscribeLog` are delivered
+/// through the `log.PlatformWriter` path (`AttachPlatformWriter` in
+/// `daemon/attached_service.go`), which always formats through
+/// `platformFormatter` — and that formatter's `DisableColors` is never set
+/// (the one line that would wire it up to `PlatformWriter.DisableColors()`
+/// is dead code, commented out in `log/observable.go` upstream). So every
+/// log line comes through pre-colorized for a terminal, regardless of the
+/// config's own `log.disabled`/`level`. fresh-box's Logs page is a
+/// plain-text viewer, so left alone those escape sequences render as
+/// garbled control characters — strip them here so only the sink (this
+/// Tauri event, and anything that reads it downstream) ever needs to care.
+fn strip_ansi_codes(input: &str) -> String {
+    if !input.contains('\u{1b}') {
+        return input.to_string();
+    }
+    let mut out = String::with_capacity(input.len());
+    let mut chars = input.chars().peekable();
+    while let Some(c) = chars.next() {
+        if c == '\u{1b}' && chars.peek() == Some(&'[') {
+            chars.next(); // consume the '['
+            // Consume through the CSI sequence's final byte (0x40..=0x7E
+            // covers every terminator, not just SGR's 'm', in case aurora
+            // ever emits something else).
+            for next in chars.by_ref() {
+                if ('\x40'..='\x7e').contains(&next) {
+                    break;
+                }
+            }
+            continue;
+        }
+        out.push(c);
+    }
+    out
+}
+
 async fn run_logs(app: tauri::AppHandle, connection: DaemonConnection) {
     let Ok(mut stream) = connection.subscribe_log().await else {
         return;
@@ -380,7 +444,7 @@ async fn run_logs(app: tauri::AppHandle, connection: DaemonConnection) {
                 "stream-logs",
                 json!({
                     "type": log_level_name(message.level()),
-                    "payload": message.message,
+                    "payload": strip_ansi_codes(&message.message),
                 }),
             );
         }
