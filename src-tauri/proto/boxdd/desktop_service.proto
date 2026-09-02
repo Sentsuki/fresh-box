@@ -1,0 +1,41 @@
+// Vendored from sing-box 1.14.0 `experimental/boxdd/desktop_service.proto`,
+// trimmed to the subset fresh-box actually calls (claim ownership, start the
+// service, read daemon identity). Crash/OOM/power reports, self-update,
+// insecure mode and locale RPCs, and the whole ApplicationService are
+// dropped — fresh-box doesn't use them yet. Keep in sync with the sing-box
+// version the bundled `sing-box-daemon.exe` is built from.
+syntax = "proto3";
+
+package desktop;
+
+import "google/protobuf/empty.proto";
+
+service DesktopService {
+  rpc GetDaemonInfo(google.protobuf.Empty) returns (DaemonInfo) {}
+  rpc ClaimService(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc StartService(StartServiceRequest) returns (google.protobuf.Empty) {}
+}
+
+message DaemonInfo {
+  string version = 1;
+  DaemonOwnership ownership = 2;
+}
+
+enum DaemonOwnership {
+  DAEMON_OWNERSHIP_UNSPECIFIED = 0;
+  DAEMON_OWNERSHIP_AVAILABLE = 1;
+  DAEMON_OWNERSHIP_CALLER = 2;
+  DAEMON_OWNERSHIP_OTHER = 3;
+}
+
+message StartServiceRequest {
+  string config_content = 1;
+  StartOptions options = 2;
+}
+
+message StartOptions {
+  bool oom_killer_enabled = 1;
+  bool oom_killer_disabled = 2;
+  int64 oom_memory_limit = 3;
+  bool power_report_enabled = 4;
+}

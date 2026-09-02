@@ -1,4 +1,5 @@
 use crate::errors::CommandError;
+use crate::services::singbox::SingboxState;
 use crate::services::streams::StreamsState;
 use tauri::State;
 
@@ -6,8 +7,9 @@ use tauri::State;
 pub async fn start_traffic_stream(
     app: tauri::AppHandle,
     state: State<'_, StreamsState>,
+    singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
-    crate::services::streams::start_traffic_stream(app, state).await
+    crate::services::streams::start_traffic_stream(app, state, singbox).await
 }
 
 #[tauri::command]
@@ -19,8 +21,9 @@ pub async fn stop_traffic_stream(state: State<'_, StreamsState>) -> Result<(), C
 pub async fn start_memory_stream(
     app: tauri::AppHandle,
     state: State<'_, StreamsState>,
+    singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
-    crate::services::streams::start_memory_stream(app, state).await
+    crate::services::streams::start_memory_stream(app, state, singbox).await
 }
 
 #[tauri::command]
@@ -32,8 +35,9 @@ pub async fn stop_memory_stream(state: State<'_, StreamsState>) -> Result<(), Co
 pub async fn start_connections_stream(
     app: tauri::AppHandle,
     state: State<'_, StreamsState>,
+    singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
-    crate::services::streams::start_connections_stream(app, state).await
+    crate::services::streams::start_connections_stream(app, state, singbox).await
 }
 
 #[tauri::command]
@@ -45,8 +49,9 @@ pub async fn stop_connections_stream(state: State<'_, StreamsState>) -> Result<(
 pub async fn start_logs_stream(
     app: tauri::AppHandle,
     state: State<'_, StreamsState>,
+    singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
-    crate::services::streams::start_logs_stream(app, state).await
+    crate::services::streams::start_logs_stream(app, state, singbox).await
 }
 
 #[tauri::command]

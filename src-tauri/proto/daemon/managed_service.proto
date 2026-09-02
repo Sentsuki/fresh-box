@@ -1,0 +1,12 @@
+// Vendored from sing-box 1.14.0 `daemon/managed_service.proto`, trimmed to
+// the subset fresh-box actually calls. Keep in sync with the sing-box
+// version the bundled `sing-box-daemon.exe` is built from.
+syntax = "proto3";
+
+package daemon;
+
+import "google/protobuf/empty.proto";
+
+service ManagedService {
+  rpc StopService(google.protobuf.Empty) returns (google.protobuf.Empty);
+}

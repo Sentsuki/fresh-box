@@ -1,21 +1,156 @@
 name: Release
 
+# Version is entirely driven by the pushed tag (`vX.Y.Z`) — nothing in the
+# repo needs to be hand-edited to cut a release:
+#   - that same X.Y.Z is used to check out the matching `SagerNet/sing-box`
+#     tag and build `sing-box-daemon.exe` from it (see build_boxdd below,
+#     modeled on sing-box's own .github/workflows/build.yml)
+#   - `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` are stamped with
+#     that same version at build time (not committed back)
+# So "keep fresh-box's version aligned with upstream sing-box" just means:
+# when a new sing-box version ships, tag this repo `vX.Y.Z` with the same
+# number and push — the workflow does the rest. There's no auto-updater
+# wired up (no tauri-plugin-updater) — this produces a new GitHub Release
+# installer; the bundled NSIS installer's own upgrade-detection handles the
+# in-place reinstall over an existing per-machine install.
+#
+# Required repo secrets (Settings → Secrets and variables → Actions):
+#   WINDOWS_CERTIFICATES_P12  base64-encoded .p12 code-signing certificate
+#   WINDOWS_P12_PASSWORD      its password
+# Without these the build still succeeds but produces unsigned binaries —
+# boxdd's peer-authentication chain requires the app exe and daemon exe to
+# carry a *matching* Authenticode signature (self-signed is acceptable, see
+# `authenticode_windows.go`'s `validateUntrustedSelfSignedCertificate`), so
+# an unsigned release will fail to connect to the daemon after install.
+#
+# Windows x64 only for now — sing-box's own CI also builds x86/arm64
+# (see build_windows_client in its workflow); add matrix entries here the
+# same way if fresh-box ever needs those.
+
 permissions:
   contents: write
+
 on:
   push:
     tags:
       - 'v*'
   workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to build (must match a real SagerNet/sing-box release tag, e.g. 1.14.0)'
+        required: true
 
 jobs:
   build-tauri:
     runs-on: windows-latest
     steps:
-      - name: Checkout code
+      - name: Determine version
+        id: version
+        shell: pwsh
+        run: |
+          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
+            $version = '${{ inputs.version }}'
+          } else {
+            $version = '${{ github.ref_name }}'.TrimStart('v')
+          }
+          "version=$version" >> $env:GITHUB_OUTPUT
+          Write-Output "Building fresh-box + sing-box-daemon v$version"
+
+      - name: Checkout fresh-box
+        uses: actions/checkout@v6
+
+      # This is a real, separately-tagged checkout of upstream sing-box —
+      # not the vendored/extracted copy used for local dev — so
+      # build_shared.ReadTag() (which shells out to `git describe --tags`)
+      # resolves correctly with no workaround needed.
+      - name: Checkout sing-box v${{ steps.version.outputs.version }}
         uses: actions/checkout@v6
         with:
-          fetch-depth: 0
+          repository: SagerNet/sing-box
+          ref: v${{ steps.version.outputs.version }}
+          path: sing-box-src
+          fetch-depth: 1
+
+      - name: Setup Go
+        uses: actions/setup-go@v5
+        with:
+          go-version: '1.26.7' # bump if a newer sing-box tag's go.mod needs it — GOTOOLCHAIN=local means no auto-upgrade
+          cache: false
+
+      - name: Cache Go modules
+        uses: actions/cache@v4
+        with:
+          path: ~/go/pkg/mod
+          key: go-mod-boxdd-${{ hashFiles('sing-box-src/go.sum') }}
+          restore-keys: go-mod-boxdd-
+
+      - name: Build sing-box-daemon.exe
+        working-directory: sing-box-src
+        shell: pwsh
+        run: |
+          New-Item -ItemType Directory -Force -Path '..\src-tauri\resources\daemon' | Out-Null
+          go run ./cmd/internal/build_boxdd -target windows/amd64 -output '${{ github.workspace }}\src-tauri\resources\daemon\sing-box-daemon.exe'
+          # Also stages the WinDivert/USB-IP driver assets next to the exe.
+
+      # These ship pre-signed by their own vendors (WinDivert by Reqrypt,
+      # etc.) — do NOT re-sign them, only re-signing the exe/dll below.
+      - name: Fetch libcronet.dll
+        shell: pwsh
+        run: |
+          $cronetVersion = Get-Content sing-box-src/.github/CRONET_GO_VERSION
+          $libDir = "$env:RUNNER_TEMP/cronet-go-lib"
+          git init $libDir
+          git -C $libDir remote add origin https://github.com/sagernet/cronet-go.git
+          git -C $libDir sparse-checkout set --no-cone '/lib/windows_amd64/libcronet.dll'
+          git -C $libDir fetch --depth=1 --filter=blob:none origin $cronetVersion
+          git -C $libDir checkout FETCH_HEAD
+          Copy-Item "$libDir/lib/windows_amd64/libcronet.dll" src-tauri/resources/daemon/
+          # Needed by sing-box's `naive` outbound (with_naive_outbound is in
+          # release/DEFAULT_BUILD_TAGS_WINDOWS) — build_boxdd only produces
+          # sing-box-daemon.exe itself, this DLL is a separate runtime
+          # dependency fetched from its own repo, same as sing-box's own CI
+          # does for the raw sing-box.exe CLI build.
+
+      - name: Import code-signing certificate
+        id: cert
+        shell: pwsh
+        run: |
+          if (-not $env:WINDOWS_CERTIFICATES_P12) {
+            Write-Warning "WINDOWS_CERTIFICATES_P12 is not set — building unsigned. See the workflow file header."
+            "thumbprint=" >> $env:GITHUB_OUTPUT
+            return
+          }
+          $certPath = Join-Path $env:RUNNER_TEMP 'signing.p12'
+          [IO.File]::WriteAllBytes($certPath, [Convert]::FromBase64String($env:WINDOWS_CERTIFICATES_P12))
+          $securePassword = ConvertTo-SecureString -String $env:WINDOWS_P12_PASSWORD -Force -AsPlainText
+          $cert = Import-PfxCertificate -FilePath $certPath -CertStoreLocation Cert:\CurrentUser\My -Password $securePassword
+          Remove-Item $certPath -Force
+          "thumbprint=$($cert.Thumbprint)" >> $env:GITHUB_OUTPUT
+        env:
+          WINDOWS_CERTIFICATES_P12: ${{ secrets.WINDOWS_CERTIFICATES_P12 }}
+          WINDOWS_P12_PASSWORD: ${{ secrets.WINDOWS_P12_PASSWORD }}
+
+      # Stamps the version and (if a cert was imported) the signing
+      # thumbprint into tauri.conf.json/Cargo.toml for this build only —
+      # nothing here is committed back to the repo.
+      - name: Configure build
+        shell: pwsh
+        run: |
+          $version = '${{ steps.version.outputs.version }}'
+          $thumbprint = '${{ steps.cert.outputs.thumbprint }}'
+
+          $confPath = 'src-tauri/tauri.conf.json'
+          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
+          $conf.version = $version
+          if ($thumbprint) {
+            $conf.bundle.windows | Add-Member -NotePropertyName digestAlgorithm -NotePropertyValue 'sha256' -Force
+            $conf.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $thumbprint -Force
+          }
+          $conf | ConvertTo-Json -Depth 20 | Set-Content -Encoding utf8NoBOM $confPath
+
+          (Get-Content src-tauri/Cargo.toml -Raw) `
+            -replace '(?m)^version = "[^"]*"', "version = `"$version`"" |
+            Set-Content -Encoding utf8NoBOM src-tauri/Cargo.toml
 
       - name: Install pnpm
         uses: pnpm/action-setup@v6
@@ -25,7 +160,7 @@ jobs:
       - name: Setup Node.js
         uses: actions/setup-node@v6
         with:
-          node-version: 'lts/*' 
+          node-version: 'lts/*'
           check-latest: true
           cache: 'pnpm'
 
@@ -39,55 +174,16 @@ jobs:
         with:
           workspaces: src-tauri -> src-tauri/target
 
-      - name: Download latest stable sing-box core
-        run: |
-          $release = Invoke-RestMethod `
-            -Uri 'https://api.github.com/repos/SagerNet/sing-box/releases/latest' `
-            -Headers @{ 'User-Agent' = 'fresh-box-release-workflow' }
-
-          $asset = $release.assets |
-            Where-Object { $_.name -like '*windows-amd64.zip' } |
-            Select-Object -First 1
-
-          if (-not $asset) {
-            throw 'Failed to find the windows-amd64 sing-box package in the latest stable release.'
-          }
-
-          $version = $release.tag_name.TrimStart('v')
-          $binRoot = 'src-tauri/bin'
-          $stableDir = Join-Path $binRoot "stable/$version"
-          $extractDir = Join-Path $binRoot '_extract'
-
-          Remove-Item $binRoot -Recurse -Force -ErrorAction SilentlyContinue
-          New-Item -Path $stableDir -ItemType Directory -Force | Out-Null
-
-          Write-Output "Downloading stable sing-box $version from: $($asset.browser_download_url)"
-          Invoke-WebRequest -Uri $asset.browser_download_url -OutFile 'sing-box.zip'
-
-          7z x 'sing-box.zip' "-o$extractDir" -y | Out-Null
-
-          $executable = Get-ChildItem $extractDir -Filter 'sing-box.exe' -Recurse -File |
-            Select-Object -First 1
-
-          if (-not $executable) {
-            throw 'Failed to find sing-box.exe in the extracted stable package.'
-          }
-
-          Copy-Item (Join-Path $executable.Directory.FullName '*') $stableDir -Recurse -Force
-
-          if (Test-Path (Join-Path $stableDir 'sing-box.exe')) {
-            Write-Output "Packaged stable sing-box core at $stableDir"
-          } else {
-            throw 'Failed to package the stable sing-box core.'
-          }
-
-          Remove-Item 'sing-box.zip' -Force
-          Remove-Item $extractDir -Recurse -Force
-        shell: pwsh
-
       - name: Install dependencies
         run: pnpm install
 
+      # Builds the frontend, compiles fresh-box (renamed sing-box.exe via
+      # mainBinaryName), and bundles the daemon + drivers from
+      # resources/daemon — then signs the main binary, every resource exe,
+      # and the installer itself if certificateThumbprint was set above.
+      # installMode=perMachine + installerHooks (installer-hooks.nsh)
+      # install to Program Files and register/deregister the
+      # sing-box-daemon Windows service automatically — see tauri.conf.json.
       - name: Build Tauri app
         run: pnpm tauri build
 
@@ -99,7 +195,11 @@ jobs:
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
 
+      # Only on an actual tag push — workflow_dispatch has no tag to
+      # attach a release to, so a manual run just produces the uploaded
+      # artifact above (useful for test builds off a branch).
       - name: Create Release
+        if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v3
         with:
           files: |
@@ -107,7 +207,7 @@ jobs:
             src-tauri/target/release/bundle/nsis/*.exe
           name: Release ${{ github.ref_name }}
           body: |
-            Automated release for ${{ github.ref_name }} (Windows)
+            Automated release for ${{ github.ref_name }} (Windows), built against sing-box v${{ steps.version.outputs.version }}.
             - Windows installer (.msi) and executable (.exe) included
           draft: false
           prerelease: false

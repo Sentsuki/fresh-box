@@ -1,7 +1,6 @@
 // tray.rs - 托盘功能模块
 
 use crate::errors::CommandError;
-use crate::services::clash_client::select_proxy_inner;
 use crate::services::singbox::SingboxState;
 use indexmap::IndexMap;
 use serde::Deserialize;
@@ -101,7 +100,7 @@ pub async fn refresh_tray_proxy_menu(
 
 pub(crate) fn sync_tray_from_overview(
     app: &AppHandle,
-    overview: &crate::services::clash_client::ClashOverview,
+    overview: &crate::services::daemon_control::ClashOverview,
 ) {
     let selector_groups: Vec<TrayProxyGroup> = overview
         .proxy_groups
@@ -168,7 +167,26 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                 if let Some((group, node)) = pair {
                     let app_clone = app.clone();
                     tauri::async_runtime::spawn(async move {
-                        if let Err(e) = select_proxy_inner(&group, &node).await {
+                        let Some(state) = app_clone.try_state::<SingboxState>() else {
+                            return;
+                        };
+                        let connection = match crate::services::singbox::get_connection(
+                            state.inner(),
+                        )
+                        .await
+                        {
+                            Ok(c) => c,
+                            Err(e) => {
+                                eprintln!("Failed to switch proxy from tray: {}", e);
+                                return;
+                            }
+                        };
+
+                        if let Err(e) = crate::services::daemon_control::select_proxy_inner(
+                            &connection, &group, &node,
+                        )
+                        .await
+                        {
                             eprintln!("Failed to switch proxy from tray: {}", e);
                             return;
                         }
@@ -178,14 +196,17 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             .unwrap_or(true);
 
                         if auto_close {
-                            crate::services::clash_client::close_connections_by_group_pub(&group)
-                                .await;
+                            crate::services::daemon_control::close_connections_by_group_pub(
+                                &connection,
+                                &group,
+                            )
+                            .await;
                         }
 
                         // 无论前端是否存活，后端都主动获取最新状态并更新托盘菜单
                         // 防止窗口销毁后菜单项多选的问题
                         if let Ok(overview) =
-                            crate::services::clash_client::fetch_clash_overview_inner().await
+                            crate::services::daemon_control::fetch_overview(&connection).await
                         {
                             sync_tray_from_overview(&app_clone, &overview);
                         }
@@ -203,7 +224,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     let app_clone = app.clone();
                     tauri::async_runtime::spawn(async move {
                         if let Some(state) = app_clone.try_state::<SingboxState>() {
-                            crate::services::singbox::cleanup_process(&state);
+                            crate::services::singbox::cleanup_process(&state).await;
                         }
                         tokio::time::sleep(Duration::from_millis(200)).await;
                         app_clone.exit(0);

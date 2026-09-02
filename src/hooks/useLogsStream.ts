@@ -1,20 +1,10 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import type { CoreLogMessage, LogEntry, LogLevel } from "../types/app";
+import type { CoreLogMessage, LogEntry } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import { invokeCommand } from "../services/tauri";
-
-const LOG_LEVELS = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "panic",
-] as const;
 
 const LOG_LIMIT = 2000;
 
@@ -138,12 +128,6 @@ export async function stopLogsStream(clear = false) {
   }
 }
 
-export async function restartLogsStream() {
-  if (!isStreaming) return;
-  await invokeCommand<void>("stop_logs_stream");
-  await invokeCommand<void>("start_logs_stream");
-}
-
 // --- Hook for React components ---
 
 function matchesSearch(entry: LogEntry, filter: string): boolean {
@@ -165,9 +149,7 @@ export function useLogsStream() {
   const clearLogsState = useLogsStore((s) => s.clearLogs);
   const flushBuffer = useLogsStore((s) => s.flushBuffer);
 
-  const logLevel = useSettingsStore((s) => s.settings.logs.log_level);
   const typeFilter = useSettingsStore((s) => s.settings.logs.type_filter);
-  const setLogLevel = useSettingsStore((s) => s.setLogLevel);
   const setLogTypeFilter = useSettingsStore((s) => s.setLogTypeFilter);
 
   const { success, info } = useToast();
@@ -241,17 +223,13 @@ export function useLogsStream() {
     setSearch,
     typeFilter,
     setTypeFilter: setLogTypeFilter,
-    logLevel,
-    setLogLevel,
     isPaused,
     setIsPaused,
     streamStatus,
     streamError,
     availableTypes,
-    logLevels: LOG_LEVELS as readonly LogLevel[],
     startStream: () => void startLogsStream(),
     stopStream: (clear = false) => void stopLogsStream(clear),
-    restartStream: () => void restartLogsStream(),
     clearLogs,
     downloadLogs,
   };

@@ -1,13 +1,10 @@
 import { create } from "zustand";
 import { loadAppSettings, saveAppSettings } from "../services/api";
 import type {
-  AdvancedPageTab,
   AppPage,
   AppSettings,
   ConnectionColumnKey,
   ConnectionPageTab,
-  LogLevel,
-  RulesTab,
   SortDirection,
   ThemeMode,
 } from "../types/app";
@@ -27,7 +24,6 @@ interface SettingsActions {
     path: string | null,
     displayName: string | null,
   ) => Promise<void>;
-  setSelectedCoreOptionKey: (value: string) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
   setConnectionsVisibleColumns: (
@@ -43,12 +39,8 @@ interface SettingsActions {
   ) => Promise<void>;
   setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
   setConnectionExpandedGroups: (groups: Record<string, boolean>) => void;
-  setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
-  setRulesTab: (tab: RulesTab) => Promise<void>;
-  setAdvancedTab: (tab: AdvancedPageTab) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
-  setTestUrl: (url: string) => Promise<void>;
   setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
   setAutoCloseConnections: (enabled: boolean) => Promise<void>;
 }
@@ -87,12 +79,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       await get().updateSettings((s) => {
         s.profiles.selected_config_path = path;
         s.profiles.selected_config_display = displayName;
-      });
-    },
-
-    setSelectedCoreOptionKey: async (value) => {
-      await get().updateSettings((s) => {
-        s.settings.singbox_core.selected_option_key = value;
       });
     },
 
@@ -148,39 +134,15 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       set({ connectionExpandedGroups: groups });
     },
 
-    setLogLevel: async (level) => {
-      await get().updateSettings((s) => {
-        s.logs.log_level = level;
-      });
-    },
-
     setLogTypeFilter: async (filter) => {
       await get().updateSettings((s) => {
         s.logs.type_filter = filter;
       });
     },
 
-    setRulesTab: async (tab) => {
-      await get().updateSettings((s) => {
-        s.rules.current_tab = tab;
-      });
-    },
-
-    setAdvancedTab: async (tab) => {
-      await get().updateSettings((s) => {
-        s.advanced.current_tab = tab;
-      });
-    },
-
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
         s.settings.theme_mode = mode;
-      });
-    },
-
-    setTestUrl: async (url) => {
-      await get().updateSettings((s) => {
-        s.settings.test_url = url;
       });
     },
 

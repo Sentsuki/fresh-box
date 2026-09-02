@@ -1,13 +1,9 @@
 import type {
   AppSettings,
   ClashOverview,
-  ClashRulesSnapshot,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
-  SingboxCoreChannel,
-  SingboxCoreStatus,
-  SingboxCoreUpdateResult,
   SubscriptionInfo,
   SubscriptionRecord,
 } from "../types/app";
@@ -117,18 +113,18 @@ export async function isSingboxRunning(): Promise<boolean> {
   return invokeCommand<boolean>("is_singbox_running");
 }
 
-export async function getSingboxStatus(): Promise<string> {
-  return invokeCommand<string>("get_singbox_status");
+export async function isDaemonServiceInstalled(): Promise<boolean> {
+  return invokeCommand<boolean>("is_daemon_service_installed");
 }
 
-export async function refreshSingboxDetection(): Promise<boolean> {
-  return invokeCommand<boolean>("refresh_singbox_detection");
+/** Registers the sing-box-daemon Windows service. Triggers a UAC prompt. */
+export async function installDaemonService(): Promise<string> {
+  return invokeCommand<string>("install_daemon_service");
 }
 
-export async function getClashApiUrl(
-  configPath: string,
-): Promise<string | null> {
-  return invokeCommand<string | null>("get_clash_api_url", { configPath });
+/** Unregisters the sing-box-daemon Windows service. Triggers a UAC prompt. */
+export async function uninstallDaemonService(): Promise<void> {
+  return invokeCommand<void>("uninstall_daemon_service");
 }
 
 export async function openUrl(url: string): Promise<void> {
@@ -155,38 +151,22 @@ export async function selectClashProxy(
 
 export async function testClashProxyDelay(
   proxyName: string,
-  url?: string,
   timeoutMs?: number,
 ): Promise<number> {
   return invokeCommand<number>("test_clash_proxy_delay", {
     proxyName,
-    url,
     timeoutMs,
   });
 }
 
 export async function testClashProxyGroupDelay(
   proxyGroup: string,
-  url?: string,
   timeoutMs?: number,
 ): Promise<Record<string, number>> {
   return invokeCommand<Record<string, number>>("test_clash_proxy_group_delay", {
     proxyGroup,
-    url,
     timeoutMs,
   });
-}
-
-export async function getClashRules(): Promise<ClashRulesSnapshot> {
-  return invokeCommand<ClashRulesSnapshot>("get_clash_rules");
-}
-
-export async function flushFakeIpCache(): Promise<void> {
-  return invokeCommand<void>("flush_fakeip_cache");
-}
-
-export async function flushDnsCache(): Promise<void> {
-  return invokeCommand<void>("flush_dns_cache");
 }
 
 export async function enableConfigOverride(): Promise<void> {
@@ -233,52 +213,8 @@ export async function checkConfigFields(
   });
 }
 
-export async function generateRandomPort(): Promise<number> {
-  return invokeCommand<number>("generate_random_port");
-}
-
-export async function generateRandomSecret(): Promise<string> {
-  return invokeCommand<string>("generate_random_secret");
-}
-
 export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
-}
-
-export async function getSingboxCoreStatus(
-  forceRefresh = false,
-): Promise<SingboxCoreStatus> {
-  return invokeCommand<SingboxCoreStatus>("get_singbox_core_status", {
-    forceRefresh,
-  });
-}
-
-export async function activateSingboxCore(
-  channel: SingboxCoreChannel,
-  version: string,
-): Promise<boolean> {
-  return invokeCommand<boolean>("activate_singbox_core", { channel, version });
-}
-
-export async function updateSingboxCore(
-  channel: SingboxCoreChannel,
-  version: string,
-): Promise<SingboxCoreUpdateResult> {
-  return invokeCommand<SingboxCoreUpdateResult>("update_singbox_core", {
-    channel,
-    version,
-  });
-}
-
-export async function cancelCoreUpdate(): Promise<void> {
-  return invokeCommand<void>("cancel_core_update");
-}
-
-export async function queryDns(
-  name: string,
-  type: string = "A",
-): Promise<unknown> {
-  return invokeCommand<unknown>("query_dns", { name, type });
 }
 
 export async function closeAllConnections(): Promise<void> {

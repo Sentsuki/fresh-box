@@ -96,9 +96,12 @@ export function useSingbox() {
         toastError("sing-box has stopped unexpectedly.");
         void notifySingboxStatus("sing-box has stopped unexpectedly.");
       });
-      await clash.refreshOverview(true);
       toastSuccess("sing-box is running.");
       void notifySingboxStatus("sing-box is running.");
+      // Fetch the proxy group list in the background — it's for the
+      // Proxies page, not a precondition of "sing-box is running", so it
+      // shouldn't hold up the success state.
+      void clash.refreshOverview(true);
     } catch (err) {
       singbox.setRunning(false);
       clash.clearOverview();

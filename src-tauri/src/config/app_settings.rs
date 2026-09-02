@@ -4,7 +4,6 @@ use serde_json::Value;
 
 const APP_SETTINGS_FILE: &str = "app_settings.json";
 const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
-const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct AppSettings {
@@ -18,10 +17,6 @@ pub struct AppSettings {
     pub connections: ConnectionPageSettings,
     #[serde(default)]
     pub logs: LogsPageSettings,
-    #[serde(default)]
-    pub rules: RulesPageSettings,
-    #[serde(default)]
-    pub advanced: AdvancedPageSettings,
     #[serde(default)]
     pub profiles: ProfilesSettings,
     #[serde(default)]
@@ -45,18 +40,8 @@ pub struct ProfilesSettings {
 #[serde(default)]
 pub struct AppDisplaySettings {
     pub theme_mode: String,
-    pub singbox_core: SingboxCoreSettings,
-    pub test_url: String,
     pub close_behavior: String,
     pub auto_close_connections: bool,
-}
-
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
-#[serde(default)]
-pub struct SingboxCoreSettings {
-    pub active_channel: Option<String>,
-    pub active_version: Option<String>,
-    pub selected_option_key: String,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize)]
@@ -79,23 +64,10 @@ pub struct ConnectionPageSettings {
     pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LogsPageSettings {
-    pub log_level: String,
     pub type_filter: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct RulesPageSettings {
-    pub current_tab: String,
-}
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
-#[serde(default)]
-pub struct AdvancedPageSettings {
-    pub current_tab: String,
 }
 
 impl Default for AppSettings {
@@ -106,8 +78,6 @@ impl Default for AppSettings {
             proxies: ProxyPageSettings::default(),
             connections: ConnectionPageSettings::default(),
             logs: LogsPageSettings::default(),
-            rules: RulesPageSettings::default(),
-            advanced: AdvancedPageSettings::default(),
             profiles: ProfilesSettings::default(),
             settings: AppDisplaySettings::default(),
         }
@@ -126,8 +96,6 @@ impl Default for AppDisplaySettings {
     fn default() -> Self {
         Self {
             theme_mode: "system".to_string(),
-            singbox_core: SingboxCoreSettings::default(),
-            test_url: DEFAULT_TEST_URL.to_string(),
             close_behavior: "hide".to_string(),
             auto_close_connections: true,
         }
@@ -150,31 +118,6 @@ impl Default for ConnectionPageSettings {
             sort_direction: "desc".to_string(),
             grouped_column: None,
             column_sizes: std::collections::BTreeMap::new(),
-        }
-    }
-}
-
-impl Default for LogsPageSettings {
-    fn default() -> Self {
-        Self {
-            log_level: "info".to_string(),
-            type_filter: String::new(),
-        }
-    }
-}
-
-impl Default for RulesPageSettings {
-    fn default() -> Self {
-        Self {
-            current_tab: "rules".to_string(),
-        }
-    }
-}
-
-impl Default for AdvancedPageSettings {
-    fn default() -> Self {
-        Self {
-            current_tab: "override".to_string(),
         }
     }
 }

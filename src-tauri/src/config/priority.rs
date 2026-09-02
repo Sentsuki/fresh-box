@@ -1,12 +1,8 @@
 use crate::errors::CommandError;
-use rand::RngExt as _;
-use rand::seq::SliceRandom as _;
 use serde_json::{Value, json};
 
 pub(crate) const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
 
-pub const DEFAULT_CLASH_CONTROLLER: &str = "127.0.0.1:8964";
-pub const DEFAULT_CLASH_SECRET: &str = "UV;.#DyQP4)a:P.wFq?cU9lPz:sj";
 pub const DEFAULT_STACK: &str = "mixed";
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -20,17 +16,6 @@ impl Default for PriorityInbound {
             stack: DEFAULT_STACK.to_string(),
         }
     }
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
-pub struct ExperimentalConfig {
-    pub clash_api: Option<ClashApiConfig>,
-}
-
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
-pub struct ClashApiConfig {
-    pub external_controller: Option<String>,
-    pub secret: Option<String>,
 }
 
 #[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
@@ -52,7 +37,6 @@ impl Default for LogConfig {
 pub struct PriorityConfig {
     pub inbounds: Vec<PriorityInbound>,
     pub log: LogConfig,
-    pub experimental: ExperimentalConfig,
 }
 
 pub(crate) fn save_priority_config_inner(config: PriorityConfig) -> Result<(), CommandError> {
@@ -84,22 +68,11 @@ pub fn ensure_priority_config_initialized() {
         return;
     }
 
-    // Generate a random secret on first run so every installation has a
-    // unique credential rather than sharing the compiled-in default.
-    let secret =
-        generate_random_secret_inner().unwrap_or_else(|_| DEFAULT_CLASH_SECRET.to_string());
-
     let default_config = PriorityConfig {
         inbounds: vec![PriorityInbound {
             stack: DEFAULT_STACK.to_string(),
         }],
         log: LogConfig::default(),
-        experimental: ExperimentalConfig {
-            clash_api: Some(ClashApiConfig {
-                external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
-                secret: Some(secret),
-            }),
-        },
     };
 
     if let Err(e) = super::io::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
@@ -210,79 +183,6 @@ pub(crate) fn check_config_fields_inner(
     Ok(result)
 }
 
-const DEFAULT_TEST_URL: &str = "https://www.gstatic.com/generate_204";
-
-#[derive(serde::Serialize)]
-pub struct CoreClientConfig {
-    pub http_url: String,
-    pub ws_url: String,
-    pub secret: String,
-    pub test_url: String,
-}
-
-pub(crate) fn get_core_client_config_inner() -> Result<CoreClientConfig, CommandError> {
-    let config: PriorityConfig = super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)?;
-    let app_settings = super::app_settings::load_app_settings_file()?;
-
-    let clash_api = config.experimental.clash_api.as_ref();
-
-    let controller = clash_api
-        .and_then(|c| c.external_controller.as_deref())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
-
-    let secret = clash_api
-        .and_then(|c| c.secret.as_deref())
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_SECRET);
-
-    let test_url = app_settings.settings.test_url.as_str();
-
-    Ok(CoreClientConfig {
-        http_url: format!("http://{}", controller),
-        ws_url: format!("ws://{}", controller),
-        secret: secret.to_string(),
-        test_url: if test_url.is_empty() {
-            DEFAULT_TEST_URL.to_string()
-        } else {
-            test_url.to_string()
-        },
-    })
-}
-
-pub(crate) fn generate_random_port_inner() -> Result<u16, CommandError> {
-    let port: u16 = rand::rng().random_range(10000..=65535);
-    Ok(port)
-}
-
-pub(crate) fn generate_random_secret_inner() -> Result<String, CommandError> {
-    const UPPER: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZ";
-    const LOWER: &[u8] = b"abcdefghijklmnopqrstuvwxyz";
-    const DIGIT: &[u8] = b"0123456789";
-    const ALL: &[u8] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789";
-
-    let mut rng = rand::rng();
-    let mut chars = Vec::with_capacity(32);
-
-    // Guarantee at least 3 of each character class.
-    for _ in 0..3 {
-        chars.push(UPPER[rng.random_range(0..UPPER.len())] as char);
-    }
-    for _ in 0..3 {
-        chars.push(LOWER[rng.random_range(0..LOWER.len())] as char);
-    }
-    for _ in 0..3 {
-        chars.push(DIGIT[rng.random_range(0..DIGIT.len())] as char);
-    }
-    for _ in 0..23 {
-        chars.push(ALL[rng.random_range(0..ALL.len())] as char);
-    }
-
-    chars.shuffle(&mut rng);
-
-    Ok(chars.into_iter().collect())
-}
-
 pub fn apply_priority_config(
     config: &mut Value,
     priority_config: &PriorityConfig,
@@ -295,15 +195,7 @@ pub fn apply_priority_config(
 
     apply_log_config(config, &priority_config.log)?;
 
-    let clash_api = priority_config
-        .experimental
-        .clash_api
-        .clone()
-        .unwrap_or(ClashApiConfig {
-            external_controller: Some(DEFAULT_CLASH_CONTROLLER.to_string()),
-            secret: Some(DEFAULT_CLASH_SECRET.to_string()),
-        });
-    if let Err(error) = apply_clash_api_config(config, &clash_api) {
+    if let Err(error) = apply_clash_api_config(config) {
         eprintln!(
             "Warning: Failed to apply clash_api configuration: {:?}",
             error
@@ -367,22 +259,18 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
     Ok(())
 }
 
-pub fn apply_clash_api_config(
-    config: &mut Value,
-    clash_api: &ClashApiConfig,
-) -> Result<(), CommandError> {
-    let controller = clash_api
-        .external_controller
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_CONTROLLER);
-
-    let secret = clash_api
-        .secret
-        .as_deref()
-        .filter(|s| !s.is_empty())
-        .unwrap_or(DEFAULT_CLASH_SECRET);
-
+/// Always injects a `clash_api` stanza with no `external_controller` (empty
+/// address = sing-box never binds an HTTP listener for it — see
+/// `experimental/clashapi/server.go` upstream: `externalController:
+/// options.ExternalController != ""`). fresh-box doesn't talk to sing-box
+/// over that HTTP API at all anymore (see `daemon_control.rs`), but boxdd's
+/// gRPC `StartedService` (groups, clash mode, URL test, connections) is
+/// itself backed by the same internal `adapter.ClashServer` object, which
+/// only gets constructed when `experimental.clash_api` is present in the
+/// config — so this block still needs to exist, just with nothing exposed
+/// over the network. Not user-configurable: there's no controller/secret
+/// left for a user to usefully set.
+pub fn apply_clash_api_config(config: &mut Value) -> Result<(), CommandError> {
     if config.get("experimental").is_none() {
         config
             .as_object_mut()
@@ -408,10 +296,8 @@ pub fn apply_clash_api_config(
     experimental.insert(
         "clash_api".to_string(),
         json!({
-            "access_control_allow_private_network": false,
-            "default_mode": "Rule",
-            "external_controller": controller,
-            "secret": secret
+            "external_controller": "",
+            "default_mode": "Rule"
         }),
     );
 

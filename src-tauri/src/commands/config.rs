@@ -92,12 +92,8 @@ fn open_with_system(path: &str) -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
-    let exe_path = std::env::current_exe()
-        .map_err(|e| CommandError::resource_not_found("executable path", e))?;
-    let exe_dir = exe_path.parent().ok_or_else(|| {
-        CommandError::resource_not_found("executable directory", "parent path missing")
-    })?;
-    open_with_system(&exe_dir.to_string_lossy())
+    let app_data_root = crate::config::get_app_data_root()?;
+    open_with_system(&app_data_root.to_string_lossy())
 }
 
 #[tauri::command]
@@ -106,13 +102,7 @@ pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
 }
 
 #[tauri::command]
-pub async fn save_app_settings(mut settings: AppSettings) -> Result<(), CommandError> {
-    if let Ok(current) = crate::config::app_settings::load_app_settings_file() {
-        settings.settings.singbox_core.active_channel =
-            current.settings.singbox_core.active_channel;
-        settings.settings.singbox_core.active_version =
-            current.settings.singbox_core.active_version;
-    }
+pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
     crate::config::app_settings::save_app_settings_file(&settings)
 }
 
@@ -507,57 +497,6 @@ pub async fn update_subscription(
         config_files: list_configs_inner()?,
         subscriptions: serialize_subscriptions_for_frontend()?,
     })
-}
-
-fn extract_clash_api_url(config: &Value) -> Option<String> {
-    let external_controller = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_controller"))
-        .and_then(|ctrl| ctrl.as_str());
-
-    let external_ui = config
-        .get("experimental")
-        .and_then(|exp| exp.get("clash_api"))
-        .and_then(|clash| clash.get("external_ui"))
-        .and_then(|ui| ui.as_str());
-
-    match (external_controller, external_ui) {
-        (Some(controller), Some(ui)) => {
-            let ui_path = if ui.starts_with('/') {
-                ui.to_string()
-            } else {
-                format!("/{}", ui)
-            };
-            Some(format!("http://{}{}/", controller, ui_path))
-        }
-        _ => None,
-    }
-}
-
-#[tauri::command]
-pub async fn get_clash_api_url(config_path: String) -> Result<Option<String>, CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(&config_path);
-
-    if !full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "config file",
-            full_path.display(),
-        ));
-    }
-
-    let content = fs::read_to_string(&full_path)
-        .map_err(|e| CommandError::resource_not_found("config file", e))?;
-
-    let mut config: Value = serde_json::from_str(&content)
-        .map_err(|e| CommandError::json("failed to parse config JSON", e))?;
-
-    if let Ok(Some(override_config)) = crate::config::get_override_config_if_enabled().await {
-        crate::config::apply_config_override(&mut config, &override_config);
-    }
-
-    Ok(extract_clash_api_url(&config))
 }
 
 #[derive(serde::Serialize)]
