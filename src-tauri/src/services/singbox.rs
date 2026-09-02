@@ -77,6 +77,7 @@ pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, Co
 async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
     let mut guard = state.client.lock().await;
     if guard.is_some() {
+        crate::logger::log_timing("ensure_connected: already connected, no-op");
         return Ok(());
     }
 
@@ -88,8 +89,16 @@ async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
         ));
     }
 
+    // TEMPORARY: see start_singbox's timing block.
+    let t0 = std::time::Instant::now();
     let client = DaemonClient::connect(&daemon_path).await?;
+    crate::logger::log_timing(&format!(
+        "ensure_connected: worker spawn + pipe connect: {:?}",
+        t0.elapsed()
+    ));
+    let t1 = std::time::Instant::now();
     client.connection.claim_service().await?;
+    crate::logger::log_timing(&format!("ensure_connected: claim_service RPC: {:?}", t1.elapsed()));
     *guard = Some(client);
     drop(guard);
 
@@ -181,17 +190,37 @@ pub async fn start_singbox(
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
+    // TEMPORARY: timing breakdown for the "start feels slow" report —
+    // remove once we know which stage actually accounts for it. Written to
+    // `<app data>\log\timing.log` via `logger::log_timing`, not `println!`
+    // — release builds have no console attached to print into.
+    let t0 = std::time::Instant::now();
     let config_content = build_config_content(&config_path).await?;
-    ensure_connected(&state).await?;
+    crate::logger::log_timing(&format!("build_config_content: {:?}", t0.elapsed()));
 
+    let t1 = std::time::Instant::now();
+    ensure_connected(&state).await?;
+    crate::logger::log_timing(&format!("ensure_connected: {:?}", t1.elapsed()));
+
+    let t2 = std::time::Instant::now();
     let connection = get_connection(&state).await?;
-    connection.start_service(config_content).await
+    let result = connection.start_service(config_content).await;
+    crate::logger::log_timing(&format!("start_service RPC: {:?}", t2.elapsed()));
+    crate::logger::log_timing(&format!("start_singbox total: {:?}", t0.elapsed()));
+
+    result
 }
 
 pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
     let state = state.inner().clone();
+
+    // TEMPORARY: see start_singbox.
+    let t0 = std::time::Instant::now();
     let connection = get_connection(&state).await?;
-    connection.stop_service().await
+    let result = connection.stop_service().await;
+    crate::logger::log_timing(&format!("stop_service RPC: {:?}", t0.elapsed()));
+
+    result
 }
 
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
