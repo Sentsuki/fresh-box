@@ -39,7 +39,3 @@ message StartOptions {
   int64 oom_memory_limit = 3;
   bool power_report_enabled = 4;
 }
-
-message ConfigContent {
-  string content = 1;
-}

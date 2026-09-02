@@ -9,5 +9,4 @@ import "google/protobuf/empty.proto";
 
 service ManagedService {
   rpc StopService(google.protobuf.Empty) returns (google.protobuf.Empty);
-  rpc ReloadService(google.protobuf.Empty) returns (google.protobuf.Empty);
 }

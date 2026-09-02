@@ -220,16 +220,15 @@ fn apply_connection_event(
     tracked: &mut HashMap<String, TrackedConnection>,
     event: &crate::daemon::daemon_api::ConnectionEvent,
 ) {
-    // NOTE: matched against the raw proto enum ints (0=NEW, 1=UPDATE,
+    // NOTE: compared against the raw proto enum int (0=NEW, 1=UPDATE,
     // 2=CLOSED) from `proto/daemon/started_service.proto` rather than the
-    // generated Rust variant names, since prost's naming for enum values
-    // that share a `CONNECTION_EVENT_` prefix isn't pinned down here.
-    match event.r#type {
-        2 => {
-            tracked.remove(&event.id);
-            return;
-        }
-        _ => {}
+    // generated Rust variant name — `ConnectionEvent.r#type` is a plain
+    // `i32` field (prost doesn't generate a clamping accessor here), and
+    // `ConnectionEventType::try_from` would just add a Result to unwrap for
+    // one comparison.
+    if event.r#type == 2 {
+        tracked.remove(&event.id);
+        return;
     }
 
     let Some(conn) = event.connection.as_ref() else {

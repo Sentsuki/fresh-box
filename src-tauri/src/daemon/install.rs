@@ -23,16 +23,6 @@ const CREATE_NO_WINDOW: u32 = 0x08000000;
 /// Must match `serviceName` in `experimental/boxdd/main.go` upstream.
 const SERVICE_NAME: &str = "sing-box-daemon";
 
-/// `<InstallDir>\sing-box.exe` — fresh-box's own executable, playing the
-/// role boxdd's peer authentication calls "the installed application". See
-/// `worker.rs` for why the name and location are load-bearing, not
-/// cosmetic: `experimental/boxdd/security_windows.go`'s
-/// `installedApplicationPath` derives this same path from the daemon's own
-/// location and requires the two to be signed with the same certificate.
-pub fn application_executable_path() -> Result<PathBuf, CommandError> {
-    crate::config::get_exe_dir().map(|dir| dir.join("sing-box.exe"))
-}
-
 /// `<InstallDir>\resources\daemon\sing-box-daemon.exe` — the fixed relative
 /// layout `installedApplicationPath` requires.
 pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {

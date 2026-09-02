@@ -11,10 +11,8 @@ package daemon;
 import "google/protobuf/empty.proto";
 
 service StartedService {
-  rpc GetVersion(google.protobuf.Empty) returns (Version) {}
   rpc SubscribeServiceStatus(google.protobuf.Empty) returns (stream ServiceStatus) {}
   rpc SubscribeLog(google.protobuf.Empty) returns (stream Log) {}
-  rpc GetDefaultLogLevel(google.protobuf.Empty) returns (DefaultLogLevel) {}
   rpc ClearLogs(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   rpc SubscribeStatus(SubscribeStatusRequest) returns (stream Status) {}
   rpc SubscribeGroups(google.protobuf.Empty) returns (stream Groups) {}
@@ -31,11 +29,6 @@ service StartedService {
   rpc CloseConnection(CloseConnectionRequest) returns (google.protobuf.Empty) {}
   rpc CloseAllConnections(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   rpc GetStartedAt(google.protobuf.Empty) returns (StartedAt) {}
-}
-
-message Version {
-  string version = 1;
-  int32 apiVersion = 2;
 }
 
 message ServiceStatus {
@@ -71,10 +64,6 @@ message Log {
     LogLevel level = 1;
     string message = 2;
   }
-}
-
-message DefaultLogLevel {
-  LogLevel level = 1;
 }
 
 message Status {

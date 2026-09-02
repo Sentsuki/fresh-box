@@ -27,9 +27,9 @@ use crate::errors::CommandError;
 use super::daemon_api::managed_service_client::ManagedServiceClient;
 use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
-    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, DefaultLogLevel, Groups,
-    Log, SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
-    SubscribeStatusRequest, UrlTestRequest, Version,
+    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups, Log,
+    SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
+    SubscribeStatusRequest, UrlTestRequest,
 };
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{DaemonInfo, StartOptions, StartServiceRequest};
@@ -91,6 +91,12 @@ impl DaemonConnection {
 
     // ── DesktopService ──────────────────────────────────────────────────
 
+    /// Not called yet — kept for the version-mismatch check the official
+    /// client does at connect time (`state.ts`: compares this against the
+    /// bundled daemon exe's own `sing-box-daemon.exe version` output, and
+    /// refuses to fully connect on a mismatch). fresh-box doesn't do that
+    /// check today.
+    #[allow(dead_code)]
     pub async fn daemon_info(&self) -> Result<DaemonInfo, CommandError> {
         self.desktop()
             .get_daemon_info(())
@@ -132,23 +138,7 @@ impl DaemonConnection {
             .map_err(|e| map_status("stop sing-box service", e))
     }
 
-    pub async fn reload_service(&self) -> Result<(), CommandError> {
-        self.managed()
-            .reload_service(())
-            .await
-            .map(|_| ())
-            .map_err(|e| map_status("reload sing-box service", e))
-    }
-
     // ── StartedService ──────────────────────────────────────────────────
-
-    pub async fn version(&self) -> Result<Version, CommandError> {
-        self.started()
-            .get_version(())
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("get sing-box version", e))
-    }
 
     pub async fn subscribe_service_status(&self) -> Result<Streaming<ServiceStatus>, CommandError> {
         self.started()
@@ -197,14 +187,6 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to logs", e))
     }
 
-    pub async fn default_log_level(&self) -> Result<DefaultLogLevel, CommandError> {
-        self.started()
-            .get_default_log_level(())
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("get default log level", e))
-    }
-
     pub async fn clash_mode_status(&self) -> Result<ClashModeStatus, CommandError> {
         self.started()
             .get_clash_mode_status(())
@@ -215,10 +197,7 @@ impl DaemonConnection {
 
     pub async fn set_clash_mode(&self, mode: String) -> Result<(), CommandError> {
         self.started()
-            .set_clash_mode(ClashMode {
-                mode,
-                ..Default::default()
-            })
+            .set_clash_mode(ClashMode { mode })
             .await
             .map(|_| ())
             .map_err(|e| map_status("set clash mode", e))

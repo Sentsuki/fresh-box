@@ -64,7 +64,7 @@ pub struct ConnectionPageSettings {
     pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LogsPageSettings {
     pub type_filter: String,
@@ -118,14 +118,6 @@ impl Default for ConnectionPageSettings {
             sort_direction: "desc".to_string(),
             grouped_column: None,
             column_sizes: std::collections::BTreeMap::new(),
-        }
-    }
-}
-
-impl Default for LogsPageSettings {
-    fn default() -> Self {
-        Self {
-            type_filter: String::new(),
         }
     }
 }

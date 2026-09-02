@@ -9,6 +9,12 @@ pub enum CommandError {
     ProcessNotRunning,
     #[error("{0}")]
     NetworkError(String),
+    /// Not constructed yet — kept for distinguishing a declined UAC prompt
+    /// (`daemon::install::run_elevated`) from a genuine failure, matching
+    /// the official client's `EXIT_CODE_CANCELLED` handling in `repair.ts`.
+    /// fresh-box currently reports a cancelled install/uninstall the same
+    /// way as any other failure.
+    #[allow(dead_code)]
     #[error("{0}")]
     PermissionDenied(String),
     #[error("{0}")]
@@ -20,13 +26,9 @@ pub enum CommandError {
     #[error("{0}")]
     FailedToStartProcess(String),
     #[error("{0}")]
-    FailedToStopProcess(String),
-    #[error("{0}")]
     IoError(String),
     #[error("{0}")]
     JsonError(String),
-    #[error("Download cancelled")]
-    Cancelled,
 }
 
 impl CommandError {
@@ -34,6 +36,7 @@ impl CommandError {
         Self::NetworkError(details.into())
     }
 
+    #[allow(dead_code)]
     pub fn permission_denied(details: impl Into<String>) -> Self {
         Self::PermissionDenied(details.into())
     }
