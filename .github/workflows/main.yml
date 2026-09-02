@@ -57,14 +57,14 @@ jobs:
           Write-Output "Building fresh-box + sing-box-daemon v$version"
 
       - name: Checkout fresh-box
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
 
       # This is a real, separately-tagged checkout of upstream sing-box —
       # not the vendored/extracted copy used for local dev — so
       # build_shared.ReadTag() (which shells out to `git describe --tags`)
       # resolves correctly with no workaround needed.
       - name: Checkout sing-box v${{ steps.version.outputs.version }}
-        uses: actions/checkout@v6
+        uses: actions/checkout@v7
         with:
           repository: SagerNet/sing-box
           ref: v${{ steps.version.outputs.version }}
@@ -72,13 +72,13 @@ jobs:
           fetch-depth: 1
 
       - name: Setup Go
-        uses: actions/setup-go@v5
+        uses: actions/setup-go@v7
         with:
-          go-version: '1.26.7' # bump if a newer sing-box tag's go.mod needs it — GOTOOLCHAIN=local means no auto-upgrade
+          go-version: '1.27' # bump if a newer sing-box tag's go.mod needs it — GOTOOLCHAIN=local means no auto-upgrade
           cache: false
 
       - name: Cache Go modules
-        uses: actions/cache@v4
+        uses: actions/cache@v6
         with:
           path: ~/go/pkg/mod
           key: go-mod-boxdd-${{ hashFiles('sing-box-src/go.sum') }}
@@ -158,7 +158,7 @@ jobs:
           version: 'latest'
 
       - name: Setup Node.js
-        uses: actions/setup-node@v6
+        uses: actions/setup-node@v7
         with:
           node-version: 'lts/*'
           check-latest: true
