@@ -446,11 +446,6 @@ pub async fn save_config_content(config_path: String, content: String) -> Result
     Ok(())
 }
 
-#[tauri::command]
-pub async fn open_url(url: String) -> Result<(), CommandError> {
-    open_with_system(&url)
-}
-
 /// Return the subscriptions map serialised to JSON, with the internal
 /// `_file_order` key stripped so the frontend only sees user data.
 fn serialize_subscriptions_for_frontend() -> Result<String, CommandError> {

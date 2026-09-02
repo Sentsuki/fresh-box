@@ -43,6 +43,26 @@ fn map_status(context: &str, status: tonic::Status) -> CommandError {
     ))
 }
 
+/// `SubscribeStatusRequest.interval` / `SubscribeConnectionsRequest.interval`
+/// are fed straight into Go's `time.Duration(request.Interval)` on the
+/// daemon side (`StartedService.SubscribeStatus`/`SubscribeConnections` in
+/// `daemon/started_service.go` upstream) — `time.Duration` counts
+/// *nanoseconds*, not milliseconds. `subscribe_status`/`subscribe_connections`
+/// below take milliseconds (matching every caller's `_MS` constants), so
+/// convert here rather than at each call site.
+///
+/// A non-positive value is passed through unchanged: the daemon's own
+/// `if interval <= 0 { interval = time.Second }` already does the right
+/// thing for "use the default interval" (see `subscribe_connections(0)` in
+/// `daemon_control.rs`), and multiplying wouldn't change its sign anyway.
+fn to_interval_nanos(interval_ms: i64) -> i64 {
+    if interval_ms <= 0 {
+        interval_ms
+    } else {
+        interval_ms.saturating_mul(1_000_000)
+    }
+}
+
 pub struct DaemonClient {
     worker: WorkerProcess,
     pub connection: DaemonConnection,
@@ -154,7 +174,7 @@ impl DaemonConnection {
     ) -> Result<Streaming<Status>, CommandError> {
         self.started()
             .subscribe_status(SubscribeStatusRequest {
-                interval: interval_ms,
+                interval: to_interval_nanos(interval_ms),
             })
             .await
             .map(|r| r.into_inner())
@@ -175,7 +195,7 @@ impl DaemonConnection {
     ) -> Result<Streaming<ConnectionEvents>, CommandError> {
         self.started()
             .subscribe_connections(SubscribeConnectionsRequest {
-                interval: interval_ms,
+                interval: to_interval_nanos(interval_ms),
             })
             .await
             .map(|r| r.into_inner())
