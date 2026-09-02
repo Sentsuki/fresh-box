@@ -113,14 +113,6 @@ export async function isSingboxRunning(): Promise<boolean> {
   return invokeCommand<boolean>("is_singbox_running");
 }
 
-export async function getSingboxStatus(): Promise<string> {
-  return invokeCommand<string>("get_singbox_status");
-}
-
-export async function refreshSingboxDetection(): Promise<boolean> {
-  return invokeCommand<boolean>("refresh_singbox_detection");
-}
-
 export async function isDaemonServiceInstalled(): Promise<boolean> {
   return invokeCommand<boolean>("is_daemon_service_installed");
 }

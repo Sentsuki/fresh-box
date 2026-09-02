@@ -1,12 +1,10 @@
 import {
-  ArrowSyncRegular,
   BoxRegular,
   DismissRegular,
   DocumentTextRegular,
   FolderOpenRegular,
   InfoRegular,
   LinkRegular,
-  SettingsRegular,
   ShieldTaskRegular,
   WeatherMoonRegular,
 } from "@fluentui/react-icons";
@@ -23,7 +21,6 @@ import {
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
 import {
-  getSingboxStatus,
   installDaemonService,
   isDaemonServiceInstalled,
   openAppDirectory,
@@ -56,22 +53,6 @@ export default function Settings() {
       .catch(() => null);
   }, []);
 
-  // Process Management
-  const [isRefreshingStatus, setIsRefreshingStatus] = useState(false);
-  const [processStatus, setProcessStatus] = useState<string | null>(null);
-
-  const refreshProcessStatus = async () => {
-    setIsRefreshingStatus(true);
-    try {
-      const status = await getSingboxStatus();
-      setProcessStatus(status);
-    } catch {
-      setProcessStatus("Failed to get process status.");
-    } finally {
-      setIsRefreshingStatus(false);
-    }
-  };
-
   // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
   const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
     null,
@@ -101,7 +82,6 @@ export default function Settings() {
         await installDaemonService();
       }
       await refreshServiceInstalled();
-      await refreshProcessStatus();
     } catch (e) {
       setServiceError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -302,34 +282,6 @@ export default function Settings() {
             }
           />
 
-          <SettingCard
-            icon={<SettingsRegular />}
-            title="sing-box Process Status"
-            description={
-              processStatus ? (
-                <div className="mt-1 text-xs font-mono text-(--wb-text-secondary) whitespace-pre-wrap break-all">
-                  {processStatus}
-                </div>
-              ) : (
-                "Click Refresh to check the current status of the sing-box process."
-              )
-            }
-            control={
-              <Button
-                size="sm"
-                variant="subtle"
-                icon={
-                  <ArrowSyncRegular
-                    className={isRefreshingStatus ? "animate-spin" : ""}
-                  />
-                }
-                disabled={isRefreshingStatus}
-                onClick={() => void refreshProcessStatus()}
-              >
-                Check
-              </Button>
-            }
-          />
         </SettingGroup>
 
         {/* About */}

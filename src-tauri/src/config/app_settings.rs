@@ -67,7 +67,6 @@ pub struct ConnectionPageSettings {
 #[derive(Debug, Clone, Serialize, Deserialize)]
 #[serde(default)]
 pub struct LogsPageSettings {
-    pub log_level: String,
     pub type_filter: String,
 }
 
@@ -126,7 +125,6 @@ impl Default for ConnectionPageSettings {
 impl Default for LogsPageSettings {
     fn default() -> Self {
         Self {
-            log_level: "info".to_string(),
             type_filter: String::new(),
         }
     }

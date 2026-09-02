@@ -5,7 +5,6 @@ import type {
   AppSettings,
   ConnectionColumnKey,
   ConnectionPageTab,
-  LogLevel,
   SortDirection,
   ThemeMode,
 } from "../types/app";
@@ -40,7 +39,6 @@ interface SettingsActions {
   ) => Promise<void>;
   setConnectionsColumnSizes: (sizes: Record<string, number>) => Promise<void>;
   setConnectionExpandedGroups: (groups: Record<string, boolean>) => void;
-  setLogLevel: (level: LogLevel) => Promise<void>;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
@@ -134,12 +132,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     setConnectionExpandedGroups: (groups) => {
       set({ connectionExpandedGroups: groups });
-    },
-
-    setLogLevel: async (level) => {
-      await get().updateSettings((s) => {
-        s.logs.log_level = level;
-      });
     },
 
     setLogTypeFilter: async (filter) => {

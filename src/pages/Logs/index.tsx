@@ -38,17 +38,13 @@ export default function Logs() {
     isPaused,
     search,
     typeFilter,
-    logLevel,
-    logLevels,
     streamStatus,
     setSearch,
     setTypeFilter,
     setIsPaused,
-    setLogLevel,
     clearLogs,
     downloadLogs,
     startStream,
-    restartStream,
   } = useLogsStream();
   const listRef = useRef<HTMLDivElement>(null);
 
@@ -106,31 +102,6 @@ export default function Logs() {
               placeholder="Search logs..."
               className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
             />
-          </div>
-
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-medium text-(--wb-text-secondary)">
-              Stream Level:
-            </span>
-            <select
-              value={logLevel}
-              onChange={(event) => {
-                void setLogLevel(event.target.value as typeof logLevel).then(
-                  () => {
-                    restartStream();
-                  },
-                );
-              }}
-              disabled={streamStatus === "disabled"}
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-40 disabled:cursor-not-allowed"
-              title="Stream log level"
-            >
-              {logLevels.map((level) => (
-                <option key={level} value={level}>
-                  {level}
-                </option>
-              ))}
-            </select>
           </div>
 
           <div className="flex-1" />

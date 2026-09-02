@@ -76,7 +76,6 @@ export interface ConnectionPageSettings {
 }
 
 export interface LogsPageSettings {
-  log_level: LogLevel;
   type_filter: string;
 }
 
@@ -139,7 +138,6 @@ export function createDefaultAppSettings(): AppSettings {
       column_sizes: {},
     },
     logs: {
-      log_level: "info",
       type_filter: "",
     },
     profiles: {
@@ -168,15 +166,6 @@ const CONNECTION_COLUMNS = new Set<ConnectionColumnKey>(
   DEFAULT_CONNECTION_COLUMN_ORDER,
 );
 const SORT_DIRECTIONS: SortDirection[] = ["asc", "desc"];
-const LOG_LEVELS: LogLevel[] = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "panic",
-];
 
 function normalizeColumnList(value: unknown): ConnectionColumnKey[] {
   const raw = Array.isArray(value)
@@ -284,9 +273,6 @@ export function normalizeAppSettings(
       column_sizes: normalizeNumberRecord(settings.connections?.column_sizes),
     },
     logs: {
-      log_level: LOG_LEVELS.includes(settings.logs?.log_level)
-        ? settings.logs.log_level
-        : defaults.logs.log_level,
       type_filter: settings.logs?.type_filter ?? "",
     },
     profiles: {

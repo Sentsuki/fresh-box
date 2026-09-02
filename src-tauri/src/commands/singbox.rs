@@ -21,30 +21,6 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
     crate::services::singbox::is_singbox_running(state).await
 }
 
-#[tauri::command]
-pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    crate::services::singbox::health_check_singbox(state).await
-}
-
-#[tauri::command]
-pub async fn initialize_singbox_state(
-    state: State<'_, SingboxState>,
-) -> Result<String, CommandError> {
-    crate::services::singbox::initialize_singbox_state(state).await
-}
-
-#[tauri::command]
-pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    crate::services::singbox::get_singbox_status(state).await
-}
-
-#[tauri::command]
-pub async fn refresh_singbox_detection(
-    state: State<'_, SingboxState>,
-) -> Result<bool, CommandError> {
-    crate::services::singbox::refresh_singbox_detection(state).await
-}
-
 /// `true` once `sing-box-daemon` is registered as a Windows service —
 /// drives whether Settings shows "install" or "uninstall".
 #[tauri::command]

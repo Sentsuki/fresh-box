@@ -228,35 +228,6 @@ pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, 
     Ok(matches!(status, ServiceStatusType::Started))
 }
 
-pub async fn health_check_singbox(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    let state = state.inner().clone();
-    let connected = state.client.lock().await.is_some();
-    if !connected {
-        return Ok("Not connected to sing-box-daemon".to_string());
-    }
-    Ok(describe_status(&state.status_rx.borrow()))
-}
-
-pub async fn initialize_singbox_state(
-    state: State<'_, SingboxState>,
-) -> Result<String, CommandError> {
-    initialize_state_inner(state.inner()).await
-}
-
-pub async fn refresh_singbox_detection(
-    state: State<'_, SingboxState>,
-) -> Result<bool, CommandError> {
-    refresh_detection_inner(state.inner()).await
-}
-
-pub async fn get_singbox_status(state: State<'_, SingboxState>) -> Result<String, CommandError> {
-    let state = state.inner().clone();
-    if state.client.lock().await.is_none() {
-        return Ok("sing-box-daemon is not connected".to_string());
-    }
-    Ok(describe_status(&state.status_rx.borrow()))
-}
-
 /// Called once at app startup (see `main.rs`) and again whenever the main
 /// window regains focus, to pick up a sing-box instance that was already
 /// running under the daemon service from a previous session.
