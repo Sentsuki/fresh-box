@@ -51,9 +51,16 @@ tauri-plugin-single-instance = "2"
 [target.'cfg(windows)'.dependencies]
 # Used to open files/URLs via `ShellExecuteW` directly instead of shelling
 # out to `cmd /C start` (see `commands::config::open_with_system`) — avoids
-# handing untrusted strings to cmd.exe's own command-line parser.
+# handing untrusted strings to cmd.exe's own command-line parser. The
+# `Win32_System_JobObjects`/`Win32_Security`/`Win32_System_Threading` trio is
+# for `daemon::worker`'s kill-on-close job object, which ties the daemon
+# worker relay process's lifetime to this process's — see the doc comment on
+# `spawn_kill_on_drop_job` there.
 windows = { version = "0.61", features = [
     "Win32_Foundation",
     "Win32_UI_Shell",
     "Win32_UI_WindowsAndMessaging",
+    "Win32_System_JobObjects",
+    "Win32_Security",
+    "Win32_System_Threading",
 ] }

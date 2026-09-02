@@ -197,6 +197,40 @@ async fn build_config_content(config_path: &str) -> Result<String, CommandError>
 
 // ── Public async commands ──────────────────────────────────────────────────
 
+/// Both `StartService` and `StopService` run on the daemon under a single
+/// process-wide lock (`Daemon.lifecycleAccess` in `desktop_service.go`/
+/// `managed_service.go` upstream) that every other lifecycle RPC also needs
+/// — so if either call hangs inside the daemon (e.g. `CloseService`/
+/// `StartOrReloadService` getting stuck tearing down or standing up a
+/// config), it doesn't just strand this one request, it wedges the daemon
+/// for every other client too. fresh-box can't fix a hang on the other side
+/// of the pipe, but it can refuse to wait on it forever: past this timeout
+/// we give up and surface a clear, actionable error instead of leaving the
+/// UI's pending-operation flag (and thus the Start/Stop buttons) stuck
+/// forever — which previously left force-killing fresh-box.exe as the only
+/// way out.
+const LIFECYCLE_RPC_TIMEOUT: Duration = Duration::from_secs(20);
+
+async fn with_lifecycle_timeout<T>(
+    action: &str,
+    fut: impl std::future::Future<Output = Result<T, CommandError>>,
+) -> Result<T, CommandError> {
+    match tokio::time::timeout(LIFECYCLE_RPC_TIMEOUT, fut).await {
+        Ok(result) => result,
+        Err(_) => Err(CommandError::invalid_state(
+            format!("{action} timed out"),
+            format!(
+                "sing-box-daemon did not respond within {}s. It may still be working in the \
+                 background, or it may be stuck — if this keeps happening, try restarting the \
+                 sing-box-daemon Windows service (Settings > reinstall the service, or `sc stop \
+                 sing-box-daemon` followed by `sc start sing-box-daemon` from an elevated \
+                 prompt).",
+                LIFECYCLE_RPC_TIMEOUT.as_secs()
+            ),
+        )),
+    }
+}
+
 pub async fn start_singbox(
     _app_handle: tauri::AppHandle,
     state: State<'_, SingboxState>,
@@ -215,13 +249,17 @@ pub async fn start_singbox(
     ensure_connected(&state).await?;
 
     let connection = get_connection(&state).await?;
-    connection.start_service(config_content).await
+    with_lifecycle_timeout(
+        "start sing-box service",
+        connection.start_service(config_content),
+    )
+    .await
 }
 
 pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
     let state = state.inner().clone();
     let connection = get_connection(&state).await?;
-    connection.stop_service().await
+    with_lifecycle_timeout("stop sing-box service", connection.stop_service()).await
 }
 
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
