@@ -25,11 +25,12 @@ screenshots/
 test-results/
 coverage/
 
-src-tauri/bin
+src-tauri/resources/daemon
 src-tauri/sub
 src-tauri/log
 src-tauri/config
 src-tauri/data
 *.db
 sing-box-1.14.0
+boxdd
 boxdd

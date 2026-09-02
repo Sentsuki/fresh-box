@@ -121,6 +121,20 @@ export async function refreshSingboxDetection(): Promise<boolean> {
   return invokeCommand<boolean>("refresh_singbox_detection");
 }
 
+export async function isDaemonServiceInstalled(): Promise<boolean> {
+  return invokeCommand<boolean>("is_daemon_service_installed");
+}
+
+/** Registers the sing-box-daemon Windows service. Triggers a UAC prompt. */
+export async function installDaemonService(): Promise<string> {
+  return invokeCommand<string>("install_daemon_service");
+}
+
+/** Unregisters the sing-box-daemon Windows service. Triggers a UAC prompt. */
+export async function uninstallDaemonService(): Promise<void> {
+  return invokeCommand<void>("uninstall_daemon_service");
+}
+
 export async function getClashApiUrl(
   configPath: string,
 ): Promise<string | null> {

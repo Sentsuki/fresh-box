@@ -9,6 +9,7 @@ import {
   KeyRegular,
   LinkRegular,
   SettingsRegular,
+  ShieldTaskRegular,
   WeatherMoonRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
@@ -23,7 +24,13 @@ import {
   STACK_OPTIONS,
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
-import { getSingboxStatus, openAppDirectory } from "../../services/api";
+import {
+  getSingboxStatus,
+  installDaemonService,
+  isDaemonServiceInstalled,
+  openAppDirectory,
+  uninstallDaemonService,
+} from "../../services/api";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
 
@@ -67,6 +74,43 @@ export default function Settings() {
       setProcessStatus("Failed to get process status.");
     } finally {
       setIsRefreshingStatus(false);
+    }
+  };
+
+  // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
+  const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
+    null,
+  );
+  const [isServiceBusy, setIsServiceBusy] = useState(false);
+  const [serviceError, setServiceError] = useState<string | null>(null);
+
+  const refreshServiceInstalled = async () => {
+    try {
+      setServiceInstalled(await isDaemonServiceInstalled());
+    } catch {
+      setServiceInstalled(null);
+    }
+  };
+
+  useEffect(() => {
+    void refreshServiceInstalled();
+  }, []);
+
+  const toggleDaemonService = async () => {
+    setIsServiceBusy(true);
+    setServiceError(null);
+    try {
+      if (serviceInstalled) {
+        await uninstallDaemonService();
+      } else {
+        await installDaemonService();
+      }
+      await refreshServiceInstalled();
+      await refreshProcessStatus();
+    } catch (e) {
+      setServiceError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsServiceBusy(false);
     }
   };
 
@@ -318,6 +362,36 @@ export default function Settings() {
                   void setAutoCloseConnections(checked)
                 }
               />
+            }
+          />
+
+          <SettingCard
+            icon={<ShieldTaskRegular />}
+            title="sing-box Daemon Service"
+            description={
+              serviceError ? (
+                <span className="text-(--wb-error)">{serviceError}</span>
+              ) : serviceInstalled === null ? (
+                "Checking whether the sing-box-daemon Windows service is installed..."
+              ) : serviceInstalled ? (
+                "The sing-box-daemon Windows service is installed."
+              ) : (
+                "The sing-box-daemon Windows service is not installed yet. Installing requires administrator approval."
+              )
+            }
+            control={
+              <Button
+                size="sm"
+                variant={serviceInstalled ? "subtle" : "accent"}
+                disabled={isServiceBusy || serviceInstalled === null}
+                onClick={() => void toggleDaemonService()}
+              >
+                {isServiceBusy
+                  ? "Working..."
+                  : serviceInstalled
+                    ? "Uninstall"
+                    : "Install"}
+              </Button>
             }
           />
 
