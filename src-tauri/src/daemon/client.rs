@@ -91,12 +91,12 @@ impl DaemonConnection {
 
     // ── DesktopService ──────────────────────────────────────────────────
 
-    /// Not called yet — kept for the version-mismatch check the official
-    /// client does at connect time (`state.ts`: compares this against the
-    /// bundled daemon exe's own `sing-box-daemon.exe version` output, and
-    /// refuses to fully connect on a mismatch). fresh-box doesn't do that
-    /// check today.
-    #[allow(dead_code)]
+    /// Used by `services::singbox::ensure_connected` for the same
+    /// version-mismatch check the official client does at connect time
+    /// (`state.ts`: compares this against the bundled daemon exe's own
+    /// `sing-box-daemon.exe version` output via
+    /// `daemon::install::bundled_daemon_version`, and refuses to fully
+    /// connect on a mismatch).
     pub async fn daemon_info(&self) -> Result<DaemonInfo, CommandError> {
         self.desktop()
             .get_daemon_info(())
