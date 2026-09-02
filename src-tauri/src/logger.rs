@@ -1,16 +1,13 @@
 pub fn install_panic_hook() {
     std::panic::set_hook(Box::new(|panic_info| {
-        let exe_path = std::env::current_exe().unwrap_or_default();
-        let exe_dir = exe_path
-            .parent()
-            .unwrap_or_else(|| std::path::Path::new("."));
-
-        let log_dir = exe_dir.join("log");
-        let _ = std::fs::create_dir_all(&log_dir);
-        let log_path = if log_dir.exists() {
-            log_dir.join("crash.log")
-        } else {
-            exe_dir.join("crash.log")
+        // Deliberately not exe-relative — the app installs per-machine
+        // into an admin-protected Program Files directory (see
+        // `config::paths::get_app_data_root`), which an unelevated
+        // process can't write into.
+        let log_dir = crate::config::paths::get_log_dir().ok();
+        let log_path = match &log_dir {
+            Some(dir) => dir.join("crash.log"),
+            None => std::env::temp_dir().join("fresh-box-crash.log"),
         };
 
         let crash_msg = format!(

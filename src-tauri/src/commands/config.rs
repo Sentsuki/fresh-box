@@ -92,12 +92,8 @@ fn open_with_system(path: &str) -> Result<(), CommandError> {
 
 #[tauri::command]
 pub async fn open_app_directory() -> Result<(), CommandError> {
-    let exe_path = std::env::current_exe()
-        .map_err(|e| CommandError::resource_not_found("executable path", e))?;
-    let exe_dir = exe_path.parent().ok_or_else(|| {
-        CommandError::resource_not_found("executable directory", "parent path missing")
-    })?;
-    open_with_system(&exe_dir.to_string_lossy())
+    let app_data_root = crate::config::get_app_data_root()?;
+    open_with_system(&app_data_root.to_string_lossy())
 }
 
 #[tauri::command]
