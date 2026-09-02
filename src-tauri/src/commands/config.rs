@@ -1,5 +1,6 @@
 use crate::config::AppSettings;
 use crate::errors::CommandError;
+use futures_util::StreamExt;
 use serde_json::Value;
 use std::fs;
 use std::sync::OnceLock;
@@ -16,6 +17,72 @@ fn subscription_client() -> Result<&'static reqwest::Client, CommandError> {
             .build()
             .expect("Failed to initialize the subscription HTTP client")
     }))
+}
+
+/// Mirrors the official desktop client's `MAXIMUM_REMOTE_PROFILE_BYTES`
+/// (`src/main/profiles.ts`) — caps how much a subscription response can
+/// grow fresh-box's in-memory buffer / on-disk config file by, so a
+/// malicious or compromised subscription server can't exhaust memory or
+/// fill the disk with an unbounded response.
+const MAX_SUBSCRIPTION_BYTES: usize = 16 * 1024 * 1024;
+
+/// Read `response`'s body as UTF-8 text, rejecting it once it (or its
+/// declared `Content-Length`) exceeds `max_bytes`. Reads incrementally via
+/// `bytes_stream()` rather than `.text()` so an unbounded/chunked response
+/// without a `Content-Length` header still can't be fully buffered before
+/// we notice it's too large.
+async fn read_limited_response(
+    response: reqwest::Response,
+    max_bytes: usize,
+) -> Result<String, CommandError> {
+    if let Some(len) = response.content_length()
+        && len > max_bytes as u64
+    {
+        return Err(CommandError::validation(format!(
+            "Subscription response is too large ({len} bytes, limit is {max_bytes})"
+        )));
+    }
+
+    let mut stream = response.bytes_stream();
+    let mut buf: Vec<u8> = Vec::new();
+    while let Some(chunk) = stream.next().await {
+        let chunk = chunk.map_err(|e| {
+            CommandError::network(format!("Failed to read subscription content: {}", e))
+        })?;
+        buf.extend_from_slice(&chunk);
+        if buf.len() > max_bytes {
+            return Err(CommandError::validation(format!(
+                "Subscription response is too large (limit is {max_bytes} bytes)"
+            )));
+        }
+    }
+
+    String::from_utf8(buf).map_err(|e| {
+        CommandError::validation(format!("Subscription response is not valid UTF-8: {e}"))
+    })
+}
+
+/// Reject path-separator and Windows-reserved characters from a single
+/// filename component, and strip leading dots so the result can never
+/// collapse to `.`/`..` or a hidden file once `.json` is appended. Applied
+/// to filenames derived from untrusted input (subscription URLs) so they
+/// can never be read as a relative/absolute path escape when joined onto
+/// `sub_dir` — see `extract_file_name_from_url`.
+fn sanitize_filename_component(raw: &str) -> String {
+    let cleaned: String = raw
+        .chars()
+        .map(|c| match c {
+            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
+            c if c.is_control() => '_',
+            c => c,
+        })
+        .collect();
+    let trimmed = cleaned.trim_start_matches('.').trim();
+    if trimmed.is_empty() {
+        "subscription".to_string()
+    } else {
+        trimmed.chars().take(150).collect()
+    }
 }
 
 // ── Safe path resolution ──────────────────────────────────────────────────
@@ -78,16 +145,41 @@ fn strip_verbatim_prefix(path: &std::path::Path) -> std::path::PathBuf {
     }
 }
 
-/// Open `path` with the OS default handler (Explorer on Windows).
+/// Open `path` (a local file path, directory, or URL) with the OS default
+/// handler — equivalent of double-clicking it in Explorer.
+///
+/// Calls `ShellExecuteW` directly instead of shelling out to
+/// `cmd /C start "" <path>`: cmd.exe re-parses whatever command line it's
+/// given, and characters like `&`, `|`, `^` are still meaningful to it even
+/// when the argument that contains them was passed through argv (this is
+/// the general class of issue behind advisories like CVE-2024-24576).
+/// `ShellExecuteW` hands `path` straight to the shell as a single value —
+/// no command-line grammar is involved, so it can't be reinterpreted this
+/// way regardless of what `path` contains.
 fn open_with_system(path: &str) -> Result<(), CommandError> {
-    use std::os::windows::process::CommandExt;
-    const CREATE_NO_WINDOW: u32 = 0x08000000;
-    std::process::Command::new("cmd")
-        .args(["/C", "start", "", path])
-        .creation_flags(CREATE_NO_WINDOW)
-        .spawn()
-        .map_err(|e| CommandError::resource_not_found("path", e))?;
-    Ok(())
+    use windows::Win32::UI::Shell::ShellExecuteW;
+    use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
+    use windows::core::{HSTRING, w};
+
+    let target = HSTRING::from(path);
+    // SAFETY: every argument is either `None`/a `'static` wide-string
+    // literal or an owned `HSTRING` kept alive for the duration of this
+    // call; `ShellExecuteW` does not retain any of them afterward.
+    let result = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
+
+    // Per the Win32 docs, ShellExecuteW returns a value > 32 on success and
+    // an error code (castable from HINSTANCE) otherwise.
+    if result.0 as isize > 32 {
+        Ok(())
+    } else {
+        Err(CommandError::resource_not_found(
+            "path",
+            format!(
+                "failed to open '{path}' (ShellExecuteW error code {})",
+                result.0 as isize
+            ),
+        ))
+    }
 }
 
 #[tauri::command]
@@ -112,7 +204,12 @@ pub async fn save_subscription_config(
     content: String,
 ) -> Result<String, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let target_path = sub_dir.join(&file_name);
+    // `file_name` comes straight from the caller — reject anything that
+    // would resolve outside `sub_dir` (path traversal / absolute path)
+    // instead of trusting it, the same way delete/rename/open already do.
+    let target_path = resolve_safe_path(&sub_dir, &file_name)?;
+
+    crate::daemon::validate::check_config(&content).await?;
 
     fs::write(&target_path, content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
@@ -400,15 +497,17 @@ pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult
         )));
     }
 
-    let content = response.text().await.map_err(|e| {
-        CommandError::network(format!("Failed to read subscription content: {}", e))
-    })?;
+    let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
+    crate::daemon::validate::check_config(&content).await?;
 
     let file_name = extract_file_name_from_url(&url);
     let stem = crate::config::profiles::stem_from_filename(&file_name).to_string();
 
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let target_path = sub_dir.join(&file_name);
+    // `file_name` is sanitized by `extract_file_name_from_url`, but resolve
+    // it through the same traversal guard as the rest of the config
+    // commands anyway rather than relying solely on that sanitization.
+    let target_path = resolve_safe_path(&sub_dir, &file_name)?;
     fs::write(&target_path, &content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
@@ -472,12 +571,14 @@ pub async fn update_subscription(
         )));
     }
 
-    let content = response.text().await.map_err(|e| {
-        CommandError::network(format!("Failed to read subscription content: {}", e))
-    })?;
+    let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
+    crate::daemon::validate::check_config(&content).await?;
 
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    let target_path = sub_dir.join(format!("{}.json", stem));
+    // `stem` was itself derived from a sanitized filename when the
+    // subscription was first added (see `add_subscription`), but resolve it
+    // through the traversal guard here too rather than assuming that holds.
+    let target_path = resolve_safe_path(&sub_dir, &format!("{}.json", stem))?;
     fs::write(&target_path, &content)
         .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
@@ -505,17 +606,21 @@ pub struct FetchSubscriptionResult {
     pub file_name: String,
 }
 
+/// Derive a filename for a subscription from its URL, purely for display /
+/// on-disk naming — never trusted as a path. Splits on both `/` and `\`
+/// (a URL's *string form* can carry a literal backslash even though the
+/// WHATWG URL parser normalizes it away before the request is ever sent —
+/// see `resolve_safe_path`'s callers, which don't rely on this function
+/// alone) and sanitizes the remaining component so it can never contain a
+/// path separator or `..`.
 fn extract_file_name_from_url(url: &str) -> String {
-    let path_part = url.split('?').next().unwrap_or(url);
-    let name = path_part.split('/').next_back().unwrap_or("subscription");
-    if name.is_empty() {
-        return "subscription.json".to_string();
-    }
-    if name.ends_with(".json") {
-        name.to_string()
-    } else {
-        format!("{}.json", name)
-    }
+    let path_part = url.split(['?', '#']).next().unwrap_or(url);
+    let raw_name = path_part
+        .split(['/', '\\'])
+        .next_back()
+        .unwrap_or("subscription");
+    let stem = raw_name.strip_suffix(".json").unwrap_or(raw_name);
+    format!("{}.json", sanitize_filename_component(stem))
 }
 
 #[tauri::command]
@@ -543,9 +648,7 @@ pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, 
         )));
     }
 
-    let content = response.text().await.map_err(|e| {
-        CommandError::network(format!("Failed to read subscription content: {}", e))
-    })?;
+    let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
 
     Ok(FetchSubscriptionResult { content, file_name })
 }

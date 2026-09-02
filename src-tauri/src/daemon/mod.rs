@@ -12,10 +12,14 @@
 //              an elevation prompt.
 //   client.rs  `DaemonClient`: the generated gRPC stubs wired up behind a
 //              small, fresh-box-shaped API.
+//   validate.rs One-shot config validation against a worker's own
+//              `ApplicationService.CheckConfig`, independent of the main
+//              `DaemonClient` connection — see its module doc comment.
 
 pub mod client;
 pub mod install;
 pub mod pipe;
+pub mod validate;
 pub mod worker;
 
 pub use client::{DaemonClient, DaemonConnection};

@@ -47,3 +47,13 @@ base64 = "0.23.1"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
+
+[target.'cfg(windows)'.dependencies]
+# Used to open files/URLs via `ShellExecuteW` directly instead of shelling
+# out to `cmd /C start` (see `commands::config::open_with_system`) — avoids
+# handing untrusted strings to cmd.exe's own command-line parser.
+windows = { version = "0.61", features = [
+    "Win32_Foundation",
+    "Win32_UI_Shell",
+    "Win32_UI_WindowsAndMessaging",
+] }

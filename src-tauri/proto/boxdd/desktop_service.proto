@@ -1,9 +1,10 @@
 // Vendored from sing-box 1.14.0 `experimental/boxdd/desktop_service.proto`,
 // trimmed to the subset fresh-box actually calls (claim ownership, start the
-// service, read daemon identity). Crash/OOM/power reports, self-update,
-// insecure mode and locale RPCs, and the whole ApplicationService are
-// dropped — fresh-box doesn't use them yet. Keep in sync with the sing-box
-// version the bundled `sing-box-daemon.exe` is built from.
+// service, read daemon identity, check a config before persisting it — see
+// `daemon::validate`). Crash/OOM/power reports, self-update, insecure mode
+// and locale RPCs, and the rest of ApplicationService are dropped — fresh-box
+// doesn't use them yet. Keep in sync with the sing-box version the bundled
+// `sing-box-daemon.exe` is built from.
 syntax = "proto3";
 
 package desktop;
@@ -14,6 +15,18 @@ service DesktopService {
   rpc GetDaemonInfo(google.protobuf.Empty) returns (DaemonInfo) {}
   rpc ClaimService(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   rpc StartService(StartServiceRequest) returns (google.protobuf.Empty) {}
+}
+
+// Served by the *worker* process on its own `--socket` pipe, independent of
+// whether the privileged daemon service is installed/running (see
+// `cmd_worker.go` upstream: `RegisterApplicationServiceServer` runs
+// unconditionally, before the relay to the real daemon is ever dialed).
+service ApplicationService {
+  rpc CheckConfig(ConfigContent) returns (google.protobuf.Empty) {}
+}
+
+message ConfigContent {
+  string content = 1;
 }
 
 message DaemonInfo {

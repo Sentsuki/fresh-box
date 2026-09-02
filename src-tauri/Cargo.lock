@@ -1265,6 +1265,7 @@ dependencies = [
  "tower",
  "urlencoding",
  "window-vibrancy 0.7.1",
+ "windows",
  "zip",
 ]
 
