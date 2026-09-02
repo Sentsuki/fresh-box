@@ -50,15 +50,6 @@ pub fn get_config_dir() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-pub fn get_data_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_app_data_root()?.join("data");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("data directory", e))?;
-    }
-    Ok(dir)
-}
-
 pub fn get_log_dir() -> Result<PathBuf, CommandError> {
     let dir = get_app_data_root()?.join("log");
     if !dir.exists() {
