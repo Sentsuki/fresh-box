@@ -8,11 +8,20 @@ mod errors;
 mod logger;
 mod services;
 mod tray;
+mod window_state;
 mod window_utils;
 
 use services::singbox::{SingboxState, retry_connection, spawn_reconciliation_loop};
 use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
+use tauri_plugin_autostart::MacosLauncher;
+
+/// Passed to a launch registered via `enable_autostart` (see
+/// `commands::app`) so a login-triggered launch can be told apart from a
+/// normal one — checked in `setup()` to start hidden in the tray instead of
+/// showing the main window, mirroring the official client's
+/// `wasOpenedAtLogin()` (`loginItem.ts`) handling in `index.ts`.
+const AUTOSTART_ARG: &str = "--autostart";
 
 #[tauri::command]
 fn update_mica_theme(window: Window, is_light: Option<bool>) {
@@ -32,6 +41,10 @@ fn main() {
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
+        .plugin(tauri_plugin_autostart::init(
+            MacosLauncher::LaunchAgent,
+            Some(vec![AUTOSTART_ARG]),
+        ))
         .manage(singbox_state)
         .manage(services::streams::StreamsState::new())
         .invoke_handler(tauri::generate_handler![
@@ -42,6 +55,10 @@ fn main() {
             commands::singbox::is_daemon_service_installed,
             commands::singbox::install_daemon_service,
             commands::singbox::uninstall_daemon_service,
+            commands::singbox::repair_daemon_service,
+            commands::app::is_autostart_enabled,
+            commands::app::enable_autostart,
+            commands::app::disable_autostart,
             commands::clash::get_clash_overview,
             commands::clash::update_clash_mode,
             commands::clash::select_clash_proxy,
@@ -93,10 +110,26 @@ fn main() {
             tray::setup_system_tray(app)?;
 
             let window = app.get_webview_window("main").unwrap();
+
+            // Restore the last saved position/size/maximized state before
+            // the window is ever shown — it's created with `"visible":
+            // false` in tauri.conf.json specifically so this can't be seen
+            // jumping from the default bounds to the restored ones.
+            window_state::restore(&window);
+
             #[cfg(target_os = "windows")]
             {
                 use window_vibrancy::apply_mica;
                 let _ = apply_mica(&window, None);
+            }
+
+            // A launch registered via `enable_autostart` (see
+            // `commands::app`) passes `AUTOSTART_ARG` — start hidden in the
+            // tray in that case rather than popping the main window up
+            // unasked-for on every login, mirroring the official client's
+            // `wasOpenedAtLogin()` handling.
+            if !std::env::args().any(|arg| arg == AUTOSTART_ARG) {
+                let _ = window.show();
             }
 
             let state = app.state::<SingboxState>();
@@ -105,6 +138,9 @@ fn main() {
             Ok(())
         })
         .on_window_event(|window, event| match event {
+            tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
+                window_state::persist(window);
+            }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 // 始终阻止默认关闭行为，由我们决定后续动作
                 api.prevent_close();

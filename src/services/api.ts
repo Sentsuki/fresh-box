@@ -136,9 +136,32 @@ export async function installDaemonService(): Promise<void> {
   return invokeCommand<void>("install_daemon_service");
 }
 
+/**
+ * Lighter repair action for when the service is installed but unreachable
+ * (stopped, crashed and didn't come back, ...): restarts it in place
+ * instead of a full uninstall/reinstall. Triggers a UAC prompt.
+ */
+export async function repairDaemonService(): Promise<void> {
+  return invokeCommand<void>("repair_daemon_service");
+}
+
 /** Unregisters the sing-box-daemon Windows service. Triggers a UAC prompt. */
 export async function uninstallDaemonService(): Promise<void> {
   return invokeCommand<void>("uninstall_daemon_service");
+}
+
+/** `true` if fresh-box is registered to launch at Windows startup. */
+export async function isAutostartEnabled(): Promise<boolean> {
+  return invokeCommand<boolean>("is_autostart_enabled");
+}
+
+/** Registers fresh-box to launch (minimized to tray) at Windows startup. */
+export async function enableAutostart(): Promise<void> {
+  return invokeCommand<void>("enable_autostart");
+}
+
+export async function disableAutostart(): Promise<void> {
+  return invokeCommand<void>("disable_autostart");
 }
 
 export async function getClashOverview(): Promise<ClashOverview> {

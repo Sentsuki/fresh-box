@@ -180,6 +180,24 @@ pub fn uninstall_service() -> Result<(), CommandError> {
     Ok(())
 }
 
+/// Restart-in-place repair action, distinct from `install_service`/
+/// `uninstall_service`: for when the service is already registered but the
+/// daemon just isn't reachable (stopped by an admin, crashed and didn't
+/// come back, ...) — a lighter fix than a full reinstall. Mirrors the
+/// official client's `repair("start", ...)` (`repair.ts`), which calls the
+/// same underlying `service start` subcommand
+/// (`experimental/boxdd/cmd_service.go` upstream — cross-platform, backed
+/// on Windows by `startServiceAndWait` in `cmd_service_windows.go`, which
+/// is a no-op if it's already running).
+pub fn start_service() -> Result<(), CommandError> {
+    let daemon_path = daemon_executable_path()?;
+    let out = run_elevated(&daemon_path, &["service", "start"])?;
+    if out.code != 0 {
+        return Err(elevated_failure("start_service", &out));
+    }
+    Ok(())
+}
+
 /// Matches `defaultServiceWorkingDirectory` in
 /// `experimental/boxdd/cmd_service_windows.go` upstream.
 fn daemon_service_working_directory() -> PathBuf {

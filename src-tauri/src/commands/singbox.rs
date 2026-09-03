@@ -62,3 +62,16 @@ pub async fn uninstall_daemon_service(state: State<'_, SingboxState>) -> Result<
         .await
         .map_err(|e| CommandError::io("uninstall daemon service", e))?
 }
+
+/// Lighter repair action for when the service is installed but the daemon
+/// just isn't reachable: restarts it in place via an elevated `service
+/// start` (see `daemon::install::start_service`) instead of a full
+/// uninstall/reinstall, then wakes the reconciliation loop.
+#[tauri::command]
+pub async fn repair_daemon_service(state: State<'_, SingboxState>) -> Result<(), CommandError> {
+    tokio::task::spawn_blocking(crate::daemon::install::start_service)
+        .await
+        .map_err(|e| CommandError::io("repair daemon service", e))??;
+    crate::services::singbox::retry_connection(state.inner());
+    Ok(())
+}

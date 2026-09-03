@@ -1,3 +1,4 @@
+pub mod app;
 pub mod clash;
 pub mod config;
 pub mod config_override;

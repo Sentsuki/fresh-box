@@ -5,8 +5,10 @@ import {
   FolderOpenRegular,
   InfoRegular,
   LinkRegular,
+  RocketRegular,
   ShieldTaskRegular,
   WeatherMoonRegular,
+  WrenchRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
@@ -21,9 +23,13 @@ import {
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
 import {
+  disableAutostart,
+  enableAutostart,
   installDaemonService,
+  isAutostartEnabled,
   isDaemonServiceInstalled,
   openAppDirectory,
+  repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -86,6 +92,57 @@ export default function Settings() {
       setServiceError(e instanceof Error ? e.message : String(e));
     } finally {
       setIsServiceBusy(false);
+    }
+  };
+
+  // Lighter fix for "installed but unreachable" (stopped, crashed and
+  // didn't come back, ...) than the uninstall/reinstall above — just
+  // restarts the service in place.
+  const repairService = async () => {
+    setIsServiceBusy(true);
+    setServiceError(null);
+    try {
+      await repairDaemonService();
+    } catch (e) {
+      setServiceError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsServiceBusy(false);
+    }
+  };
+
+  // Launch at Windows startup (registry Run-key entry)
+  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
+    null,
+  );
+  const [isAutostartBusy, setIsAutostartBusy] = useState(false);
+  const [autostartError, setAutostartError] = useState<string | null>(null);
+
+  const refreshAutostartEnabled = async () => {
+    try {
+      setAutostartEnabled(await isAutostartEnabled());
+    } catch {
+      setAutostartEnabled(null);
+    }
+  };
+
+  useEffect(() => {
+    void refreshAutostartEnabled();
+  }, []);
+
+  const toggleAutostart = async (checked: boolean) => {
+    setIsAutostartBusy(true);
+    setAutostartError(null);
+    try {
+      if (checked) {
+        await enableAutostart();
+      } else {
+        await disableAutostart();
+      }
+      await refreshAutostartEnabled();
+    } catch (e) {
+      setAutostartError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsAutostartBusy(false);
     }
   };
 
@@ -261,24 +318,58 @@ export default function Settings() {
               ) : serviceInstalled === null ? (
                 "Checking whether the sing-box-daemon Windows service is installed..."
               ) : serviceInstalled ? (
-                "The sing-box-daemon Windows service is installed."
+                "The sing-box-daemon Windows service is installed. If sing-box won't connect, try restarting the service before reinstalling it."
               ) : (
                 "The sing-box-daemon Windows service is not installed yet. Installing requires administrator approval."
               )
             }
             control={
-              <Button
-                size="sm"
-                variant={serviceInstalled ? "subtle" : "accent"}
-                disabled={isServiceBusy || serviceInstalled === null}
-                onClick={() => void toggleDaemonService()}
-              >
-                {isServiceBusy
-                  ? "Working..."
-                  : serviceInstalled
-                    ? "Uninstall"
-                    : "Install"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {serviceInstalled && (
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    icon={<WrenchRegular />}
+                    disabled={isServiceBusy}
+                    onClick={() => void repairService()}
+                  >
+                    Restart Service
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={serviceInstalled ? "subtle" : "accent"}
+                  disabled={isServiceBusy || serviceInstalled === null}
+                  onClick={() => void toggleDaemonService()}
+                >
+                  {isServiceBusy
+                    ? "Working..."
+                    : serviceInstalled
+                      ? "Uninstall"
+                      : "Install"}
+                </Button>
+              </div>
+            }
+          />
+
+          <SettingCard
+            icon={<RocketRegular />}
+            title="Launch at Startup"
+            description={
+              autostartError ? (
+                <span className="text-(--wb-error) whitespace-pre-wrap break-all font-mono text-xs">
+                  {autostartError}
+                </span>
+              ) : (
+                "Start fresh-box (minimized to the tray) when you sign in to Windows"
+              )
+            }
+            control={
+              <Switch
+                checked={autostartEnabled === true}
+                disabled={isAutostartBusy || autostartEnabled === null}
+                onCheckedChange={(checked) => void toggleAutostart(checked)}
+              />
             }
           />
         </SettingGroup>
