@@ -10,9 +10,7 @@ mod services;
 mod tray;
 mod window_utils;
 
-use services::singbox::{
-    SingboxState, initialize_singbox_directly, refresh_singbox_detection_directly,
-};
+use services::singbox::{SingboxState, retry_connection, spawn_reconciliation_loop};
 use std::time::Duration;
 use tauri::{Emitter, Manager, Window};
 
@@ -39,7 +37,8 @@ fn main() {
         .invoke_handler(tauri::generate_handler![
             commands::singbox::start_singbox,
             commands::singbox::stop_singbox,
-            commands::singbox::is_singbox_running,
+            commands::singbox::get_daemon_state,
+            commands::singbox::retry_daemon_connection,
             commands::singbox::is_daemon_service_installed,
             commands::singbox::install_daemon_service,
             commands::singbox::uninstall_daemon_service,
@@ -101,17 +100,7 @@ fn main() {
             }
 
             let state = app.state::<SingboxState>();
-            let state_clone = state.inner().clone();
-            tauri::async_runtime::spawn(async move {
-                match initialize_singbox_directly(&state_clone).await {
-                    Ok(status) => {
-                        println!("Initialization result: {}", status);
-                    }
-                    Err(e) => {
-                        eprintln!("Failed to initialize sing-box state: {:?}", e);
-                    }
-                }
-            });
+            spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
 
             Ok(())
         })
@@ -144,22 +133,13 @@ fn main() {
                 }
             }
             tauri::WindowEvent::Focused(true) => {
+                // Cut short any backoff the reconciliation loop is
+                // currently sitting out, rather than waiting up to 5s to
+                // notice e.g. a daemon that only just finished starting up
+                // — see `retry_connection`'s doc comment.
                 let app = window.app_handle();
                 if let Some(state) = app.try_state::<SingboxState>() {
-                    let state_clone = state.inner().clone();
-                    window_utils::spawn_async_after_delay(
-                        Duration::from_millis(50),
-                        move || async move {
-                            if let Ok(has_process) =
-                                refresh_singbox_detection_directly(&state_clone).await
-                                && has_process
-                            {
-                                println!(
-                                    "Window focused: sing-box process detected and under management"
-                                );
-                            }
-                        },
-                    );
+                    retry_connection(&state);
                 }
             }
             tauri::WindowEvent::Destroyed => {}

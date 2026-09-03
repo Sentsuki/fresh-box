@@ -111,10 +111,10 @@ impl DaemonConnection {
 
     // ── DesktopService ──────────────────────────────────────────────────
 
-    /// Used by `services::singbox::ensure_connected` for the same
-    /// version-mismatch check the official client does at connect time
-    /// (`state.ts`: compares this against the bundled daemon exe's own
-    /// `sing-box-daemon.exe version` output via
+    /// Used by `services::singbox::run_reconciliation_attempt` for the same
+    /// version-mismatch/ownership checks the official client does at
+    /// connect time (`state.ts`: compares this against the bundled daemon
+    /// exe's own `sing-box-daemon.exe version` output via
     /// `daemon::install::bundled_daemon_version`, and refuses to fully
     /// connect on a mismatch).
     pub async fn daemon_info(&self) -> Result<DaemonInfo, CommandError> {

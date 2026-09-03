@@ -223,6 +223,10 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                     let app_clone = app.clone();
                     tauri::async_runtime::spawn(async move {
                         if let Some(state) = app_clone.try_state::<SingboxState>() {
+                            // Stop the reconciliation loop *before* tearing
+                            // the connection down, so it doesn't just turn
+                            // around and reconnect (see its doc comment).
+                            crate::services::singbox::stop_reconciliation_loop(&state);
                             crate::services::singbox::cleanup_process(&state).await;
                         }
                         tokio::time::sleep(Duration::from_millis(200)).await;

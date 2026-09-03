@@ -7,32 +7,148 @@
 // start/stop the sing-box instance on our behalf. See `crate::daemon` for
 // the transport plumbing and `crate::daemon::install` for why the worker
 // hop and the fixed install layout are both load-bearing, not incidental.
+//
+// Connection lifecycle is a single, always-running reconciliation loop
+// (`spawn_reconciliation_loop`) modeled on the official Electron client's
+// `DaemonState`/`loopConnection()` (`sing-box-for-desktop/src/main/state.ts`):
+// connect, claim ownership, subscribe to status, and on any failure or
+// disconnect back off and retry — publishing every phase change as a
+// `daemon-state-changed` event the frontend just listens to. This replaces
+// what used to be several independent one-shot checks (a fire-and-forget
+// connect at app startup that never retried, a window-focus reconnect that
+// never told the frontend anything, a `is_singbox_running` poll that only
+// ran while already believed running) with no shared retry/backoff and no
+// way for the frontend to learn about most kinds of state change — which is
+// exactly what let the UI drift out of sync with reality (e.g. showing
+// "not running" right after a reboot when boxdd had already auto-resumed
+// the last config on its own, see `Daemon.restore()` upstream).
 
 use std::sync::Arc;
+use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use tauri::State;
-use tokio::sync::{Mutex, watch};
+use tauri::{AppHandle, Emitter, State};
+use tokio::sync::{Mutex, Notify, watch};
 
 use crate::daemon::daemon_api::ServiceStatus;
 use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
+use crate::daemon::desktop_api::DaemonOwnership;
 use crate::daemon::{DaemonClient, DaemonConnection};
 use crate::errors::CommandError;
+
+/// The Tauri event name every `ConnectionPhase` change is published under.
+pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
+
+/// sing-box's own run state, once we're actually connected — mirrors
+/// `daemon_api::service_status::Type` in a form that serializes cleanly for
+/// the frontend (the generated prost enum doesn't derive `Serialize`).
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "snake_case")]
+pub enum SingboxRunState {
+    Idle,
+    Starting,
+    Started,
+    Stopping,
+    Fatal,
+}
+
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct SingboxStatus {
+    pub state: SingboxRunState,
+    pub error_message: String,
+}
+
+fn to_singbox_status(status: &ServiceStatus) -> SingboxStatus {
+    let state = match status.status() {
+        ServiceStatusType::Idle => SingboxRunState::Idle,
+        ServiceStatusType::Starting => SingboxRunState::Starting,
+        ServiceStatusType::Started => SingboxRunState::Started,
+        ServiceStatusType::Stopping => SingboxRunState::Stopping,
+        ServiceStatusType::Fatal => SingboxRunState::Fatal,
+    };
+    SingboxStatus {
+        state,
+        error_message: status.error_message.clone(),
+    }
+}
+
+/// The daemon connection's current phase — the single source of truth the
+/// frontend renders off, published on every change via `DAEMON_STATE_EVENT`
+/// and readable synchronously through the `get_daemon_state` command for a
+/// component's first render. Mirrors the official client's
+/// `DaemonConnectionState` (`shared/ipc.ts`) phase for phase, including the
+/// two states fresh-box previously didn't model at all: a stale service
+/// left running after an app update (`VersionMismatch`) and a daemon
+/// already claimed by a different Windows user session
+/// (`OwnedByOtherUser`) — both used to just surface as an opaque
+/// `CommandError` with no dedicated UI.
+#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[serde(tag = "phase", rename_all = "kebab-case")]
+pub enum ConnectionPhase {
+    /// Establishing (or re-establishing) the connection — also the phase
+    /// while backed off waiting to retry after a failure.
+    Connecting,
+    /// Connected and owning (or nobody yet owns) the daemon's working
+    /// directory. `status` is the actual sing-box instance state.
+    Connected { status: SingboxStatus },
+    /// `sing-box-daemon` isn't registered as a Windows service at all —
+    /// see `daemon::install`.
+    NotInstalled,
+    /// The running service reports a different version than the daemon exe
+    /// bundled with this install (stale service after an app update).
+    #[serde(rename_all = "camelCase")]
+    VersionMismatch {
+        daemon_version: String,
+        bundled_version: String,
+    },
+    /// Another Windows user session already owns the daemon.
+    OwnedByOtherUser,
+    /// Couldn't connect for some other reason (worker spawn failure, pipe
+    /// error, RPC error, ...).
+    #[serde(rename_all = "camelCase")]
+    Unavailable { error_message: String },
+}
+
+impl ConnectionPhase {
+    fn running(&self) -> bool {
+        matches!(
+            self,
+            ConnectionPhase::Connected {
+                status: SingboxStatus {
+                    state: SingboxRunState::Started,
+                    ..
+                }
+            }
+        )
+    }
+}
 
 #[derive(Clone)]
 pub struct SingboxState {
     client: Arc<Mutex<Option<DaemonClient>>>,
-    status_tx: Arc<watch::Sender<ServiceStatus>>,
-    status_rx: watch::Receiver<ServiceStatus>,
+    phase_tx: Arc<watch::Sender<ConnectionPhase>>,
+    phase_rx: watch::Receiver<ConnectionPhase>,
+    /// Lets `retry_connection` (window focus, right after installing the
+    /// service, ...) cut a backoff sleep short instead of waiting it out —
+    /// mirrors the official client's `DaemonState.retryConnection()`.
+    retry: Arc<Notify>,
+    /// Set once, right before a real app exit, so the loop stops instead of
+    /// immediately reconnecting when `cleanup_process` tears the connection
+    /// down out from under it. NOT set by every `cleanup_process` call (see
+    /// its doc comment) — only real shutdown should stop the loop.
+    shutting_down: Arc<AtomicBool>,
 }
 
 impl SingboxState {
     pub fn new() -> Self {
-        let (status_tx, status_rx) = watch::channel(ServiceStatus::default());
+        let (phase_tx, phase_rx) = watch::channel(ConnectionPhase::Connecting);
         Self {
             client: Arc::new(Mutex::new(None)),
-            status_tx: Arc::new(status_tx),
-            status_rx,
+            phase_tx: Arc::new(phase_tx),
+            phase_rx,
+            retry: Arc::new(Notify::new()),
+            shutting_down: Arc::new(AtomicBool::new(false)),
         }
     }
 }
@@ -43,25 +159,12 @@ impl Default for SingboxState {
     }
 }
 
-fn describe_status(status: &ServiceStatus) -> String {
-    match status.status() {
-        ServiceStatusType::Idle => "sing-box is not running".to_string(),
-        ServiceStatusType::Starting => "sing-box is starting".to_string(),
-        ServiceStatusType::Started => "sing-box is running".to_string(),
-        ServiceStatusType::Stopping => "sing-box is stopping".to_string(),
-        ServiceStatusType::Fatal => {
-            if status.error_message.is_empty() {
-                "sing-box failed".to_string()
-            } else {
-                format!("sing-box failed: {}", status.error_message)
-            }
-        }
-    }
-}
-
 /// Get a handle to the live gRPC connection, if one exists. Used by the
 /// other daemon-backed services (`daemon_control`, `streams`) that need to
-/// issue their own calls/subscriptions without going through this module.
+/// issue their own calls/subscriptions without going through this module,
+/// and by `start_singbox`/`stop_singbox` below. The reconciliation loop is
+/// solely responsible for populating this — nothing here connects on
+/// demand any more.
 pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, CommandError> {
     let guard = state.client.lock().await;
     guard
@@ -70,25 +173,109 @@ pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, Co
         .ok_or(CommandError::ProcessNotRunning)
 }
 
-/// Ensure a worker + gRPC connection exists and this user owns the daemon's
-/// working directory. Idempotent — a no-op if already connected. Spawns the
-/// background task that keeps `status_rx` in sync the first time it
-/// actually connects.
-async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
-    let mut guard = state.client.lock().await;
-    if guard.is_some() {
-        return Ok(());
+/// Wake a backed-off reconciliation loop to retry immediately — e.g. right
+/// after installing the daemon service, or when the window regains focus
+/// (a cheap way to recover promptly from a phase like `Unavailable` that
+/// backoff would otherwise sit out for up to 5s).
+pub fn retry_connection(state: &SingboxState) {
+    state.retry.notify_one();
+}
+
+/// Stop the reconciliation loop permanently. Only call this right before a
+/// real app exit (see `tray.rs`'s `MENU_QUIT` handler) — the loop is meant
+/// to run for the app's entire lifetime otherwise, including across a
+/// `cleanup_process` call made for other reasons (e.g. disconnecting
+/// before uninstalling the daemon service): in that case we *want* it to
+/// keep running and pick the connection back up on its own once there's
+/// something to connect to again.
+pub fn stop_reconciliation_loop(state: &SingboxState) {
+    state.shutting_down.store(true, Ordering::Relaxed);
+    state.retry.notify_one();
+}
+
+async fn wait_or_retry(state: &SingboxState, duration: Duration) {
+    tokio::select! {
+        _ = tokio::time::sleep(duration) => {}
+        _ = state.retry.notified() => {}
+    }
+}
+
+fn publish(app: &AppHandle, state: &SingboxState, phase: ConnectionPhase) {
+    let _ = state.phase_tx.send(phase.clone());
+    let _ = app.emit(DAEMON_STATE_EVENT, phase);
+}
+
+enum AttemptOutcome {
+    /// Was connected and ran the status subscription until the stream
+    /// ended (worker died, service restarted out from under us, pipe
+    /// dropped, ...) — retry immediately, no backoff.
+    Disconnected,
+    /// Couldn't get connected this time; the corresponding phase has
+    /// already been published. Back off before retrying.
+    Failed,
+    /// Not installed at all — checked before ever trying to connect.
+    /// Backed off on a fixed, longer interval since this won't change on
+    /// its own; `retry_connection` (called right after an install) is what
+    /// actually recovers this promptly in the common case.
+    NotInstalled,
+}
+
+/// One full connect → claim → subscribe attempt. Runs until either it
+/// fails outright or the status stream it subscribed to ends.
+async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> AttemptOutcome {
+    if !crate::daemon::install::is_service_installed() {
+        publish(app, state, ConnectionPhase::NotInstalled);
+        return AttemptOutcome::NotInstalled;
     }
 
-    let daemon_path = crate::daemon::install::daemon_executable_path()?;
-    if !daemon_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "sing-box-daemon executable",
-            daemon_path.display(),
-        ));
-    }
+    publish(app, state, ConnectionPhase::Connecting);
 
-    let client = DaemonClient::connect(&daemon_path).await?;
+    let daemon_path = match crate::daemon::install::daemon_executable_path() {
+        Ok(path) if path.exists() => path,
+        _ => {
+            publish(
+                app,
+                state,
+                ConnectionPhase::Unavailable {
+                    error_message: "sing-box-daemon executable not found".to_string(),
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+    };
+
+    let client = match DaemonClient::connect(&daemon_path).await {
+        Ok(client) => client,
+        Err(e) => {
+            publish(
+                app,
+                state,
+                ConnectionPhase::Unavailable {
+                    error_message: e.to_string(),
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+    };
+
+    // Always fetch daemon info: it's how we learn ownership (needed every
+    // attempt, not just when we can also check the version below), mirroring
+    // the official client's `getDaemonInfo` call at the top of every
+    // `loopConnection` iteration.
+    let info = match client.connection.daemon_info().await {
+        Ok(info) => info,
+        Err(e) => {
+            client.shutdown().await;
+            publish(
+                app,
+                state,
+                ConnectionPhase::Unavailable {
+                    error_message: e.to_string(),
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+    };
 
     // Best-effort version-consistency check, mirroring the official
     // client's `state.ts`: if the *running* privileged service reports a
@@ -99,93 +286,106 @@ async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
     // can't determine the bundled version at all — this is a UX/integrity
     // guard, not the actual security boundary (that's boxdd's own
     // signature/ACL checks in `security_windows.go`).
-    if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version() {
-        match client.connection.daemon_info().await {
-            Ok(info) if info.version != bundled_version => {
-                client.shutdown().await;
-                return Err(CommandError::invalid_state(
-                    "sing-box-daemon version mismatch",
-                    format!(
-                        "installed service reports version {}, but this app bundles {}. \
-                         Reinstall the daemon service to continue.",
-                        info.version, bundled_version
-                    ),
-                ));
-            }
-            Ok(_) => {}
-            Err(e) => {
-                client.shutdown().await;
-                return Err(e);
-            }
-        }
+    if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
+        && info.version != bundled_version
+    {
+        client.shutdown().await;
+        publish(
+            app,
+            state,
+            ConnectionPhase::VersionMismatch {
+                daemon_version: info.version,
+                bundled_version,
+            },
+        );
+        return AttemptOutcome::Failed;
     }
 
-    client.connection.claim_service().await?;
-    *guard = Some(client);
-    drop(guard);
+    if info.ownership() == DaemonOwnership::Other {
+        client.shutdown().await;
+        publish(app, state, ConnectionPhase::OwnedByOtherUser);
+        return AttemptOutcome::Failed;
+    }
 
-    spawn_status_watcher(state.clone());
+    if let Err(e) = client.connection.claim_service().await {
+        client.shutdown().await;
+        publish(
+            app,
+            state,
+            ConnectionPhase::Unavailable {
+                error_message: e.to_string(),
+            },
+        );
+        return AttemptOutcome::Failed;
+    }
 
-    // Give the watcher a moment to report the daemon's actual current
-    // state before returning, instead of leaving `status_rx` on its
-    // freshly-initialized default (Idle). Without this, a caller that
-    // reads `status_rx` right after this returns — e.g. `is_singbox_running`,
-    // which the frontend calls once at app startup to decide whether to
-    // show sing-box as running — would race the watcher's first
-    // `SubscribeServiceStatus` message and report "not running" even when
-    // sing-box actually is (most visibly right after a reboot, when boxdd
-    // auto-resumes the last config on its own before fresh-box ever asked
-    // it to: see `Daemon.restore()` upstream). Bounded so a slow/stuck
-    // daemon doesn't hang every first-time connector.
-    let mut rx = state.status_rx.clone();
-    let _ = tokio::time::timeout(Duration::from_secs(3), rx.changed()).await;
+    let connection = client.connection.clone();
+    *state.client.lock().await = Some(client);
 
-    Ok(())
+    let mut stream = match connection.subscribe_service_status().await {
+        Ok(stream) => stream,
+        Err(e) => {
+            if let Some(c) = state.client.lock().await.take() {
+                c.shutdown().await;
+            }
+            publish(
+                app,
+                state,
+                ConnectionPhase::Unavailable {
+                    error_message: e.to_string(),
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+    };
+
+    while let Ok(Some(status)) = stream.message().await {
+        publish(
+            app,
+            state,
+            ConnectionPhase::Connected {
+                status: to_singbox_status(&status),
+            },
+        );
+    }
+
+    if let Some(c) = state.client.lock().await.take() {
+        c.shutdown().await;
+    }
+    AttemptOutcome::Disconnected
 }
 
-/// Background task: keeps `status_rx` mirroring the daemon's
-/// `SubscribeServiceStatus` stream for as long as the connection lives.
-/// When the stream ends (worker died, daemon service restarted out from
-/// under us, pipe dropped, ...) it clears `state.client` and publishes a
-/// synthetic `FATAL` status — the next call through `ensure_connected` will
-/// transparently spin up a fresh worker.
-fn spawn_status_watcher(state: SingboxState) {
+/// Start the reconciliation loop. Call exactly once, at app startup (see
+/// `main.rs`'s `setup()`) — it runs for the rest of the process's life
+/// (until `stop_reconciliation_loop` is called right before exit),
+/// continuously keeping `phase_rx`/`DAEMON_STATE_EVENT` in sync with
+/// reality and self-healing from any disconnect without anything else
+/// having to ask it to.
+pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
     tauri::async_runtime::spawn(async move {
-        let connection = {
-            let guard = state.client.lock().await;
-            match guard.as_ref() {
-                Some(c) => c.connection.clone(),
-                None => return,
+        let mut attempt: u32 = 0;
+        loop {
+            if state.shutting_down.load(Ordering::Relaxed) {
+                return;
             }
-        };
 
-        match connection.subscribe_service_status().await {
-            Ok(mut stream) => loop {
-                match stream.message().await {
-                    Ok(Some(status)) => {
-                        let _ = state.status_tx.send(status);
-                    }
-                    Ok(None) => break,
-                    Err(e) => {
-                        eprintln!("[singbox] status stream error: {}", e);
-                        break;
-                    }
+            match run_reconciliation_attempt(&app, &state).await {
+                AttemptOutcome::Disconnected => {
+                    // Was actually connected for a while — reset the
+                    // backoff and go straight back to reconnecting.
+                    attempt = 0;
+                    continue;
                 }
-            },
-            Err(e) => {
-                eprintln!("[singbox] failed to subscribe to service status: {:?}", e);
+                AttemptOutcome::NotInstalled => {
+                    wait_or_retry(&state, Duration::from_secs(3)).await;
+                }
+                AttemptOutcome::Failed => {
+                    attempt += 1;
+                    let backoff = Duration::from_millis((1000u64 * attempt as u64).min(5000));
+                    wait_or_retry(&state, backoff).await;
+                }
             }
         }
-
-        let mut guard = state.client.lock().await;
-        if let Some(client) = guard.take() {
-            drop(guard);
-            client.shutdown().await;
-        }
-        let _ = state.status_tx.send(ServiceStatus {
-            status: ServiceStatusType::Fatal as i32,
-            error_message: "lost connection to sing-box-daemon".to_string(),
-        });
     });
 }
 
@@ -253,16 +453,11 @@ pub async fn start_singbox(
 ) -> Result<(), CommandError> {
     let state = state.inner().clone();
 
-    if matches!(
-        state.status_rx.borrow().status(),
-        ServiceStatusType::Starting | ServiceStatusType::Started
-    ) {
+    if state.phase_rx.borrow().running() {
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
     let config_content = build_config_content(&config_path).await?;
-    ensure_connected(&state).await?;
-
     let connection = get_connection(&state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
@@ -277,64 +472,10 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     with_lifecycle_timeout("stop sing-box service", connection.stop_service()).await
 }
 
-pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
-    let state = state.inner().clone();
-
-    // Best-effort: make sure we're actually connected before trusting
-    // `status_rx`. This is the frontend's only way to learn the true
-    // running state at app startup (`initializeApp()` calls this once,
-    // synchronously, in its startup `Promise.all`), and it otherwise races
-    // the fire-and-forget `initialize_singbox_directly` task `main.rs`
-    // spawns from `setup()` — without this, a fast enough frontend would
-    // read the watch channel's default Idle value before that background
-    // task ever got the lock, and permanently believe sing-box is stopped
-    // even though it's actually running (nothing re-checks after this one
-    // startup call). Idempotent and near-instant once already connected,
-    // so this adds no meaningful cost to the 5s steady-state poll.
-    let _ = ensure_connected(&state).await;
-
-    let status = state.status_rx.borrow().status();
-    Ok(matches!(status, ServiceStatusType::Started))
-}
-
-/// Called once at app startup (see `main.rs`) and again whenever the main
-/// window regains focus, to pick up a sing-box instance that was already
-/// running under the daemon service from a previous session.
-pub async fn initialize_singbox_directly(state: &SingboxState) -> Result<String, CommandError> {
-    initialize_state_inner(state).await
-}
-
-pub async fn refresh_singbox_detection_directly(
-    state: &SingboxState,
-) -> Result<bool, CommandError> {
-    refresh_detection_inner(state).await
-}
-
-async fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandError> {
-    if !crate::daemon::install::is_service_installed() {
-        return Ok("sing-box-daemon service is not installed".to_string());
-    }
-
-    println!("Connecting to sing-box-daemon...");
-    if let Err(e) = ensure_connected(state).await {
-        eprintln!("Failed to connect to sing-box-daemon: {:?}", e);
-        return Ok(format!("Failed to connect to sing-box-daemon: {}", e));
-    }
-
-    Ok(describe_status(&state.status_rx.borrow()))
-}
-
-async fn refresh_detection_inner(state: &SingboxState) -> Result<bool, CommandError> {
-    if !crate::daemon::install::is_service_installed() {
-        return Ok(false);
-    }
-    if ensure_connected(state).await.is_err() {
-        return Ok(false);
-    }
-    Ok(matches!(
-        state.status_rx.borrow().status(),
-        ServiceStatusType::Starting | ServiceStatusType::Started
-    ))
+/// Current connection phase, for a component's first render — the
+/// reconciliation loop keeps this fresh from then on via `DAEMON_STATE_EVENT`.
+pub fn get_daemon_state(state: &SingboxState) -> ConnectionPhase {
+    state.phase_rx.borrow().clone()
 }
 
 /// Stop the sing-box instance and disconnect. Called on app quit (see
@@ -342,6 +483,14 @@ async fn refresh_detection_inner(state: &SingboxState) -> Result<bool, CommandEr
 /// quitting fresh-box stops the proxy rather than leaving it running
 /// unattended. The daemon service itself, and any other owner, is
 /// unaffected.
+///
+/// Also used to disconnect before uninstalling the daemon service
+/// (`commands::singbox::uninstall_daemon_service`) — in that case the
+/// reconciliation loop is deliberately left running: it'll settle into
+/// `NotInstalled` on its own once the uninstall completes, and pick the
+/// connection back up automatically if the service is ever reinstalled.
+/// Only `stop_reconciliation_loop` (called separately, right before a real
+/// app exit) actually stops it.
 pub async fn cleanup_process(state: &SingboxState) {
     let client = {
         let mut guard = state.client.lock().await;

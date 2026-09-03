@@ -1,6 +1,6 @@
 // window_utils.rs - 窗口操作工具与生命周期状态管理
 
-use std::{future::Future, sync::Mutex, time::Duration};
+use std::{sync::Mutex, time::Duration};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
 
 // ─── 全局窗口行为状态 ──────────────────────────────────────────────
@@ -56,18 +56,6 @@ where
     tauri::async_runtime::spawn(async move {
         tokio::time::sleep(delay).await;
         action();
-    });
-}
-
-/// 在当前 tokio 运行时上延迟执行异步回调
-pub fn spawn_async_after_delay<F, Fut>(delay: Duration, action: F)
-where
-    F: FnOnce() -> Fut + Send + 'static,
-    Fut: Future<Output = ()> + Send + 'static,
-{
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(delay).await;
-        action().await;
     });
 }
 

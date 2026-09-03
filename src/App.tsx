@@ -18,6 +18,7 @@ import Proxies from "./pages/Proxies";
 import Settings from "./pages/Settings";
 import { useAppStore } from "./stores/appStore";
 import { useClashStore } from "./stores/clashStore";
+import { useDaemonConnectionListener } from "./hooks/useDaemonConnection";
 import { useWindowVisibilityListener } from "./hooks/useWindowVisibility";
 
 function LoadingScreen() {
@@ -57,6 +58,7 @@ export default function App() {
   const currentPage = useAppStore((s) => s.currentPage);
   const fluentTheme = useTheme();
   useWindowVisibilityListener();
+  useDaemonConnectionListener();
 
   useEffect(() => {
     void initializeApp().catch((err: unknown) => {

@@ -1,5 +1,5 @@
 use crate::errors::CommandError;
-use crate::services::singbox::SingboxState;
+use crate::services::singbox::{ConnectionPhase, SingboxState};
 use tauri::State;
 
 #[tauri::command]
@@ -16,9 +16,19 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     crate::services::singbox::stop_singbox(state).await
 }
 
+/// Synchronous snapshot of the daemon connection's current phase, for a
+/// component's first render — see `services::singbox::spawn_reconciliation_loop`
+/// for how it's kept fresh afterward via the `daemon-state-changed` event.
 #[tauri::command]
-pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
-    crate::services::singbox::is_singbox_running(state).await
+pub fn get_daemon_state(state: State<'_, SingboxState>) -> ConnectionPhase {
+    crate::services::singbox::get_daemon_state(state.inner())
+}
+
+/// Wake the reconciliation loop to retry immediately instead of waiting out
+/// its current backoff — e.g. when the window regains focus.
+#[tauri::command]
+pub fn retry_daemon_connection(state: State<'_, SingboxState>) {
+    crate::services::singbox::retry_connection(state.inner());
 }
 
 /// `true` once `sing-box-daemon` is registered as a Windows service —
@@ -30,17 +40,16 @@ pub fn is_daemon_service_installed() -> bool {
 
 /// Registers `sing-box-daemon.exe` as a Windows service. Blocks on a UAC
 /// prompt (see `daemon::install::run_elevated`), so it runs off the async
-/// runtime's worker threads via `spawn_blocking`. On success, immediately
-/// tries to connect so the UI reflects the new state without a manual
-/// refresh.
+/// runtime's worker threads via `spawn_blocking`. On success, wakes the
+/// reconciliation loop so the UI reflects the new state without waiting out
+/// a backoff.
 #[tauri::command]
-pub async fn install_daemon_service(
-    state: State<'_, SingboxState>,
-) -> Result<String, CommandError> {
+pub async fn install_daemon_service(state: State<'_, SingboxState>) -> Result<(), CommandError> {
     tokio::task::spawn_blocking(crate::daemon::install::install_service)
         .await
         .map_err(|e| CommandError::io("install daemon service", e))??;
-    crate::services::singbox::initialize_singbox_directly(state.inner()).await
+    crate::services::singbox::retry_connection(state.inner());
+    Ok(())
 }
 
 /// Unregisters the `sing-box-daemon` Windows service. Stops our own

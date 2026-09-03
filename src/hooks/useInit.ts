@@ -1,32 +1,23 @@
 import { useSettingsStore } from "../stores/settingsStore";
-import { useSingboxStore } from "../stores/singboxStore";
-import { useClashStore } from "../stores/clashStore";
 import { useConfigStore } from "../stores/configStore";
 import { useAppStore } from "../stores/appStore";
-import {
-  isSingboxRunning,
-  listConfigs,
-  loadSubscriptions,
-} from "../services/api";
+import { listConfigs, loadSubscriptions } from "../services/api";
 import { buildConfigEntries } from "../services/utils";
-import { startConnectionsStream } from "./useConnectionsStream";
-import { startLogsStream } from "./useLogsStream";
-import { startTrafficStream } from "./useTrafficStream";
-import { startMemoryStream } from "./useMemoryStream";
 
 export async function initializeApp() {
   const settings = useSettingsStore.getState();
-  const singbox = useSingboxStore.getState();
-  const clash = useClashStore.getState();
   const config = useConfigStore.getState();
   const app = useAppStore.getState();
 
   await settings.hydrate();
 
-  const [files, subscriptions, running] = await Promise.all([
+  // Whether sing-box is running, and everything that follows from that
+  // (streams, the Overview data, ...) is handled by
+  // `useDaemonConnectionListener` off the daemon's own state — not fetched
+  // here, so this doesn't race it (see that hook's doc comment).
+  const [files, subscriptions] = await Promise.all([
     listConfigs(),
     loadSubscriptions(),
-    isSingboxRunning(),
   ]);
 
   const configFiles = buildConfigEntries(files);
@@ -50,15 +41,6 @@ export async function initializeApp() {
     target?.path ?? null,
     target?.displayName ?? null,
   );
-
-  singbox.setRunning(running);
-  if (running) {
-    startConnectionsStream();
-    startTrafficStream();
-    startMemoryStream();
-    void startLogsStream();
-    await clash.refreshOverview(false);
-  }
 
   const savedPage = useSettingsStore.getState().settings.app.current_page;
   app.setCurrentPage(savedPage);

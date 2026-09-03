@@ -8,6 +8,7 @@ import type {
   SubscriptionRecord,
 } from "../types/app";
 import { normalizeAppSettings } from "../types/app";
+import type { DaemonConnectionPhase } from "../types/daemon";
 import { invokeCommand } from "./tauri";
 
 export function normalizeSubscriptions(
@@ -109,8 +110,21 @@ export async function stopSingbox(): Promise<void> {
   return invokeCommand<void>("stop_singbox");
 }
 
-export async function isSingboxRunning(): Promise<boolean> {
-  return invokeCommand<boolean>("is_singbox_running");
+/**
+ * Current daemon connection phase, for a component's first render — see
+ * `useDaemonConnectionListener` for how it's kept fresh afterward via the
+ * `daemon-state-changed` event. This (plus that event) is the only way the
+ * frontend learns whether sing-box is running; there's no separate
+ * point-in-time "is it running" check any more.
+ */
+export async function getDaemonState(): Promise<DaemonConnectionPhase> {
+  return invokeCommand<DaemonConnectionPhase>("get_daemon_state");
+}
+
+/** Wake the daemon reconciliation loop to retry immediately instead of
+ * waiting out its current backoff. */
+export async function retryDaemonConnection(): Promise<void> {
+  return invokeCommand<void>("retry_daemon_connection");
 }
 
 export async function isDaemonServiceInstalled(): Promise<boolean> {
@@ -118,8 +132,8 @@ export async function isDaemonServiceInstalled(): Promise<boolean> {
 }
 
 /** Registers the sing-box-daemon Windows service. Triggers a UAC prompt. */
-export async function installDaemonService(): Promise<string> {
-  return invokeCommand<string>("install_daemon_service");
+export async function installDaemonService(): Promise<void> {
+  return invokeCommand<void>("install_daemon_service");
 }
 
 /** Unregisters the sing-box-daemon Windows service. Triggers a UAC prompt. */
