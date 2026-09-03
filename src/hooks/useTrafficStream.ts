@@ -4,6 +4,7 @@ import {
   startTrafficStream as startTrafficStreamCmd,
   stopTrafficStream as stopTrafficStreamCmd,
 } from "../services/api";
+import { createStreamGuard } from "./streamGuard";
 
 export interface DataPoint {
   dl: number;
@@ -67,15 +68,17 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
     }),
 }));
 
+const guard = createStreamGuard({
+  start: startTrafficStreamCmd,
+  stop: stopTrafficStreamCmd,
+});
+
 export function startTrafficStream() {
-  void startTrafficStreamCmd();
+  void guard.start();
 }
 
 export function stopTrafficStream(clear = false) {
-  void stopTrafficStreamCmd();
-  if (clear) {
-    useTrafficStore.getState().clear();
-  }
+  void guard.stop(clear ? () => useTrafficStore.getState().clear() : undefined);
 }
 
 // Register event listeners at module level so they're always active
@@ -87,6 +90,7 @@ void listen<string>("stream-traffic-status", (e) => {
 });
 
 void listen<{ down: number; up: number }>("stream-traffic", (e) => {
+  if (!guard.isActive()) return;
   useTrafficStore.getState().setTraffic(e.payload.down, e.payload.up);
 });
 

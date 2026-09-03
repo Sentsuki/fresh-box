@@ -1,5 +1,7 @@
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use crate::crash_reports;
+
 /// Guards against re-entering the hook (e.g. a panic while formatting/
 /// writing the crash log, or while `MessageBoxW` is up) — mirrors the
 /// official Electron client's `handlingFatalError` guard in `index.ts`'s
@@ -12,35 +14,33 @@ pub fn install_panic_hook() {
             std::process::exit(1);
         }
 
-        // Deliberately not exe-relative — the app installs per-machine
-        // into an admin-protected Program Files directory (see
-        // `config::paths::get_app_data_root`), which an unelevated
-        // process can't write into.
-        let log_dir = crate::config::paths::get_log_dir().ok();
-        let log_path = match &log_dir {
-            Some(dir) => dir.join("crash.log"),
-            None => std::env::temp_dir().join("fresh-box-crash.log"),
-        };
-
-        let crash_msg = format!(
-            "Application crashed at {}: {}\n",
-            chrono::Utc::now().format("%Y-%m-%d %H:%M:%S UTC"),
+        let summary = panic_info.to_string();
+        let details = format!(
+            "{summary}\n\nLocation: {}",
             panic_info
+                .location()
+                .map(|l| l.to_string())
+                .unwrap_or_else(|| "<unknown>".to_string())
         );
 
-        // Always append so multiple crash entries are preserved in the same file.
-        let _ = std::fs::OpenOptions::new()
-            .create(true)
-            .append(true)
-            .open(&log_path)
-            .and_then(|mut file| {
-                use std::io::Write;
-                file.write_all(crash_msg.as_bytes())
-            });
+        // `crash_reports::write` needs `config::paths::get_log_dir()` (not
+        // exe-relative — the app installs per-machine into an
+        // admin-protected Program Files directory, see
+        // `config::paths::get_app_data_root`, which an unelevated process
+        // can't write into) and can fail for the same reasons any file I/O
+        // can. Fall back to a single best-effort temp-dir text file in that
+        // case, purely so the user has *something* to find — this is not
+        // the normal path.
+        let report_path = crash_reports::write("panic", &summary, &details);
+        let display_path = report_path.clone().unwrap_or_else(|| {
+            let fallback = std::env::temp_dir().join("fresh-box-crash.log");
+            let _ = std::fs::write(&fallback, &details);
+            fallback
+        });
 
-        eprintln!("{}", crash_msg);
+        eprintln!("Application crashed: {summary}");
 
-        show_crash_dialog(&panic_info.to_string(), &log_path);
+        show_crash_dialog(&summary, &display_path);
 
         // A Rust panic on any one thread only unwinds *that* thread by
         // default — every other task (including whatever's driving the UI)

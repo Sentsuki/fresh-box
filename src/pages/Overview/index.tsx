@@ -10,7 +10,7 @@ import {
 import { useSingboxStore } from "../../stores/singboxStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useConfigStore } from "../../stores/configStore";
-import { useClashStore } from "../../stores/clashStore";
+import { useProxyStore } from "../../stores/proxyStore";
 import { useSingbox } from "../../hooks/useSingbox";
 import StatusCards from "./StatusCards";
 import TrafficChart from "./TrafficChart";
@@ -26,9 +26,9 @@ export default function Overview() {
   const selectedPath = useSettingsStore(
     (s) => s.settings.profiles.selected_config_path,
   );
-  const subscriptions = useConfigStore((s) => s.subscriptions);
-  const overview = useClashStore((s) => s.overview);
-  const refreshOverview = useClashStore((s) => s.refreshOverview);
+  const profiles = useConfigStore((s) => s.profiles);
+  const overview = useProxyStore((s) => s.overview);
+  const refreshOverview = useProxyStore((s) => s.refreshOverview);
 
   const { startService, stopService } = useSingbox();
 
@@ -37,8 +37,8 @@ export default function Overview() {
   }, [isRunning, refreshOverview]);
 
   const isSubscription = useMemo(
-    () => !!(selectedDisplay && subscriptions[selectedDisplay]),
-    [selectedDisplay, subscriptions],
+    () => !!profiles.find((p) => p.name === selectedDisplay)?.url,
+    [selectedDisplay, profiles],
   );
 
   return (

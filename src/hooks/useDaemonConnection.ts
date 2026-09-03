@@ -7,16 +7,10 @@ import {
 import { useEffect } from "react";
 import { getDaemonState } from "../services/api";
 import type { DaemonConnectionPhase } from "../types/daemon";
-import { useClashStore } from "../stores/clashStore";
+import { useProxyStore } from "../stores/proxyStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { isWindowVisible } from "./useWindowVisibility";
-import {
-  startConnectionsStream,
-  stopConnectionsStream,
-} from "./useConnectionsStream";
-import { startLogsStream, stopLogsStream } from "./useLogsStream";
-import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
-import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
+import { startAllStreams, stopAllStreams } from "./streamLifecycle";
 import { useToast } from "./useToast";
 
 async function notifyOs(body: string) {
@@ -68,12 +62,9 @@ function applyPhase(
     // skip starting streams for a hidden window; it picks them up itself
     // once the window becomes visible again while `isRunning` is true.
     if (isWindowVisible()) {
-      startConnectionsStream();
-      startTrafficStream();
-      startMemoryStream();
-      void startLogsStream();
+      startAllStreams();
     }
-    void useClashStore.getState().refreshOverview(announce);
+    void useProxyStore.getState().refreshOverview(announce);
     if (announce) {
       toast.success("sing-box is running.");
       void notifyOs("sing-box is running.");
@@ -81,11 +72,8 @@ function applyPhase(
     return;
   }
 
-  stopConnectionsStream(true);
-  stopTrafficStream(true);
-  stopMemoryStream(true);
-  void stopLogsStream(true);
-  useClashStore.getState().clearOverview();
+  stopAllStreams(true);
+  useProxyStore.getState().clearOverview();
 
   if (!announce) return;
 

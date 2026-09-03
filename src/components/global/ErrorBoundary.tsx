@@ -1,4 +1,5 @@
 import { Component, type ErrorInfo, type ReactNode } from "react";
+import { recordFrontendError } from "../../services/api";
 import { Button } from "../ui/Button";
 
 interface Props {
@@ -23,6 +24,20 @@ export class ErrorBoundary extends Component<Props, State> {
 
   componentDidCatch(error: Error, info: ErrorInfo) {
     console.error("[ErrorBoundary]", error, info);
+
+    // Persist it — see `recordFrontendError`'s doc comment for why. Never
+    // let a failure here surface as a *second* error on top of the one
+    // we're already handling.
+    const stack = [error.stack, info.componentStack]
+      .filter((part): part is string => !!part)
+      .join("\n\nComponent stack:\n");
+    void recordFrontendError(
+      error.name || "Error",
+      error.message || "An unexpected error occurred",
+      stack || undefined,
+    ).catch((reportingError) => {
+      console.error("[ErrorBoundary] failed to record crash report", reportingError);
+    });
   }
 
   reset() {

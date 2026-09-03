@@ -7,6 +7,7 @@ import {
   stopConnectionsStream as stopConnectionsStreamCmd,
 } from "../services/api";
 import { formatRelativeDuration, formatSpeed } from "../services/utils";
+import { createStreamGuard } from "./streamGuard";
 import type {
   ConnectionColumnKey,
   ConnectionEntry,
@@ -295,15 +296,19 @@ export const useConnectionsStore = create<
     }),
 }));
 
+const guard = createStreamGuard({
+  start: startConnectionsStreamCmd,
+  stop: stopConnectionsStreamCmd,
+});
+
 export function startConnectionsStream() {
-  void startConnectionsStreamCmd();
+  void guard.start();
 }
 
 export function stopConnectionsStream(clear = false) {
-  void stopConnectionsStreamCmd();
-  if (clear) {
-    useConnectionsStore.getState().clear();
-  }
+  void guard.stop(
+    clear ? () => useConnectionsStore.getState().clear() : undefined,
+  );
 }
 
 function sortEntries(
@@ -396,6 +401,7 @@ void listen<string>("stream-connections-status", (e) => {
 });
 
 void listen<CoreConnectionsFrame>("stream-connections", (e) => {
+  if (!guard.isActive()) return;
   useConnectionsStore.getState().setFrame(e.payload);
 });
 

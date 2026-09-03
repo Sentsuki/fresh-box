@@ -1,14 +1,8 @@
 import { useEffect } from "react";
 import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import {
-  startConnectionsStream,
-  stopConnectionsStream,
-} from "./useConnectionsStream";
 import { useSingboxStore } from "../stores/singboxStore";
-import { startLogsStream, stopLogsStream } from "./useLogsStream";
-import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
-import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
+import { startAllStreams, stopAllStreams } from "./streamLifecycle";
 
 interface WindowVisibilityState {
   isVisible: boolean;
@@ -29,8 +23,9 @@ export function isWindowVisible(): boolean {
 
 /**
  * Register once at the App root to listen for Tauri visibility events.
- * Automatically pauses the connections WebSocket when hidden and resumes
- * it (if sing-box is running) when the window is shown again.
+ * Automatically pauses the traffic/memory/connections/logs streams (Tauri
+ * event subscriptions, not sockets) when hidden and resumes them (if
+ * sing-box is running) when the window is shown again.
  */
 export function useWindowVisibilityListener() {
   const setVisible = useWindowVisibilityStore((s) => s.setVisible);
@@ -43,18 +38,10 @@ export function useWindowVisibilityListener() {
       setVisible(visible);
 
       if (!visible) {
-        // Pause stream and clear cached state to start fresh when shown again.
-        stopConnectionsStream(true);
-        stopLogsStream(true);
-        stopTrafficStream(true);
-        stopMemoryStream(true);
-      } else {
-        if (useSingboxStore.getState().isRunning) {
-          startConnectionsStream();
-          startLogsStream();
-          startTrafficStream();
-          startMemoryStream();
-        }
+        // Pause streams and clear cached state to start fresh when shown again.
+        stopAllStreams(true);
+      } else if (useSingboxStore.getState().isRunning) {
+        startAllStreams();
       }
     }).then((fn) => {
       unlisten = fn;

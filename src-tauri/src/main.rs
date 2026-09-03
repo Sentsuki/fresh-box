@@ -3,6 +3,7 @@
 
 mod commands;
 mod config;
+mod crash_reports;
 mod daemon;
 mod errors;
 mod logger;
@@ -47,6 +48,7 @@ fn main() {
         ))
         .manage(singbox_state)
         .manage(services::streams::StreamsState::new())
+        .manage(config::app_settings::BackendPrefsState::load())
         .invoke_handler(tauri::generate_handler![
             commands::singbox::start_singbox,
             commands::singbox::stop_singbox,
@@ -59,24 +61,21 @@ fn main() {
             commands::app::is_autostart_enabled,
             commands::app::enable_autostart,
             commands::app::disable_autostart,
-            commands::clash::get_clash_overview,
-            commands::clash::update_clash_mode,
-            commands::clash::select_clash_proxy,
-            commands::clash::test_clash_proxy_delay,
-            commands::clash::test_clash_proxy_group_delay,
-            commands::config::list_configs,
+            commands::proxy::get_proxy_overview,
+            commands::proxy::update_proxy_mode,
+            commands::proxy::select_proxy,
+            commands::proxy::test_proxy_delay,
+            commands::proxy::test_proxy_group_delay,
+            commands::config::list_profiles,
             commands::config::copy_config_to_bin,
-            commands::config::save_subscription_config,
-            commands::config::delete_config,
-            commands::config::rename_config,
+            commands::config::delete_profile,
+            commands::config::rename_profile,
+            commands::config::edit_subscription_url,
+            commands::config::set_subscription_auto_update,
             commands::config::open_config_file,
             commands::config::open_app_directory,
-            commands::config::save_subscriptions,
-            commands::config::load_subscriptions,
             commands::config::load_app_settings,
             commands::config::save_app_settings,
-            commands::config::load_config_content,
-            commands::config::save_config_content,
             commands::config_override::enable_config_override,
             commands::config_override::disable_config_override,
             commands::config_override::save_config_override,
@@ -85,9 +84,9 @@ fn main() {
             commands::config_override::is_config_override_enabled,
             commands::priority::save_priority_config,
             commands::priority::load_priority_config,
-            commands::priority::clear_priority_config,
             commands::priority::check_config_fields,
-            commands::tray::refresh_tray_proxy_menu,
+            commands::diagnostics::list_crash_reports,
+            commands::diagnostics::record_frontend_error,
             update_mica_theme,
             commands::streams::start_traffic_stream,
             commands::streams::stop_traffic_stream,
@@ -97,9 +96,8 @@ fn main() {
             commands::streams::stop_connections_stream,
             commands::streams::start_logs_stream,
             commands::streams::stop_logs_stream,
-            commands::clash::close_all_connections,
-            commands::clash::close_connection,
-            commands::config::fetch_subscription,
+            commands::proxy::close_all_connections,
+            commands::proxy::close_connection,
             commands::config::add_subscription,
             commands::config::update_subscription,
         ])
@@ -134,6 +132,7 @@ fn main() {
 
             let state = app.state::<SingboxState>();
             spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
+            commands::config::spawn_auto_update_scheduler(app.handle().clone());
 
             Ok(())
         })
@@ -145,9 +144,18 @@ fn main() {
                 // 始终阻止默认关闭行为，由我们决定后续动作
                 api.prevent_close();
 
-                let close_behavior = crate::config::app_settings::load_app_settings_file()
-                    .map(|s| s.settings.close_behavior.clone())
-                    .unwrap_or_else(|_| "hide".to_string());
+                // Bounds/position may have changed since the last
+                // `Resized`/`Moved` event fired (or this could be the very
+                // first user interaction with the window at all) — persist
+                // once more right before it goes away instead of relying
+                // solely on those two events to have already caught it.
+                window_state::persist(window);
+
+                let close_behavior = window
+                    .app_handle()
+                    .state::<config::app_settings::BackendPrefsState>()
+                    .get()
+                    .close_behavior;
 
                 // 通知前端窗口即将不可见，触发流暂停与缓存清理
                 let _ = window.emit("window-visibility-changed", false);

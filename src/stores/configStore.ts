@@ -1,23 +1,19 @@
 import { create } from "zustand";
-import type { ConfigFileEntry, SubscriptionRecord } from "../types/app";
+import type { ProfileEntry } from "../types/app";
 
 interface ConfigState {
-  configFiles: ConfigFileEntry[];
-  subscriptions: SubscriptionRecord;
+  profiles: ProfileEntry[];
   pendingOperation: boolean;
 }
 
 interface ConfigActions {
-  setConfigFiles: (files: ConfigFileEntry[]) => void;
-  setSubscriptions: (subs: SubscriptionRecord) => void;
+  setProfiles: (profiles: ProfileEntry[]) => void;
   setPending: (pending: boolean) => void;
 }
 
 export const useConfigStore = create<ConfigState & ConfigActions>((set) => ({
-  configFiles: [],
-  subscriptions: {},
+  profiles: [],
   pendingOperation: false,
-  setConfigFiles: (configFiles) => set({ configFiles }),
-  setSubscriptions: (subscriptions) => set({ subscriptions }),
+  setProfiles: (profiles) => set({ profiles }),
   setPending: (pendingOperation) => set({ pendingOperation }),
 }));

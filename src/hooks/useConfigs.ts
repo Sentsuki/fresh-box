@@ -3,28 +3,22 @@ import { open } from "@tauri-apps/plugin-dialog";
 import {
   addSubscription as addSubscriptionCmd,
   copyConfigToBin,
-  deleteConfigFile,
-  listConfigs,
-  loadSubscriptions,
-  normalizeSubscriptions,
+  deleteProfile as deleteProfileCmd,
+  editSubscriptionUrl,
+  listProfiles,
   openConfigFile as openConfigFileCmd,
-  renameConfigFile,
-  saveSubscriptions,
+  renameProfile as renameProfileCmd,
+  setSubscriptionAutoUpdate,
   updateSubscription as updateSubscriptionCmd,
-  type SubscriptionOperationResult,
+  type ProfileOperationResult,
 } from "../services/api";
-import { buildConfigEntries, getCleanFileName } from "../services/utils";
 import { getErrorMessage } from "../services/tauri";
 import { useConfigStore } from "../stores/configStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useToast } from "./useToast";
 import { useSingbox } from "./useSingbox";
-import type {
-  ConfigFileEntry,
-  SubscriptionInfo,
-  SubscriptionRecord,
-} from "../types/app";
+import type { ProfileEntry } from "../types/app";
 
 /** Subscription content fetched over plain HTTP isn't encrypted or
  * authenticated in transit, so it can be tampered with in flight (and, per
@@ -35,64 +29,33 @@ function isInsecureSubscriptionUrl(url: string): boolean {
   return url.trim().toLowerCase().startsWith("http://");
 }
 
-async function syncConfigFiles(preferredDisplayName?: string | null) {
-  const files = await listConfigs();
-  const configFiles = buildConfigEntries(files);
-  useConfigStore.getState().setConfigFiles(configFiles);
+/**
+ * Apply a freshly-fetched profile list to the store, and re-resolve the
+ * persisted selection against it: kept as-is if the currently selected
+ * path still exists in the new list (renaming/deleting/importing some
+ * *other* profile shouldn't disturb it), otherwise falls back to
+ * `preferredName` (typically whatever profile the caller just
+ * added/renamed) or the first profile.
+ */
+async function applyProfiles(profiles: ProfileEntry[], preferredName?: string | null) {
+  useConfigStore.getState().setProfiles(profiles);
 
   const settings = useSettingsStore.getState();
   const currentPath = settings.settings.profiles.selected_config_path;
-
-  // Keep current selection if it still exists in the new list
-  if (currentPath && configFiles.find((c) => c.path === currentPath)) {
+  if (currentPath && profiles.find((p) => p.path === currentPath)) {
     return;
   }
 
-  // Current selection is gone (deleted/renamed); fall back to preferredDisplayName or first file
   const target =
-    (preferredDisplayName &&
-      configFiles.find((c) => c.displayName === preferredDisplayName)) ||
-    configFiles[0] ||
+    (preferredName && profiles.find((p) => p.name === preferredName)) ||
+    profiles[0] ||
     null;
 
-  await settings.setSelectedConfig(
-    target?.path ?? null,
-    target?.displayName ?? null,
-  );
+  await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
 }
 
-async function persistSubscriptions(subscriptions: SubscriptionRecord) {
-  await saveSubscriptions(subscriptions);
-  useConfigStore.getState().setSubscriptions(subscriptions);
-}
-
-/** Apply the result of an atomic add/update subscription backend command. */
-async function applySubscriptionResult(result: SubscriptionOperationResult) {
-  const configFiles = buildConfigEntries(result.config_files);
-  useConfigStore.getState().setConfigFiles(configFiles);
-  useConfigStore
-    .getState()
-    .setSubscriptions(
-      normalizeSubscriptions(
-        JSON.parse(result.subscriptions) as Record<
-          string,
-          SubscriptionInfo | string
-        >,
-      ),
-    );
-
-  const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.profiles.selected_config_path;
-  if (currentPath && configFiles.find((c) => c.path === currentPath)) return;
-
-  const target =
-    configFiles.find((c) => c.displayName === result.file_name) ||
-    configFiles[0] ||
-    null;
-  await settings.setSelectedConfig(
-    target?.path ?? null,
-    target?.displayName ?? null,
-  );
+async function applyProfileResult(result: ProfileOperationResult) {
+  await applyProfiles(result.profiles, result.entry.name);
 }
 
 export function useConfigs() {
@@ -108,48 +71,37 @@ export function useConfigs() {
     const config = useConfigStore.getState();
     config.setPending(true);
     try {
-      const [files, subscriptions] = await Promise.all([
-        listConfigs(),
-        loadSubscriptions(),
-      ]);
-      const configFiles = buildConfigEntries(files);
-      config.setConfigFiles(configFiles);
-      config.setSubscriptions(subscriptions);
+      const profiles = await listProfiles();
+      config.setProfiles(profiles);
 
       const settings = useSettingsStore.getState();
       const savedDisplay = settings.settings.profiles.selected_config_display;
+      const savedPath = settings.settings.profiles.selected_config_path;
       const target =
-        (savedDisplay &&
-          configFiles.find((c) => c.displayName === savedDisplay)) ||
-        (settings.settings.profiles.selected_config_path &&
-          configFiles.find(
-            (c) => c.path === settings.settings.profiles.selected_config_path,
-          )) ||
-        configFiles[0] ||
+        (savedDisplay && profiles.find((p) => p.name === savedDisplay)) ||
+        (savedPath && profiles.find((p) => p.path === savedPath)) ||
+        profiles[0] ||
         null;
 
-      await settings.setSelectedConfig(
-        target?.path ?? null,
-        target?.displayName ?? null,
-      );
+      await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
     } finally {
       config.setPending(false);
     }
   }, []);
 
   const selectConfig = useCallback(
-    async (cfg: ConfigFileEntry) => {
+    async (cfg: ProfileEntry) => {
       const settings = useSettingsStore.getState();
       const singbox = useSingboxStore.getState();
 
-      await settings.setSelectedConfig(cfg.path, cfg.displayName);
+      await settings.setSelectedConfig(cfg.path, cfg.name);
 
       if (singbox.isRunning) {
         toastInfo("Config changed. Restarting service...");
         await stopService();
         await startService();
       } else {
-        toastSuccess(`Selected config: ${cfg.displayName}`);
+        toastSuccess(`Selected config: ${cfg.name}`);
       }
     },
     [toastInfo, toastSuccess, stopService, startService],
@@ -166,8 +118,8 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        await copyConfigToBin(file as string);
-        await syncConfigFiles(getCleanFileName(file as string));
+        const result = await copyConfigToBin(file as string);
+        await applyProfileResult(result);
         toastSuccess("Added config file successfully");
       } finally {
         config.setPending(false);
@@ -185,8 +137,8 @@ export function useConfigs() {
       config.setPending(true);
       try {
         const result = await addSubscriptionCmd(url);
-        await applySubscriptionResult(result);
-        toastSuccess(`Subscribed to: ${result.file_name}`);
+        await applyProfileResult(result);
+        toastSuccess(`Subscribed to: ${result.entry.name}`);
         if (isInsecureSubscriptionUrl(url)) {
           toastWarning(
             "This subscription uses plain HTTP",
@@ -205,16 +157,16 @@ export function useConfigs() {
   );
 
   const updateSubscription = useCallback(
-    async (fileName: string) => {
+    async (id: string) => {
       const config = useConfigStore.getState();
-      const subscription = config.subscriptions[fileName];
-      if (!subscription || config.pendingOperation) return false;
+      const profile = config.profiles.find((p) => p.id === id);
+      if (!profile?.url || config.pendingOperation) return false;
 
       config.setPending(true);
       try {
-        const result = await updateSubscriptionCmd(fileName);
-        await applySubscriptionResult(result);
-        toastSuccess(`Updated subscription: ${result.file_name}`);
+        const result = await updateSubscriptionCmd(id);
+        await applyProfileResult(result);
+        toastSuccess(`Updated subscription: ${result.entry.name}`);
         return true;
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
@@ -227,18 +179,15 @@ export function useConfigs() {
   );
 
   const editSubscription = useCallback(
-    async (fileName: string, newUrl: string) => {
+    async (id: string, newUrl: string) => {
       const config = useConfigStore.getState();
       if (config.pendingOperation) return;
 
       config.setPending(true);
       try {
-        const current = config.subscriptions;
-        await persistSubscriptions({
-          ...current,
-          [fileName]: { ...current[fileName], url: newUrl },
-        });
-        toastSuccess(`Updated subscription URL for: ${fileName}`);
+        const profiles = await editSubscriptionUrl(id, newUrl);
+        useConfigStore.getState().setProfiles(profiles);
+        toastSuccess("Updated subscription URL");
         if (isInsecureSubscriptionUrl(newUrl)) {
           toastWarning(
             "This subscription uses plain HTTP",
@@ -254,13 +203,30 @@ export function useConfigs() {
     [toastError, toastSuccess, toastWarning],
   );
 
+  const setAutoUpdate = useCallback(
+    async (id: string, enabled: boolean, intervalMinutes?: number) => {
+      try {
+        const profiles = await setSubscriptionAutoUpdate(
+          id,
+          enabled,
+          intervalMinutes,
+        );
+        useConfigStore.getState().setProfiles(profiles);
+      } catch (err) {
+        toastError(`Error updating auto-update setting: ${getErrorMessage(err)}`);
+      }
+    },
+    [toastError],
+  );
+
   const renameConfig = useCallback(
-    async (oldFileName: string, newFileName: string) => {
+    async (id: string, newName: string) => {
       const config = useConfigStore.getState();
       if (config.pendingOperation) return;
 
-      const duplicate = config.configFiles.some(
-        (c) => c.displayName === newFileName && c.displayName !== oldFileName,
+      const current = config.profiles.find((p) => p.id === id);
+      const duplicate = config.profiles.some(
+        (p) => p.name === newName && p.id !== id,
       );
       if (duplicate) {
         toastError("A config with this name already exists");
@@ -269,15 +235,9 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        await renameConfigFile(`${oldFileName}.json`, `${newFileName}.json`);
-        if (config.subscriptions[oldFileName]) {
-          const next = { ...config.subscriptions };
-          next[newFileName] = next[oldFileName];
-          delete next[oldFileName];
-          await persistSubscriptions(next);
-        }
-        await syncConfigFiles(newFileName);
-        toastSuccess(`Renamed ${oldFileName} to ${newFileName}`);
+        const profiles = await renameProfileCmd(id, newName);
+        await applyProfiles(profiles, newName);
+        toastSuccess(`Renamed ${current?.name ?? id} to ${newName}`);
       } catch (err) {
         toastError(`Error renaming config: ${getErrorMessage(err)}`);
       } finally {
@@ -288,11 +248,11 @@ export function useConfigs() {
   );
 
   const deleteConfig = useCallback(
-    async (fileName: string) => {
+    async (id: string) => {
       const config = useConfigStore.getState();
       if (config.pendingOperation) return;
 
-      const cfg = config.configFiles.find((c) => c.displayName === fileName);
+      const cfg = config.profiles.find((p) => p.id === id);
       const settings = useSettingsStore.getState();
       if (
         cfg?.path === settings.settings.profiles.selected_config_path &&
@@ -306,14 +266,9 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        await deleteConfigFile(`${fileName}.json`);
-        if (config.subscriptions[fileName]) {
-          const next = { ...config.subscriptions };
-          delete next[fileName];
-          await persistSubscriptions(next);
-        }
-        await syncConfigFiles();
-        toastSuccess(`Deleted config: ${fileName}`);
+        const profiles = await deleteProfileCmd(id);
+        await applyProfiles(profiles);
+        toastSuccess(`Deleted config: ${cfg?.name ?? id}`);
       } catch (err) {
         toastError(`Error deleting config: ${getErrorMessage(err)}`);
       } finally {
@@ -324,9 +279,9 @@ export function useConfigs() {
   );
 
   const openConfigFile = useCallback(
-    async (fileName: string) => {
+    async (id: string) => {
       try {
-        await openConfigFileCmd(`${fileName}.json`);
+        await openConfigFileCmd(id);
       } catch (err) {
         toastError(`Failed to open config file: ${getErrorMessage(err)}`);
       }
@@ -334,25 +289,16 @@ export function useConfigs() {
     [toastError],
   );
 
-  const loadConfigFiles = useCallback(
-    async (preferredDisplayName?: string | null) => {
-      await syncConfigFiles(preferredDisplayName);
-    },
-    [],
-  );
-
   return {
     initializeConfigs,
-    loadConfigFiles,
     selectConfig,
     selectConfigFile,
     addSubscription,
     updateSubscription,
     editSubscription,
+    setAutoUpdate,
     renameConfig,
     deleteConfig,
     openConfigFile,
   };
 }
-
-export type { SubscriptionInfo };

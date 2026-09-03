@@ -17,15 +17,15 @@ import { Dialog } from "../../components/ui/Dialog";
 import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SettingGroup } from "../../components/ui/SettingCard";
+import { Switch } from "../../components/ui/Switch";
 import { useConfigs } from "../../hooks/useConfigs";
 import { formatLastUpdated } from "../../services/utils";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
-import type { SubscriptionInfo } from "../../types/app";
+import { DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES } from "../../types/app";
 
 export default function Profiles() {
-  const configFiles = useConfigStore((s) => s.configFiles);
-  const subscriptions = useConfigStore((s) => s.subscriptions);
+  const profiles = useConfigStore((s) => s.profiles);
   const selectedDisplay = useSettingsStore(
     (s) => s.settings.profiles.selected_config_display,
   );
@@ -45,16 +45,15 @@ export default function Profiles() {
     openConfigFile,
     renameConfig,
     editSubscription,
+    setAutoUpdate,
   } = useConfigs();
 
   useEffect(() => {
     void initializeConfigs();
   }, [initializeConfigs]);
 
-  const localFiles = configFiles.filter((f) => !subscriptions[f.displayName]);
-  const subscriptionFiles = configFiles.filter(
-    (f) => !!subscriptions[f.displayName],
-  );
+  const localFiles = profiles.filter((p) => !p.url);
+  const subscriptionFiles = profiles.filter((p) => !!p.url);
 
   async function handleAddSubscription() {
     if (!newSubUrl.trim()) {
@@ -158,30 +157,34 @@ export default function Profiles() {
             </div>
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {subscriptionFiles.map((file) => {
-                const sub = subscriptions[file.displayName];
-                return (
-                  <SubscriptionCard
-                    key={file.displayName}
-                    name={file.displayName}
-                    sub={sub}
-                    selected={selectedDisplay === file.displayName}
-                    onSelect={() => void selectConfig(file)}
-                    onUpdate={() => updateSubscription(file.displayName)}
-                    onOpen={() => void openConfigFile(file.displayName)}
-                    onDelete={() => void deleteConfig(file.displayName)}
-                    onRename={(newName, newUrl) =>
-                      void renameAndEditSub(
-                        file.displayName,
-                        newName,
-                        newUrl,
-                        renameConfig,
-                        editSubscription,
-                      )
-                    }
-                  />
-                );
-              })}
+              {subscriptionFiles.map((file) => (
+                <SubscriptionCard
+                  key={file.id}
+                  name={file.name}
+                  url={file.url ?? ""}
+                  lastUpdated={file.lastUpdated}
+                  autoUpdate={file.autoUpdate}
+                  updateIntervalMinutes={file.updateIntervalMinutes}
+                  selected={selectedDisplay === file.name}
+                  onSelect={() => void selectConfig(file)}
+                  onUpdate={() => updateSubscription(file.id)}
+                  onOpen={() => void openConfigFile(file.id)}
+                  onDelete={() => void deleteConfig(file.id)}
+                  onToggleAutoUpdate={(enabled, minutes) =>
+                    void setAutoUpdate(file.id, enabled, minutes)
+                  }
+                  onRename={(newName, newUrl) =>
+                    void renameAndEditSub(
+                      file.id,
+                      file.name,
+                      newName,
+                      newUrl,
+                      renameConfig,
+                      editSubscription,
+                    )
+                  }
+                />
+              ))}
             </div>
           )}
         </SettingGroup>
@@ -194,19 +197,17 @@ export default function Profiles() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {localFiles.map((file) => {
-                const isSelected = selectedDisplay === file.displayName;
+                const isSelected = selectedDisplay === file.name;
                 return (
                   <LocalFileCard
-                    key={file.path}
-                    name={file.displayName}
+                    key={file.id}
+                    name={file.name}
                     path={file.path}
                     selected={isSelected}
                     onSelect={() => void selectConfig(file)}
-                    onOpen={() => void openConfigFile(file.displayName)}
-                    onDelete={() => void deleteConfig(file.displayName)}
-                    onRename={(newName) =>
-                      void renameConfig(file.displayName, newName)
-                    }
+                    onOpen={() => void openConfigFile(file.id)}
+                    onDelete={() => void deleteConfig(file.id)}
+                    onRename={(newName) => void renameConfig(file.id, newName)}
                   />
                 );
               })}
@@ -219,16 +220,15 @@ export default function Profiles() {
 }
 
 async function renameAndEditSub(
+  id: string,
   oldName: string,
   newName: string,
   newUrl: string,
-  renameConfig: (oldName: string, newName: string) => Promise<void>,
-  editSubscription: (name: string, url: string) => Promise<void>,
+  renameConfig: (id: string, newName: string) => Promise<void>,
+  editSubscription: (id: string, url: string) => Promise<void>,
 ) {
-  const nameChanged = newName !== oldName;
-  const effectiveName = nameChanged ? newName : oldName;
-  if (nameChanged) await renameConfig(oldName, newName);
-  if (newUrl) await editSubscription(effectiveName, newUrl);
+  if (newName !== oldName) await renameConfig(id, newName);
+  if (newUrl) await editSubscription(id, newUrl);
 }
 
 function LocalFileCard({
@@ -385,34 +385,45 @@ function LocalFileCard({
 
 function SubscriptionCard({
   name,
-  sub,
+  url,
+  lastUpdated,
+  autoUpdate,
+  updateIntervalMinutes,
   selected,
   onSelect,
   onUpdate,
   onOpen,
   onDelete,
+  onToggleAutoUpdate,
   onRename,
 }: {
   name: string;
-  sub: SubscriptionInfo;
+  url: string;
+  lastUpdated?: string;
+  autoUpdate: boolean;
+  updateIntervalMinutes?: number;
   selected: boolean;
   onSelect: () => void;
   onUpdate: () => Promise<boolean | void>;
   onOpen: () => void;
   onDelete: () => void;
+  onToggleAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
   onRename: (newName: string, newUrl: string) => void;
 }) {
+  const [intervalInput, setIntervalInput] = useState(
+    updateIntervalMinutes ?? DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
+  );
   const [editing, setEditing] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "updating" | "success"
   >("idle");
   const [nameInput, setNameInput] = useState(name);
-  const [urlInput, setUrlInput] = useState(sub.url);
+  const [urlInput, setUrlInput] = useState(url);
 
   function startEdit(e: React.MouseEvent) {
     e.stopPropagation();
     setNameInput(name);
-    setUrlInput(sub.url);
+    setUrlInput(url);
     setEditing(true);
   }
 
@@ -506,16 +517,46 @@ function SubscriptionCard({
           </p>
           <p
             className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
-            title={sub.url}
+            title={url}
           >
-            {sub.url}
+            {url}
           </p>
-          {sub.lastUpdated && (
+          {lastUpdated && (
             <p className="text-[10px] font-medium text-(--wb-text-disabled) mt-1.5 uppercase tracking-wide">
-              Updated {formatLastUpdated(sub.lastUpdated)}
+              Updated {formatLastUpdated(lastUpdated)}
             </p>
           )}
         </div>
+      </div>
+
+      <div
+        className="flex items-center justify-between gap-2 py-1"
+        onClick={(e) => e.stopPropagation()}
+      >
+        <Switch
+          id={`auto-update-${name}`}
+          checked={autoUpdate}
+          onCheckedChange={(checked) =>
+            onToggleAutoUpdate(checked, checked ? intervalInput : undefined)
+          }
+          label="Auto-update"
+        />
+        {autoUpdate && (
+          <div className="flex items-center gap-1.5 text-xs text-(--wb-text-secondary)">
+            <input
+              type="number"
+              min={15}
+              value={intervalInput}
+              onChange={(e) => {
+                const next = Math.max(15, Number(e.target.value) || 15);
+                setIntervalInput(next);
+                onToggleAutoUpdate(true, next);
+              }}
+              className="w-14 px-1.5 py-0.5 rounded bg-(--wb-surface-base) border border-(--wb-border-subtle) text-right text-(--wb-text-primary)"
+            />
+            min
+          </div>
+        )}
       </div>
 
       <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">

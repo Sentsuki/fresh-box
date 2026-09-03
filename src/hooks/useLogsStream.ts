@@ -4,7 +4,11 @@ import { create } from "zustand";
 import type { CoreLogMessage, LogEntry } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import { invokeCommand } from "../services/tauri";
+import {
+  startLogsStream as startLogsStreamCmd,
+  stopLogsStream as stopLogsStreamCmd,
+} from "../services/api";
+import { createStreamGuard } from "./streamGuard";
 
 const LOG_LIMIT = 2000;
 
@@ -18,13 +22,11 @@ interface LogsState {
   isPaused: boolean;
   streamStatus:
     "disconnected" | "connecting" | "connected" | "error" | "disabled";
-  streamError: string | null;
   setSearch: (s: string) => void;
   setIsPaused: (p: boolean) => void;
   setStreamStatus: (
     s: "disconnected" | "connecting" | "connected" | "error" | "disabled",
   ) => void;
-  setStreamError: (e: string | null) => void;
   pushEntry: (entry: LogEntry) => void;
   flushBuffer: () => void;
   clearLogs: () => void;
@@ -37,11 +39,9 @@ export const useLogsStore = create<LogsState>((set, get) => ({
   search: "",
   isPaused: false,
   streamStatus: "disconnected",
-  streamError: null,
   setSearch: (search) => set({ search }),
   setIsPaused: (isPaused) => set({ isPaused }),
   setStreamStatus: (streamStatus) => set({ streamStatus }),
-  setStreamError: (streamError) => set({ streamError }),
 
   pushEntry: (entry) => {
     // Mutate the buffer array directly — no re-render triggered here.
@@ -71,15 +71,18 @@ function extractCategory(payload: string): string {
 }
 
 // ---------------------------------------------------------------------------
-// Module-level stream management — mirrors the pattern used by
-// useTrafficStream and useConnectionsStream for consistency.
+// Module-level stream management — shares `createStreamGuard` with
+// useTrafficStream/useMemoryStream/useConnectionsStream.
 // ---------------------------------------------------------------------------
 
-let isStreaming = false;
+const guard = createStreamGuard({
+  start: startLogsStreamCmd,
+  stop: stopLogsStreamCmd,
+});
 
 // Register event listeners once at module load, always active.
 void listen<CoreLogMessage>("stream-logs", (e) => {
-  if (!isStreaming) return; // guard: ignore events after stream is stopped
+  if (!guard.isActive()) return;
   const store = useLogsStore.getState();
   if (store.isPaused) return;
   const msg = e.payload;
@@ -103,24 +106,22 @@ void listen<CoreLogMessage>("stream-logs", (e) => {
 void listen<string>("stream-logs-status", (e) => {
   const status = e.payload as LogsState["streamStatus"];
   useLogsStore.getState().setStreamStatus(status);
-  useLogsStore.getState().setStreamError(null);
   if (status === "disabled" || status === "error") {
-    isStreaming = false;
+    // The backend itself says this stream isn't usable right now — stop
+    // applying incoming data without waiting for someone to call
+    // `stopLogsStream()` (which, unlike this, would also re-issue the
+    // `stop_logs_stream` command — redundant here since the backend is
+    // the one telling us).
+    guard.forceInactive();
   }
 });
 
 export async function startLogsStream() {
-  if (isStreaming) return;
-  isStreaming = true;
-  await invokeCommand<void>("start_logs_stream");
+  await guard.start();
 }
 
 export async function stopLogsStream(clear = false) {
-  isStreaming = false;
-  await invokeCommand<void>("stop_logs_stream");
-  if (clear) {
-    useLogsStore.getState().clearLogs();
-  }
+  await guard.stop(clear ? () => useLogsStore.getState().clearLogs() : undefined);
   // Only reset to disconnected if not disabled — "disabled" is a core config
   // state that should persist until the backend explicitly changes it.
   if (useLogsStore.getState().streamStatus !== "disabled") {
@@ -143,7 +144,6 @@ export function useLogsStream() {
   const search = useLogsStore((s) => s.search);
   const isPaused = useLogsStore((s) => s.isPaused);
   const streamStatus = useLogsStore((s) => s.streamStatus);
-  const streamError = useLogsStore((s) => s.streamError);
   const setSearch = useLogsStore((s) => s.setSearch);
   const setIsPaused = useLogsStore((s) => s.setIsPaused);
   const clearLogsState = useLogsStore((s) => s.clearLogs);
@@ -226,7 +226,6 @@ export function useLogsStream() {
     isPaused,
     setIsPaused,
     streamStatus,
-    streamError,
     availableTypes,
     startStream: () => void startLogsStream(),
     stopStream: (clear = false) => void stopLogsStream(clear),

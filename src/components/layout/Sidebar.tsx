@@ -11,7 +11,6 @@ import {
 import { useCallback, useState } from "react";
 import { motion } from "framer-motion";
 import { useAppStore } from "../../stores/appStore";
-import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
 import type { AppPage } from "../../types/app";
 import { StatusBadge } from "../ui/StatusBadge";
@@ -36,17 +35,15 @@ const NAV_ITEMS = [
 export function Sidebar() {
   const currentPage = useAppStore((s) => s.currentPage);
   const setCurrentPage = useAppStore((s) => s.setCurrentPage);
-  const setSettingsPage = useSettingsStore((s) => s.setCurrentPage);
   const isRunning = useSingboxStore((s) => s.isRunning);
 
   const [isExpanded, setIsExpanded] = useState(true);
 
   const navigate = useCallback(
-    async (page: AppPage) => {
+    (page: AppPage) => {
       setCurrentPage(page);
-      await setSettingsPage(page);
     },
-    [setCurrentPage, setSettingsPage],
+    [setCurrentPage],
   );
 
   return (
@@ -81,7 +78,7 @@ export function Sidebar() {
           return (
             <button
               key={item.id}
-              onClick={() => void navigate(item.id)}
+              onClick={() => navigate(item.id)}
               title={!isExpanded ? item.label : undefined}
               className={[
                 "w-full flex items-center gap-3 px-3 py-2 h-10 rounded-(--wb-radius-md) mb-0.5",
@@ -113,7 +110,7 @@ export function Sidebar() {
           <StatusBadge running={isRunning} showLabel={isExpanded} />
         </div>
         <button
-          onClick={() => void navigate("settings")}
+          onClick={() => navigate("settings")}
           title={!isExpanded ? "Settings" : undefined}
           className={[
             "w-full flex items-center gap-3 px-3 py-2 h-10 rounded-(--wb-radius-md)",

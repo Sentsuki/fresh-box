@@ -1,8 +1,7 @@
 import { useSettingsStore } from "../stores/settingsStore";
 import { useConfigStore } from "../stores/configStore";
 import { useAppStore } from "../stores/appStore";
-import { listConfigs, loadSubscriptions } from "../services/api";
-import { buildConfigEntries } from "../services/utils";
+import { listProfiles } from "../services/api";
 
 export async function initializeApp() {
   const settings = useSettingsStore.getState();
@@ -15,39 +14,22 @@ export async function initializeApp() {
   // (streams, the Overview data, ...) is handled by
   // `useDaemonConnectionListener` off the daemon's own state — not fetched
   // here, so this doesn't race it (see that hook's doc comment).
-  const [files, subscriptions] = await Promise.all([
-    listConfigs(),
-    loadSubscriptions(),
-  ]);
-
-  const configFiles = buildConfigEntries(files);
-  config.setConfigFiles(configFiles);
-  config.setSubscriptions(subscriptions);
+  const profiles = await listProfiles();
+  config.setProfiles(profiles);
 
   const savedDisplay =
     useSettingsStore.getState().settings.profiles.selected_config_display;
+  const savedPath =
+    useSettingsStore.getState().settings.profiles.selected_config_path;
   const target =
-    (savedDisplay && configFiles.find((c) => c.displayName === savedDisplay)) ||
-    (useSettingsStore.getState().settings.profiles.selected_config_path &&
-      configFiles.find(
-        (c) =>
-          c.path ===
-          useSettingsStore.getState().settings.profiles.selected_config_path,
-      )) ||
-    configFiles[0] ||
+    (savedDisplay && profiles.find((p) => p.name === savedDisplay)) ||
+    (savedPath && profiles.find((p) => p.path === savedPath)) ||
+    profiles[0] ||
     null;
 
-  await settings.setSelectedConfig(
-    target?.path ?? null,
-    target?.displayName ?? null,
-  );
+  await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
 
   const savedPage = useSettingsStore.getState().settings.app.current_page;
-  app.setCurrentPage(savedPage);
+  app.setInitialPage(savedPage);
   app.markInitialized();
-}
-
-/** @deprecated Use `initializeApp()` directly instead. */
-export function useInit() {
-  return { initialize: initializeApp };
 }

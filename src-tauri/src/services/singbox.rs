@@ -193,6 +193,13 @@ pub fn stop_reconciliation_loop(state: &SingboxState) {
     state.retry.notify_one();
 }
 
+/// Minimum pause before reconnecting after a status stream ends — mirrors
+/// the official Electron client's `SESSION_RESTART_DELAY` (`state.ts`).
+/// Without this, a stream that fails or ends immediately after connecting
+/// (daemon mid-restart, worker hiccup, ...) sends the reconciliation loop
+/// into a tight connect/disconnect cycle with no rate limit at all.
+const SESSION_RESTART_DELAY: Duration = Duration::from_millis(1000);
+
 async fn wait_or_retry(state: &SingboxState, duration: Duration) {
     tokio::select! {
         _ = tokio::time::sleep(duration) => {}
@@ -265,7 +272,6 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     let info = match client.connection.daemon_info().await {
         Ok(info) => info,
         Err(e) => {
-            client.shutdown().await;
             publish(
                 app,
                 state,
@@ -289,7 +295,6 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
         && info.version != bundled_version
     {
-        client.shutdown().await;
         publish(
             app,
             state,
@@ -302,13 +307,11 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     }
 
     if info.ownership() == DaemonOwnership::Other {
-        client.shutdown().await;
         publish(app, state, ConnectionPhase::OwnedByOtherUser);
         return AttemptOutcome::Failed;
     }
 
     if let Err(e) = client.connection.claim_service().await {
-        client.shutdown().await;
         publish(
             app,
             state,
@@ -325,9 +328,7 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     let mut stream = match connection.subscribe_service_status().await {
         Ok(stream) => stream,
         Err(e) => {
-            if let Some(c) = state.client.lock().await.take() {
-                c.shutdown().await;
-            }
+            state.client.lock().await.take();
             publish(
                 app,
                 state,
@@ -349,9 +350,7 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
         );
     }
 
-    if let Some(c) = state.client.lock().await.take() {
-        c.shutdown().await;
-    }
+    state.client.lock().await.take();
     AttemptOutcome::Disconnected
 }
 
@@ -372,9 +371,11 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
             match run_reconciliation_attempt(&app, &state).await {
                 AttemptOutcome::Disconnected => {
                     // Was actually connected for a while — reset the
-                    // backoff and go straight back to reconnecting.
+                    // backoff, but still wait a beat before reconnecting
+                    // (see `SESSION_RESTART_DELAY`) rather than going
+                    // straight back into `run_reconciliation_attempt`.
                     attempt = 0;
-                    continue;
+                    wait_or_retry(&state, SESSION_RESTART_DELAY).await;
                 }
                 AttemptOutcome::NotInstalled => {
                     wait_or_retry(&state, Duration::from_secs(3)).await;
@@ -498,8 +499,16 @@ pub async fn cleanup_process(state: &SingboxState) {
     };
     let Some(client) = client else { return };
 
-    if let Err(e) = client.connection.stop_service().await {
+    // Same reasoning as `start_singbox`/`stop_singbox`: a hung daemon
+    // shouldn't be able to wedge this indefinitely — that previously left
+    // force-killing fresh-box.exe as the only way to actually quit when
+    // this call (invoked from the tray's "Quit") never returned.
+    if let Err(e) = with_lifecycle_timeout(
+        "stop sing-box service during cleanup",
+        client.connection.stop_service(),
+    )
+    .await
+    {
         eprintln!("Failed to stop sing-box service during cleanup: {:?}", e);
     }
-    client.shutdown().await;
 }

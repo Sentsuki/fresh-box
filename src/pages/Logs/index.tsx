@@ -62,6 +62,14 @@ export default function Logs() {
     overscan: 8,
   });
 
+  // `useDaemonConnectionListener`/`useWindowVisibilityListener` (registered
+  // once at the App root) are what actually own this stream's lifecycle —
+  // they start/stop it based on whether sing-box is running and the window
+  // is visible, regardless of which page is mounted. This call is just a
+  // defensive, idempotent catch-up (see `createStreamGuard`) in case this
+  // page is opened before those have caught up; it's never followed by a
+  // matching `stopStream()` on unmount on purpose, since navigating away
+  // from Logs shouldn't stop a stream those listeners still want running.
   useEffect(() => {
     startStream();
   }, [startStream]);

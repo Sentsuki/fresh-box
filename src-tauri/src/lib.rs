@@ -2,6 +2,7 @@
 
 pub mod commands;
 pub mod config;
+pub mod crash_reports;
 pub mod daemon;
 pub mod errors;
 pub mod logger;

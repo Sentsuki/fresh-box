@@ -1,13 +1,11 @@
 // tray.rs - 托盘功能模块
 
-use crate::errors::CommandError;
 use crate::services::singbox::SingboxState;
 use indexmap::IndexMap;
 use serde::Deserialize;
 use std::sync::{Arc, Mutex};
-use std::time::Duration;
 use tauri::{
-    AppHandle, Emitter, Manager, State,
+    AppHandle, Emitter, Manager,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
     tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
@@ -85,22 +83,9 @@ fn apply_tray_menu(
     Ok(())
 }
 
-pub async fn refresh_tray_proxy_menu(
-    app_handle: AppHandle,
-    state: State<'_, TrayProxyState>,
-    proxy_groups: Vec<TrayProxyGroup>,
-) -> Result<(), CommandError> {
-    let mut map = state
-        .proxy_item_map
-        .lock()
-        .map_err(|_| CommandError::invalid_state("tray", "Failed to lock proxy item map"))?;
-    apply_tray_menu(&app_handle, &proxy_groups, &mut map)
-        .map_err(|e| CommandError::invalid_state("tray", e))
-}
-
 pub(crate) fn sync_tray_from_overview(
     app: &AppHandle,
-    overview: &crate::services::daemon_control::ClashOverview,
+    overview: &crate::services::daemon_control::ProxyOverview,
 ) {
     let selector_groups: Vec<TrayProxyGroup> = overview
         .proxy_groups
@@ -190,9 +175,10 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             return;
                         }
 
-                        let auto_close = crate::config::load_app_settings_file()
-                            .map(|s| s.settings.auto_close_connections)
-                            .unwrap_or(true);
+                        let auto_close = app_clone
+                            .state::<crate::config::app_settings::BackendPrefsState>()
+                            .get()
+                            .auto_close_connections;
 
                         if auto_close {
                             crate::services::daemon_control::close_connections_by_group_pub(
@@ -229,7 +215,13 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             crate::services::singbox::stop_reconciliation_loop(&state);
                             crate::services::singbox::cleanup_process(&state).await;
                         }
-                        tokio::time::sleep(Duration::from_millis(200)).await;
+                        // Tear down the shared worker too rather than
+                        // leaving it for the kill-on-close job object to
+                        // clean up — both `cleanup_process` and this are
+                        // already bounded (lifecycle timeout / shutdown's
+                        // own internal timeout), so there's nothing left to
+                        // wait out with a fixed sleep before exiting.
+                        crate::daemon::worker::shared_worker().recycle().await;
                         app_clone.exit(0);
                     });
                 }

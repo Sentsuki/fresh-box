@@ -6,11 +6,11 @@ import { Button } from "../../components/ui/Button";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
-import { useClash } from "../../hooks/useClash";
-import { useClashStore } from "../../stores/clashStore";
+import { useProxy } from "../../hooks/useProxy";
+import { useProxyStore } from "../../stores/proxyStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
-import type { ClashProxyGroup, ClashProxyNode } from "../../types/app";
+import type { ProxyGroupOverview, ProxyNodeOverview } from "../../types/app";
 
 const GROUP_BATCH_SIZE = 12;
 
@@ -77,7 +77,7 @@ function NodeName({
 }
 
 interface NodeCardProps {
-  node: ClashProxyNode;
+  node: ProxyNodeOverview;
   selected: boolean;
   onSelect: () => void;
   onTest: () => void;
@@ -89,7 +89,7 @@ const NodeCard = memo(function NodeCard({
   onSelect,
   onTest,
 }: NodeCardProps) {
-  const isTesting = useClashStore(
+  const isTesting = useProxyStore(
     (s) =>
       s.activeDelayNodes.has(node.name) || s.groupTestingNodes.has(node.name),
   );
@@ -166,14 +166,14 @@ const NodeCard = memo(function NodeCard({
 });
 
 interface GroupCardProps {
-  group: ClashProxyGroup;
+  group: ProxyGroupOverview;
   isTesting: boolean;
   onSelectNode: (node: string) => void;
   onTestNode: (node: string) => void;
   onTestGroup: () => void;
 }
 
-function GroupTrigger({ group }: { group: ClashProxyGroup }) {
+function GroupTrigger({ group }: { group: ProxyGroupOverview }) {
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-2">
@@ -271,21 +271,21 @@ const GroupCard = memo(function GroupCard({
   );
 });
 
-const EMPTY_GROUPS: ClashProxyGroup[] = [];
+const EMPTY_GROUPS: ProxyGroupOverview[] = [];
 
 export default function Proxies() {
-  const groups = useClashStore((s) => s.overview?.proxy_groups) ?? EMPTY_GROUPS;
-  const overview = useClashStore((s) => s.overview);
+  const groups = useProxyStore((s) => s.overview?.proxy_groups) ?? EMPTY_GROUPS;
+  const overview = useProxyStore((s) => s.overview);
   const isRunning = useSingboxStore((s) => s.isRunning);
 
-  const activeGroupDelay = useClashStore((s) => s.activeGroupDelay);
+  const activeGroupDelay = useProxyStore((s) => s.activeGroupDelay);
   const {
     refreshOverview,
     switchProxy,
     testDelay,
     testGroupDelay,
     changeMode,
-  } = useClash();
+  } = useProxy();
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";

@@ -1,8 +1,8 @@
 pub mod app;
-pub mod clash;
 pub mod config;
 pub mod config_override;
+pub mod diagnostics;
 pub mod priority;
+pub mod proxy;
 pub mod singbox;
 pub mod streams;
-pub mod tray;

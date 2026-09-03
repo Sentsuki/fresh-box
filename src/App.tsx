@@ -9,6 +9,8 @@ import { TitleBar } from "./components/layout/TitleBar";
 import { Spinner } from "./components/ui/Spinner";
 import { initializeApp } from "./hooks/useInit";
 import { useTheme } from "./hooks/useTheme";
+import { listProfiles } from "./services/api";
+import { useConfigStore } from "./stores/configStore";
 import Connections from "./pages/Connections";
 import Advanced from "./pages/Advanced";
 import Logs from "./pages/Logs";
@@ -17,7 +19,7 @@ import Profiles from "./pages/Profiles";
 import Proxies from "./pages/Proxies";
 import Settings from "./pages/Settings";
 import { useAppStore } from "./stores/appStore";
-import { useClashStore } from "./stores/clashStore";
+import { useProxyStore } from "./stores/proxyStore";
 import { useDaemonConnectionListener } from "./hooks/useDaemonConnection";
 import { useWindowVisibilityListener } from "./hooks/useWindowVisibility";
 
@@ -69,7 +71,24 @@ export default function App() {
 
   useEffect(() => {
     const unlisten = listen("tray-proxy-switched", () => {
-      void useClashStore.getState().refreshOverview(false);
+      void useProxyStore.getState().refreshOverview(false);
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+  }, []);
+
+  // The backend's background auto-update scheduler (see
+  // `spawn_auto_update_scheduler`) fires this after refreshing one or more
+  // subscriptions on its own, with no user action involved — refetch so
+  // the Profiles page's `lastUpdated` timestamps (and the config's actual
+  // content) don't sit stale until the user happens to navigate away and
+  // back.
+  useEffect(() => {
+    const unlisten = listen("profiles-auto-updated", () => {
+      void listProfiles().then((profiles) =>
+        useConfigStore.getState().setProfiles(profiles),
+      );
     });
     return () => {
       void unlisten.then((fn) => fn());

@@ -1,7 +1,6 @@
 use crate::config::AppSettings;
 use crate::errors::CommandError;
 use futures_util::StreamExt;
-use serde_json::Value;
 use std::fs;
 use std::sync::OnceLock;
 
@@ -194,35 +193,91 @@ pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
 }
 
 #[tauri::command]
-pub async fn save_app_settings(settings: AppSettings) -> Result<(), CommandError> {
+pub async fn save_app_settings(
+    backend_prefs: tauri::State<'_, crate::config::app_settings::BackendPrefsState>,
+    settings: AppSettings,
+) -> Result<(), CommandError> {
+    // Update the in-memory cache the backend's own control-flow decisions
+    // read from *before* persisting to disk, not after — so a
+    // `CloseRequested`/proxy-switch handler that runs the instant this call
+    // returns can never observe a stale value (see `BackendPrefsState`'s
+    // doc comment).
+    backend_prefs.set(settings.settings.clone());
     crate::config::app_settings::save_app_settings_file(&settings)
 }
 
-#[tauri::command]
-pub async fn save_subscription_config(
-    file_name: String,
-    content: String,
-) -> Result<String, CommandError> {
+// ── Profile listing (view model) ────────────────────────────────────────
+
+/// `ProfileEntry` plus the resolved on-disk path — the identity fields
+/// (`id`/`name`) live in `config::profiles::ProfileEntry`; `path` is a
+/// presentation-layer detail (it depends on `sub_dir`, which the storage
+/// layer itself doesn't need to know about) computed here instead.
+#[derive(Debug, Clone, serde::Serialize)]
+#[serde(rename_all = "camelCase")]
+pub struct ProfileEntryView {
+    pub id: String,
+    pub name: String,
+    pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub url: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub last_updated: Option<String>,
+    pub auto_update: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub update_interval_minutes: Option<u32>,
+}
+
+fn to_views(
+    entries: &[crate::config::profiles::ProfileEntry],
+) -> Result<Vec<ProfileEntryView>, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    // `file_name` comes straight from the caller — reject anything that
-    // would resolve outside `sub_dir` (path traversal / absolute path)
-    // instead of trusting it, the same way delete/rename/open already do.
-    let target_path = resolve_safe_path(&sub_dir, &file_name)?;
-
-    crate::daemon::validate::check_config(&content).await?;
-
-    fs::write(&target_path, content)
-        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
-
-    crate::config::profiles::append_to_file_order(crate::config::profiles::stem_from_filename(
-        &file_name,
-    ))?;
-
-    Ok(target_path.to_string_lossy().into_owned())
+    Ok(entries
+        .iter()
+        .map(|e| ProfileEntryView {
+            id: e.id.clone(),
+            name: e.name.clone(),
+            path: sub_dir
+                .join(format!("{}.json", e.name))
+                .to_string_lossy()
+                .into_owned(),
+            url: e.url.clone(),
+            last_updated: e.last_updated.clone(),
+            auto_update: e.auto_update,
+            update_interval_minutes: e.update_interval_minutes,
+        })
+        .collect())
 }
 
 #[tauri::command]
-pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandError> {
+pub async fn list_profiles() -> Result<Vec<ProfileEntryView>, CommandError> {
+    let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
+    to_views(&entries)
+}
+
+/// Result returned by every command that adds/imports/refreshes a single
+/// profile — `entry` is that one profile (so the caller doesn't have to
+/// search `profiles` for it), `profiles` is the full updated list, letting
+/// the frontend refresh its state in one IPC round-trip instead of a
+/// mutate-then-refetch pair.
+#[derive(serde::Serialize)]
+pub struct ProfileOperationResult {
+    pub entry: ProfileEntryView,
+    pub profiles: Vec<ProfileEntryView>,
+}
+
+fn find_view(views: Vec<ProfileEntryView>, predicate: impl Fn(&ProfileEntryView) -> bool) -> Result<(ProfileEntryView, Vec<ProfileEntryView>), CommandError> {
+    let entry = views
+        .iter()
+        .find(|v| predicate(v))
+        .cloned()
+        .ok_or_else(|| CommandError::invalid_state("profiles", "profile entry missing after write"))?;
+    Ok((entry, views))
+}
+
+// ── Import / fetch ──────────────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn copy_config_to_bin(config_path: String) -> Result<ProfileOperationResult, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
     let source_config_path = std::path::Path::new(&config_path);
 
@@ -237,240 +292,49 @@ pub async fn copy_config_to_bin(config_path: String) -> Result<String, CommandEr
         .file_name()
         .ok_or_else(|| CommandError::invalid_state("copy config", "invalid config file path"))?;
     let target_config_path = sub_dir.join(config_file);
-
-    if target_config_path.exists() {
-        let source_content = fs::read(&config_path)
-            .map_err(|e| CommandError::resource_not_found("source config file", e))?;
-        let target_content = fs::read(&target_config_path)
-            .map_err(|e| CommandError::resource_not_found("target config file", e))?;
-        if source_content == target_content {
-            return Ok(target_config_path.to_string_lossy().into_owned());
-        }
-    }
-
-    fs::copy(&config_path, &target_config_path)
-        .map_err(|e| CommandError::resource_not_found("copied config file", e))?;
-
     let stem = target_config_path
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("");
-    crate::config::profiles::append_to_file_order(stem)?;
+        .unwrap_or("")
+        .to_string();
 
-    Ok(target_config_path.to_string_lossy().into_owned())
-}
+    let source_content = fs::read(&config_path)
+        .map_err(|e| CommandError::resource_not_found("source config file", e))?;
 
-/// Shared synchronous implementation for listing config files in order.
-pub fn list_configs_inner() -> Result<Vec<String>, CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-
-    let mut on_disk: std::collections::HashSet<String> = std::collections::HashSet::new();
-    for entry in
-        fs::read_dir(&sub_dir).map_err(|e| CommandError::resource_not_found("sub directory", e))?
-    {
-        let entry = entry.map_err(|e| CommandError::resource_not_found("directory entry", e))?;
-        let path = entry.path();
-        if let Some(name) = path
-            .extension()
-            .and_then(|s| s.to_str())
-            .filter(|&ext| ext == "json")
-            .and_then(|_| path.file_name())
-            .and_then(|s| s.to_str())
-        {
-            on_disk.insert(name.to_string());
+    if target_config_path.exists() {
+        let target_content = fs::read(&target_config_path)
+            .map_err(|e| CommandError::resource_not_found("target config file", e))?;
+        if source_content == target_content {
+            let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
+            let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
+            return Ok(ProfileOperationResult { entry, profiles });
         }
     }
 
-    let order = crate::config::profiles::load_file_order()?;
-    let mut result: Vec<String> = Vec::with_capacity(on_disk.len());
+    // Unlike the subscription-fetch commands, a locally imported file never
+    // went through `check_config` before — an invalid file just silently
+    // sat in the list until the user tried to start it. Validate it here
+    // too, same as every other path that writes into `sub_dir`.
+    let source_text = String::from_utf8(source_content.clone())
+        .map_err(|e| CommandError::validation(format!("Config file is not valid UTF-8: {e}")))?;
+    crate::daemon::validate::check_config(&source_text).await?;
 
-    for stem in &order {
-        let file_name = format!("{}.json", stem);
-        if on_disk.contains(&file_name) {
-            result.push(sub_dir.join(&file_name).to_string_lossy().into_owned());
-        }
-    }
+    let stem_for_index = stem.clone();
+    let entries = crate::config::profiles::with_index(move |index| {
+        crate::config::io::atomic_write(&target_config_path, &source_content)?;
+        index.upsert_by_name(&stem_for_index, None, None);
+        Ok(index.entries())
+    })
+    .await?;
 
-    let ordered_stems: std::collections::HashSet<&str> = order.iter().map(|s| s.as_str()).collect();
-    for name in &on_disk {
-        let stem = crate::config::profiles::stem_from_filename(name);
-        if !ordered_stems.contains(stem) {
-            result.push(sub_dir.join(name).to_string_lossy().into_owned());
-        }
-    }
-
-    Ok(result)
+    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
+    Ok(ProfileOperationResult { entry, profiles })
 }
 
+/// Atomically fetch a subscription URL, save the config file, and record it
+/// in the profile index.
 #[tauri::command]
-pub async fn list_configs(_app_handle: tauri::AppHandle) -> Result<Vec<String>, CommandError> {
-    list_configs_inner()
-}
-
-#[tauri::command]
-pub async fn delete_config(config_path: String) -> Result<(), CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let rm_full_path = resolve_safe_path(&sub_dir, &config_path)?;
-
-    if !rm_full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "config file",
-            rm_full_path.to_string_lossy(),
-        ));
-    }
-
-    fs::remove_file(&rm_full_path)
-        .map_err(|e| CommandError::resource_not_found("config file", e))?;
-
-    crate::config::profiles::remove_from_file_order(crate::config::profiles::stem_from_filename(
-        &config_path,
-    ))?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn rename_config(old_path: String, new_path: String) -> Result<(), CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let old_full_path = resolve_safe_path(&sub_dir, &old_path)?;
-    let new_full_path = resolve_safe_path(&sub_dir, &new_path)?;
-
-    if !old_full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "source config file",
-            old_full_path.display(),
-        ));
-    }
-
-    if new_full_path.exists() {
-        return Err(CommandError::invalid_state(
-            "rename config",
-            format!(
-                "a config file already exists at {}",
-                new_full_path.display()
-            ),
-        ));
-    }
-
-    if new_full_path.extension().and_then(|s| s.to_str()) != Some("json") {
-        return Err(CommandError::invalid_state(
-            "rename config",
-            "new filename must have .json extension",
-        ));
-    }
-
-    fs::rename(&old_full_path, &new_full_path)
-        .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
-
-    crate::config::profiles::rename_in_file_order(
-        crate::config::profiles::stem_from_filename(&old_path),
-        crate::config::profiles::stem_from_filename(&new_path),
-    )?;
-
-    Ok(())
-}
-
-#[tauri::command]
-pub async fn save_subscriptions(subscriptions: String) -> Result<(), CommandError> {
-    let mut parsed: serde_json::Map<String, Value> = serde_json::from_str(&subscriptions)
-        .map_err(|e| CommandError::json("failed to parse subscriptions payload", e))?;
-
-    if !parsed.contains_key(crate::config::profiles::FILE_ORDER_KEY)
-        && let Ok(existing) = crate::config::profiles::load_subscriptions_json()
-        && let Some(order) = existing.get(crate::config::profiles::FILE_ORDER_KEY)
-    {
-        parsed.insert(
-            crate::config::profiles::FILE_ORDER_KEY.to_string(),
-            order.clone(),
-        );
-    }
-
-    crate::config::profiles::save_subscriptions_json(&parsed)
-}
-
-#[tauri::command]
-pub async fn load_subscriptions() -> Result<String, CommandError> {
-    let mut map = crate::config::profiles::load_subscriptions_json()?;
-    map.remove(crate::config::profiles::FILE_ORDER_KEY);
-    serde_json::to_string(&Value::Object(map))
-        .map_err(|e| CommandError::json("failed to serialize subscriptions payload", e))
-}
-
-#[tauri::command]
-pub async fn open_config_file(config_path: String) -> Result<(), CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
-
-    if !full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "config file",
-            full_path.display(),
-        ));
-    }
-
-    open_with_system(&full_path.to_string_lossy())
-}
-
-#[tauri::command]
-pub async fn load_config_content(config_path: String) -> Result<Value, CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
-
-    if !full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "config file",
-            full_path.display(),
-        ));
-    }
-
-    let content = fs::read_to_string(&full_path)
-        .map_err(|e| CommandError::resource_not_found("config file", e))?;
-
-    let json_value: Value = serde_json::from_str(&content)
-        .map_err(|e| CommandError::json("failed to parse config JSON", e))?;
-
-    Ok(json_value)
-}
-
-#[tauri::command]
-pub async fn save_config_content(config_path: String, content: String) -> Result<(), CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = resolve_safe_path(&sub_dir, &config_path)?;
-
-    let _: Value =
-        serde_json::from_str(&content).map_err(|e| CommandError::json("invalid config JSON", e))?;
-
-    fs::write(&full_path, content)
-        .map_err(|e| CommandError::resource_not_found("config file", e))?;
-
-    Ok(())
-}
-
-/// Return the subscriptions map serialised to JSON, with the internal
-/// `_file_order` key stripped so the frontend only sees user data.
-fn serialize_subscriptions_for_frontend() -> Result<String, CommandError> {
-    let mut map = crate::config::profiles::load_subscriptions_json()?;
-    map.remove(crate::config::profiles::FILE_ORDER_KEY);
-    serde_json::to_string(&Value::Object(map))
-        .map_err(|e| CommandError::json("failed to serialize subscriptions", e))
-}
-
-/// Result returned by the atomic add / update subscription commands.
-#[derive(serde::Serialize)]
-pub struct SubscriptionOperationResult {
-    /// Stem (no `.json`) of the subscription file.
-    pub file_name: String,
-    /// Ordered list of all config full paths (same as `list_configs`).
-    pub config_files: Vec<String>,
-    /// Updated subscription map serialised to JSON (without `_file_order`).
-    pub subscriptions: String,
-}
-
-/// Atomically fetch a subscription URL, save the config file, and update
-/// `subscriptions.json`. Returns enough data for the frontend to refresh
-/// its state in a single IPC round-trip.
-#[tauri::command]
-pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult, CommandError> {
+pub async fn add_subscription(url: String) -> Result<ProfileOperationResult, CommandError> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(CommandError::validation(
             "Subscription URL must start with http:// or https://",
@@ -503,52 +367,48 @@ pub async fn add_subscription(url: String) -> Result<SubscriptionOperationResult
     // it through the same traversal guard as the rest of the config
     // commands anyway rather than relying solely on that sanitization.
     let target_path = resolve_safe_path(&sub_dir, &file_name)?;
-    fs::write(&target_path, &content)
-        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
-    crate::config::profiles::append_to_file_order(&stem)?;
-
-    let mut subs_map = crate::config::profiles::load_subscriptions_json()?;
-    let entry = subs_map
-        .entry(stem.clone())
-        .or_insert_with(|| Value::Object(serde_json::Map::new()));
-    if let Some(obj) = entry.as_object_mut() {
-        obj.insert("url".to_string(), Value::String(url));
-        obj.insert(
-            "lastUpdated".to_string(),
-            Value::String(chrono::Utc::now().to_rfc3339()),
-        );
-    }
-    crate::config::profiles::save_subscriptions_json(&subs_map)?;
-
-    Ok(SubscriptionOperationResult {
-        file_name: stem,
-        config_files: list_configs_inner()?,
-        subscriptions: serialize_subscriptions_for_frontend()?,
+    let stem_for_index = stem.clone();
+    let now = chrono::Utc::now().to_rfc3339();
+    let entries = crate::config::profiles::with_index(move |index| {
+        crate::config::io::atomic_write(&target_path, content.as_bytes())?;
+        index.upsert_by_name(&stem_for_index, Some(url), Some(now));
+        Ok(index.entries())
     })
+    .await?;
+
+    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
+    Ok(ProfileOperationResult { entry, profiles })
 }
 
-/// Atomically re-fetch an existing subscription, overwrite the config file,
-/// and update `lastUpdated` in `subscriptions.json`.
+/// Atomically re-fetch an existing subscription (looked up by `id`) and
+/// overwrite its config file.
 #[tauri::command]
-pub async fn update_subscription(
-    file_name: String,
-) -> Result<SubscriptionOperationResult, CommandError> {
-    let stem = crate::config::profiles::stem_from_filename(&file_name).to_string();
+pub async fn update_subscription(id: String) -> Result<ProfileOperationResult, CommandError> {
+    let entries = refresh_subscription_by_id(&id).await?;
+    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.id == id)?;
+    Ok(ProfileOperationResult { entry, profiles })
+}
 
-    let url = {
-        let subs_map = crate::config::profiles::load_subscriptions_json()?;
-        subs_map
-            .get(&stem)
-            .and_then(|v| v.get("url"))
-            .and_then(|u| u.as_str())
-            .ok_or_else(|| {
-                CommandError::resource_not_found(
-                    "subscription",
-                    format!("No URL found for '{}'", stem),
-                )
-            })?
-            .to_string()
+/// The actual fetch → validate → write → record `lastUpdated` sequence,
+/// shared by the `update_subscription` command (user-triggered) and
+/// `spawn_auto_update_scheduler`'s background loop (due-triggered) — the
+/// two used to duplicate this in full.
+async fn refresh_subscription_by_id(
+    id: &str,
+) -> Result<Vec<crate::config::profiles::ProfileEntry>, CommandError> {
+    let (stem, url) = {
+        let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
+        let entry = entries.iter().find(|e| e.id == id).ok_or_else(|| {
+            CommandError::resource_not_found("profile", format!("No profile found for id '{id}'"))
+        })?;
+        let url = entry.url.clone().ok_or_else(|| {
+            CommandError::resource_not_found(
+                "subscription",
+                format!("No URL found for '{}'", entry.name),
+            )
+        })?;
+        (entry.name.clone(), url)
     };
 
     let client = subscription_client()?;
@@ -570,35 +430,238 @@ pub async fn update_subscription(
     crate::daemon::validate::check_config(&content).await?;
 
     let sub_dir = crate::config::paths::get_sub_dir()?;
-    // `stem` was itself derived from a sanitized filename when the
-    // subscription was first added (see `add_subscription`), but resolve it
-    // through the traversal guard here too rather than assuming that holds.
     let target_path = resolve_safe_path(&sub_dir, &format!("{}.json", stem))?;
-    fs::write(&target_path, &content)
-        .map_err(|e| CommandError::resource_not_found("subscription config", e))?;
 
-    let mut subs_map = crate::config::profiles::load_subscriptions_json()?;
-    if let Some(entry) = subs_map.get_mut(&stem)
-        && let Some(obj) = entry.as_object_mut()
-    {
-        obj.insert(
-            "lastUpdated".to_string(),
-            Value::String(chrono::Utc::now().to_rfc3339()),
-        );
-    }
-    crate::config::profiles::save_subscriptions_json(&subs_map)?;
-
-    Ok(SubscriptionOperationResult {
-        file_name: stem,
-        config_files: list_configs_inner()?,
-        subscriptions: serialize_subscriptions_for_frontend()?,
+    let id_for_index = id.to_string();
+    let now = chrono::Utc::now().to_rfc3339();
+    crate::config::profiles::with_index(move |index| {
+        crate::config::io::atomic_write(&target_path, content.as_bytes())?;
+        index.set_last_updated_by_id(&id_for_index, now);
+        Ok(index.entries())
     })
+    .await
 }
 
-#[derive(serde::Serialize)]
-pub struct FetchSubscriptionResult {
-    pub content: String,
-    pub file_name: String,
+/// Enable/disable auto-update for a subscription, and set its interval
+/// (`None` = use the default — see `config::profiles::interval_or_default`).
+/// Meaningless for a locally imported file (no `url`), but not rejected as
+/// an error for one — the scheduler simply never finds it due, since
+/// `is_due` requires a `url`.
+#[tauri::command]
+pub async fn set_subscription_auto_update(
+    id: String,
+    enabled: bool,
+    interval_minutes: Option<u32>,
+) -> Result<Vec<ProfileEntryView>, CommandError> {
+    let id_for_index = id.clone();
+    let entries = crate::config::profiles::with_index(move |index| {
+        if index.find_by_id(&id_for_index).is_none() {
+            return Err(CommandError::resource_not_found(
+                "profile",
+                format!("No profile found for id '{id_for_index}'"),
+            ));
+        }
+        index.set_auto_update_by_id(&id_for_index, enabled, interval_minutes);
+        Ok(index.entries())
+    })
+    .await?;
+
+    to_views(&entries)
+}
+
+/// How often the background loop checks for due subscriptions — much
+/// finer-grained than any individual subscription's own update interval
+/// (which is never shorter than `MINIMUM_UPDATE_INTERVAL_MINUTES`); this
+/// just needs to be short enough that a subscription becoming due doesn't
+/// sit unnoticed for long.
+const AUTO_UPDATE_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
+
+/// Start the background auto-update loop. Call once, at app startup (see
+/// `main.rs`'s `setup()`) — runs for the process's lifetime, periodically
+/// refreshing whichever subscriptions are both `auto_update`-enabled and
+/// past their interval since `last_updated`. Mirrors the official desktop
+/// client's `reconfigureAutoUpdate`/`runDueProfileUpdates` (`main/profiles.ts`),
+/// simplified to a periodic sweep rather than a per-profile timer — with
+/// at most a handful of profiles this is negligible overhead and avoids
+/// having to reschedule a timer every time a profile's settings change.
+///
+/// A single subscription failing to refresh (network error, the fetched
+/// content failing `check_config`, ...) is logged and skipped — it does
+/// not stop the rest of the sweep, and is simply retried on the next due
+/// check.
+pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(AUTO_UPDATE_CHECK_INTERVAL).await;
+
+            let entries =
+                match crate::config::profiles::with_index(|index| Ok(index.entries())).await {
+                    Ok(entries) => entries,
+                    Err(e) => {
+                        eprintln!("auto-update: failed to read profile index: {:?}", e);
+                        continue;
+                    }
+                };
+
+            let now = chrono::Utc::now();
+            let due: Vec<String> = entries
+                .iter()
+                .filter(|e| crate::config::profiles::is_due(e, now))
+                .map(|e| e.id.clone())
+                .collect();
+            if due.is_empty() {
+                continue;
+            }
+
+            let mut any_succeeded = false;
+            for id in due {
+                match refresh_subscription_by_id(&id).await {
+                    Ok(_) => any_succeeded = true,
+                    Err(e) => {
+                        eprintln!("auto-update: failed to refresh subscription '{id}': {:?}", e)
+                    }
+                }
+            }
+
+            if any_succeeded {
+                use tauri::Emitter;
+                let _ = app.emit("profiles-auto-updated", ());
+            }
+        }
+    });
+}
+
+/// Update a subscription's URL (without re-fetching it) — used when the
+/// user edits the URL directly rather than through re-adding it.
+#[tauri::command]
+pub async fn edit_subscription_url(
+    id: String,
+    url: String,
+) -> Result<Vec<ProfileEntryView>, CommandError> {
+    let trimmed = url.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(CommandError::validation("Subscription URL cannot be empty"));
+    }
+
+    let id_for_index = id.clone();
+    let entries = crate::config::profiles::with_index(move |index| {
+        if index.find_by_id(&id_for_index).is_none() {
+            return Err(CommandError::resource_not_found(
+                "profile",
+                format!("No profile found for id '{id_for_index}'"),
+            ));
+        }
+        index.set_url_by_id(&id_for_index, trimmed);
+        Ok(index.entries())
+    })
+    .await?;
+
+    to_views(&entries)
+}
+
+// ── Rename / delete / open ──────────────────────────────────────────────
+
+#[tauri::command]
+pub async fn rename_profile(
+    id: String,
+    new_name: String,
+) -> Result<Vec<ProfileEntryView>, CommandError> {
+    let trimmed = new_name.trim().to_string();
+    if trimmed.is_empty() {
+        return Err(CommandError::validation("New name cannot be empty"));
+    }
+
+    let sub_dir = crate::config::paths::get_sub_dir()?;
+    let new_full_path = resolve_safe_path(&sub_dir, &format!("{trimmed}.json"))?;
+
+    let id_for_index = id.clone();
+    let entries = crate::config::profiles::with_index(move |index| {
+        let Some(current) = index.find_by_id(&id_for_index).cloned() else {
+            return Err(CommandError::resource_not_found(
+                "profile",
+                format!("No profile found for id '{id_for_index}'"),
+            ));
+        };
+        if current.name == trimmed {
+            return Ok(index.entries());
+        }
+        if index.name_taken(&trimmed, &id_for_index) {
+            return Err(CommandError::invalid_state(
+                "rename profile",
+                format!(
+                    "a config file already exists at {}",
+                    new_full_path.display()
+                ),
+            ));
+        }
+
+        let old_full_path = sub_dir.join(format!("{}.json", current.name));
+        if !old_full_path.exists() {
+            return Err(CommandError::resource_not_found(
+                "source config file",
+                old_full_path.display(),
+            ));
+        }
+        if new_full_path.exists() {
+            return Err(CommandError::invalid_state(
+                "rename profile",
+                format!(
+                    "a config file already exists at {}",
+                    new_full_path.display()
+                ),
+            ));
+        }
+
+        fs::rename(&old_full_path, &new_full_path)
+            .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
+        index.rename_by_id(&id_for_index, trimmed.clone());
+        Ok(index.entries())
+    })
+    .await?;
+
+    to_views(&entries)
+}
+
+#[tauri::command]
+pub async fn delete_profile(id: String) -> Result<Vec<ProfileEntryView>, CommandError> {
+    let id_for_index = id.clone();
+    let entries = crate::config::profiles::with_index(move |index| {
+        let Some(entry) = index.remove_by_id(&id_for_index) else {
+            return Err(CommandError::resource_not_found(
+                "profile",
+                format!("No profile found for id '{id_for_index}'"),
+            ));
+        };
+        let sub_dir = crate::config::paths::get_sub_dir()?;
+        let full_path = sub_dir.join(format!("{}.json", entry.name));
+        if full_path.exists() {
+            fs::remove_file(&full_path)
+                .map_err(|e| CommandError::resource_not_found("config file", e))?;
+        }
+        Ok(index.entries())
+    })
+    .await?;
+
+    to_views(&entries)
+}
+
+#[tauri::command]
+pub async fn open_config_file(id: String) -> Result<(), CommandError> {
+    let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
+    let entry = entries.iter().find(|e| e.id == id).ok_or_else(|| {
+        CommandError::resource_not_found("profile", format!("No profile found for id '{id}'"))
+    })?;
+
+    let sub_dir = crate::config::paths::get_sub_dir()?;
+    let full_path = sub_dir.join(format!("{}.json", entry.name));
+    if !full_path.exists() {
+        return Err(CommandError::resource_not_found(
+            "config file",
+            full_path.display(),
+        ));
+    }
+
+    open_with_system(&full_path.to_string_lossy())
 }
 
 /// Derive a filename for a subscription from its URL, purely for display /
@@ -616,34 +679,4 @@ fn extract_file_name_from_url(url: &str) -> String {
         .unwrap_or("subscription");
     let stem = raw_name.strip_suffix(".json").unwrap_or(raw_name);
     format!("{}.json", sanitize_filename_component(stem))
-}
-
-#[tauri::command]
-pub async fn fetch_subscription(url: String) -> Result<FetchSubscriptionResult, CommandError> {
-    if !url.starts_with("http://") && !url.starts_with("https://") {
-        return Err(CommandError::validation(
-            "Subscription URL must start with http:// or https://",
-        ));
-    }
-
-    let file_name = extract_file_name_from_url(&url);
-
-    let client = subscription_client()?;
-
-    let response = client
-        .get(&url)
-        .send()
-        .await
-        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
-
-    if !response.status().is_success() {
-        return Err(CommandError::network(format!(
-            "HTTP error {}",
-            response.status()
-        )));
-    }
-
-    let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
-
-    Ok(FetchSubscriptionResult { content, file_name })
 }

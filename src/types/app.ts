@@ -34,17 +34,33 @@ export type ConnectionColumnKey =
 export type LogLevel =
   "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
-export interface SubscriptionInfo {
-  url: string;
-  lastUpdated?: string;
-}
-
-export type SubscriptionRecord = Record<string, SubscriptionInfo>;
-
-export interface ConfigFileEntry {
+/**
+ * A config file fresh-box manages, keyed by a stable `id` that never
+ * changes — renaming only ever changes `name`. `url`/`lastUpdated` are
+ * present only for subscriptions (fetched from a URL); a locally imported
+ * file has neither.
+ */
+export interface ProfileEntry {
+  id: string;
+  name: string;
   path: string;
-  displayName: string;
+  url?: string;
+  lastUpdated?: string;
+  /** Whether the backend's background scheduler should periodically
+   * re-fetch this subscription on its own. Always `false` for a locally
+   * imported file (no `url`). */
+  autoUpdate: boolean;
+  /** `undefined` means "use the backend's default interval" — see
+   * `DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES`. */
+  updateIntervalMinutes?: number;
 }
+
+/** Mirrors the backend's `config::profiles::MINIMUM_UPDATE_INTERVAL_MINUTES`
+ * — kept here too so the UI can reject/clamp an obviously-too-small value
+ * before round-tripping to the backend at all. */
+export const MINIMUM_AUTO_UPDATE_INTERVAL_MINUTES = 15;
+/** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
+export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
 
 export interface AppConfig {
   current_page: AppPage;
@@ -327,7 +343,7 @@ export interface ConfigFieldsCheck {
   current_log_level?: string;
 }
 
-export interface ClashProxyNode {
+export interface ProxyNodeOverview {
   name: string;
   kind: string;
   delay: number | null;
@@ -336,18 +352,18 @@ export interface ClashProxyNode {
   udp: boolean;
 }
 
-export interface ClashProxyGroup {
+export interface ProxyGroupOverview {
   name: string;
   kind: string;
   current: string;
   current_delay?: number | null;
-  options: ClashProxyNode[];
+  options: ProxyNodeOverview[];
 }
 
-export interface ClashOverview {
+export interface ProxyOverview {
   current_mode: string;
   available_modes?: string[];
-  proxy_groups: ClashProxyGroup[];
+  proxy_groups: ProxyGroupOverview[];
 }
 
 export interface ConnectionMetadata {

@@ -47,10 +47,6 @@ pub(crate) fn load_priority_config_inner() -> Result<PriorityConfig, CommandErro
     super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)
 }
 
-pub(crate) fn clear_priority_config_inner() -> Result<(), CommandError> {
-    super::io::remove_named_config(PRIORITY_CONFIG_FILE)
-}
-
 pub fn ensure_priority_config_initialized() {
     let config_dir = match super::paths::get_config_dir() {
         Ok(dir) => dir,

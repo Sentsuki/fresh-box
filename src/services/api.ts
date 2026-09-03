@@ -1,96 +1,81 @@
 import type {
   AppSettings,
-  ClashOverview,
+  ProxyOverview,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
-  SubscriptionInfo,
-  SubscriptionRecord,
+  ProfileEntry,
 } from "../types/app";
 import { normalizeAppSettings } from "../types/app";
 import type { DaemonConnectionPhase } from "../types/daemon";
 import { invokeCommand } from "./tauri";
 
-export function normalizeSubscriptions(
-  parsed: Record<string, SubscriptionInfo | string>,
-): SubscriptionRecord {
-  return Object.fromEntries(
-    Object.entries(parsed).map(([key, value]) => [
-      key,
-      typeof value === "string" ? { url: value } : value,
-    ]),
-  );
+/** Result of any command that adds/imports/refreshes a single profile —
+ * `entry` is that profile, `profiles` is the full updated ordered list. */
+export interface ProfileOperationResult {
+  entry: ProfileEntry;
+  profiles: ProfileEntry[];
 }
 
-export interface SubscriptionOperationResult {
-  file_name: string;
-  config_files: string[];
-  subscriptions: string;
+export async function listProfiles(): Promise<ProfileEntry[]> {
+  return invokeCommand<ProfileEntry[]>("list_profiles");
 }
 
 export async function addSubscription(
   url: string,
-): Promise<SubscriptionOperationResult> {
-  return invokeCommand<SubscriptionOperationResult>("add_subscription", {
-    url,
-  });
+): Promise<ProfileOperationResult> {
+  return invokeCommand<ProfileOperationResult>("add_subscription", { url });
 }
 
 export async function updateSubscription(
-  fileName: string,
-): Promise<SubscriptionOperationResult> {
-  return invokeCommand<SubscriptionOperationResult>("update_subscription", {
-    fileName,
+  id: string,
+): Promise<ProfileOperationResult> {
+  return invokeCommand<ProfileOperationResult>("update_subscription", { id });
+}
+
+/** Update a subscription's URL without re-fetching it. */
+export async function editSubscriptionUrl(
+  id: string,
+  url: string,
+): Promise<ProfileEntry[]> {
+  return invokeCommand<ProfileEntry[]>("edit_subscription_url", { id, url });
+}
+
+/** Enable/disable background auto-update for a subscription, and set its
+ * check interval (`undefined` = use the backend's default). */
+export async function setSubscriptionAutoUpdate(
+  id: string,
+  enabled: boolean,
+  intervalMinutes?: number,
+): Promise<ProfileEntry[]> {
+  return invokeCommand<ProfileEntry[]>("set_subscription_auto_update", {
+    id,
+    enabled,
+    intervalMinutes,
   });
 }
 
-export async function listConfigs(): Promise<string[]> {
-  return invokeCommand<string[]>("list_configs");
-}
-
-export async function copyConfigToBin(configPath: string): Promise<string> {
-  return invokeCommand<string>("copy_config_to_bin", { configPath });
-}
-
-export async function saveSubscriptionConfig(
-  fileName: string,
-  content: string,
-): Promise<string> {
-  return invokeCommand<string>("save_subscription_config", {
-    fileName,
-    content,
+export async function copyConfigToBin(
+  configPath: string,
+): Promise<ProfileOperationResult> {
+  return invokeCommand<ProfileOperationResult>("copy_config_to_bin", {
+    configPath,
   });
 }
 
-export async function renameConfigFile(
-  oldPath: string,
-  newPath: string,
-): Promise<void> {
-  return invokeCommand<void>("rename_config", { oldPath, newPath });
+export async function renameProfile(
+  id: string,
+  newName: string,
+): Promise<ProfileEntry[]> {
+  return invokeCommand<ProfileEntry[]>("rename_profile", { id, newName });
 }
 
-export async function deleteConfigFile(configPath: string): Promise<void> {
-  return invokeCommand<void>("delete_config", { configPath });
+export async function deleteProfile(id: string): Promise<ProfileEntry[]> {
+  return invokeCommand<ProfileEntry[]>("delete_profile", { id });
 }
 
-export async function openConfigFile(configPath: string): Promise<void> {
-  return invokeCommand<void>("open_config_file", { configPath });
-}
-
-export async function loadSubscriptions(): Promise<SubscriptionRecord> {
-  const raw = await invokeCommand<string>("load_subscriptions");
-  if (!raw) return {};
-  return normalizeSubscriptions(
-    JSON.parse(raw) as Record<string, SubscriptionInfo | string>,
-  );
-}
-
-export async function saveSubscriptions(
-  subscriptions: SubscriptionRecord,
-): Promise<void> {
-  return invokeCommand<void>("save_subscriptions", {
-    subscriptions: JSON.stringify(subscriptions),
-  });
+export async function openConfigFile(id: string): Promise<void> {
+  return invokeCommand<void>("open_config_file", { id });
 }
 
 export async function loadAppSettings(): Promise<AppSettings> {
@@ -164,39 +149,39 @@ export async function disableAutostart(): Promise<void> {
   return invokeCommand<void>("disable_autostart");
 }
 
-export async function getClashOverview(): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("get_clash_overview");
+export async function getProxyOverview(): Promise<ProxyOverview> {
+  return invokeCommand<ProxyOverview>("get_proxy_overview");
 }
 
-export async function updateClashMode(mode: string): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("update_clash_mode", { mode });
+export async function updateProxyMode(mode: string): Promise<ProxyOverview> {
+  return invokeCommand<ProxyOverview>("update_proxy_mode", { mode });
 }
 
-export async function selectClashProxy(
+export async function selectProxy(
   proxyGroup: string,
   name: string,
-): Promise<ClashOverview> {
-  return invokeCommand<ClashOverview>("select_clash_proxy", {
+): Promise<ProxyOverview> {
+  return invokeCommand<ProxyOverview>("select_proxy", {
     proxyGroup,
     name,
   });
 }
 
-export async function testClashProxyDelay(
+export async function testProxyDelay(
   proxyName: string,
   timeoutMs?: number,
 ): Promise<number> {
-  return invokeCommand<number>("test_clash_proxy_delay", {
+  return invokeCommand<number>("test_proxy_delay", {
     proxyName,
     timeoutMs,
   });
 }
 
-export async function testClashProxyGroupDelay(
+export async function testProxyGroupDelay(
   proxyGroup: string,
   timeoutMs?: number,
 ): Promise<Record<string, number>> {
-  return invokeCommand<Record<string, number>>("test_clash_proxy_group_delay", {
+  return invokeCommand<Record<string, number>>("test_proxy_group_delay", {
     proxyGroup,
     timeoutMs,
   });
@@ -258,17 +243,6 @@ export async function closeConnection(id: string): Promise<void> {
   return invokeCommand<void>("close_connection", { id });
 }
 
-export interface FetchSubscriptionResult {
-  content: string;
-  file_name: string;
-}
-
-export async function fetchSubscription(
-  url: string,
-): Promise<FetchSubscriptionResult> {
-  return invokeCommand<FetchSubscriptionResult>("fetch_subscription", { url });
-}
-
 export async function startTrafficStream(): Promise<void> {
   return invokeCommand<void>("start_traffic_stream");
 }
@@ -299,4 +273,19 @@ export async function startLogsStream(): Promise<void> {
 
 export async function stopLogsStream(): Promise<void> {
   return invokeCommand<void>("stop_logs_stream");
+}
+
+/**
+ * Record a renderer-side error caught by `ErrorBoundary` so it's not just
+ * lost to `console.error` the moment the user closes the app — it lands
+ * next to native-panic crash reports (see `logger.rs`/`crash_reports.rs`)
+ * instead. Best-effort: callers shouldn't let a failure here mask the
+ * original error.
+ */
+export async function recordFrontendError(
+  name: string,
+  message: string,
+  stack?: string,
+): Promise<void> {
+  return invokeCommand<void>("record_frontend_error", { name, message, stack });
 }

@@ -4,9 +4,10 @@
 // Module map:
 //   pipe.rs    Windows named-pipe transport for tonic (no server feature,
 //              client-dial only).
-//   worker.rs  Spawns and owns the per-session `sing-box-daemon.exe worker`
-//              relay process fresh-box authenticates through — see the
-//              module doc comment there for *why* a worker hop exists.
+//   worker.rs  Spawns and owns the process-wide shared `sing-box-daemon.exe
+//              worker` relay process fresh-box authenticates through — see
+//              the module doc comment there for *why* a worker hop exists
+//              and how `SharedWorker` reuses one across callers.
 //   install.rs Locates the bundled daemon executable and drives its own
 //              `service install` / `service uninstall` subcommands through
 //              an elevation prompt.
