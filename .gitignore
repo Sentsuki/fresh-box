@@ -33,3 +33,4 @@ src-tauri/data
 *.db
 sing-box-1.14.0
 sing-box-for-desktop
+sing-box-dashboard

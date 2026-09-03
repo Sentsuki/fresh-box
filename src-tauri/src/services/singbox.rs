@@ -125,6 +125,21 @@ async fn ensure_connected(state: &SingboxState) -> Result<(), CommandError> {
     drop(guard);
 
     spawn_status_watcher(state.clone());
+
+    // Give the watcher a moment to report the daemon's actual current
+    // state before returning, instead of leaving `status_rx` on its
+    // freshly-initialized default (Idle). Without this, a caller that
+    // reads `status_rx` right after this returns — e.g. `is_singbox_running`,
+    // which the frontend calls once at app startup to decide whether to
+    // show sing-box as running — would race the watcher's first
+    // `SubscribeServiceStatus` message and report "not running" even when
+    // sing-box actually is (most visibly right after a reboot, when boxdd
+    // auto-resumes the last config on its own before fresh-box ever asked
+    // it to: see `Daemon.restore()` upstream). Bounded so a slow/stuck
+    // daemon doesn't hang every first-time connector.
+    let mut rx = state.status_rx.clone();
+    let _ = tokio::time::timeout(Duration::from_secs(3), rx.changed()).await;
+
     Ok(())
 }
 
@@ -263,6 +278,21 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
 }
 
 pub async fn is_singbox_running(state: State<'_, SingboxState>) -> Result<bool, CommandError> {
+    let state = state.inner().clone();
+
+    // Best-effort: make sure we're actually connected before trusting
+    // `status_rx`. This is the frontend's only way to learn the true
+    // running state at app startup (`initializeApp()` calls this once,
+    // synchronously, in its startup `Promise.all`), and it otherwise races
+    // the fire-and-forget `initialize_singbox_directly` task `main.rs`
+    // spawns from `setup()` — without this, a fast enough frontend would
+    // read the watch channel's default Idle value before that background
+    // task ever got the lock, and permanently believe sing-box is stopped
+    // even though it's actually running (nothing re-checks after this one
+    // startup call). Idempotent and near-instant once already connected,
+    // so this adds no meaningful cost to the 5s steady-state poll.
+    let _ = ensure_connected(&state).await;
+
     let status = state.status_rx.borrow().status();
     Ok(matches!(status, ServiceStatusType::Started))
 }
@@ -291,11 +321,7 @@ async fn initialize_state_inner(state: &SingboxState) -> Result<String, CommandE
         return Ok(format!("Failed to connect to sing-box-daemon: {}", e));
     }
 
-    // Give the status watcher a moment to report the daemon's actual
-    // current state rather than the freshly-initialized default.
-    let mut rx = state.status_rx.clone();
-    let _ = tokio::time::timeout(Duration::from_secs(3), rx.changed()).await;
-    Ok(describe_status(&rx.borrow()))
+    Ok(describe_status(&state.status_rx.borrow()))
 }
 
 async fn refresh_detection_inner(state: &SingboxState) -> Result<bool, CommandError> {
