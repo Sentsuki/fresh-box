@@ -97,7 +97,11 @@ fn best_monitor_for(
 /// window's rightmost/bottommost valid position left/above its work area's
 /// origin.
 fn clamp_tolerant(value: i32, min: i32, max: i32) -> i32 {
-    if min > max { min } else { value.clamp(min, max) }
+    if min > max {
+        min
+    } else {
+        value.clamp(min, max)
+    }
 }
 
 /// Apply the saved state, if there is one and it's still valid. Call once

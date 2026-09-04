@@ -1,21 +1,21 @@
-import { useEffect, useMemo } from "react";
 import {
-  PlayRegular,
-  StopRegular,
-  DocumentRegular,
   CloudArrowDownRegular,
+  DocumentRegular,
+  PlayRegular,
   ShieldCheckmarkRegular,
   ShieldErrorRegular,
+  StopRegular,
 } from "@fluentui/react-icons";
-import { useSingboxStore } from "../../stores/singboxStore";
-import { useSettingsStore } from "../../stores/settingsStore";
+import { useEffect, useMemo } from "react";
+import { Badge } from "../../components/ui/Badge";
+import { PageHeader } from "../../components/ui/PageHeader";
+import { useSingbox } from "../../hooks/useSingbox";
 import { useConfigStore } from "../../stores/configStore";
 import { useProxyStore } from "../../stores/proxyStore";
-import { useSingbox } from "../../hooks/useSingbox";
+import { useSettingsStore } from "../../stores/settingsStore";
+import { useSingboxStore } from "../../stores/singboxStore";
 import StatusCards from "./StatusCards";
 import TrafficChart from "./TrafficChart";
-import { PageHeader } from "../../components/ui/PageHeader";
-import { Badge } from "../../components/ui/Badge";
 
 export default function Overview() {
   const isRunning = useSingboxStore((s) => s.isRunning);
@@ -72,7 +72,7 @@ export default function Overview() {
               <div>
                 <div className="flex items-center gap-3 mb-1">
                   <h2 className="text-xl sm:text-2xl font-semibold text-(--wb-text-primary) tracking-tight">
-                    {isRunning ? "System Protected" : "Protection Disabled"}
+                    {isRunning ? "Freedom & Privacy" : "Monitored & Censored"}
                   </h2>
                   <Badge variant={isRunning ? "success" : "default"}>
                     {isRunning ? "Active" : "Inactive"}
@@ -81,8 +81,8 @@ export default function Overview() {
 
                 <p className="text-sm text-(--wb-text-secondary) mb-3 max-w-md leading-relaxed">
                   {isRunning
-                    ? "Network traffic is securely encrypted and routed."
-                    : "Traffic is currently bypassing the proxy. Connect to secure."}
+                    ? "Encrypted and liberated from the Great Firewall."
+                    : "Trapped and monitored behind the Great Firewall."}
                 </p>
 
                 {selectedDisplay ? (
@@ -156,7 +156,7 @@ export default function Overview() {
                     <div
                       // eslint-disable-next-line react/no-array-index-key
                       key={`skeleton-${i}`}
-                      className="flex-1 min-w-[200px] h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
+                      className="flex-1 min-w-50 h-24 bg-(--wb-surface-layer) rounded-(--wb-radius-md) border border-(--wb-border-subtle) animate-pulse"
                     />
                   ))}
                 </div>

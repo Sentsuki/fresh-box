@@ -239,10 +239,7 @@ impl BackendPrefsState {
     }
 
     pub fn get(&self) -> AppDisplaySettings {
-        self.0
-            .read()
-            .map(|guard| guard.clone())
-            .unwrap_or_default()
+        self.0.read().map(|guard| guard.clone()).unwrap_or_default()
     }
 
     /// Updates the in-memory cache immediately (so every in-process reader

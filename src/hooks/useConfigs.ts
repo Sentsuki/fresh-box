@@ -37,7 +37,10 @@ function isInsecureSubscriptionUrl(url: string): boolean {
  * `preferredName` (typically whatever profile the caller just
  * added/renamed) or the first profile.
  */
-async function applyProfiles(profiles: ProfileEntry[], preferredName?: string | null) {
+async function applyProfiles(
+  profiles: ProfileEntry[],
+  preferredName?: string | null,
+) {
   useConfigStore.getState().setProfiles(profiles);
 
   const settings = useSettingsStore.getState();
@@ -83,7 +86,10 @@ export function useConfigs() {
         profiles[0] ||
         null;
 
-      await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
+      await settings.setSelectedConfig(
+        target?.path ?? null,
+        target?.name ?? null,
+      );
     } finally {
       config.setPending(false);
     }
@@ -213,7 +219,9 @@ export function useConfigs() {
         );
         useConfigStore.getState().setProfiles(profiles);
       } catch (err) {
-        toastError(`Error updating auto-update setting: ${getErrorMessage(err)}`);
+        toastError(
+          `Error updating auto-update setting: ${getErrorMessage(err)}`,
+        );
       }
     },
     [toastError],

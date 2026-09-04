@@ -121,7 +121,9 @@ export async function startLogsStream() {
 }
 
 export async function stopLogsStream(clear = false) {
-  await guard.stop(clear ? () => useLogsStore.getState().clearLogs() : undefined);
+  await guard.stop(
+    clear ? () => useLogsStore.getState().clearLogs() : undefined,
+  );
   // Only reset to disconnected if not disabled — "disabled" is a core config
   // state that should persist until the backend explicitly changes it.
   if (useLogsStore.getState().streamStatus !== "disabled") {

@@ -109,4 +109,3 @@ where
 {
     write_json_file(&get_named_config_path(file_name)?, value)
 }
-

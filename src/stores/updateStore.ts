@@ -68,9 +68,7 @@ export const useUpdateStore = create<UpdateState>((set, get) => ({
             downloaded += event.data.chunkLength;
             set({
               progress:
-                contentLength > 0
-                  ? Math.min(downloaded / contentLength, 1)
-                  : 0,
+                contentLength > 0 ? Math.min(downloaded / contentLength, 1) : 0,
             });
             break;
           case "Finished":

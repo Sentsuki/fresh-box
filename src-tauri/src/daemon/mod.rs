@@ -28,11 +28,13 @@ pub use client::{DaemonClient, DaemonConnection};
 /// Generated from `proto/daemon/{managed_service,started_service}.proto`
 /// (both declare `package daemon;`, so tonic-build merges them into one
 /// module).
+#[allow(clippy::all)]
 pub mod daemon_api {
     tonic::include_proto!("daemon");
 }
 
 /// Generated from `proto/boxdd/desktop_service.proto`.
+#[allow(clippy::all)]
 pub mod desktop_api {
     tonic::include_proto!("desktop");
 }

@@ -133,7 +133,9 @@ fn reconcile_with_disk(index: &mut ProfileIndex, sub_dir: &Path) -> Result<bool,
     let on_disk_set: BTreeSet<&str> = on_disk.iter().map(|s| s.as_str()).collect();
 
     let before = index.entries.len();
-    index.entries.retain(|e| on_disk_set.contains(e.name.as_str()));
+    index
+        .entries
+        .retain(|e| on_disk_set.contains(e.name.as_str()));
     let mut changed = index.entries.len() != before;
 
     let known: BTreeSet<String> = index.entries.iter().map(|e| e.name.clone()).collect();

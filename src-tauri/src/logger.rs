@@ -52,7 +52,9 @@ pub fn init_tracing() {
                 "Warning: failed to resolve log directory, logging to stderr only: {:?}",
                 e
             );
-            let _ = tracing_subscriber::fmt().with_env_filter(filter()).try_init();
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter())
+                .try_init();
             return;
         }
     };
@@ -69,7 +71,9 @@ pub fn init_tracing() {
                 "Warning: failed to initialize log file rotation, logging to stderr only: {}",
                 e
             );
-            let _ = tracing_subscriber::fmt().with_env_filter(filter()).try_init();
+            let _ = tracing_subscriber::fmt()
+                .with_env_filter(filter())
+                .try_init();
             return;
         }
     };
@@ -80,7 +84,9 @@ pub fn init_tracing() {
         .with_writer(non_blocking)
         .with_ansi(false);
 
-    let registry = tracing_subscriber::registry().with(filter()).with(file_layer);
+    let registry = tracing_subscriber::registry()
+        .with(filter())
+        .with(file_layer);
 
     let result = if cfg!(debug_assertions) {
         registry.with(tracing_subscriber::fmt::layer()).try_init()

@@ -11,7 +11,7 @@ import {
 export const TOASTER_ID = "global";
 
 export function useToast() {
-  const { dispatchToast } = useToastController(TOASTER_ID);
+  const { dispatchToast, dismissToast } = useToastController(TOASTER_ID);
 
   const success = useCallback(
     (title: string, body?: string) => {
@@ -77,21 +77,32 @@ export function useToast() {
   // lives next to the release notes.
   const updateAvailable = useCallback(
     (version: string, onView: () => void) => {
+      // `toastId` is what makes `dismissToast` below possible at all — a
+      // toast dispatched without one can only ever go away on its own
+      // timeout, never on demand, which is exactly the bug this fixes
+      // (clicking the link used to leave the toast sitting there).
+      const toastId = crypto.randomUUID();
       dispatchToast(
         <Toast>
           <ToastTitle>Update available</ToastTitle>
           <ToastBody subtitle={`fresh-box ${version} is ready to install`}>
-            Review it in Settings before installing — updating restarts the
-            app.
+            Review it in Settings before installing — updating restarts the app.
           </ToastBody>
           <ToastFooter>
-            <Link onClick={onView}>Go to Settings</Link>
+            <Link
+              onClick={() => {
+                dismissToast(toastId);
+                onView();
+              }}
+            >
+              Go to Settings
+            </Link>
           </ToastFooter>
         </Toast>,
-        { intent: "info", timeout: 15000 },
+        { intent: "info", timeout: 15000, toastId },
       );
     },
-    [dispatchToast],
+    [dispatchToast, dismissToast],
   );
 
   // The one-time opt-in prompt for automatic update checks (mirrors the
@@ -102,23 +113,37 @@ export function useToast() {
   // launch rather than silently locking in an answer nobody gave.
   const enableUpdateCheckPrompt = useCallback(
     (onEnable: () => void, onDecline: () => void) => {
+      const toastId = crypto.randomUUID();
       dispatchToast(
         <Toast>
           <ToastTitle>Check for updates automatically?</ToastTitle>
           <ToastBody>
-            fresh-box can check GitHub on launch for a newer release.
-            Nothing downloads or installs without you confirming it in
-            Settings.
+            fresh-box can check GitHub on launch for a newer release. Nothing
+            downloads or installs without you confirming it in Settings.
           </ToastBody>
           <ToastFooter>
-            <Link onClick={onEnable}>Enable</Link>
-            <Link onClick={onDecline}>Not now</Link>
+            <Link
+              onClick={() => {
+                dismissToast(toastId);
+                onEnable();
+              }}
+            >
+              Enable
+            </Link>
+            <Link
+              onClick={() => {
+                dismissToast(toastId);
+                onDecline();
+              }}
+            >
+              Not now
+            </Link>
           </ToastFooter>
         </Toast>,
-        { intent: "info", timeout: 20000 },
+        { intent: "info", timeout: 20000, toastId },
       );
     },
-    [dispatchToast],
+    [dispatchToast, dismissToast],
   );
 
   return {

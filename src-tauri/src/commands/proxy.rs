@@ -37,8 +37,7 @@ pub async fn test_proxy_delay(
     proxy_name: String,
     timeout_ms: Option<u64>,
 ) -> Result<i64, CommandError> {
-    crate::services::daemon_control::test_proxy_delay(state.inner(), proxy_name, timeout_ms)
-        .await
+    crate::services::daemon_control::test_proxy_delay(state.inner(), proxy_name, timeout_ms).await
 }
 
 #[tauri::command]

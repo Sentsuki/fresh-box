@@ -404,15 +404,6 @@ export default function Settings() {
         {/* About */}
         <SettingGroup title="About">
           <SettingCard
-            icon={<InfoRegular />}
-            title="fresh-box"
-            description={
-              <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
-                <span>Version {appVersion ?? "..."}</span>
-              </div>
-            }
-          />
-          <SettingCard
             icon={<ArrowDownloadRegular />}
             title="Updates"
             description={
@@ -480,6 +471,15 @@ export default function Settings() {
                     ? "Checking..."
                     : "Check for Updates"}
                 </Button>
+              </div>
+            }
+          />
+          <SettingCard
+            icon={<InfoRegular />}
+            title="fresh-box"
+            description={
+              <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
+                <span>Version {appVersion ?? "..."}</span>
               </div>
             }
           />

@@ -75,7 +75,8 @@ fn has_forbidden_filename_char(c: char) -> bool {
 fn is_reserved_device_name(stem: &str) -> bool {
     matches!(
         stem.to_ascii_uppercase().as_str(),
-        "CON" | "PRN"
+        "CON"
+            | "PRN"
             | "AUX"
             | "NUL"
             | "COM1"
@@ -113,7 +114,13 @@ fn is_reserved_device_name(stem: &str) -> bool {
 fn sanitize_filename_component(raw: &str) -> String {
     let cleaned: String = raw
         .chars()
-        .map(|c| if has_forbidden_filename_char(c) { '_' } else { c })
+        .map(|c| {
+            if has_forbidden_filename_char(c) {
+                '_'
+            } else {
+                c
+            }
+        })
         .collect();
     let trimmed = cleaned.trim_matches(|c: char| c == ' ' || c == '.');
     if trimmed.is_empty() {
@@ -339,19 +346,26 @@ pub struct ProfileOperationResult {
     pub profiles: Vec<ProfileEntryView>,
 }
 
-fn find_view(views: Vec<ProfileEntryView>, predicate: impl Fn(&ProfileEntryView) -> bool) -> Result<(ProfileEntryView, Vec<ProfileEntryView>), CommandError> {
+fn find_view(
+    views: Vec<ProfileEntryView>,
+    predicate: impl Fn(&ProfileEntryView) -> bool,
+) -> Result<(ProfileEntryView, Vec<ProfileEntryView>), CommandError> {
     let entry = views
         .iter()
         .find(|v| predicate(v))
         .cloned()
-        .ok_or_else(|| CommandError::invalid_state("profiles", "profile entry missing after write"))?;
+        .ok_or_else(|| {
+            CommandError::invalid_state("profiles", "profile entry missing after write")
+        })?;
     Ok((entry, views))
 }
 
 // ── Import / fetch ──────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn copy_config_to_bin(config_path: String) -> Result<ProfileOperationResult, CommandError> {
+pub async fn copy_config_to_bin(
+    config_path: String,
+) -> Result<ProfileOperationResult, CommandError> {
     let sub_dir = crate::config::paths::get_sub_dir()?;
     let source_config_path = std::path::Path::new(&config_path);
 

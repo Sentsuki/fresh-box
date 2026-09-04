@@ -15,7 +15,11 @@ function isCommandErrorPayload(value: unknown): value is CommandErrorPayload {
 export class CommandInvocationError extends Error {
   readonly kind?: CommandErrorKind;
 
-  constructor(message: string, kind: CommandErrorKind | undefined, cause: unknown) {
+  constructor(
+    message: string,
+    kind: CommandErrorKind | undefined,
+    cause: unknown,
+  ) {
     super(message);
     this.name = "CommandInvocationError";
     this.kind = kind;
@@ -77,6 +81,10 @@ export async function invokeCommand<T>(
   try {
     return await invoke<T>(command, args);
   } catch (error) {
-    throw new CommandInvocationError(getErrorMessage(error), getErrorKind(error), error);
+    throw new CommandInvocationError(
+      getErrorMessage(error),
+      getErrorKind(error),
+      error,
+    );
   }
 }
