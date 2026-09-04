@@ -1,78 +1,24 @@
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 import { useCallback } from "react";
-import { isSingboxRunning, startSingbox, stopSingbox } from "../services/api";
+import { startSingbox, stopSingbox } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
-import { useClashStore } from "../stores/clashStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
-import {
-  startConnectionsStream,
-  stopConnectionsStream,
-} from "./useConnectionsStream";
-import { startLogsStream, stopLogsStream } from "./useLogsStream";
-import { startTrafficStream, stopTrafficStream } from "./useTrafficStream";
-import { startMemoryStream, stopMemoryStream } from "./useMemoryStream";
 import { useToast } from "./useToast";
 
-async function notifySingboxStatus(body: string) {
-  try {
-    let permitted = await isPermissionGranted();
-    if (!permitted) {
-      const result = await requestPermission();
-      permitted = result === "granted";
-    }
-    if (permitted) {
-      sendNotification({ title: "sing-box", body });
-    }
-  } catch {
-    // notifications are best-effort
-  }
-}
-
-let statusCheckInterval: number | null = null;
-
-function stopPolling() {
-  if (statusCheckInterval !== null) {
-    window.clearInterval(statusCheckInterval);
-    statusCheckInterval = null;
-  }
-}
-
-function startPolling(onUnexpectedStop: () => void) {
-  if (statusCheckInterval !== null) return;
-  statusCheckInterval = window.setInterval(async () => {
-    const isRunning = useSingboxStore.getState().isRunning;
-    if (!isRunning) {
-      stopPolling();
-      return;
-    }
-    try {
-      const running = await isSingboxRunning();
-      if (!running) {
-        useSingboxStore.getState().setRunning(false);
-        stopPolling();
-        onUnexpectedStop();
-      }
-    } catch {
-      // polling error is silent
-    }
-  }, 5000);
-}
-
+/**
+ * `isRunning`, the connections/traffic/memory/logs streams, the "stopped
+ * unexpectedly" case, and the success/OS-notification pair for every
+ * running-state transition (not just ones fresh-box itself asked for) are
+ * all handled centrally by `useDaemonConnectionListener` reacting to the
+ * daemon's own `daemon-state-changed` events — see its doc comment. This
+ * hook is left with just: fire the RPC, and surface an immediate error if
+ * it fails outright (a timeout, the daemon rejecting the request, ...).
+ */
 export function useSingbox() {
-  const {
-    error: toastError,
-    success: toastSuccess,
-    info: toastInfo,
-  } = useToast();
+  const { error: toastError, info: toastInfo } = useToast();
 
   const startService = useCallback(async () => {
     const singbox = useSingboxStore.getState();
-    const clash = useClashStore.getState();
     const settings = useSettingsStore.getState();
     const configPath = settings.settings.profiles.selected_config_path;
 
@@ -82,38 +28,15 @@ export function useSingbox() {
     try {
       toastInfo("Starting sing-box...");
       await startSingbox(configPath);
-      singbox.setRunning(true);
-      startConnectionsStream();
-      startTrafficStream();
-      startMemoryStream();
-      void startLogsStream();
-      startPolling(() => {
-        stopConnectionsStream(true);
-        stopTrafficStream(true);
-        stopMemoryStream(true);
-        void stopLogsStream(true);
-        useClashStore.getState().clearOverview();
-        toastError("sing-box has stopped unexpectedly.");
-        void notifySingboxStatus("sing-box has stopped unexpectedly.");
-      });
-      toastSuccess("sing-box is running.");
-      void notifySingboxStatus("sing-box is running.");
-      // Fetch the proxy group list in the background — it's for the
-      // Proxies page, not a precondition of "sing-box is running", so it
-      // shouldn't hold up the success state.
-      void clash.refreshOverview(true);
     } catch (err) {
-      singbox.setRunning(false);
-      clash.clearOverview();
       toastError(`Error starting sing-box: ${getErrorMessage(err)}`);
     } finally {
       singbox.setPending(false);
     }
-  }, [toastError, toastInfo, toastSuccess]);
+  }, [toastError, toastInfo]);
 
   const stopService = useCallback(async () => {
     const singbox = useSingboxStore.getState();
-    const clash = useClashStore.getState();
 
     if (!singbox.isRunning || singbox.pendingOperation) return;
 
@@ -121,21 +44,12 @@ export function useSingbox() {
     try {
       toastInfo("Stopping sing-box...");
       await stopSingbox();
-      singbox.setRunning(false);
-      stopPolling();
-      stopConnectionsStream(true);
-      stopTrafficStream(true);
-      stopMemoryStream(true);
-      void stopLogsStream(true);
-      clash.clearOverview();
-      toastSuccess("sing-box is stopped.");
-      void notifySingboxStatus("sing-box is stopped.");
     } catch (err) {
       toastError(`Error stopping sing-box: ${getErrorMessage(err)}`);
     } finally {
       singbox.setPending(false);
     }
-  }, [toastError, toastInfo, toastSuccess]);
+  }, [toastError, toastInfo]);
 
   return { startService, stopService };
 }

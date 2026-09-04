@@ -1,17 +1,17 @@
-import { useClashStore } from "../stores/clashStore";
+import { useProxyStore } from "../stores/proxyStore";
 import { useToast } from "./useToast";
 import { useCallback } from "react";
 
-export function useClash() {
+export function useProxy() {
   const { success, error, info } = useToast();
 
   const refreshOverview = useCallback(async () => {
-    await useClashStore.getState().refreshOverview(true);
+    await useProxyStore.getState().refreshOverview(true);
   }, []);
 
   const changeMode = useCallback(
     async (mode: string) => {
-      await useClashStore.getState().changeMode(
+      await useProxyStore.getState().changeMode(
         mode,
         (msg) => success(msg),
         (msg) => error(msg),
@@ -22,7 +22,7 @@ export function useClash() {
 
   const switchProxy = useCallback(
     async (proxyGroup: string, proxyName: string) => {
-      await useClashStore.getState().switchProxy(
+      await useProxyStore.getState().switchProxy(
         proxyGroup,
         proxyName,
         (msg) => success(msg),
@@ -34,7 +34,7 @@ export function useClash() {
 
   const testDelay = useCallback(
     async (proxyName: string) => {
-      await useClashStore.getState().testDelay(
+      await useProxyStore.getState().testDelay(
         proxyName,
         (msg, isOk) => (isOk ? success(msg) : info(msg)),
         (msg) => error(msg),
@@ -45,7 +45,7 @@ export function useClash() {
 
   const testGroupDelay = useCallback(
     async (proxyGroup: string) => {
-      await useClashStore.getState().testGroupDelay(
+      await useProxyStore.getState().testGroupDelay(
         proxyGroup,
         (msg) => success(msg),
         (msg) => error(msg),

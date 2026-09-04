@@ -1,16 +1,16 @@
 import { create } from "zustand";
 import {
-  getClashOverview,
-  selectClashProxy,
-  testClashProxyDelay,
-  testClashProxyGroupDelay,
-  updateClashMode,
+  getProxyOverview,
+  selectProxy,
+  testProxyDelay,
+  testProxyGroupDelay,
+  updateProxyMode,
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
-import type { ClashOverview } from "../types/app";
+import type { ProxyOverview } from "../types/app";
 
-interface ClashState {
-  overview: ClashOverview | null;
+interface ProxyState {
+  overview: ProxyOverview | null;
   errorMessage: string | null;
   isRefreshing: boolean;
   activeMode: string | null;
@@ -20,7 +20,7 @@ interface ClashState {
   groupTestingNodes: Set<string>;
 }
 
-interface ClashActions {
+interface ProxyActions {
   refreshOverview: (showToastOnError?: boolean) => Promise<void>;
   clearOverview: () => void;
   changeMode: (
@@ -48,7 +48,7 @@ interface ClashActions {
 
 let requestSequence = 0;
 
-export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
+export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
   overview: null,
   errorMessage: null,
   isRefreshing: false,
@@ -62,7 +62,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     const sequence = ++requestSequence;
     set({ isRefreshing: true });
     try {
-      const overview = await getClashOverview();
+      const overview = await getProxyOverview();
       if (sequence === requestSequence) {
         set({ overview, errorMessage: null });
       }
@@ -72,7 +72,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
         set({ overview: null, errorMessage: message });
       }
       if (showToastOnError) {
-        console.warn(`Failed to load Clash data: ${message}`);
+        console.warn(`Failed to load proxy data: ${message}`);
       }
     } finally {
       if (sequence === requestSequence) {
@@ -104,11 +104,11 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     }
     set({ activeMode: mode });
     try {
-      const overview = await updateClashMode(mode);
+      const overview = await updateProxyMode(mode);
       set({ overview, errorMessage: null });
-      onSuccess?.(`Clash mode switched to ${mode}`);
+      onSuccess?.(`Proxy mode switched to ${mode}`);
     } catch (error) {
-      onError?.(`Failed to switch Clash mode: ${getErrorMessage(error)}`);
+      onError?.(`Failed to switch proxy mode: ${getErrorMessage(error)}`);
     } finally {
       set({ activeMode: null });
     }
@@ -119,7 +119,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
     if (get().activeSelectionKey === actionKey) return;
     set({ activeSelectionKey: actionKey });
     try {
-      const overview = await selectClashProxy(proxyGroup, proxyName);
+      const overview = await selectProxy(proxyGroup, proxyName);
       set({ overview, errorMessage: null });
       onSuccess?.(`Switched ${proxyGroup} to ${proxyName}`);
     } catch (error) {
@@ -137,7 +137,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       return { activeDelayNodes: next };
     });
     try {
-      const delay = await testClashProxyDelay(proxyName);
+      const delay = await testProxyDelay(proxyName);
       set((s) => ({
         overview: s.overview
           ? {
@@ -193,7 +193,7 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
       let nodes = group?.options.map((n) => n.name) ?? [];
 
       if (nodes.length === 0) {
-        await get().refreshOverview(); // 先拉取节点
+        await get().refreshOverview(); // fetch nodes first
         overview = get().overview;
         group = overview?.proxy_groups.find((g) => g.name === proxyGroup);
         nodes = group?.options.map((n) => n.name) ?? [];
@@ -204,10 +204,10 @@ export const useClashStore = create<ClashState & ClashActions>((set, get) => ({
         }
       }
 
-      // 无论是一开始就有节点，还是刚刚拉取到的节点，都走这里
+      // Reached whether nodes were already available or just fetched above.
       set({ groupTestingNodes: new Set(nodes) });
 
-      const results = await testClashProxyGroupDelay(proxyGroup);
+      const results = await testProxyGroupDelay(proxyGroup);
 
       set((s) => ({
         overview: s.overview

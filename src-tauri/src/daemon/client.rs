@@ -2,11 +2,14 @@
 // wired up behind a small API shaped for fresh-box's needs.
 //
 // Split in two on purpose:
-//   `DaemonClient`     Owns the worker relay process (see `worker.rs`).
-//                       There is exactly one per connection attempt;
-//                       dropping/`shutdown()`-ing it tears the worker down,
-//                       which the real daemon treats the same as the
-//                       application exiting.
+//   `DaemonClient`     Dials the relay pipe of the process-wide shared
+//                       worker (`worker::shared_worker`) — see that
+//                       module's doc comment. Connecting no longer spawns a
+//                       dedicated worker per attempt: the same worker
+//                       process backs every reconnect and every
+//                       `DaemonClient` alike, so there's nothing left to
+//                       tear down when a particular connection attempt is
+//                       done with it — just drop this.
 //   `DaemonConnection`  A cheap, `Clone` handle to the underlying gRPC
 //                       `Channel`. tonic channels are designed to be shared
 //                       this way — cloning one is just an Arc bump, and
@@ -33,7 +36,7 @@ use super::daemon_api::{
 };
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{DaemonInfo, StartOptions, StartServiceRequest};
-use super::worker::{self, WorkerProcess};
+use super::worker;
 
 fn map_status(context: &str, status: tonic::Status) -> CommandError {
     CommandError::network(format!(
@@ -64,16 +67,18 @@ fn to_interval_nanos(interval_ms: i64) -> i64 {
 }
 
 pub struct DaemonClient {
-    worker: WorkerProcess,
     pub connection: DaemonConnection,
 }
 
 impl DaemonClient {
-    /// Spawn a fresh worker and connect through it. There is no
-    /// reconnect-in-place: a caller that loses the connection should
-    /// discard this instance and connect a new one.
+    /// Connect through the process-wide shared worker (see
+    /// `worker::shared_worker`), spawning one first if none is currently
+    /// running. There is no reconnect-in-place: a caller that loses the
+    /// connection should discard this instance and connect a new one — but
+    /// that no longer means respawning the worker itself, just redialing
+    /// its relay pipe.
     pub async fn connect(daemon_executable: &std::path::Path) -> Result<Self, CommandError> {
-        let worker = worker::spawn(daemon_executable).await?;
+        let worker = worker::shared_worker().get(daemon_executable).await?;
         // Dial the *relay* pipe, not the worker's own `--socket` pipe —
         // see the doc comment on `WorkerProcess::relay_socket_path`.
         let channel = super::pipe::connect(worker.relay_socket_path.clone())
@@ -81,13 +86,8 @@ impl DaemonClient {
             .map_err(|e| CommandError::network(format!("connect to daemon relay pipe: {e}")))?;
 
         Ok(Self {
-            worker,
             connection: DaemonConnection { channel },
         })
-    }
-
-    pub async fn shutdown(self) {
-        self.worker.shutdown().await;
     }
 }
 
@@ -111,10 +111,10 @@ impl DaemonConnection {
 
     // ── DesktopService ──────────────────────────────────────────────────
 
-    /// Used by `services::singbox::ensure_connected` for the same
-    /// version-mismatch check the official client does at connect time
-    /// (`state.ts`: compares this against the bundled daemon exe's own
-    /// `sing-box-daemon.exe version` output via
+    /// Used by `services::singbox::run_reconciliation_attempt` for the same
+    /// version-mismatch/ownership checks the official client does at
+    /// connect time (`state.ts`: compares this against the bundled daemon
+    /// exe's own `sing-box-daemon.exe version` output via
     /// `daemon::install::bundled_daemon_version`, and refuses to fully
     /// connect on a mismatch).
     pub async fn daemon_info(&self) -> Result<DaemonInfo, CommandError> {

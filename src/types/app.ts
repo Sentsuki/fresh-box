@@ -34,17 +34,33 @@ export type ConnectionColumnKey =
 export type LogLevel =
   "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
-export interface SubscriptionInfo {
-  url: string;
-  lastUpdated?: string;
-}
-
-export type SubscriptionRecord = Record<string, SubscriptionInfo>;
-
-export interface ConfigFileEntry {
+/**
+ * A config file fresh-box manages, keyed by a stable `id` that never
+ * changes — renaming only ever changes `name`. `url`/`lastUpdated` are
+ * present only for subscriptions (fetched from a URL); a locally imported
+ * file has neither.
+ */
+export interface ProfileEntry {
+  id: string;
+  name: string;
   path: string;
-  displayName: string;
+  url?: string;
+  lastUpdated?: string;
+  /** Whether the backend's background scheduler should periodically
+   * re-fetch this subscription on its own. Always `false` for a locally
+   * imported file (no `url`). */
+  autoUpdate: boolean;
+  /** `undefined` means "use the backend's default interval" — see
+   * `DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES`. */
+  updateIntervalMinutes?: number;
 }
+
+/** Mirrors the backend's `config::profiles::MINIMUM_UPDATE_INTERVAL_MINUTES`
+ * — kept here too so the UI can reject/clamp an obviously-too-small value
+ * before round-tripping to the backend at all. */
+export const MINIMUM_AUTO_UPDATE_INTERVAL_MINUTES = 15;
+/** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
+export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
 
 export interface AppConfig {
   current_page: AppPage;
@@ -79,6 +95,25 @@ export interface LogsPageSettings {
   type_filter: string;
 }
 
+/**
+ * Pure frontend bookkeeping for the update-check flow —
+ * `@tauri-apps/plugin-updater` does the actual checking/downloading/
+ * installing; this only ever decides *when* to call it and *whether to
+ * bother the user again* about a version already shown. Mirrors the
+ * backend's `config::app_settings::UpdateSettings`.
+ */
+export interface UpdateSettings {
+  /** Opt-in, like the official desktop client — `false` on a fresh install
+   * so nothing phones home to GitHub until the user agrees to it. */
+  check_update_enabled: boolean;
+  /** Whether the one-time "enable automatic update checks?" prompt has
+   * already been shown, regardless of which way it was answered. */
+  update_check_prompted: boolean;
+  /** The version of the last update the user was actually notified about —
+   * so it isn't re-announced on every single launch. */
+  last_shown_update_version: string;
+}
+
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
@@ -87,6 +122,7 @@ export interface AppSettings {
   logs: LogsPageSettings;
   profiles: ProfilesSettings;
   settings: AppDisplaySettings;
+  updates: UpdateSettings;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -148,6 +184,11 @@ export function createDefaultAppSettings(): AppSettings {
       theme_mode: "system",
       close_behavior: "hide",
       auto_close_connections: true,
+    },
+    updates: {
+      check_update_enabled: false,
+      update_check_prompted: false,
+      last_shown_update_version: "",
     },
   };
 }
@@ -291,10 +332,33 @@ export function normalizeAppSettings(
         settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
       auto_close_connections: settings.settings?.auto_close_connections ?? true,
     },
+    updates: {
+      check_update_enabled: settings.updates?.check_update_enabled ?? false,
+      update_check_prompted: settings.updates?.update_check_prompted ?? false,
+      last_shown_update_version:
+        settings.updates?.last_shown_update_version ?? "",
+    },
   };
 }
 
+/** Mirrors the backend's `errors::CommandError` discriminant (the `kind` of
+ * its `#[serde(tag = "kind", content = "message")]` encoding) — lets the
+ * frontend branch on *why* a command failed instead of pattern-matching the
+ * human-readable message text. See `services/tauri.ts`'s `getErrorKind`. */
+export type CommandErrorKind =
+  | "process_already_running"
+  | "process_not_running"
+  | "network_error"
+  | "permission_denied"
+  | "validation_error"
+  | "invalid_state"
+  | "resource_not_found"
+  | "failed_to_start_process"
+  | "io_error"
+  | "json_error";
+
 export interface CommandErrorPayload {
+  kind?: CommandErrorKind;
   message?: string;
   [key: string]: unknown;
 }
@@ -327,7 +391,7 @@ export interface ConfigFieldsCheck {
   current_log_level?: string;
 }
 
-export interface ClashProxyNode {
+export interface ProxyNodeOverview {
   name: string;
   kind: string;
   delay: number | null;
@@ -336,18 +400,18 @@ export interface ClashProxyNode {
   udp: boolean;
 }
 
-export interface ClashProxyGroup {
+export interface ProxyGroupOverview {
   name: string;
   kind: string;
   current: string;
   current_delay?: number | null;
-  options: ClashProxyNode[];
+  options: ProxyNodeOverview[];
 }
 
-export interface ClashOverview {
+export interface ProxyOverview {
   current_mode: string;
   available_modes?: string[];
-  proxy_groups: ClashProxyGroup[];
+  proxy_groups: ProxyGroupOverview[];
 }
 
 export interface ConnectionMetadata {

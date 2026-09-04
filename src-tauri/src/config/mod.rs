@@ -6,7 +6,7 @@ pub mod priority;
 pub mod profiles;
 
 // Re-export commonly used items so callsites can use `crate::config::Foo`
-pub use app_settings::{AppSettings, load_app_settings_file};
+pub use app_settings::AppSettings;
 
 pub use config_override::{apply_config_override, get_override_config_if_enabled};
 

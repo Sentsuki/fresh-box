@@ -1,12 +1,15 @@
 import {
+  ArrowDownloadRegular,
   BoxRegular,
   DismissRegular,
   DocumentTextRegular,
   FolderOpenRegular,
   InfoRegular,
   LinkRegular,
+  RocketRegular,
   ShieldTaskRegular,
   WeatherMoonRegular,
+  WrenchRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
@@ -21,12 +24,18 @@ import {
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
 import {
+  disableAutostart,
+  enableAutostart,
   installDaemonService,
+  isAutostartEnabled,
   isDaemonServiceInstalled,
   openAppDirectory,
+  repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
+import { getErrorKind } from "../../services/tauri";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
 
 export default function Settings() {
@@ -53,6 +62,22 @@ export default function Settings() {
       .catch(() => null);
   }, []);
 
+  // App self-update (`tauri-plugin-updater`) — `useUpdateStore` may already
+  // be populated here from `App.tsx`'s startup check even before this page
+  // is ever opened.
+  const updateStatus = useUpdateStore((s) => s.status);
+  const updateInfo = useUpdateStore((s) => s.update);
+  const updateProgress = useUpdateStore((s) => s.progress);
+  const updateError = useUpdateStore((s) => s.error);
+  const checkForUpdateNow = useUpdateStore((s) => s.checkNow);
+  const installUpdateNow = useUpdateStore((s) => s.installNow);
+  const checkUpdateEnabled = useSettingsStore(
+    (s) => s.settings.updates.check_update_enabled,
+  );
+  const setCheckUpdateEnabled = useSettingsStore(
+    (s) => s.setCheckUpdateEnabled,
+  );
+
   // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
   const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
     null,
@@ -72,6 +97,14 @@ export default function Settings() {
     void refreshServiceInstalled();
   }, []);
 
+  // A declined UAC prompt surfaces as `CommandError::PermissionDenied` —
+  // the user just changed their mind, not a real failure, so (unlike every
+  // other failure here) it's not shown as one.
+  const reportServiceError = (e: unknown) => {
+    if (getErrorKind(e) === "permission_denied") return;
+    setServiceError(e instanceof Error ? e.message : String(e));
+  };
+
   const toggleDaemonService = async () => {
     setIsServiceBusy(true);
     setServiceError(null);
@@ -83,9 +116,60 @@ export default function Settings() {
       }
       await refreshServiceInstalled();
     } catch (e) {
-      setServiceError(e instanceof Error ? e.message : String(e));
+      reportServiceError(e);
     } finally {
       setIsServiceBusy(false);
+    }
+  };
+
+  // Lighter fix for "installed but unreachable" (stopped, crashed and
+  // didn't come back, ...) than the uninstall/reinstall above — just
+  // restarts the service in place.
+  const repairService = async () => {
+    setIsServiceBusy(true);
+    setServiceError(null);
+    try {
+      await repairDaemonService();
+    } catch (e) {
+      reportServiceError(e);
+    } finally {
+      setIsServiceBusy(false);
+    }
+  };
+
+  // Launch at Windows startup (registry Run-key entry)
+  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
+    null,
+  );
+  const [isAutostartBusy, setIsAutostartBusy] = useState(false);
+  const [autostartError, setAutostartError] = useState<string | null>(null);
+
+  const refreshAutostartEnabled = async () => {
+    try {
+      setAutostartEnabled(await isAutostartEnabled());
+    } catch {
+      setAutostartEnabled(null);
+    }
+  };
+
+  useEffect(() => {
+    void refreshAutostartEnabled();
+  }, []);
+
+  const toggleAutostart = async (checked: boolean) => {
+    setIsAutostartBusy(true);
+    setAutostartError(null);
+    try {
+      if (checked) {
+        await enableAutostart();
+      } else {
+        await disableAutostart();
+      }
+      await refreshAutostartEnabled();
+    } catch (e) {
+      setAutostartError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setIsAutostartBusy(false);
     }
   };
 
@@ -261,24 +345,58 @@ export default function Settings() {
               ) : serviceInstalled === null ? (
                 "Checking whether the sing-box-daemon Windows service is installed..."
               ) : serviceInstalled ? (
-                "The sing-box-daemon Windows service is installed."
+                "The sing-box-daemon Windows service is installed. If sing-box won't connect, try restarting the service before reinstalling it."
               ) : (
                 "The sing-box-daemon Windows service is not installed yet. Installing requires administrator approval."
               )
             }
             control={
-              <Button
-                size="sm"
-                variant={serviceInstalled ? "subtle" : "accent"}
-                disabled={isServiceBusy || serviceInstalled === null}
-                onClick={() => void toggleDaemonService()}
-              >
-                {isServiceBusy
-                  ? "Working..."
-                  : serviceInstalled
-                    ? "Uninstall"
-                    : "Install"}
-              </Button>
+              <div className="flex items-center gap-2">
+                {serviceInstalled && (
+                  <Button
+                    size="sm"
+                    variant="subtle"
+                    icon={<WrenchRegular />}
+                    disabled={isServiceBusy}
+                    onClick={() => void repairService()}
+                  >
+                    Restart Service
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant={serviceInstalled ? "subtle" : "accent"}
+                  disabled={isServiceBusy || serviceInstalled === null}
+                  onClick={() => void toggleDaemonService()}
+                >
+                  {isServiceBusy
+                    ? "Working..."
+                    : serviceInstalled
+                      ? "Uninstall"
+                      : "Install"}
+                </Button>
+              </div>
+            }
+          />
+
+          <SettingCard
+            icon={<RocketRegular />}
+            title="Launch at Startup"
+            description={
+              autostartError ? (
+                <span className="text-(--wb-error) whitespace-pre-wrap break-all font-mono text-xs">
+                  {autostartError}
+                </span>
+              ) : (
+                "Start fresh-box (minimized to the tray) when you sign in to Windows"
+              )
+            }
+            control={
+              <Switch
+                checked={autostartEnabled === true}
+                disabled={isAutostartBusy || autostartEnabled === null}
+                onCheckedChange={(checked) => void toggleAutostart(checked)}
+              />
             }
           />
         </SettingGroup>
@@ -291,6 +409,77 @@ export default function Settings() {
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
                 <span>Version {appVersion ?? "..."}</span>
+              </div>
+            }
+          />
+          <SettingCard
+            icon={<ArrowDownloadRegular />}
+            title="Updates"
+            description={
+              updateError ? (
+                <span className="text-(--wb-error)">{updateError}</span>
+              ) : updateStatus === "checking" ? (
+                "Checking for updates..."
+              ) : updateStatus === "downloading" ? (
+                `Downloading update... ${Math.round(updateProgress * 100)}%`
+              ) : updateStatus === "installing" ? (
+                "Installing — fresh-box will restart shortly."
+              ) : updateInfo ? (
+                `fresh-box ${updateInfo.version} is available.${
+                  updateInfo.body ? ` ${updateInfo.body}` : ""
+                }`
+              ) : updateStatus === "up-to-date" ? (
+                "You're on the latest version."
+              ) : (
+                "Check GitHub for a newer fresh-box release."
+              )
+            }
+            control={
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm text-(--wb-text-secondary)">
+                    Auto-check
+                  </span>
+                  <Switch
+                    checked={checkUpdateEnabled}
+                    onCheckedChange={(checked) =>
+                      void setCheckUpdateEnabled(checked)
+                    }
+                  />
+                </div>
+                <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+                {updateInfo && (
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    icon={<ArrowDownloadRegular />}
+                    disabled={
+                      updateStatus === "downloading" ||
+                      updateStatus === "installing"
+                    }
+                    onClick={() => void installUpdateNow()}
+                  >
+                    {updateStatus === "downloading"
+                      ? `Downloading ${Math.round(updateProgress * 100)}%`
+                      : updateStatus === "installing"
+                        ? "Installing..."
+                        : "Download & Install"}
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  disabled={
+                    updateStatus === "checking" ||
+                    updateStatus === "downloading" ||
+                    updateStatus === "installing"
+                  }
+                  onClick={() => void checkForUpdateNow()}
+                >
+                  {updateStatus === "checking"
+                    ? "Checking..."
+                    : "Check for Updates"}
+                </Button>
               </div>
             }
           />

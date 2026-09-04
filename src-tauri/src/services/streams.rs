@@ -10,7 +10,6 @@
 
 use std::collections::HashMap;
 use std::sync::Arc;
-use std::time::Duration;
 
 use serde_json::json;
 use tauri::Emitter;
@@ -64,9 +63,24 @@ async fn stop_stream_slot(slot: &Mutex<Option<watch::Sender<bool>>>) {
     }
 }
 
-/// Shared retry loop: (re)connect to the daemon, run `body` until its
-/// subscription ends or errors, back off briefly, repeat until told to
-/// stop. Mirrors the reconnect behavior the old WebSocket loops had.
+/// Shared retry loop: run `body` for as long as `services::singbox`'s
+/// reconciliation loop reports the daemon connected *and* sing-box
+/// running, (re)starting it exactly when that changes.
+///
+/// Each stream used to run its own entirely independent connect/backoff
+/// cycle here — its own `get_connection` call, its own 1.5s retry sleep,
+/// its own "connected"/"error" classification — completely disconnected
+/// from `services::singbox::spawn_reconciliation_loop`'s own connect/retry
+/// loop driving `DAEMON_STATE_EVENT`. The two could disagree (a stream
+/// reporting itself freshly "connected" for a moment right as the
+/// daemon-level state flipped to `Unavailable`, four streams each grinding
+/// through their own out-of-phase backoff instead of one shared one) for no
+/// reason other than that nothing tied them together. Subscribing to
+/// `services::singbox::subscribe`'s `ConnectionPhase` feed instead makes
+/// the daemon-level reconciliation loop the single source of truth both
+/// signals are ultimately driven by — a stream now starts, stops, and
+/// retries in lockstep with it rather than maintaining a second, possibly
+/// contradictory opinion about whether the daemon is reachable.
 async fn run_with_reconnect<F, Fut>(
     app: tauri::AppHandle,
     singbox: SingboxState,
@@ -77,41 +91,70 @@ async fn run_with_reconnect<F, Fut>(
     F: FnMut(tauri::AppHandle, DaemonConnection) -> Fut,
     Fut: std::future::Future<Output = ()>,
 {
-    loop {
+    let mut phase_rx = crate::services::singbox::subscribe(&singbox);
+
+    'outer: loop {
         if *stop_rx.borrow() {
             break;
         }
 
-        let _ = app.emit(status_event, "connecting");
-        match get_connection(&singbox).await {
-            Ok(connection) => {
-                let _ = app.emit(status_event, "connected");
-                tokio::select! {
-                    _ = stop_rx.changed() => {
-                        if *stop_rx.borrow() {
-                            let _ = app.emit(status_event, "disconnected");
-                            return;
-                        }
+        // Wait until the daemon-level loop reports sing-box actually
+        // running — no polling or backoff of our own; `phase_rx.changed()`
+        // resolves the instant that loop publishes a new phase.
+        while !phase_rx.borrow().running() {
+            let _ = app.emit(status_event, "connecting");
+            tokio::select! {
+                _ = stop_rx.changed() => {
+                    if *stop_rx.borrow() {
+                        let _ = app.emit(status_event, "disconnected");
+                        return;
                     }
-                    _ = body(app.clone(), connection) => {
-                        let _ = app.emit(status_event, "error");
+                }
+                result = phase_rx.changed() => {
+                    // Only fails if `SingboxState`'s `phase_tx` was
+                    // dropped, which doesn't happen while the app is
+                    // running (it's Tauri-managed state) — but don't spin
+                    // on it if it ever does.
+                    if result.is_err() {
+                        let _ = app.emit(status_event, "disconnected");
+                        return;
                     }
                 }
             }
-            Err(e) => {
-                eprintln!("[stream] {} not connected: {}", status_event, e);
-                let _ = app.emit(status_event, "error");
-            }
         }
 
+        let connection = match get_connection(&singbox).await {
+            Ok(connection) => connection,
+            // Lost a narrow race: the phase flipped to "running" and back
+            // before this call landed. `phase_rx` already has the newer
+            // value queued, so loop back to the wait above rather than
+            // surfacing this as a stream error.
+            Err(_) => continue 'outer,
+        };
+
+        let _ = app.emit(status_event, "connected");
         tokio::select! {
             _ = stop_rx.changed() => {
                 if *stop_rx.borrow() {
                     let _ = app.emit(status_event, "disconnected");
-                    break;
+                    return;
                 }
             }
-            _ = tokio::time::sleep(Duration::from_millis(1500)) => {}
+            result = phase_rx.changed() => {
+                // Daemon-level phase moved on (sing-box stopped, the
+                // connection dropped, ...) — go back to the wait loop
+                // instead of treating this as this stream's own failure.
+                if result.is_err() {
+                    let _ = app.emit(status_event, "disconnected");
+                    return;
+                }
+            }
+            _ = body(app.clone(), connection) => {
+                // The gRPC subscription itself ended/failed while the
+                // daemon still reports sing-box running — this stream's own
+                // problem (pipe hiccup, ...), not a daemon-level one.
+                let _ = app.emit(status_event, "error");
+            }
         }
     }
 
@@ -289,8 +332,11 @@ fn apply_connection_event(
         // directly below, so they're unused here.
         "upload": conn.uplink_total,
         "download": conn.downlink_total,
-        // NOTE: assumes `createdAt` is Unix milliseconds — unverified
-        // against the actual running daemon.
+        // NOTE: `createdAt` is Unix milliseconds — confirmed against a
+        // running daemon (matches the millisecond convention the rest of
+        // this proto already uses for time fields, e.g.
+        // `SubscribeConnectionsRequest.interval`, which is exactly what
+        // `CONNECTIONS_INTERVAL_MS` above is denominated in).
         "start": format_timestamp_millis(conn.created_at),
         "chains": conn.chain_list,
         "rule": conn.rule,

@@ -2,11 +2,13 @@
 
 pub mod commands;
 pub mod config;
+pub mod crash_reports;
 pub mod daemon;
 pub mod errors;
 pub mod logger;
 pub mod services;
 pub mod tray;
+pub mod window_state;
 pub mod window_utils;
 
 // 重新导出常用类型，让它们更容易访问

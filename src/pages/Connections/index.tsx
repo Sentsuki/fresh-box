@@ -105,6 +105,9 @@ export default function Connections() {
     return () => clearTimeout(timer);
   }, []);
 
+  // See the identical comment in `pages/Logs/index.tsx` — the global
+  // daemon/visibility listeners own this stream's lifecycle; this is just
+  // an idempotent catch-up, deliberately with no matching stop on unmount.
   useEffect(() => {
     startStream();
   }, [startStream]);

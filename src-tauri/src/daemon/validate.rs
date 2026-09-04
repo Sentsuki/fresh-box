@@ -15,9 +15,10 @@
 // through — and it comes up as soon as the worker itself is ready,
 // regardless of whether the privileged daemon service is installed or
 // running (`startWorkerDaemonRelay` only starts listening for a relay
-// connection; it doesn't block worker startup on one). So this spins up its
-// own short-lived worker rather than reusing `SingboxState`'s connection,
-// and tears it down again once the check is done.
+// connection; it doesn't block worker startup on one). So this dials the
+// process-wide shared worker (`worker::shared_worker`) — spawning one on
+// first use, same as `DaemonClient::connect` — rather than spinning up and
+// tearing down a dedicated one for every single check.
 
 use crate::errors::CommandError;
 
@@ -38,26 +39,19 @@ pub async fn check_config(content: &str) -> Result<(), CommandError> {
         ));
     }
 
-    let process = worker::spawn(&daemon_path).await?;
+    let worker = worker::shared_worker().get(&daemon_path).await?;
 
-    let channel = match pipe::connect(process.socket_path.clone()).await {
-        Ok(channel) => channel,
-        Err(e) => {
-            process.shutdown().await;
-            return Err(CommandError::network(format!(
-                "connect to worker application service: {e}"
-            )));
-        }
-    };
+    let channel = pipe::connect(worker.socket_path.clone())
+        .await
+        .map_err(|e| {
+            CommandError::network(format!("connect to worker application service: {e}"))
+        })?;
 
-    let result = ApplicationServiceClient::new(channel)
+    ApplicationServiceClient::new(channel)
         .check_config(ConfigContent {
             content: content.to_string(),
         })
         .await
         .map(|_| ())
-        .map_err(|status| CommandError::validation(status.message().to_string()));
-
-    process.shutdown().await;
-    result
+        .map_err(|status| CommandError::validation(status.message().to_string()))
 }

@@ -15,14 +15,14 @@
 //     aren't supported by `URLTest` — it always uses the outbound's own
 //     configured test URL, so there's no `url` parameter here at all.
 //   * `GroupItem` doesn't carry the Clash API's `alive`/`udp` flags, so
-//     `ClashProxyNode::alive` is always `None` and `::udp` is always
+//     `ProxyNodeOverview::alive` is always `None` and `::udp` is always
 //     `false` here.
 
 use std::time::Duration;
 
 use indexmap::IndexMap;
 use serde::Serialize;
-use tauri::AppHandle;
+use tauri::{AppHandle, Manager};
 
 use crate::daemon::DaemonConnection;
 use crate::daemon::daemon_api::Groups;
@@ -34,25 +34,25 @@ const GLOBAL_GROUP_NAME: &str = "GLOBAL";
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ClashOverview {
+pub struct ProxyOverview {
     pub current_mode: String,
     pub available_modes: Vec<String>,
-    pub proxy_groups: Vec<ClashProxyGroup>,
+    pub proxy_groups: Vec<ProxyGroupOverview>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ClashProxyGroup {
+pub struct ProxyGroupOverview {
     pub name: String,
     pub kind: String,
     pub current: String,
     pub current_delay: Option<i64>,
-    pub options: Vec<ClashProxyNode>,
+    pub options: Vec<ProxyNodeOverview>,
 }
 
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "snake_case")]
-pub struct ClashProxyNode {
+pub struct ProxyNodeOverview {
     pub name: String,
     pub kind: String,
     pub delay: Option<i64>,
@@ -69,7 +69,7 @@ fn is_selector_like(kind: &str) -> bool {
 fn build_overview(
     mode: crate::daemon::daemon_api::ClashModeStatus,
     groups: Groups,
-) -> ClashOverview {
+) -> ProxyOverview {
     let available_modes = if !mode.mode_list.is_empty() {
         mode.mode_list
     } else {
@@ -88,7 +88,7 @@ fn build_overview(
             let options = g
                 .items
                 .iter()
-                .map(|item| ClashProxyNode {
+                .map(|item| ProxyNodeOverview {
                     name: item.tag.clone(),
                     kind: item.r#type.clone(),
                     delay: (item.url_test_delay > 0).then_some(item.url_test_delay as i64),
@@ -105,7 +105,7 @@ fn build_overview(
                 .map(|item| item.url_test_delay as i64)
                 .filter(|d| *d > 0);
 
-            ClashProxyGroup {
+            ProxyGroupOverview {
                 name: g.tag,
                 kind: g.r#type,
                 current: g.selected,
@@ -115,7 +115,7 @@ fn build_overview(
         })
         .collect();
 
-    ClashOverview {
+    ProxyOverview {
         current_mode: mode.current_mode,
         available_modes,
         proxy_groups,
@@ -126,7 +126,7 @@ fn build_overview(
 /// off the groups subscription, then stop subscribing.
 pub(crate) async fn fetch_overview(
     connection: &DaemonConnection,
-) -> Result<ClashOverview, CommandError> {
+) -> Result<ProxyOverview, CommandError> {
     let mode = connection.clash_mode_status().await?;
     let mut stream = connection.subscribe_groups().await?;
     let groups = stream
@@ -137,23 +137,23 @@ pub(crate) async fn fetch_overview(
     Ok(build_overview(mode, groups))
 }
 
-pub async fn get_clash_overview(
+pub async fn get_proxy_overview(
     app: AppHandle,
     state: &SingboxState,
-) -> Result<ClashOverview, CommandError> {
+) -> Result<ProxyOverview, CommandError> {
     let connection = get_connection(state).await?;
     let overview = fetch_overview(&connection).await?;
     crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
 }
 
-pub async fn update_clash_mode(
+pub async fn update_proxy_mode(
     app: AppHandle,
     state: &SingboxState,
     mode: String,
-) -> Result<ClashOverview, CommandError> {
+) -> Result<ProxyOverview, CommandError> {
     if mode.trim().is_empty() {
-        return Err(CommandError::validation("Clash mode cannot be empty."));
+        return Err(CommandError::validation("Proxy mode cannot be empty."));
     }
     let connection = get_connection(state).await?;
     connection.set_clash_mode(mode).await?;
@@ -172,12 +172,12 @@ pub(crate) async fn select_proxy_inner(
         .await
 }
 
-pub async fn select_clash_proxy(
+pub async fn select_proxy(
     app: AppHandle,
     state: &SingboxState,
     proxy_group: String,
     name: String,
-) -> Result<ClashOverview, CommandError> {
+) -> Result<ProxyOverview, CommandError> {
     if proxy_group.trim().is_empty() {
         return Err(CommandError::validation("Proxy group cannot be empty."));
     }
@@ -188,9 +188,10 @@ pub async fn select_clash_proxy(
     let connection = get_connection(state).await?;
     select_proxy_inner(&connection, &proxy_group, &name).await?;
 
-    let auto_close = crate::config::load_app_settings_file()
-        .map(|s| s.settings.auto_close_connections)
-        .unwrap_or(true);
+    let auto_close = app
+        .state::<crate::config::app_settings::BackendPrefsState>()
+        .get()
+        .auto_close_connections;
     if auto_close {
         close_connections_by_group(&connection, &proxy_group).await;
     }
@@ -254,7 +255,7 @@ fn find_item_time_and_delay(groups: &Groups, tag: &str) -> Option<(i64, i64)> {
         .map(|item| (item.url_test_time, item.url_test_delay as i64))
 }
 
-pub async fn test_clash_proxy_delay(
+pub async fn test_proxy_delay(
     state: &SingboxState,
     proxy_name: String,
     timeout_ms: Option<u64>,
@@ -272,7 +273,7 @@ pub async fn test_clash_proxy_delay(
     .await
 }
 
-pub async fn test_clash_proxy_group_delay(
+pub async fn test_proxy_group_delay(
     app: AppHandle,
     state: &SingboxState,
     proxy_group: String,
@@ -332,7 +333,7 @@ async fn close_connections_by_group(connection: &DaemonConnection, proxy_group_n
     let mut stream = match connection.subscribe_connections(0).await {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("auto-close: failed to subscribe to connections: {:?}", e);
+            tracing::warn!(error = ?e, "auto-close: failed to subscribe to connections");
             return;
         }
     };
@@ -349,7 +350,7 @@ async fn close_connections_by_group(connection: &DaemonConnection, proxy_group_n
         if conn.chain_list.iter().any(|c| c == proxy_group_name)
             && let Err(e) = connection.close_connection(conn.id).await
         {
-            eprintln!("auto-close: failed to close connection: {:?}", e);
+            tracing::warn!(error = ?e, "auto-close: failed to close connection");
         }
     }
 }

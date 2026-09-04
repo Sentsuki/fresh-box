@@ -81,6 +81,11 @@ fn powershell_quote(value: &str) -> String {
     format!("'{}'", value.replace('\'', "''"))
 }
 
+/// Win32 `ERROR_CANCELLED` — what `Start-Process -Verb RunAs` fails with
+/// when the user declines the UAC prompt. Matches the official client's
+/// `EXIT_CODE_CANCELLED` (`repair.ts`).
+const EXIT_CODE_CANCELLED: i32 = 1223;
+
 fn run_elevated(
     executable: &std::path::Path,
     args: &[&str],
@@ -119,10 +124,25 @@ fn run_elevated(
             .collect::<Vec<u8>>(),
     );
 
+    // Wrapped in try/catch so a declined UAC prompt can be told apart from
+    // a genuine failure: `Start-Process -Verb RunAs` goes through
+    // ShellExecute, which throws a `Win32Exception` with native error code
+    // 1223 (`ERROR_CANCELLED`) when the user clicks "No" — left uncaught,
+    // that would just surface as PowerShell's generic exit code 1, no
+    // different from any other failure. Mirrors the official client's
+    // `runElevatedWindows` (`repair.ts`), which checks for the same code.
     let outer_script = format!(
-        "$p = Start-Process -FilePath 'powershell' -ArgumentList \
-         @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded_inner}') \
-         -Verb RunAs -Wait -PassThru; exit $p.ExitCode"
+        "try {{ \
+           $p = Start-Process -FilePath 'powershell' -ArgumentList \
+           @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded_inner}') \
+           -Verb RunAs -Wait -PassThru; exit $p.ExitCode \
+         }} catch {{ \
+           $inner = $_.Exception.InnerException; \
+           if ($inner -is [System.ComponentModel.Win32Exception] -and $inner.NativeErrorCode -eq {EXIT_CODE_CANCELLED}) {{ \
+             exit {EXIT_CODE_CANCELLED} \
+           }} \
+           exit 1 \
+         }}"
     );
 
     let status = Command::new("powershell")
@@ -140,9 +160,6 @@ fn run_elevated(
     })
 }
 
-/// One-time (per install/update), UAC-gated: registers `sing-box-daemon.exe`
-/// as a Windows service. Safe to call when already installed — boxdd's
-/// `service install` updates the existing registration in place.
 fn elevated_failure(context: &str, out: &ElevatedOutput) -> CommandError {
     let mut detail = format!("exited with code {}", out.code);
     if !out.log.trim().is_empty() {
@@ -151,6 +168,22 @@ fn elevated_failure(context: &str, out: &ElevatedOutput) -> CommandError {
     CommandError::invalid_state(context, detail)
 }
 
+/// Turn an elevated command's exit code into a result, distinguishing a
+/// declined UAC prompt (`CommandError::PermissionDenied`) from every other
+/// non-zero exit (`CommandError::InvalidState`, via `elevated_failure`).
+fn elevated_result(context: &str, out: ElevatedOutput) -> Result<(), CommandError> {
+    match out.code {
+        0 => Ok(()),
+        EXIT_CODE_CANCELLED => Err(CommandError::permission_denied(format!(
+            "{context}: cancelled — the UAC prompt was declined"
+        ))),
+        _ => Err(elevated_failure(context, &out)),
+    }
+}
+
+/// One-time (per install/update), UAC-gated: registers `sing-box-daemon.exe`
+/// as a Windows service. Safe to call when already installed — boxdd's
+/// `service install` updates the existing registration in place.
 pub fn install_service() -> Result<(), CommandError> {
     let daemon_path = daemon_executable_path()?;
     let working_directory = daemon_service_working_directory();
@@ -165,19 +198,28 @@ pub fn install_service() -> Result<(), CommandError> {
             })?,
         ],
     )?;
-    if out.code != 0 {
-        return Err(elevated_failure("install_service", &out));
-    }
-    Ok(())
+    elevated_result("install_service", out)
 }
 
 pub fn uninstall_service() -> Result<(), CommandError> {
     let daemon_path = daemon_executable_path()?;
     let out = run_elevated(&daemon_path, &["service", "uninstall"])?;
-    if out.code != 0 {
-        return Err(elevated_failure("uninstall_service", &out));
-    }
-    Ok(())
+    elevated_result("uninstall_service", out)
+}
+
+/// Restart-in-place repair action, distinct from `install_service`/
+/// `uninstall_service`: for when the service is already registered but the
+/// daemon just isn't reachable (stopped by an admin, crashed and didn't
+/// come back, ...) — a lighter fix than a full reinstall. Mirrors the
+/// official client's `repair("start", ...)` (`repair.ts`), which calls the
+/// same underlying `service start` subcommand
+/// (`experimental/boxdd/cmd_service.go` upstream — cross-platform, backed
+/// on Windows by `startServiceAndWait` in `cmd_service_windows.go`, which
+/// is a no-op if it's already running).
+pub fn start_service() -> Result<(), CommandError> {
+    let daemon_path = daemon_executable_path()?;
+    let out = run_elevated(&daemon_path, &["service", "start"])?;
+    elevated_result("start_service", out)
 }
 
 /// Matches `defaultServiceWorkingDirectory` in
