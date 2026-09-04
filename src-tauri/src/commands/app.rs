@@ -31,3 +31,19 @@ pub fn disable_autostart(app: AppHandle) -> Result<(), CommandError> {
         .disable()
         .map_err(|e| CommandError::io("disable autostart", e))
 }
+
+/// Re-applies the Mica backdrop material for the current theme — called by
+/// the frontend whenever the user switches theme mode, since Windows only
+/// re-tints an already-applied Mica surface on its own for the *system*
+/// theme changing, not for fresh-box's own light/dark toggle.
+#[tauri::command]
+pub fn update_mica_theme(window: tauri::Window, is_light: Option<bool>) {
+    #[cfg(target_os = "windows")]
+    {
+        use window_vibrancy::apply_mica;
+        let is_dark = is_light.map(|light| !light);
+        let _ = apply_mica(&window, is_dark);
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = (window, is_light);
+}

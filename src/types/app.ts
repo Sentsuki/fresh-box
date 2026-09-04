@@ -310,7 +310,24 @@ export function normalizeAppSettings(
   };
 }
 
+/** Mirrors the backend's `errors::CommandError` discriminant (the `kind` of
+ * its `#[serde(tag = "kind", content = "message")]` encoding) — lets the
+ * frontend branch on *why* a command failed instead of pattern-matching the
+ * human-readable message text. See `services/tauri.ts`'s `getErrorKind`. */
+export type CommandErrorKind =
+  | "process_already_running"
+  | "process_not_running"
+  | "network_error"
+  | "permission_denied"
+  | "validation_error"
+  | "invalid_state"
+  | "resource_not_found"
+  | "failed_to_start_process"
+  | "io_error"
+  | "json_error";
+
 export interface CommandErrorPayload {
+  kind?: CommandErrorKind;
   message?: string;
   [key: string]: unknown;
 }

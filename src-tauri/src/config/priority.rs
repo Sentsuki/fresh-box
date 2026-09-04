@@ -51,10 +51,7 @@ pub fn ensure_priority_config_initialized() {
     let config_dir = match super::paths::get_config_dir() {
         Ok(dir) => dir,
         Err(e) => {
-            eprintln!(
-                "ensure_priority_config_initialized: failed to get config dir: {:?}",
-                e
-            );
+            tracing::warn!(error = ?e, "ensure_priority_config_initialized: failed to get config dir");
             return;
         }
     };
@@ -72,12 +69,9 @@ pub fn ensure_priority_config_initialized() {
     };
 
     if let Err(e) = super::io::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
-        eprintln!(
-            "ensure_priority_config_initialized: failed to write defaults: {:?}",
-            e
-        );
+        tracing::warn!(error = ?e, "ensure_priority_config_initialized: failed to write defaults");
     } else {
-        println!("priority_config.json initialized with defaults.");
+        tracing::info!("priority_config.json initialized with defaults");
     }
 }
 
@@ -179,6 +173,23 @@ pub(crate) fn check_config_fields_inner(
     Ok(result)
 }
 
+/// Applies fresh-box's own app-level settings (TUN stack choice, log
+/// verbosity, the always-on internal `clash_api` stanza) on top of whatever
+/// config content is already in `config` at this point — which, by the time
+/// `services::singbox::build_config_content` calls this, may itself already
+/// have a user-supplied config override layered in. That order (override
+/// first, priority config always applied after and last) is deliberate and
+/// not meant to change: priority config represents fresh-box's own
+/// operational requirements (the daemon needs `experimental.clash_api`
+/// present at all — see `apply_clash_api_config`'s doc comment — regardless
+/// of anything the user's override says), so it has to win any conflict
+/// with user-authored content, not the other way around.
+///
+/// Each field is applied independently and a failure on one (e.g. no
+/// `inbounds` array for the stack setting to attach to) doesn't stop the
+/// others from being attempted — logged via `tracing::warn!` rather than
+/// silently dropped, so a misapplied setting shows up in the log file
+/// instead of just quietly not taking effect.
 pub fn apply_priority_config(
     config: &mut Value,
     priority_config: &PriorityConfig,
@@ -186,16 +197,13 @@ pub fn apply_priority_config(
     if let Some(first) = priority_config.inbounds.first()
         && let Err(e) = apply_stack_config(config, &first.stack)
     {
-        eprintln!("Warning: Failed to apply stack config: {:?}", e);
+        tracing::warn!(error = ?e, "failed to apply stack config");
     }
 
     apply_log_config(config, &priority_config.log)?;
 
     if let Err(error) = apply_clash_api_config(config) {
-        eprintln!(
-            "Warning: Failed to apply clash_api configuration: {:?}",
-            error
-        );
+        tracing::warn!(error = ?error, "failed to apply clash_api configuration");
     }
 
     Ok(())

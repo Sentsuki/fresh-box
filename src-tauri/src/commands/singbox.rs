@@ -16,16 +16,15 @@ pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandE
     crate::services::singbox::stop_singbox(state).await
 }
 
-/// Synchronous snapshot of the daemon connection's current phase, for a
-/// component's first render — see `services::singbox::spawn_reconciliation_loop`
-/// for how it's kept fresh afterward via the `daemon-state-changed` event.
+/// Thin wrapper — see [`crate::services::singbox::get_daemon_state`] for
+/// what this returns and how it stays current.
 #[tauri::command]
 pub fn get_daemon_state(state: State<'_, SingboxState>) -> ConnectionPhase {
     crate::services::singbox::get_daemon_state(state.inner())
 }
 
-/// Wake the reconciliation loop to retry immediately instead of waiting out
-/// its current backoff — e.g. when the window regains focus.
+/// Thin wrapper — see [`crate::services::singbox::retry_connection`] for
+/// why/when to call this.
 #[tauri::command]
 pub fn retry_daemon_connection(state: State<'_, SingboxState>) {
     crate::services::singbox::retry_connection(state.inner());

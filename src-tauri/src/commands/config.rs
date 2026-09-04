@@ -61,27 +61,101 @@ async fn read_limited_response(
     })
 }
 
-/// Reject path-separator and Windows-reserved characters from a single
-/// filename component, and strip leading dots so the result can never
-/// collapse to `.`/`..` or a hidden file once `.json` is appended. Applied
-/// to filenames derived from untrusted input (subscription URLs) so they
-/// can never be read as a relative/absolute path escape when joined onto
-/// `sub_dir` — see `extract_file_name_from_url`.
+/// Characters no Windows filename may contain, plus ASCII control
+/// characters. Shared by `sanitize_filename_component` (auto-fixes a
+/// URL-derived name) and `validate_profile_name` (rejects a user-typed
+/// one) below — mirrors the class the official desktop client's
+/// `safeFileName` (`sharing.ts`) scrubs.
+fn has_forbidden_filename_char(c: char) -> bool {
+    matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()
+}
+
+/// Windows' reserved device names — refused as a filename stem regardless
+/// of case or extension, on every Windows filesystem.
+fn is_reserved_device_name(stem: &str) -> bool {
+    matches!(
+        stem.to_ascii_uppercase().as_str(),
+        "CON" | "PRN"
+            | "AUX"
+            | "NUL"
+            | "COM1"
+            | "COM2"
+            | "COM3"
+            | "COM4"
+            | "COM5"
+            | "COM6"
+            | "COM7"
+            | "COM8"
+            | "COM9"
+            | "LPT1"
+            | "LPT2"
+            | "LPT3"
+            | "LPT4"
+            | "LPT5"
+            | "LPT6"
+            | "LPT7"
+            | "LPT8"
+            | "LPT9"
+    )
+}
+
+/// Reject forbidden characters, strip leading/trailing dots and spaces
+/// (Windows silently strips trailing ones itself, so leaving them in would
+/// let the result collapse to `.`/`..` or just not match what was passed
+/// in), and dodge a reserved device name — so the result can never be read
+/// as a relative/absolute path escape or a name Windows can't actually
+/// create, once `.json` is appended and joined onto `sub_dir`. Applied to a
+/// filename *derived* from untrusted input (a subscription URL) rather than
+/// typed by the user, so silently rewriting it instead of rejecting it is
+/// the right call — see `extract_file_name_from_url`. A user-typed rename
+/// goes through `validate_profile_name` instead, which rejects rather than
+/// rewrites.
 fn sanitize_filename_component(raw: &str) -> String {
     let cleaned: String = raw
         .chars()
-        .map(|c| match c {
-            '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|' => '_',
-            c if c.is_control() => '_',
-            c => c,
-        })
+        .map(|c| if has_forbidden_filename_char(c) { '_' } else { c })
         .collect();
-    let trimmed = cleaned.trim_start_matches('.').trim();
+    let trimmed = cleaned.trim_matches(|c: char| c == ' ' || c == '.');
     if trimmed.is_empty() {
-        "subscription".to_string()
-    } else {
-        trimmed.chars().take(150).collect()
+        return "subscription".to_string();
     }
+    let named = if is_reserved_device_name(trimmed) {
+        format!("_{trimmed}")
+    } else {
+        trimmed.to_string()
+    };
+    named.chars().take(150).collect()
+}
+
+/// Reject a user-typed profile name outright instead of silently rewriting
+/// it the way `sanitize_filename_component` does for a URL-derived one —
+/// a rename is something the user explicitly chose character-by-character,
+/// so on a name a Windows filesystem can't represent faithfully (a
+/// forbidden character, a reserved device name, or leading/trailing
+/// dots/spaces Windows would quietly strip, leaving the saved name looking
+/// different from what was typed) fresh-box should say so rather than
+/// guess what was meant. Mirrors the same character/device-name class the
+/// official desktop client's `safeFileName` (`sharing.ts`) enforces.
+fn validate_profile_name(name: &str) -> Result<(), CommandError> {
+    if let Some(bad) = name.chars().find(|&c| has_forbidden_filename_char(c)) {
+        return Err(CommandError::validation(format!(
+            "Profile name cannot contain '{bad}'"
+        )));
+    }
+    if name != name.trim_matches(|c: char| c == ' ' || c == '.') {
+        return Err(CommandError::validation(
+            "Profile name cannot start or end with a space or a period",
+        ));
+    }
+    if is_reserved_device_name(name) {
+        return Err(CommandError::validation(format!(
+            "'{name}' is a reserved name on Windows and can't be used"
+        )));
+    }
+    if name.len() > 150 {
+        return Err(CommandError::validation("Profile name is too long"));
+    }
+    Ok(())
 }
 
 // ── Safe path resolution ──────────────────────────────────────────────────
@@ -197,12 +271,12 @@ pub async fn save_app_settings(
     backend_prefs: tauri::State<'_, crate::config::app_settings::BackendPrefsState>,
     settings: AppSettings,
 ) -> Result<(), CommandError> {
-    // Update the in-memory cache the backend's own control-flow decisions
-    // read from *before* persisting to disk, not after — so a
-    // `CloseRequested`/proxy-switch handler that runs the instant this call
-    // returns can never observe a stale value (see `BackendPrefsState`'s
-    // doc comment).
-    backend_prefs.set(settings.settings.clone());
+    // Update the backend's own settings store (in-memory cache +
+    // `backend_prefs.json`) *before* persisting the frontend's full
+    // settings blob, not after — so a `CloseRequested`/proxy-switch handler
+    // that runs the instant this call returns can never observe a stale
+    // value (see `BackendPrefsState`'s doc comment).
+    backend_prefs.set(settings.settings.clone())?;
     crate::config::app_settings::save_app_settings_file(&settings)
 }
 
@@ -498,7 +572,7 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
                 match crate::config::profiles::with_index(|index| Ok(index.entries())).await {
                     Ok(entries) => entries,
                     Err(e) => {
-                        eprintln!("auto-update: failed to read profile index: {:?}", e);
+                        tracing::warn!(error = ?e, "auto-update: failed to read profile index");
                         continue;
                     }
                 };
@@ -518,7 +592,7 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
                 match refresh_subscription_by_id(&id).await {
                     Ok(_) => any_succeeded = true,
                     Err(e) => {
-                        eprintln!("auto-update: failed to refresh subscription '{id}': {:?}", e)
+                        tracing::warn!(error = ?e, %id, "auto-update: failed to refresh subscription")
                     }
                 }
             }
@@ -570,6 +644,7 @@ pub async fn rename_profile(
     if trimmed.is_empty() {
         return Err(CommandError::validation("New name cannot be empty"));
     }
+    validate_profile_name(&trimmed)?;
 
     let sub_dir = crate::config::paths::get_sub_dir()?;
     let new_full_path = resolve_safe_path(&sub_dir, &format!("{trimmed}.json"))?;

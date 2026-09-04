@@ -14,7 +14,7 @@ mod window_utils;
 
 use services::singbox::{SingboxState, retry_connection, spawn_reconciliation_loop};
 use std::time::Duration;
-use tauri::{Emitter, Manager, Window};
+use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 
 /// Passed to a launch registered via `enable_autostart` (see
@@ -24,17 +24,8 @@ use tauri_plugin_autostart::MacosLauncher;
 /// `wasOpenedAtLogin()` (`loginItem.ts`) handling in `index.ts`.
 const AUTOSTART_ARG: &str = "--autostart";
 
-#[tauri::command]
-fn update_mica_theme(window: Window, is_light: Option<bool>) {
-    #[cfg(target_os = "windows")]
-    {
-        use window_vibrancy::apply_mica;
-        let is_dark = is_light.map(|light| !light);
-        let _ = apply_mica(&window, is_dark);
-    }
-}
-
 fn main() {
+    logger::init_tracing();
     logger::install_panic_hook();
 
     let singbox_state = SingboxState::new();
@@ -87,7 +78,7 @@ fn main() {
             commands::priority::check_config_fields,
             commands::diagnostics::list_crash_reports,
             commands::diagnostics::record_frontend_error,
-            update_mica_theme,
+            commands::app::update_mica_theme,
             commands::streams::start_traffic_stream,
             commands::streams::stop_traffic_stream,
             commands::streams::start_memory_stream,
@@ -166,7 +157,7 @@ fn main() {
                     window_utils::set_keep_alive(true);
                     // 直接销毁窗口（不会再次触发 CloseRequested）
                     if let Err(e) = window_clone.destroy() {
-                        eprintln!("Failed to destroy window: {}", e);
+                        tracing::error!(error = %e, "failed to destroy window");
                         window_utils::set_keep_alive(false);
                     }
                 } else {
@@ -190,23 +181,20 @@ fn main() {
             _ => {}
         })
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {
-            println!(
-                "Second instance launched with args: {:?} in {:?}",
-                argv, cwd
-            );
+            tracing::info!(?argv, ?cwd, "second instance launched");
             let app_clone = app.clone();
             window_utils::show_or_create_main_window(&app_clone);
         }))
         .build(tauri::generate_context!())
         .unwrap_or_else(|err| {
-            eprintln!("Failed to build fresh-box: {}", err);
+            tracing::error!(error = %err, "failed to build fresh-box");
             std::process::exit(1);
         })
         .run(|_app, event| {
             if let tauri::RunEvent::ExitRequested { api, .. } = event {
                 // destroy 模式下窗口被销毁后阻止应用退出，保持托盘存活
                 if window_utils::should_prevent_exit() {
-                    println!("Window destroyed, keeping tray and background tasks alive.");
+                    tracing::debug!("window destroyed, keeping tray and background tasks alive");
                     api.prevent_exit();
                 }
             }

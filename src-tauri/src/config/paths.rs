@@ -133,10 +133,7 @@ pub fn get_app_data_root() -> Result<PathBuf, CommandError> {
         // failure here shouldn't block the app from working, just leave
         // the directory at whatever ACL it already had.
         if let Err(e) = harden_directory_acl(&dir) {
-            eprintln!(
-                "Warning: failed to harden app data directory permissions: {:?}",
-                e
-            );
+            tracing::warn!(error = ?e, "failed to harden app data directory permissions");
         }
         let _ = fs::write(&marker, b"");
     }

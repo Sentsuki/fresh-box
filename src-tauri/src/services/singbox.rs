@@ -111,7 +111,7 @@ pub enum ConnectionPhase {
 }
 
 impl ConnectionPhase {
-    fn running(&self) -> bool {
+    pub(crate) fn running(&self) -> bool {
         matches!(
             self,
             ConnectionPhase::Connected {
@@ -179,6 +179,15 @@ pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, Co
 /// backoff would otherwise sit out for up to 5s).
 pub fn retry_connection(state: &SingboxState) {
     state.retry.notify_one();
+}
+
+/// Subscribe to every future `ConnectionPhase` change — the single source
+/// of truth `services::streams` reacts to instead of running its own
+/// independent connect/backoff/status-event loop per stream. See
+/// `services::streams::run_with_reconnect`'s doc comment for why the two
+/// used to duplicate this and what unifying them on this one signal fixes.
+pub fn subscribe(state: &SingboxState) -> watch::Receiver<ConnectionPhase> {
+    state.phase_rx.clone()
 }
 
 /// Stop the reconciliation loop permanently. Only call this right before a
@@ -390,6 +399,19 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
     });
 }
 
+/// Builds the actual config content handed to `StartService`: the selected
+/// profile's own JSON, with the user's config override (if enabled) merged
+/// in, then fresh-box's own priority config applied on top of *that*.
+///
+/// The order — override before priority config, never the reverse — is
+/// deliberate and load-bearing, not an accident of write order: priority
+/// config exists to enforce fresh-box's own operational requirements (see
+/// `config::priority::apply_priority_config`'s doc comment), which must
+/// hold regardless of what a user-authored override says, so it always gets
+/// the last word. A failure applying the priority config is logged and
+/// otherwise ignored rather than failing the start outright — see
+/// `apply_priority_config`'s own doc comment for why each of its fields is
+/// independent best-effort in the same way.
 async fn build_config_content(config_path: &str) -> Result<String, CommandError> {
     if !std::path::Path::new(config_path).exists() {
         return Err(CommandError::resource_not_found("config file", config_path));
@@ -405,7 +427,7 @@ async fn build_config_content(config_path: &str) -> Result<String, CommandError>
     let priority_config: crate::config::PriorityConfig =
         crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)?;
     if let Err(e) = crate::config::apply_priority_config(&mut base_config, &priority_config) {
-        eprintln!("Warning: Failed to apply priority configuration: {:?}", e);
+        tracing::warn!(error = ?e, "failed to apply priority configuration");
     }
 
     Ok(serde_json::to_string_pretty(&base_config)?)
@@ -509,6 +531,6 @@ pub async fn cleanup_process(state: &SingboxState) {
     )
     .await
     {
-        eprintln!("Failed to stop sing-box service during cleanup: {:?}", e);
+        tracing::warn!(error = ?e, "failed to stop sing-box service during cleanup");
     }
 }

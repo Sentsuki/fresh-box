@@ -1,18 +1,9 @@
-// Profile identity — replaces the old model where a config file's *name*
-// (the stem of its `.json` filename under `sub_dir`) doubled as its
-// identity everywhere: the key in `subscriptions.json`'s map, the element
-// in its `_file_order` array, and what the frontend used to distinguish
-// one card from another. Renaming used to mean updating all three in
-// lock-step by hand (`rename_in_file_order` here, plus the frontend
-// manually re-keying its own copy of the subscriptions map) — miss one and
-// the display name, the subscription's URL, and the sort order could all
-// drift out of sync with each other.
-//
-// Every profile now gets a stable `id`, generated once and never touched
-// again — `name` (the on-disk stem) is free to change on rename without
-// the caller having to hunt down every place that used to key off it.
-// Order is just the `Vec`'s own order, replacing the separate
-// `_file_order` array entirely.
+// Profile identity — every profile gets a stable `id`, generated once and
+// never touched again. `name` (the on-disk `.json` filename stem under
+// `sub_dir`) is free to change on rename without any caller having to hunt
+// down every place that used to key off it; order is just the index's own
+// `Vec` order. No prior on-disk format is read or migrated from — this is
+// the only format `profile_index.json` has ever had.
 //
 // The index is reconciled against what's actually in `sub_dir` on every
 // read (`with_index`): a file the user deleted/added outside fresh-box
@@ -27,13 +18,6 @@ use std::fs;
 use std::path::{Path, PathBuf};
 
 const PROFILE_INDEX_FILE: &str = "profile_index.json";
-
-/// Pre-`ProfileEntry` format this migrates from on first run: a flat
-/// `{ stem: { url, lastUpdated } }` map, plus an `_file_order` array (under
-/// this key, alongside the subscription entries in the very same object)
-/// giving display order.
-const LEGACY_SUBSCRIPTIONS_FILE: &str = "subscriptions.json";
-const LEGACY_FILE_ORDER_KEY: &str = "_file_order";
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct ProfileEntry {
@@ -169,86 +153,16 @@ fn reconcile_with_disk(index: &mut ProfileIndex, sub_dir: &Path) -> Result<bool,
     Ok(changed)
 }
 
-/// One-time migration from the pre-`ProfileEntry` `subscriptions.json` +
-/// `_file_order` format. Best-effort about the legacy file specifically —
-/// any read/parse failure there just means an empty legacy map (so
-/// subscriptions would lose their URL/`lastUpdated`, but never lose the
-/// config file itself: every `.json` still in `sub_dir` is picked up
-/// either way via `list_disk_stems`). The legacy file itself is left on
-/// disk untouched, as a harmless backup.
-fn migrate_from_legacy(sub_dir: &Path) -> Result<ProfileIndex, CommandError> {
-    let on_disk = list_disk_stems(sub_dir)?;
-
-    let legacy_path = super::paths::get_config_dir()?.join(LEGACY_SUBSCRIPTIONS_FILE);
-    let legacy: serde_json::Map<String, serde_json::Value> = if legacy_path.exists() {
-        super::io::read_json_file::<serde_json::Value>(&legacy_path)
-            .ok()
-            .and_then(|v| v.as_object().cloned())
-            .unwrap_or_default()
-    } else {
-        serde_json::Map::new()
-    };
-
-    let legacy_order: Vec<String> = legacy
-        .get(LEGACY_FILE_ORDER_KEY)
-        .and_then(|v| v.as_array())
-        .map(|arr| {
-            arr.iter()
-                .filter_map(|v| v.as_str().map(str::to_string))
-                .collect()
-        })
-        .unwrap_or_default();
-
-    let on_disk_set: BTreeSet<&str> = on_disk.iter().map(|s| s.as_str()).collect();
-    let mut ordered_stems: Vec<String> = Vec::new();
-    for stem in &legacy_order {
-        if on_disk_set.contains(stem.as_str()) && !ordered_stems.contains(stem) {
-            ordered_stems.push(stem.clone());
-        }
-    }
-    for stem in &on_disk {
-        if !ordered_stems.contains(stem) {
-            ordered_stems.push(stem.clone());
-        }
-    }
-
-    let entries = ordered_stems
-        .into_iter()
-        .map(|name| {
-            let (url, last_updated) = legacy
-                .get(&name)
-                .and_then(|v| v.as_object())
-                .map(|obj| {
-                    (
-                        obj.get("url").and_then(|v| v.as_str()).map(str::to_string),
-                        obj.get("lastUpdated")
-                            .and_then(|v| v.as_str())
-                            .map(str::to_string),
-                    )
-                })
-                .unwrap_or((None, None));
-            ProfileEntry {
-                id: generate_id(),
-                name,
-                url,
-                last_updated,
-                auto_update: false,
-                update_interval_minutes: None,
-            }
-        })
-        .collect();
-
-    let index = ProfileIndex { entries };
-    save_index(&index)?;
-    Ok(index)
-}
-
+/// `profile_index.json` doesn't exist yet — a fresh install, with no prior
+/// state to carry forward. Starts empty; the caller (`with_index`) always
+/// runs `reconcile_with_disk` immediately after, which populates one fresh
+/// entry (new id, no URL) per `.json` file already sitting in `sub_dir`.
 fn load_index() -> Result<ProfileIndex, CommandError> {
     let path = get_index_path()?;
     if path.exists() {
         return super::io::read_json_file(&path);
     }
-    migrate_from_legacy(&super::paths::get_sub_dir()?)
+    Ok(ProfileIndex::default())
 }
 
 static PROFILES_LOCK: std::sync::OnceLock<tokio::sync::Mutex<()>> = std::sync::OnceLock::new();

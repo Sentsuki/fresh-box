@@ -6,7 +6,9 @@
   "scripts": {
     "//postinstall": "react-flagpack",
     "dev": "vite",
+    "prebuild": "node scripts/check-commands.mjs",
     "build": "tsc && vite build",
+    "check:commands": "node scripts/check-commands.mjs",
     "preview": "vite preview",
     "tauri": "tauri",
     "lint": "eslint src --fix",

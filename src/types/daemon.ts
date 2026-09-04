@@ -1,6 +1,10 @@
 // Mirrors `src-tauri/src/services/singbox.rs`'s `ConnectionPhase`/
-// `SingboxStatus` — keep these two in sync by hand (no shared codegen
-// between the Rust and TS sides for this).
+// `SingboxStatus` — kept in sync by hand (no shared codegen generates
+// either side from the other). `scripts/check-commands.mjs` (run via
+// `npm run build`'s `prebuild` step) only guards *command names* matching
+// across the IPC boundary, not payload shapes like this one — a field
+// added/renamed/retyped on the Rust side still needs the same change made
+// here by hand, with no build-time check catching a miss.
 
 export type SingboxRunState =
   "idle" | "starting" | "started" | "stopping" | "fatal";

@@ -3,38 +3,54 @@
 use std::{sync::Mutex, time::Duration};
 use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
 
-// ─── 全局窗口行为状态 ──────────────────────────────────────────────
+// ─── 关闭行为状态机 ────────────────────────────────────────────────
 //
-// destroy 模式下，窗口被销毁后 Tauri 会触发 ExitRequested。
-// 通过 keep_alive_without_windows 标志告知运行时阻止退出，
-// 直到用户明确点击退出（此时 allow_exit 置为 true）。
+// destroy 模式下，窗口被销毁后 Tauri 会触发 ExitRequested。这三个状态
+// 取代了之前 keep_alive_without_windows/allow_exit 两个独立 bool 手搓的
+// 隐式状态机（`allow_exit && !keep_alive` 之类的组合本身并不成立，两者
+// 实际只会先后各自置位，用枚举把"当前处于哪个阶段"这件事显式化，而不是
+// 靠两个 bool 的相对取值去推断）：
 //
-// is_creating 用于防止快速双击托盘时同时启动多个窗口重建线程。
+//   Normal        — 窗口正常持有，无需特殊处理
+//   KeptAlive      — 窗口刚被 destroy 模式关闭销毁，运行时需要在无窗口时
+//                     继续存活（阻止 ExitRequested），直到用户明确退出
+//   ExitAllowed    — 用户点击了托盘"退出"，放行 ExitRequested 正常关闭
+//
+// is_creating 是另一个正交的关注点（防止快速双击托盘时并发启动多个窗口
+// 重建线程），不属于这个关闭行为状态机，单独用一个 bool 表达即可。
+
+#[derive(Clone, Copy, PartialEq, Eq)]
+enum ExitGuard {
+    Normal,
+    KeptAlive,
+    ExitAllowed,
+}
 
 struct WindowBehaviorState {
-    keep_alive_without_windows: bool,
-    allow_exit: bool,
+    exit_guard: ExitGuard,
     is_creating: bool,
 }
 
 static WINDOW_STATE: Mutex<WindowBehaviorState> = Mutex::new(WindowBehaviorState {
-    keep_alive_without_windows: false,
-    allow_exit: false,
+    exit_guard: ExitGuard::Normal,
     is_creating: false,
 });
 
 /// destroy 模式关闭时调用：告知运行时在无窗口时保持存活
 pub fn set_keep_alive(enabled: bool) {
     if let Ok(mut s) = WINDOW_STATE.lock() {
-        s.keep_alive_without_windows = enabled;
+        s.exit_guard = if enabled {
+            ExitGuard::KeptAlive
+        } else {
+            ExitGuard::Normal
+        };
     }
 }
 
 /// 用户主动退出前调用：解除保活，允许 ExitRequested 正常放行
 pub fn allow_exit() {
     if let Ok(mut s) = WINDOW_STATE.lock() {
-        s.keep_alive_without_windows = false;
-        s.allow_exit = true;
+        s.exit_guard = ExitGuard::ExitAllowed;
     }
 }
 
@@ -42,7 +58,7 @@ pub fn allow_exit() {
 pub fn should_prevent_exit() -> bool {
     WINDOW_STATE
         .lock()
-        .map(|s| s.keep_alive_without_windows && !s.allow_exit)
+        .map(|s| s.exit_guard == ExitGuard::KeptAlive)
         .unwrap_or(false)
 }
 
@@ -89,7 +105,7 @@ pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
 pub fn show_or_create_main_window(app: &AppHandle) {
     if app.get_webview_window("main").is_some() {
         if let Err(e) = show_window(app, "main") {
-            eprintln!("Failed to show window: {}", e);
+            tracing::warn!(error = %e, "failed to show window");
         }
         return;
     }
@@ -139,7 +155,7 @@ pub fn show_or_create_main_window(app: &AppHandle) {
                 let _ = window.emit("window-visibility-changed", true);
                 set_keep_alive(false);
             }
-            Err(e) => eprintln!("Failed to recreate window: {}", e),
+            Err(e) => tracing::error!(error = %e, "failed to recreate window"),
         }
     });
 }

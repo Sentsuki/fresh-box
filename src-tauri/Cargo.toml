@@ -45,6 +45,12 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 tonic-prost = "0.14.6"
 base64 = "0.23.1"
 tauri-plugin-autostart = "2"
+# Structured, leveled application logging — replaces the scattered
+# println!/eprintln! calls that used to be this app's only logging, none of
+# which had a level, went to a file, or rotated. See `logger::init_tracing`.
+tracing = "0.1"
+tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-appender = "0.2"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"

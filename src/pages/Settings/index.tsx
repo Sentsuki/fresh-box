@@ -32,6 +32,7 @@ import {
   repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
+import { getErrorKind } from "../../services/tauri";
 import { useSettingsStore } from "../../stores/settingsStore";
 import type { ThemeMode } from "../../types/app";
 
@@ -78,6 +79,14 @@ export default function Settings() {
     void refreshServiceInstalled();
   }, []);
 
+  // A declined UAC prompt surfaces as `CommandError::PermissionDenied` —
+  // the user just changed their mind, not a real failure, so (unlike every
+  // other failure here) it's not shown as one.
+  const reportServiceError = (e: unknown) => {
+    if (getErrorKind(e) === "permission_denied") return;
+    setServiceError(e instanceof Error ? e.message : String(e));
+  };
+
   const toggleDaemonService = async () => {
     setIsServiceBusy(true);
     setServiceError(null);
@@ -89,7 +98,7 @@ export default function Settings() {
       }
       await refreshServiceInstalled();
     } catch (e) {
-      setServiceError(e instanceof Error ? e.message : String(e));
+      reportServiceError(e);
     } finally {
       setIsServiceBusy(false);
     }
@@ -104,7 +113,7 @@ export default function Settings() {
     try {
       await repairDaemonService();
     } catch (e) {
-      setServiceError(e instanceof Error ? e.message : String(e));
+      reportServiceError(e);
     } finally {
       setIsServiceBusy(false);
     }

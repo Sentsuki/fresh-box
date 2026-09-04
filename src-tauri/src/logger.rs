@@ -1,6 +1,70 @@
+use std::sync::OnceLock;
 use std::sync::atomic::{AtomicBool, Ordering};
 
+use tracing_appender::non_blocking::WorkerGuard;
+use tracing_subscriber::EnvFilter;
+use tracing_subscriber::layer::SubscriberExt;
+use tracing_subscriber::util::SubscriberInitExt;
+
 use crate::crash_reports;
+
+/// `tracing-appender`'s non-blocking file writer only flushes for as long
+/// as this guard is alive — dropping it (e.g. if it were a local in
+/// `init_tracing`) would silently stop file logging the moment that
+/// function returned. Kept for the whole process lifetime instead.
+static APPENDER_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
+
+/// Initialize structured, leveled application logging — call once, at the
+/// very start of `main()`, before anything else that might log. Writes to
+/// a daily-rotating file under `config::paths::get_log_dir()` (the same
+/// directory `crash_reports` and the daemon's own logs live under) at
+/// `info` level by default, overridable via the `RUST_LOG` environment
+/// variable (`tracing_subscriber`'s usual convention — e.g.
+/// `RUST_LOG=debug`). A debug build also mirrors every event to stdout,
+/// since that's normally launched from a terminal anyway.
+///
+/// Replaces the `println!`/`eprintln!` calls that used to be this app's
+/// entire logging story: none of them carried a severity level, none of
+/// them survived past whatever terminal (if any) happened to be attached
+/// when they ran, and none of them rotated — a long-running install could
+/// only ever explain what was happening *right now*, never what had
+/// happened yesterday when a user reports something went wrong.
+pub fn init_tracing() {
+    let filter = || EnvFilter::try_from_default_env().unwrap_or_else(|_| EnvFilter::new("info"));
+
+    let log_dir = match crate::config::paths::get_log_dir() {
+        Ok(dir) => dir,
+        Err(e) => {
+            // Can't set up file logging without a log directory — fall
+            // back to stderr-only rather than not logging at all.
+            eprintln!(
+                "Warning: failed to resolve log directory, logging to stderr only: {:?}",
+                e
+            );
+            let _ = tracing_subscriber::fmt().with_env_filter(filter()).try_init();
+            return;
+        }
+    };
+
+    let file_appender = tracing_appender::rolling::daily(log_dir, "fresh-box.log");
+    let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
+    let _ = APPENDER_GUARD.set(guard);
+
+    let file_layer = tracing_subscriber::fmt::layer()
+        .with_writer(non_blocking)
+        .with_ansi(false);
+
+    let registry = tracing_subscriber::registry().with(filter()).with(file_layer);
+
+    let result = if cfg!(debug_assertions) {
+        registry.with(tracing_subscriber::fmt::layer()).try_init()
+    } else {
+        registry.try_init()
+    };
+    if let Err(e) = result {
+        eprintln!("Warning: failed to install tracing subscriber: {e}");
+    }
+}
 
 /// Guards against re-entering the hook (e.g. a panic while formatting/
 /// writing the crash log, or while `MessageBoxW` is up) — mirrors the
@@ -39,6 +103,7 @@ pub fn install_panic_hook() {
         });
 
         eprintln!("Application crashed: {summary}");
+        tracing::error!(%summary, "application panicked");
 
         show_crash_dialog(&summary, &display_path);
 

@@ -105,7 +105,7 @@ pub(crate) fn sync_tray_from_overview(
         && let Ok(mut map) = state.proxy_item_map.lock()
         && let Err(e) = apply_tray_menu(app, &selector_groups, &mut map)
     {
-        eprintln!("Failed to sync tray menu: {}", e);
+        tracing::warn!(error = %e, "failed to sync tray menu");
     }
 }
 
@@ -125,7 +125,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
     let tray_builder = if let Some(icon) = app.default_window_icon() {
         tray_builder.icon(icon.clone())
     } else {
-        eprintln!("Warning: No default window icon found for tray");
+        tracing::warn!("no default window icon found for tray");
         tray_builder
     };
 
@@ -159,7 +159,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                             match crate::services::singbox::get_connection(state.inner()).await {
                                 Ok(c) => c,
                                 Err(e) => {
-                                    eprintln!("Failed to switch proxy from tray: {}", e);
+                                    tracing::warn!(error = %e, "failed to switch proxy from tray");
                                     return;
                                 }
                             };
@@ -171,7 +171,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
                         )
                         .await
                         {
-                            eprintln!("Failed to switch proxy from tray: {}", e);
+                            tracing::warn!(error = %e, "failed to switch proxy from tray");
                             return;
                         }
 

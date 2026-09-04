@@ -333,7 +333,7 @@ async fn close_connections_by_group(connection: &DaemonConnection, proxy_group_n
     let mut stream = match connection.subscribe_connections(0).await {
         Ok(s) => s,
         Err(e) => {
-            eprintln!("auto-close: failed to subscribe to connections: {:?}", e);
+            tracing::warn!(error = ?e, "auto-close: failed to subscribe to connections");
             return;
         }
     };
@@ -350,7 +350,7 @@ async fn close_connections_by_group(connection: &DaemonConnection, proxy_group_n
         if conn.chain_list.iter().any(|c| c == proxy_group_name)
             && let Err(e) = connection.close_connection(conn.id).await
         {
-            eprintln!("auto-close: failed to close connection: {:?}", e);
+            tracing::warn!(error = ?e, "auto-close: failed to close connection");
         }
     }
 }
