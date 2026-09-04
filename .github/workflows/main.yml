@@ -9,19 +9,30 @@ name: Release
 #     that same version at build time (not committed back)
 # So "keep fresh-box's version aligned with upstream sing-box" just means:
 # when a new sing-box version ships, tag this repo `vX.Y.Z` with the same
-# number and push — the workflow does the rest. There's no auto-updater
-# wired up (no tauri-plugin-updater) — this produces a new GitHub Release
-# installer; the bundled NSIS installer's own upgrade-detection handles the
-# in-place reinstall over an existing per-machine install.
+# number and push — the workflow does the rest. This also signs and
+# publishes the `tauri-plugin-updater` artifacts (`.sig`/`latest.json`), so
+# existing installs' in-app "Check for Updates" (Settings) picks this
+# release up too, not just a fresh manual download — see
+# docs/updater-releasing.md. The bundled NSIS installer's own
+# upgrade-detection still handles the in-place reinstall over an existing
+# per-machine install either way.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
-#   WINDOWS_CERTIFICATES_P12  base64-encoded .p12 code-signing certificate
-#   WINDOWS_P12_PASSWORD      its password
-# Without these the build still succeeds but produces unsigned binaries —
-# boxdd's peer-authentication chain requires the app exe and daemon exe to
-# carry a *matching* Authenticode signature (self-signed is acceptable, see
+#   WINDOWS_CERTIFICATES_P12         base64-encoded .p12 code-signing certificate
+#   WINDOWS_P12_PASSWORD             its password
+#   TAURI_SIGNING_PRIVATE_KEY        updater signing key (see docs/updater-releasing.md)
+#   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  that key's password
+# Without WINDOWS_CERTIFICATES_P12/WINDOWS_P12_PASSWORD the build still
+# succeeds but produces unsigned binaries — boxdd's peer-authentication
+# chain requires the app exe and daemon exe to carry a *matching*
+# Authenticode signature (self-signed is acceptable, see
 # `authenticode_windows.go`'s `validateUntrustedSelfSignedCertificate`), so
 # an unsigned release will fail to connect to the daemon after install.
+# Without TAURI_SIGNING_PRIVATE_KEY/_PASSWORD the build also still succeeds,
+# but skips producing `.sig`/`latest.json` — existing installs' in-app
+# updater (tauri-plugin-updater) just never sees that release at all (see
+# docs/updater-releasing.md), while a fresh download of the installer from
+# the release page works exactly the same either way.
 #
 # Windows x64 only for now — sing-box's own CI also builds x86/arm64
 # (see build_windows_client in its workflow); add matrix entries here the
@@ -184,8 +195,19 @@ jobs:
       # installMode=perMachine + installerHooks (installer-hooks.nsh)
       # install to Program Files and register/deregister the
       # sing-box-daemon Windows service automatically — see tauri.conf.json.
+      #
+      # Separately, `bundle.createUpdaterArtifacts: true` (tauri.conf.json)
+      # makes this same command sign the installers a *second* time with
+      # the updater's own Ed25519 key (unrelated to the Authenticode
+      # certificate above) whenever TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) are
+      # set, producing the `.sig` files and `latest.json` uploaded below —
+      # see docs/updater-releasing.md for what that key is and why it's
+      # separate from code-signing.
       - name: Build Tauri app
         run: pnpm tauri build
+        env:
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
@@ -194,10 +216,19 @@ jobs:
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/**/*.sig
+            src-tauri/target/release/bundle/latest.json
 
       # Only on an actual tag push — workflow_dispatch has no tag to
       # attach a release to, so a manual run just produces the uploaded
       # artifact above (useful for test builds off a branch).
+      #
+      # `latest.json` is what makes this release visible to
+      # tauri-plugin-updater at all (`plugins.updater.endpoints` in
+      # tauri.conf.json points at this release's `/latest/download/latest.json`)
+      # — it and the `.sig` files are silently absent from this glob (not a
+      # failure) if TAURI_SIGNING_PRIVATE_KEY wasn't set above, in which
+      # case existing installs' in-app updater just won't see this release.
       - name: Create Release
         if: github.event_name != 'workflow_dispatch'
         uses: softprops/action-gh-release@v3
@@ -205,6 +236,8 @@ jobs:
           files: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
+            src-tauri/target/release/bundle/**/*.sig
+            src-tauri/target/release/bundle/latest.json
           name: Release ${{ github.ref_name }}
           body: |
             Automated release for ${{ github.ref_name }} (Windows), built against sing-box v${{ steps.version.outputs.version }}.

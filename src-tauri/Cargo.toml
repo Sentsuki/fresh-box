@@ -45,6 +45,20 @@ hyper-util = { version = "0.1", features = ["tokio"] }
 tonic-prost = "0.14.6"
 base64 = "0.23.1"
 tauri-plugin-autostart = "2"
+# App self-update: checks a signed `latest.json` manifest published
+# alongside GitHub releases, downloads + verifies (Ed25519 signature, not
+# just an Authenticode check) + runs the installer, all built into the
+# plugin rather than hand-rolled here — see `tauri.conf.json`'s
+# `plugins.updater` (endpoint + public key) for the other half. Artifacts
+# are signed automatically at `tauri build` time (`bundle.createUpdaterArtifacts`)
+# when `TAURI_SIGNING_PRIVATE_KEY`/`TAURI_SIGNING_PRIVATE_KEY_PASSWORD` are
+# set in the build environment — see docs/updater-releasing.md. No
+# `tauri-plugin-process` needed alongside it: on Windows the updater's own
+# `install()` already launches the new installer and calls
+# `std::process::exit(0)` itself (with `restartAfterInstall` defaulting to
+# `true`, so the installer relaunches fresh-box once it finishes) — nothing
+# on the frontend needs to trigger a relaunch separately.
+tauri-plugin-updater = "2"
 # Structured, leveled application logging — replaces the scattered
 # println!/eprintln! calls that used to be this app's only logging, none of
 # which had a level, went to a file, or rotated. See `logger::init_tracing`.

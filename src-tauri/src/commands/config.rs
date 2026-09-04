@@ -229,7 +229,7 @@ fn strip_verbatim_prefix(path: &std::path::Path) -> std::path::PathBuf {
 /// `ShellExecuteW` hands `path` straight to the shell as a single value —
 /// no command-line grammar is involved, so it can't be reinterpreted this
 /// way regardless of what `path` contains.
-pub(crate) fn open_with_system(path: &str) -> Result<(), CommandError> {
+fn open_with_system(path: &str) -> Result<(), CommandError> {
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
     use windows::core::{HSTRING, w};

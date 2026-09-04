@@ -43,6 +43,9 @@ interface SettingsActions {
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
   setAutoCloseConnections: (enabled: boolean) => Promise<void>;
+  setCheckUpdateEnabled: (enabled: boolean) => Promise<void>;
+  setUpdateCheckPrompted: () => Promise<void>;
+  setLastShownUpdateVersion: (version: string) => Promise<void>;
 }
 
 function cloneSettings(s: AppSettings): AppSettings {
@@ -155,6 +158,24 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setAutoCloseConnections: async (enabled) => {
       await get().updateSettings((s) => {
         s.settings.auto_close_connections = enabled;
+      });
+    },
+
+    setCheckUpdateEnabled: async (enabled) => {
+      await get().updateSettings((s) => {
+        s.updates.check_update_enabled = enabled;
+      });
+    },
+
+    setUpdateCheckPrompted: async () => {
+      await get().updateSettings((s) => {
+        s.updates.update_check_prompted = true;
+      });
+    },
+
+    setLastShownUpdateVersion: async (version) => {
+      await get().updateSettings((s) => {
+        s.updates.last_shown_update_version = version;
       });
     },
   }),

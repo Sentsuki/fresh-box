@@ -95,6 +95,25 @@ export interface LogsPageSettings {
   type_filter: string;
 }
 
+/**
+ * Pure frontend bookkeeping for the update-check flow —
+ * `@tauri-apps/plugin-updater` does the actual checking/downloading/
+ * installing; this only ever decides *when* to call it and *whether to
+ * bother the user again* about a version already shown. Mirrors the
+ * backend's `config::app_settings::UpdateSettings`.
+ */
+export interface UpdateSettings {
+  /** Opt-in, like the official desktop client — `false` on a fresh install
+   * so nothing phones home to GitHub until the user agrees to it. */
+  check_update_enabled: boolean;
+  /** Whether the one-time "enable automatic update checks?" prompt has
+   * already been shown, regardless of which way it was answered. */
+  update_check_prompted: boolean;
+  /** The version of the last update the user was actually notified about —
+   * so it isn't re-announced on every single launch. */
+  last_shown_update_version: string;
+}
+
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
@@ -103,6 +122,7 @@ export interface AppSettings {
   logs: LogsPageSettings;
   profiles: ProfilesSettings;
   settings: AppDisplaySettings;
+  updates: UpdateSettings;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -164,6 +184,11 @@ export function createDefaultAppSettings(): AppSettings {
       theme_mode: "system",
       close_behavior: "hide",
       auto_close_connections: true,
+    },
+    updates: {
+      check_update_enabled: false,
+      update_check_prompted: false,
+      last_shown_update_version: "",
     },
   };
 }
@@ -307,6 +332,12 @@ export function normalizeAppSettings(
         settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
       auto_close_connections: settings.settings?.auto_close_connections ?? true,
     },
+    updates: {
+      check_update_enabled: settings.updates?.check_update_enabled ?? false,
+      update_check_prompted: settings.updates?.update_check_prompted ?? false,
+      last_shown_update_version:
+        settings.updates?.last_shown_update_version ?? "",
+    },
   };
 }
 
@@ -424,20 +455,6 @@ export interface CoreConnectionsFrame {
   connections: ConnectionEntry[];
   totalDownloadSpeed: number;
   totalUploadSpeed: number;
-}
-
-/**
- * Result of a GitHub-release update check (`checkForUpdate`) — detection
- * only. `releaseUrl` is a page in the browser, not a downloadable asset:
- * fresh-box never downloads or installs an update on its own, so acting on
- * this always means the user clicking through and doing the rest by hand.
- */
-export interface UpdateInfo {
-  currentVersion: string;
-  available: boolean;
-  latestVersion?: string;
-  releaseUrl?: string;
-  releaseNotes?: string;
 }
 
 export interface CoreLogMessage {

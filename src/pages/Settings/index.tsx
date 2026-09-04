@@ -30,7 +30,6 @@ import {
   isAutostartEnabled,
   isDaemonServiceInstalled,
   openAppDirectory,
-  openExternalUrl,
   repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
@@ -63,14 +62,21 @@ export default function Settings() {
       .catch(() => null);
   }, []);
 
-  // GitHub-release update check — detection only, see `UpdateInfo`'s doc
-  // comment. `info` may already be populated here from the startup check
-  // (`App.tsx`'s `update-available` listener) even before this page is
-  // ever opened.
-  const updateInfo = useUpdateStore((s) => s.info);
-  const isCheckingUpdate = useUpdateStore((s) => s.isChecking);
-  const updateCheckError = useUpdateStore((s) => s.checkError);
+  // App self-update (`tauri-plugin-updater`) — `useUpdateStore` may already
+  // be populated here from `App.tsx`'s startup check even before this page
+  // is ever opened.
+  const updateStatus = useUpdateStore((s) => s.status);
+  const updateInfo = useUpdateStore((s) => s.update);
+  const updateProgress = useUpdateStore((s) => s.progress);
+  const updateError = useUpdateStore((s) => s.error);
   const checkForUpdateNow = useUpdateStore((s) => s.checkNow);
+  const installUpdateNow = useUpdateStore((s) => s.installNow);
+  const checkUpdateEnabled = useSettingsStore(
+    (s) => s.settings.updates.check_update_enabled,
+  );
+  const setCheckUpdateEnabled = useSettingsStore(
+    (s) => s.setCheckUpdateEnabled,
+  );
 
   // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
   const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
@@ -410,38 +416,69 @@ export default function Settings() {
             icon={<ArrowDownloadRegular />}
             title="Updates"
             description={
-              updateCheckError ? (
-                <span className="text-(--wb-error)">{updateCheckError}</span>
-              ) : updateInfo?.available ? (
-                `fresh-box ${updateInfo.latestVersion} is available — fresh-box never downloads or installs it for you.`
+              updateError ? (
+                <span className="text-(--wb-error)">{updateError}</span>
+              ) : updateStatus === "checking" ? (
+                "Checking for updates..."
+              ) : updateStatus === "downloading" ? (
+                `Downloading update... ${Math.round(updateProgress * 100)}%`
+              ) : updateStatus === "installing" ? (
+                "Installing — fresh-box will restart shortly."
               ) : updateInfo ? (
+                `fresh-box ${updateInfo.version} is available.${
+                  updateInfo.body ? ` ${updateInfo.body}` : ""
+                }`
+              ) : updateStatus === "up-to-date" ? (
                 "You're on the latest version."
               ) : (
-                "Checks GitHub for new releases. Never downloads or installs one on its own — updating is always a manual step."
+                "Check GitHub for a newer fresh-box release."
               )
             }
             control={
-              <div className="flex items-center gap-2">
-                {updateInfo?.available && updateInfo.releaseUrl && (
+              <div className="flex items-center gap-3">
+                <div className="flex items-center gap-2.5">
+                  <span className="text-sm text-(--wb-text-secondary)">
+                    Auto-check
+                  </span>
+                  <Switch
+                    checked={checkUpdateEnabled}
+                    onCheckedChange={(checked) =>
+                      void setCheckUpdateEnabled(checked)
+                    }
+                  />
+                </div>
+                <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+                {updateInfo && (
                   <Button
                     size="sm"
                     variant="accent"
-                    icon={<LinkRegular />}
-                    onClick={() => {
-                      const { releaseUrl } = updateInfo;
-                      if (releaseUrl) void openExternalUrl(releaseUrl);
-                    }}
+                    icon={<ArrowDownloadRegular />}
+                    disabled={
+                      updateStatus === "downloading" ||
+                      updateStatus === "installing"
+                    }
+                    onClick={() => void installUpdateNow()}
                   >
-                    View Release
+                    {updateStatus === "downloading"
+                      ? `Downloading ${Math.round(updateProgress * 100)}%`
+                      : updateStatus === "installing"
+                        ? "Installing..."
+                        : "Download & Install"}
                   </Button>
                 )}
                 <Button
                   size="sm"
                   variant="subtle"
-                  disabled={isCheckingUpdate}
+                  disabled={
+                    updateStatus === "checking" ||
+                    updateStatus === "downloading" ||
+                    updateStatus === "installing"
+                  }
                   onClick={() => void checkForUpdateNow()}
                 >
-                  {isCheckingUpdate ? "Checking..." : "Check for Updates"}
+                  {updateStatus === "checking"
+                    ? "Checking..."
+                    : "Check for Updates"}
                 </Button>
               </div>
             }

@@ -10,10 +10,10 @@ import { Spinner } from "./components/ui/Spinner";
 import { initializeApp } from "./hooks/useInit";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
-import { listProfiles, openExternalUrl } from "./services/api";
+import { listProfiles } from "./services/api";
 import { useConfigStore } from "./stores/configStore";
+import { useSettingsStore } from "./stores/settingsStore";
 import { useUpdateStore } from "./stores/updateStore";
-import type { UpdateInfo } from "./types/app";
 import Connections from "./pages/Connections";
 import Advanced from "./pages/Advanced";
 import Logs from "./pages/Logs";
@@ -99,26 +99,58 @@ export default function App() {
     };
   }, []);
 
-  // `main.rs`'s one-shot startup check (`spawn_startup_update_check`) fires
-  // this if it finds a newer GitHub release — detection only, see
-  // `UpdateInfo`'s doc comment. Recorded in `useUpdateStore` so Settings'
-  // "Check for Updates" card reflects it too, and surfaced immediately as
-  // an actionable toast so it isn't only discoverable by opening Settings.
+  // Startup update flow — runs once settings are hydrated (`initialized`
+  // implies `initializeApp()`'s `settings.hydrate()` already completed, see
+  // that hook's doc comment). Two things happen here, mirroring the
+  // official desktop client's own opt-in default
+  // (`config::app_settings::UpdateSettings`):
+  //   - First launch ever (or any launch before an answer was given): ask
+  //     once whether to enable automatic checks at all. Answering either
+  //     way marks the prompt "answered" so it never asks again.
+  //   - Every launch after that, only if the user said yes: check once,
+  //     and — if it finds a version newer than the last one already shown
+  //     — surface it as a toast pointing at Settings, rather than
+  //     re-announcing the same available update on every single launch.
   useEffect(() => {
-    const unlisten = listen<UpdateInfo>("update-available", (event) => {
-      const info = event.payload;
-      useUpdateStore.getState().setInfo(info);
-      if (info.latestVersion) {
-        toast.updateAvailable(info.latestVersion, () => {
-          if (info.releaseUrl) void openExternalUrl(info.releaseUrl);
-        });
-      }
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
+    if (!initialized) return;
+
+    const runStartupCheck = async () => {
+      const update = await useUpdateStore.getState().checkNow();
+      if (!update) return;
+      const lastShown =
+        useSettingsStore.getState().settings.updates.last_shown_update_version;
+      if (update.version === lastShown) return;
+      toast.updateAvailable(update.version, () => {
+        useAppStore.getState().setCurrentPage("settings");
+      });
+      void useSettingsStore
+        .getState()
+        .setLastShownUpdateVersion(update.version);
     };
+
+    const { check_update_enabled, update_check_prompted } =
+      useSettingsStore.getState().settings.updates;
+
+    if (!update_check_prompted) {
+      toast.enableUpdateCheckPrompt(
+        () => {
+          const settings = useSettingsStore.getState();
+          void settings.setCheckUpdateEnabled(true);
+          void settings.setUpdateCheckPrompted();
+          void runStartupCheck();
+        },
+        () => {
+          void useSettingsStore.getState().setUpdateCheckPrompted();
+        },
+      );
+      return;
+    }
+
+    if (check_update_enabled) {
+      void runStartupCheck();
+    }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [initialized]);
 
   if (!initialized) {
     return (

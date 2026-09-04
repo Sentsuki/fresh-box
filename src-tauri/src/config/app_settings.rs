@@ -29,6 +29,8 @@ pub struct AppSettings {
     pub profiles: ProfilesSettings,
     #[serde(default)]
     pub settings: AppDisplaySettings,
+    #[serde(default)]
+    pub updates: UpdateSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -78,6 +80,33 @@ pub struct LogsPageSettings {
     pub type_filter: String,
 }
 
+/// Pure frontend bookkeeping for the update-check flow
+/// (`tauri-plugin-updater` does the actual checking/downloading/installing
+/// — this is only ever read/written by the frontend, deciding *when* to
+/// call it and *whether to bother the user again* about a version already
+/// shown). Mirrors the official desktop client's own preferences
+/// (`check_update_enabled`, `update_check_prompted`,
+/// `last_shown_update_version` in `updates.ts`). None of this belongs in
+/// `AppDisplaySettings`/`BackendPrefsState` — the backend never reads any
+/// of it, unlike `close_behavior`/`auto_close_connections`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[serde(default)]
+pub struct UpdateSettings {
+    /// Opt-in, like the official client — defaults to `false` so a fresh
+    /// install never phones home to GitHub until the user has explicitly
+    /// agreed to it.
+    pub check_update_enabled: bool,
+    /// Whether the user has already been asked once whether to enable
+    /// automatic checks — so that one-time prompt only ever shows once,
+    /// regardless of which way they answered.
+    pub update_check_prompted: bool,
+    /// The version of the last update the user was actually shown a
+    /// notification for — so the same available update doesn't re-prompt
+    /// on every single launch until they either install it or a newer one
+    /// comes out.
+    pub last_shown_update_version: String,
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -88,6 +117,7 @@ impl Default for AppSettings {
             logs: LogsPageSettings::default(),
             profiles: ProfilesSettings::default(),
             settings: AppDisplaySettings::default(),
+            updates: UpdateSettings::default(),
         }
     }
 }
