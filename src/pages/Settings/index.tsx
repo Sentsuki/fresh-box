@@ -1,4 +1,5 @@
 import {
+  ArrowDownloadRegular,
   BoxRegular,
   DismissRegular,
   DocumentTextRegular,
@@ -29,11 +30,13 @@ import {
   isAutostartEnabled,
   isDaemonServiceInstalled,
   openAppDirectory,
+  openExternalUrl,
   repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
 import { getErrorKind } from "../../services/tauri";
 import { useSettingsStore } from "../../stores/settingsStore";
+import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
 
 export default function Settings() {
@@ -59,6 +62,15 @@ export default function Settings() {
       .then(setAppVersion)
       .catch(() => null);
   }, []);
+
+  // GitHub-release update check — detection only, see `UpdateInfo`'s doc
+  // comment. `info` may already be populated here from the startup check
+  // (`App.tsx`'s `update-available` listener) even before this page is
+  // ever opened.
+  const updateInfo = useUpdateStore((s) => s.info);
+  const isCheckingUpdate = useUpdateStore((s) => s.isChecking);
+  const updateCheckError = useUpdateStore((s) => s.checkError);
+  const checkForUpdateNow = useUpdateStore((s) => s.checkNow);
 
   // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
   const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
@@ -391,6 +403,46 @@ export default function Settings() {
             description={
               <div className="flex flex-col text-xs text-(--wb-text-secondary) mt-1 gap-0.5">
                 <span>Version {appVersion ?? "..."}</span>
+              </div>
+            }
+          />
+          <SettingCard
+            icon={<ArrowDownloadRegular />}
+            title="Updates"
+            description={
+              updateCheckError ? (
+                <span className="text-(--wb-error)">{updateCheckError}</span>
+              ) : updateInfo?.available ? (
+                `fresh-box ${updateInfo.latestVersion} is available — fresh-box never downloads or installs it for you.`
+              ) : updateInfo ? (
+                "You're on the latest version."
+              ) : (
+                "Checks GitHub for new releases. Never downloads or installs one on its own — updating is always a manual step."
+              )
+            }
+            control={
+              <div className="flex items-center gap-2">
+                {updateInfo?.available && updateInfo.releaseUrl && (
+                  <Button
+                    size="sm"
+                    variant="accent"
+                    icon={<LinkRegular />}
+                    onClick={() => {
+                      const { releaseUrl } = updateInfo;
+                      if (releaseUrl) void openExternalUrl(releaseUrl);
+                    }}
+                  >
+                    View Release
+                  </Button>
+                )}
+                <Button
+                  size="sm"
+                  variant="subtle"
+                  disabled={isCheckingUpdate}
+                  onClick={() => void checkForUpdateNow()}
+                >
+                  {isCheckingUpdate ? "Checking..." : "Check for Updates"}
+                </Button>
               </div>
             }
           />

@@ -426,6 +426,20 @@ export interface CoreConnectionsFrame {
   totalUploadSpeed: number;
 }
 
+/**
+ * Result of a GitHub-release update check (`checkForUpdate`) — detection
+ * only. `releaseUrl` is a page in the browser, not a downloadable asset:
+ * fresh-box never downloads or installs an update on its own, so acting on
+ * this always means the user clicking through and doing the rest by hand.
+ */
+export interface UpdateInfo {
+  currentVersion: string;
+  available: boolean;
+  latestVersion?: string;
+  releaseUrl?: string;
+  releaseNotes?: string;
+}
+
 export interface CoreLogMessage {
   type: string;
   payload: string;

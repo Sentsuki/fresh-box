@@ -47,3 +47,30 @@ pub fn update_mica_theme(window: tauri::Window, is_light: Option<bool>) {
     #[cfg(not(target_os = "windows"))]
     let _ = (window, is_light);
 }
+
+/// Checks GitHub for a newer fresh-box release than the one currently
+/// running — detection only, see `services::updater`'s doc comment. Called
+/// both from `main.rs`'s startup check and on-demand from Settings' "Check
+/// for Updates" button.
+#[tauri::command]
+pub async fn check_for_update(
+    app: AppHandle,
+) -> Result<crate::services::updater::UpdateInfo, CommandError> {
+    let current_version = app.package_info().version.to_string();
+    crate::services::updater::check_for_update(&current_version).await
+}
+
+/// Opens `url` in the system's default browser — used for external links
+/// the user explicitly chooses to follow (currently just an available
+/// update's release page). Restricted to `https://` so this can never be
+/// asked to open a local file or a `file://`/custom-scheme URI — nothing in
+/// the frontend has a legitimate reason to open anything else this way.
+#[tauri::command]
+pub fn open_external_url(url: String) -> Result<(), CommandError> {
+    if !url.starts_with("https://") {
+        return Err(CommandError::validation(
+            "Only https:// URLs can be opened this way",
+        ));
+    }
+    crate::commands::config::open_with_system(&url)
+}

@@ -24,6 +24,37 @@ use tauri_plugin_autostart::MacosLauncher;
 /// `wasOpenedAtLogin()` (`loginItem.ts`) handling in `index.ts`.
 const AUTOSTART_ARG: &str = "--autostart";
 
+/// How long after launch to run the one-shot startup update check — long
+/// enough that it never competes with anything on the app's own critical
+/// path (daemon connection, window show, ...) for the network/CPU, short
+/// enough that a user who does have an update waiting hears about it
+/// promptly rather than only on some later launch.
+const STARTUP_UPDATE_CHECK_DELAY: Duration = Duration::from_secs(5);
+
+/// Runs `services::updater::check_for_update` once, `STARTUP_UPDATE_CHECK_DELAY`
+/// after launch, and emits `"update-available"` if it finds one — detection
+/// only, see that module's doc comment. Silent otherwise: "no update" and
+/// "the check itself failed" (no network, GitHub unreachable, ...) both
+/// just log and move on, since nobody asked for this check and a background
+/// network hiccup isn't worth interrupting anyone over. The frontend can
+/// still ask again explicitly (Settings' "Check for Updates" button, via
+/// the `check_for_update` command directly) whenever it wants a real
+/// success/failure to show.
+fn spawn_startup_update_check(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        tokio::time::sleep(STARTUP_UPDATE_CHECK_DELAY).await;
+        let current_version = app.package_info().version.to_string();
+        match services::updater::check_for_update(&current_version).await {
+            Ok(info) if info.available => {
+                tracing::info!(version = ?info.latest_version, "update available");
+                let _ = app.emit("update-available", info);
+            }
+            Ok(_) => {}
+            Err(e) => tracing::debug!(error = ?e, "startup update check failed"),
+        }
+    });
+}
+
 fn main() {
     logger::init_tracing();
     logger::install_panic_hook();
@@ -52,6 +83,8 @@ fn main() {
             commands::app::is_autostart_enabled,
             commands::app::enable_autostart,
             commands::app::disable_autostart,
+            commands::app::check_for_update,
+            commands::app::open_external_url,
             commands::proxy::get_proxy_overview,
             commands::proxy::update_proxy_mode,
             commands::proxy::select_proxy,
@@ -124,6 +157,7 @@ fn main() {
             let state = app.state::<SingboxState>();
             spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
             commands::config::spawn_auto_update_scheduler(app.handle().clone());
+            spawn_startup_update_check(app.handle().clone());
 
             Ok(())
         })

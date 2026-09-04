@@ -9,8 +9,11 @@ import { TitleBar } from "./components/layout/TitleBar";
 import { Spinner } from "./components/ui/Spinner";
 import { initializeApp } from "./hooks/useInit";
 import { useTheme } from "./hooks/useTheme";
-import { listProfiles } from "./services/api";
+import { useToast } from "./hooks/useToast";
+import { listProfiles, openExternalUrl } from "./services/api";
 import { useConfigStore } from "./stores/configStore";
+import { useUpdateStore } from "./stores/updateStore";
+import type { UpdateInfo } from "./types/app";
 import Connections from "./pages/Connections";
 import Advanced from "./pages/Advanced";
 import Logs from "./pages/Logs";
@@ -59,6 +62,7 @@ export default function App() {
   const initialized = useAppStore((s) => s.initialized);
   const currentPage = useAppStore((s) => s.currentPage);
   const fluentTheme = useTheme();
+  const toast = useToast();
   useWindowVisibilityListener();
   useDaemonConnectionListener();
 
@@ -93,6 +97,27 @@ export default function App() {
     return () => {
       void unlisten.then((fn) => fn());
     };
+  }, []);
+
+  // `main.rs`'s one-shot startup check (`spawn_startup_update_check`) fires
+  // this if it finds a newer GitHub release — detection only, see
+  // `UpdateInfo`'s doc comment. Recorded in `useUpdateStore` so Settings'
+  // "Check for Updates" card reflects it too, and surfaced immediately as
+  // an actionable toast so it isn't only discoverable by opening Settings.
+  useEffect(() => {
+    const unlisten = listen<UpdateInfo>("update-available", (event) => {
+      const info = event.payload;
+      useUpdateStore.getState().setInfo(info);
+      if (info.latestVersion) {
+        toast.updateAvailable(info.latestVersion, () => {
+          if (info.releaseUrl) void openExternalUrl(info.releaseUrl);
+        });
+      }
+    });
+    return () => {
+      void unlisten.then((fn) => fn());
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   if (!initialized) {

@@ -14,6 +14,13 @@ use crate::crash_reports;
 /// function returned. Kept for the whole process lifetime instead.
 static APPENDER_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 
+/// Keep at most this many daily log files on disk — mirrors
+/// `crash_reports::MAX_REPORTS`'s reasoning: a long-running install
+/// shouldn't accumulate an ever-growing pile of files nobody's going to
+/// read, most of which (past a couple of weeks) nobody's going to want
+/// even if they did look.
+const MAX_LOG_FILES: usize = 14;
+
 /// Initialize structured, leveled application logging — call once, at the
 /// very start of `main()`, before anything else that might log. Writes to
 /// a daily-rotating file under `config::paths::get_log_dir()` (the same
@@ -21,7 +28,11 @@ static APPENDER_GUARD: OnceLock<WorkerGuard> = OnceLock::new();
 /// `info` level by default, overridable via the `RUST_LOG` environment
 /// variable (`tracing_subscriber`'s usual convention — e.g.
 /// `RUST_LOG=debug`). A debug build also mirrors every event to stdout,
-/// since that's normally launched from a terminal anyway.
+/// since that's normally launched from a terminal anyway. Old files beyond
+/// `MAX_LOG_FILES` are pruned automatically — by `tracing-appender` itself
+/// (`Builder::max_log_files`), both right here at startup and again on
+/// every later rollover — so this doesn't need its own prune pass the way
+/// `crash_reports::write` does.
 ///
 /// Replaces the `println!`/`eprintln!` calls that used to be this app's
 /// entire logging story: none of them carried a severity level, none of
@@ -46,7 +57,22 @@ pub fn init_tracing() {
         }
     };
 
-    let file_appender = tracing_appender::rolling::daily(log_dir, "fresh-box.log");
+    let file_appender = tracing_appender::rolling::Builder::new()
+        .rotation(tracing_appender::rolling::Rotation::DAILY)
+        .filename_prefix("fresh-box.log")
+        .max_log_files(MAX_LOG_FILES)
+        .build(&log_dir);
+    let file_appender = match file_appender {
+        Ok(appender) => appender,
+        Err(e) => {
+            eprintln!(
+                "Warning: failed to initialize log file rotation, logging to stderr only: {}",
+                e
+            );
+            let _ = tracing_subscriber::fmt().with_env_filter(filter()).try_init();
+            return;
+        }
+    };
     let (non_blocking, guard) = tracing_appender::non_blocking(file_appender);
     let _ = APPENDER_GUARD.set(guard);
 

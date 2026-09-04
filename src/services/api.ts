@@ -5,6 +5,7 @@ import type {
   ConfigOverride,
   PriorityConfig,
   ProfileEntry,
+  UpdateInfo,
 } from "../types/app";
 import { normalizeAppSettings } from "../types/app";
 import type { DaemonConnectionPhase } from "../types/daemon";
@@ -147,6 +148,17 @@ export async function enableAutostart(): Promise<void> {
 
 export async function disableAutostart(): Promise<void> {
   return invokeCommand<void>("disable_autostart");
+}
+
+/** Checks GitHub for a newer fresh-box release — detection only, see
+ * `UpdateInfo`'s doc comment. */
+export async function checkForUpdate(): Promise<UpdateInfo> {
+  return invokeCommand<UpdateInfo>("check_for_update");
+}
+
+/** Opens `url` (must be `https://`) in the system's default browser. */
+export async function openExternalUrl(url: string): Promise<void> {
+  return invokeCommand<void>("open_external_url", { url });
 }
 
 export async function getProxyOverview(): Promise<ProxyOverview> {
