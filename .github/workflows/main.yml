@@ -96,9 +96,20 @@ jobs:
   # Builds sing-box-daemon.exe (+ its libcronet.dll runtime dependency) and
   # hands the result to build-tauri as an artifact. Doesn't touch the
   # fresh-box checkout at all — it only needs upstream sing-box.
+  #
+  # Runs on ubuntu-latest, not windows-latest — build_boxdd forces
+  # CGO_ENABLED=0 for the windows target regardless of host OS (see its
+  # `cgoEnabled := operatingSystem != "windows" && ...`), so this is a
+  # pure Go cross-compile with no MinGW/MSVC dependency; the WinDivert/
+  # USB-IP driver staging below it is just checksum+copy of files already
+  # in the sing-box source tree. sing-box's own CI cross-compiles the
+  # plain sing-box.exe CLI for windows/amd64 the same way, from its
+  # ubuntu-based `build` job. Cheaper and faster than a Windows runner —
+  # revert to windows-latest here if experimental/boxdd ever needs
+  # something genuinely Windows-only to build (it hasn't so far).
   build-daemon:
     needs: determine-version
-    runs-on: windows-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     steps:
       # This is a real, separately-tagged checkout of upstream sing-box —
@@ -140,26 +151,26 @@ jobs:
       - name: Build sing-box-daemon.exe
         if: steps.cache-daemon.outputs.cache-hit != 'true'
         working-directory: sing-box-src
-        shell: pwsh
+        shell: bash
         run: |
-          New-Item -ItemType Directory -Force -Path '..\daemon-out' | Out-Null
-          go run ./cmd/internal/build_boxdd -target windows/amd64 -output '${{ github.workspace }}\daemon-out\sing-box-daemon.exe'
+          mkdir -p ../daemon-out
+          go run ./cmd/internal/build_boxdd -target windows/amd64 -output '${{ github.workspace }}/daemon-out/sing-box-daemon.exe'
           # Also stages the WinDivert/USB-IP driver assets next to the exe.
 
       # These ship pre-signed by their own vendors (WinDivert by Reqrypt,
       # etc.) — do NOT re-sign them, only re-signing the exe/dll below.
       - name: Fetch libcronet.dll
         if: steps.cache-daemon.outputs.cache-hit != 'true'
-        shell: pwsh
+        shell: bash
         run: |
-          $cronetVersion = Get-Content sing-box-src/.github/CRONET_GO_VERSION
-          $libDir = "$env:RUNNER_TEMP/cronet-go-lib"
-          git init $libDir
-          git -C $libDir remote add origin https://github.com/sagernet/cronet-go.git
-          git -C $libDir sparse-checkout set --no-cone '/lib/windows_amd64/libcronet.dll'
-          git -C $libDir fetch --depth=1 --filter=blob:none origin $cronetVersion
-          git -C $libDir checkout FETCH_HEAD
-          Copy-Item "$libDir/lib/windows_amd64/libcronet.dll" daemon-out/
+          cronet_version=$(cat sing-box-src/.github/CRONET_GO_VERSION)
+          lib_dir="$RUNNER_TEMP/cronet-go-lib"
+          git init "$lib_dir"
+          git -C "$lib_dir" remote add origin https://github.com/sagernet/cronet-go.git
+          git -C "$lib_dir" sparse-checkout set --no-cone '/lib/windows_amd64/libcronet.dll'
+          git -C "$lib_dir" fetch --depth=1 --filter=blob:none origin "$cronet_version"
+          git -C "$lib_dir" checkout FETCH_HEAD
+          cp "$lib_dir/lib/windows_amd64/libcronet.dll" daemon-out/
           # Needed by sing-box's `naive` outbound (with_naive_outbound is in
           # release/DEFAULT_BUILD_TAGS_WINDOWS) — build_boxdd only produces
           # sing-box-daemon.exe itself, this DLL is a separate runtime
