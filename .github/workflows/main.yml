@@ -6,21 +6,23 @@ name: Release
 #     tag and build `sing-box-daemon.exe` from it (see build_boxdd below,
 #     modeled on sing-box's own .github/workflows/build.yml)
 #   - `src-tauri/tauri.conf.json` / `src-tauri/Cargo.toml` are stamped with
-#     that same version at build time (not committed back)
+#     that same version at build time (see .github/scripts/configure-release.mjs,
+#     not committed back)
 # So "keep fresh-box's version aligned with upstream sing-box" just means:
 # when a new sing-box version ships, tag this repo `vX.Y.Z` with the same
 # number and push — the workflow does the rest. This also signs and
-# publishes the `tauri-plugin-updater` artifacts (`.sig`/`latest.json`), so
-# existing installs' in-app "Check for Updates" (Settings) picks this
-# release up too, not just a fresh manual download — see
-# docs/updater-releasing.md. The bundled NSIS installer's own
+# publishes the `tauri-plugin-updater` artifacts (`.sig`/`latest.json`, via
+# tauri-apps/tauri-action — see the build-tauri job), so existing installs'
+# in-app "Check for Updates" (Settings) picks this release up too, not
+# just a fresh manual download. The bundled NSIS installer's own
 # upgrade-detection still handles the in-place reinstall over an existing
 # per-machine install either way.
 #
 # Required repo secrets (Settings → Secrets and variables → Actions):
 #   WINDOWS_CERTIFICATES_P12         base64-encoded .p12 code-signing certificate
 #   WINDOWS_P12_PASSWORD             its password
-#   TAURI_SIGNING_PRIVATE_KEY        updater signing key (see docs/updater-releasing.md)
+#   TAURI_SIGNING_PRIVATE_KEY        updater signing key (Ed25519 keypair, see
+#                                     `tauri signer generate`/`tauri signer sign`)
 #   TAURI_SIGNING_PRIVATE_KEY_PASSWORD  that key's password
 # Without WINDOWS_CERTIFICATES_P12/WINDOWS_P12_PASSWORD the build still
 # succeeds but produces unsigned binaries — boxdd's peer-authentication
@@ -30,16 +32,28 @@ name: Release
 # an unsigned release will fail to connect to the daemon after install.
 # Without TAURI_SIGNING_PRIVATE_KEY/_PASSWORD the build also still succeeds,
 # but skips producing `.sig`/`latest.json` — existing installs' in-app
-# updater (tauri-plugin-updater) just never sees that release at all (see
-# docs/updater-releasing.md), while a fresh download of the installer from
-# the release page works exactly the same either way.
+# updater (tauri-plugin-updater) just never sees that release at all, while
+# a fresh download of the installer from the release page works exactly
+# the same either way.
 #
 # Windows x64 only for now — sing-box's own CI also builds x86/arm64
 # (see build_windows_client in its workflow); add matrix entries here the
 # same way if fresh-box ever needs those.
+#
+# Job layout: `build-daemon` (Go build of sing-box-daemon.exe + its
+# libcronet.dll dependency) and `build-tauri` (frontend + Rust + bundling)
+# have no data dependency on each other until the very last step of
+# build-tauri, so they run as separate parallel jobs instead of one long
+# linear one — build-tauri only blocks on build-daemon's output artifact
+# right before `tauri build`. `determine-version` is split out too so both
+# of them can depend on it without duplicating the version-parsing logic.
+# sing-box-daemon.exe is fully determined by the sing-box version alone
+# (same tag in == same binary out), so its build output is cached by
+# version — re-running the same tag (e.g. a retry) skips the Go build
+# entirely.
 
 permissions:
-  contents: write
+  contents: read
 
 on:
   push:
@@ -51,34 +65,51 @@ on:
         description: 'Version to build (must match a real SagerNet/sing-box release tag, e.g. 1.14.0)'
         required: true
 
+# Prevents two runs for the same tag/version from racing to build and
+# publish the same release concurrently — a second push/dispatch for the
+# same ref queues behind the first instead of running alongside it.
+# cancel-in-progress stays false: an in-progress release build/signing
+# shouldn't be killed mid-way by a newer trigger for the same ref.
+concurrency:
+  group: release-${{ github.ref }}-${{ github.event.inputs.version || '' }}
+  cancel-in-progress: false
+
 jobs:
-  build-tauri:
-    runs-on: windows-latest
+  determine-version:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      version: ${{ steps.version.outputs.version }}
     steps:
       - name: Determine version
         id: version
-        shell: pwsh
         run: |
-          if ('${{ github.event_name }}' -eq 'workflow_dispatch') {
-            $version = '${{ inputs.version }}'
-          } else {
-            $version = '${{ github.ref_name }}'.TrimStart('v')
-          }
-          "version=$version" >> $env:GITHUB_OUTPUT
-          Write-Output "Building fresh-box + sing-box-daemon v$version"
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            version="${{ inputs.version }}"
+          else
+            version="${{ github.ref_name }}"
+            version="${version#v}"
+          fi
+          echo "version=$version" >> "$GITHUB_OUTPUT"
+          echo "Building fresh-box + sing-box-daemon v$version"
 
-      - name: Checkout fresh-box
-        uses: actions/checkout@v7
-
+  # Builds sing-box-daemon.exe (+ its libcronet.dll runtime dependency) and
+  # hands the result to build-tauri as an artifact. Doesn't touch the
+  # fresh-box checkout at all — it only needs upstream sing-box.
+  build-daemon:
+    needs: determine-version
+    runs-on: windows-latest
+    timeout-minutes: 25
+    steps:
       # This is a real, separately-tagged checkout of upstream sing-box —
       # not the vendored/extracted copy used for local dev — so
       # build_shared.ReadTag() (which shells out to `git describe --tags`)
       # resolves correctly with no workaround needed.
-      - name: Checkout sing-box v${{ steps.version.outputs.version }}
+      - name: Checkout sing-box v${{ needs.determine-version.outputs.version }}
         uses: actions/checkout@v7
         with:
           repository: SagerNet/sing-box
-          ref: v${{ steps.version.outputs.version }}
+          ref: v${{ needs.determine-version.outputs.version }}
           path: sing-box-src
           fetch-depth: 1
 
@@ -95,17 +126,30 @@ jobs:
           key: go-mod-boxdd-${{ hashFiles('sing-box-src/go.sum') }}
           restore-keys: go-mod-boxdd-
 
+      # sing-box-daemon.exe + libcronet.dll are fully determined by the
+      # sing-box version (same tag in == same binaries out), so cache the
+      # whole staged output directory by version — a retried/re-tagged
+      # run skips both the Go build and the cronet fetch below entirely.
+      - name: Cache daemon build
+        id: cache-daemon
+        uses: actions/cache@v6
+        with:
+          path: daemon-out
+          key: sing-box-daemon-windows-amd64-${{ needs.determine-version.outputs.version }}
+
       - name: Build sing-box-daemon.exe
+        if: steps.cache-daemon.outputs.cache-hit != 'true'
         working-directory: sing-box-src
         shell: pwsh
         run: |
-          New-Item -ItemType Directory -Force -Path '..\src-tauri\resources\daemon' | Out-Null
-          go run ./cmd/internal/build_boxdd -target windows/amd64 -output '${{ github.workspace }}\src-tauri\resources\daemon\sing-box-daemon.exe'
+          New-Item -ItemType Directory -Force -Path '..\daemon-out' | Out-Null
+          go run ./cmd/internal/build_boxdd -target windows/amd64 -output '${{ github.workspace }}\daemon-out\sing-box-daemon.exe'
           # Also stages the WinDivert/USB-IP driver assets next to the exe.
 
       # These ship pre-signed by their own vendors (WinDivert by Reqrypt,
       # etc.) — do NOT re-sign them, only re-signing the exe/dll below.
       - name: Fetch libcronet.dll
+        if: steps.cache-daemon.outputs.cache-hit != 'true'
         shell: pwsh
         run: |
           $cronetVersion = Get-Content sing-box-src/.github/CRONET_GO_VERSION
@@ -115,12 +159,50 @@ jobs:
           git -C $libDir sparse-checkout set --no-cone '/lib/windows_amd64/libcronet.dll'
           git -C $libDir fetch --depth=1 --filter=blob:none origin $cronetVersion
           git -C $libDir checkout FETCH_HEAD
-          Copy-Item "$libDir/lib/windows_amd64/libcronet.dll" src-tauri/resources/daemon/
+          Copy-Item "$libDir/lib/windows_amd64/libcronet.dll" daemon-out/
           # Needed by sing-box's `naive` outbound (with_naive_outbound is in
           # release/DEFAULT_BUILD_TAGS_WINDOWS) — build_boxdd only produces
           # sing-box-daemon.exe itself, this DLL is a separate runtime
           # dependency fetched from its own repo, same as sing-box's own CI
           # does for the raw sing-box.exe CLI build.
+
+      - name: Upload daemon artifact
+        uses: actions/upload-artifact@v7
+        with:
+          name: daemon-bundle
+          path: daemon-out/
+          retention-days: 1 # only needed to hop into build-tauri within this same run
+          if-no-files-found: error
+
+  build-tauri:
+    needs: [determine-version, build-daemon]
+    runs-on: windows-latest
+    timeout-minutes: 45
+    # Only this job touches GitHub Releases — determine-version and
+    # build-daemon stay read-only.
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout fresh-box
+        uses: actions/checkout@v7
+
+      - name: Download daemon artifact
+        uses: actions/download-artifact@v7
+        with:
+          name: daemon-bundle
+          path: src-tauri/resources/daemon
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 'latest'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          check-latest: true
+          cache: 'pnpm'
 
       - name: Import code-signing certificate
         id: cert
@@ -143,37 +225,14 @@ jobs:
 
       # Stamps the version and (if a cert was imported) the signing
       # thumbprint into tauri.conf.json/Cargo.toml for this build only —
-      # nothing here is committed back to the repo.
+      # nothing here is committed back to the repo. See the script for why
+      # this is plain Node instead of PowerShell's ConvertFrom/To-Json.
       - name: Configure build
         shell: pwsh
-        run: |
-          $version = '${{ steps.version.outputs.version }}'
-          $thumbprint = '${{ steps.cert.outputs.thumbprint }}'
-
-          $confPath = 'src-tauri/tauri.conf.json'
-          $conf = Get-Content $confPath -Raw | ConvertFrom-Json
-          $conf.version = $version
-          if ($thumbprint) {
-            $conf.bundle.windows | Add-Member -NotePropertyName digestAlgorithm -NotePropertyValue 'sha256' -Force
-            $conf.bundle.windows | Add-Member -NotePropertyName certificateThumbprint -NotePropertyValue $thumbprint -Force
-          }
-          $conf | ConvertTo-Json -Depth 20 | Set-Content -Encoding utf8NoBOM $confPath
-
-          (Get-Content src-tauri/Cargo.toml -Raw) `
-            -replace '(?m)^version = "[^"]*"', "version = `"$version`"" |
-            Set-Content -Encoding utf8NoBOM src-tauri/Cargo.toml
-
-      - name: Install pnpm
-        uses: pnpm/action-setup@v6
-        with:
-          version: 'latest'
-
-      - name: Setup Node.js
-        uses: actions/setup-node@v7
-        with:
-          node-version: 'lts/*'
-          check-latest: true
-          cache: 'pnpm'
+        run: node .github/scripts/configure-release.mjs
+        env:
+          VERSION: ${{ needs.determine-version.outputs.version }}
+          CERT_THUMBPRINT: ${{ steps.cert.outputs.thumbprint }}
 
       - name: Setup Rust
         uses: dtolnay/rust-toolchain@stable
@@ -186,6 +245,7 @@ jobs:
           workspaces: src-tauri -> src-tauri/target
 
       - name: Install dependencies
+        shell: pwsh
         run: pnpm install
 
       # Builds the frontend, compiles fresh-box (renamed sing-box.exe via
@@ -196,53 +256,62 @@ jobs:
       # install to Program Files and register/deregister the
       # sing-box-daemon Windows service automatically — see tauri.conf.json.
       #
-      # Separately, `bundle.createUpdaterArtifacts: true` (tauri.conf.json)
-      # makes this same command sign the installers a *second* time with
-      # the updater's own Ed25519 key (unrelated to the Authenticode
-      # certificate above) whenever TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) are
-      # set, producing the `.sig` files and `latest.json` uploaded below —
-      # see docs/updater-releasing.md for what that key is and why it's
-      # separate from code-signing.
-      - name: Build Tauri app
+      # Only on an actual tag push does this also create/update the GitHub
+      # Release — workflow_dispatch has no tag to attach one to, so a
+      # manual run just builds (useful for test builds off a branch); the
+      # plain `pnpm tauri build` below covers that case.
+      #
+      # tauri-apps/tauri-action (not a bare `pnpm tauri build` +
+      # softprops/action-gh-release) handles the release: it signs the
+      # installers with the updater's own Ed25519 key (unrelated to the
+      # Authenticode certificate above, whenever
+      # TAURI_SIGNING_PRIVATE_KEY(_PASSWORD) are set) same as before, but
+      # it *builds the updater `latest.json` itself from the `.sig` files
+      # it finds on disk*, instead of trusting tauri-cli to have already
+      # aggregated one. That's a real difference: a past release shipped
+      # valid `.sig` files but no
+      # `latest.json` (tauri-cli silently failed to aggregate it), which
+      # broke in-app update checks for existing installs without failing
+      # this workflow. `updaterJsonPreferNsis: true` picks the NSIS
+      # installer as the updater's download target, matching
+      # installMode=perMachine above.
+      - name: Build and publish release
+        if: github.event_name != 'workflow_dispatch'
+        uses: tauri-apps/tauri-action@v0
+        with:
+          tagName: ${{ github.ref_name }}
+          releaseName: 'Release ${{ github.ref_name }}'
+          releaseBody: |
+            Automated release for ${{ github.ref_name }} (Windows), built against sing-box v${{ needs.determine-version.outputs.version }}.
+            - Windows installer (.msi) and executable (.exe) included
+          releaseDraft: false
+          prerelease: false
+          updaterJsonPreferNsis: true
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
+          TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
+
+      - name: Build Tauri app (test build)
+        if: github.event_name == 'workflow_dispatch'
+        shell: pwsh
         run: pnpm tauri build
         env:
           TAURI_SIGNING_PRIVATE_KEY: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY }}
           TAURI_SIGNING_PRIVATE_KEY_PASSWORD: ${{ secrets.TAURI_SIGNING_PRIVATE_KEY_PASSWORD }}
 
+      # Raw build output, always uploaded regardless of which path above
+      # ran — useful to inspect a workflow_dispatch test build, or to grab
+      # the exact bits a tag-push release published without leaving
+      # Actions. Short retention: this is a convenience copy, not the
+      # release itself (which is retained by GitHub Releases directly).
       - name: Upload artifacts
         uses: actions/upload-artifact@v7
         with:
           name: tauri-dist-windows
+          retention-days: 7
           path: |
             src-tauri/target/release/bundle/msi/*.msi
             src-tauri/target/release/bundle/nsis/*.exe
             src-tauri/target/release/bundle/**/*.sig
             src-tauri/target/release/bundle/latest.json
-
-      # Only on an actual tag push — workflow_dispatch has no tag to
-      # attach a release to, so a manual run just produces the uploaded
-      # artifact above (useful for test builds off a branch).
-      #
-      # `latest.json` is what makes this release visible to
-      # tauri-plugin-updater at all (`plugins.updater.endpoints` in
-      # tauri.conf.json points at this release's `/latest/download/latest.json`)
-      # — it and the `.sig` files are silently absent from this glob (not a
-      # failure) if TAURI_SIGNING_PRIVATE_KEY wasn't set above, in which
-      # case existing installs' in-app updater just won't see this release.
-      - name: Create Release
-        if: github.event_name != 'workflow_dispatch'
-        uses: softprops/action-gh-release@v3
-        with:
-          files: |
-            src-tauri/target/release/bundle/msi/*.msi
-            src-tauri/target/release/bundle/nsis/*.exe
-            src-tauri/target/release/bundle/**/*.sig
-            src-tauri/target/release/bundle/latest.json
-          name: Release ${{ github.ref_name }}
-          body: |
-            Automated release for ${{ github.ref_name }} (Windows), built against sing-box v${{ steps.version.outputs.version }}.
-            - Windows installer (.msi) and executable (.exe) included
-          draft: false
-          prerelease: false
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
