@@ -5,6 +5,10 @@ import type {
   ConfigOverride,
   PriorityConfig,
   ProfileEntry,
+  NetworkQualityTestOptions,
+  StunTestOptions,
+  ReportSummary,
+  ReportFileView,
 } from "../types/app";
 import { normalizeAppSettings } from "../types/app";
 import type { DaemonConnectionPhase } from "../types/daemon";
@@ -288,4 +292,78 @@ export async function recordFrontendError(
   stack?: string,
 ): Promise<void> {
   return invokeCommand<void>("record_frontend_error", { name, message, stack });
+}
+
+// ── Advanced page: diagnostics tools ────────────────────────────────────
+
+/** Kicks off a network quality test in the background — progress arrives as
+ * `tools-network-quality-progress` events (see `useNetworkQualityTest`),
+ * not as this call's return value. */
+export async function startNetworkQualityTest(
+  options: NetworkQualityTestOptions,
+): Promise<void> {
+  return invokeCommand<void>("start_network_quality_test", { options });
+}
+
+export async function cancelNetworkQualityTest(): Promise<void> {
+  return invokeCommand<void>("cancel_network_quality_test");
+}
+
+/** Progress arrives as `tools-stun-test-progress` events. */
+export async function startStunTest(options: StunTestOptions): Promise<void> {
+  return invokeCommand<void>("start_stun_test", { options });
+}
+
+export async function cancelStunTest(): Promise<void> {
+  return invokeCommand<void>("cancel_stun_test");
+}
+
+// ── Advanced page: crash/OOM/power reports ──────────────────────────────
+
+export async function listCrashReports(): Promise<ReportSummary[]> {
+  return invokeCommand<ReportSummary[]>("list_crash_reports_all");
+}
+
+export async function readCrashReport(id: string): Promise<ReportFileView[]> {
+  return invokeCommand<ReportFileView[]>("read_crash_report", { id });
+}
+
+export async function deleteCrashReport(id: string): Promise<void> {
+  return invokeCommand<void>("delete_crash_report", { id });
+}
+
+export async function deleteAllCrashReports(): Promise<void> {
+  return invokeCommand<void>("delete_all_crash_reports");
+}
+
+export async function listOomReports(): Promise<ReportSummary[]> {
+  return invokeCommand<ReportSummary[]>("list_oom_reports");
+}
+
+export async function readOomReport(name: string): Promise<ReportFileView[]> {
+  return invokeCommand<ReportFileView[]>("read_oom_report", { name });
+}
+
+export async function deleteOomReport(name: string): Promise<void> {
+  return invokeCommand<void>("delete_oom_report", { name });
+}
+
+export async function deleteAllOomReports(): Promise<void> {
+  return invokeCommand<void>("delete_all_oom_reports");
+}
+
+export async function listPowerReports(): Promise<ReportSummary[]> {
+  return invokeCommand<ReportSummary[]>("list_power_reports");
+}
+
+export async function readPowerReport(name: string): Promise<ReportFileView[]> {
+  return invokeCommand<ReportFileView[]>("read_power_report", { name });
+}
+
+export async function deletePowerReport(name: string): Promise<void> {
+  return invokeCommand<void>("delete_power_report", { name });
+}
+
+export async function deleteAllPowerReports(): Promise<void> {
+  return invokeCommand<void>("delete_all_power_reports");
 }

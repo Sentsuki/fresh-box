@@ -25,6 +25,11 @@ const MAX_REPORTS: usize = 50;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrashReport {
+    /// The report's file stem (`safe_timestamp_filename` output) —
+    /// stable identity for `read`/`delete`, independent of `time`'s own
+    /// (differently-formatted) RFC3339 string.
+    #[serde(default)]
+    pub id: String,
     /// `"panic"` (native Rust panic, from `logger.rs`) or `"renderer"` (a
     /// React error caught by `ErrorBoundary`).
     pub source: String,
@@ -59,13 +64,15 @@ pub fn write(source: &str, summary: &str, details: &str) -> Option<PathBuf> {
     std::fs::create_dir_all(&dir).ok()?;
 
     let now = chrono::Utc::now();
+    let id = safe_timestamp_filename(now);
     let report = CrashReport {
+        id: id.clone(),
         source: source.to_string(),
         time: now.to_rfc3339(),
         summary: summary.to_string(),
         details: details.to_string(),
     };
-    let path = dir.join(format!("{}.json", safe_timestamp_filename(now)));
+    let path = dir.join(format!("{id}.json"));
     let content = serde_json::to_string_pretty(&report).ok()?;
     std::fs::write(&path, content).ok()?;
 
@@ -109,4 +116,36 @@ pub fn list() -> Vec<CrashReport> {
         .collect();
     reports.sort_by(|a, b| b.time.cmp(&a.time));
     reports
+}
+
+/// Read a single report by its `id` (see `list`), for the Advanced page's
+/// crash report detail view.
+pub fn read(id: &str) -> Option<CrashReport> {
+    let dir = reports_dir()?;
+    let content = std::fs::read_to_string(dir.join(format!("{id}.json"))).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Delete one report by `id`. Best-effort like `write` — `true` if a file
+/// was actually removed.
+pub fn delete(id: &str) -> bool {
+    let Some(dir) = reports_dir() else {
+        return false;
+    };
+    std::fs::remove_file(dir.join(format!("{id}.json"))).is_ok()
+}
+
+/// Delete every stored report.
+pub fn delete_all() {
+    let Some(dir) = reports_dir() else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
 }

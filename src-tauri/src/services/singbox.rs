@@ -32,7 +32,7 @@ use tokio::sync::{Mutex, Notify, watch};
 
 use crate::daemon::daemon_api::ServiceStatus;
 use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
-use crate::daemon::desktop_api::DaemonOwnership;
+use crate::daemon::desktop_api::{DaemonOwnership, StartOptions};
 use crate::daemon::{DaemonClient, DaemonConnection};
 use crate::errors::CommandError;
 
@@ -469,6 +469,25 @@ async fn with_lifecycle_timeout<T>(
     }
 }
 
+/// Builds the `StartOptions` sent alongside every `StartService` call from
+/// the user's saved diagnostics settings (see
+/// `config::app_settings::DiagnosticsSettings`) — OOM killer/power report
+/// are both off unless explicitly enabled there, matching what
+/// `StartOptions::default()` used to always send.
+fn build_start_options() -> StartOptions {
+    let diagnostics = crate::config::app_settings::load_app_settings_file()
+        .map(|s| s.diagnostics)
+        .unwrap_or_default();
+    StartOptions {
+        oom_killer_enabled: diagnostics.oom_killer_enabled,
+        oom_killer_disabled: false,
+        oom_memory_limit: diagnostics
+            .oom_memory_limit_mb
+            .saturating_mul(1024 * 1024),
+        power_report_enabled: diagnostics.power_report_enabled,
+    }
+}
+
 pub async fn start_singbox(
     _app_handle: tauri::AppHandle,
     state: State<'_, SingboxState>,
@@ -484,7 +503,7 @@ pub async fn start_singbox(
     let connection = get_connection(&state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
-        connection.start_service(config_content),
+        connection.start_service(config_content, build_start_options()),
     )
     .await
 }

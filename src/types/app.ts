@@ -114,6 +114,19 @@ export interface UpdateSettings {
   last_shown_update_version: string;
 }
 
+/**
+ * Passed to the daemon's `StartOptions` on every start — mirrors the
+ * backend's `config::app_settings::DiagnosticsSettings`. Both OOM killer and
+ * power-event recording are off by default; changing either only takes
+ * effect the next time sing-box (re)starts, same as the TUN stack setting.
+ */
+export interface DiagnosticsSettings {
+  oom_killer_enabled: boolean;
+  oom_memory_limit_mb: number;
+  oom_killer_kill_connections: boolean;
+  power_report_enabled: boolean;
+}
+
 export interface AppSettings {
   schema_version: number;
   app: AppConfig;
@@ -123,6 +136,7 @@ export interface AppSettings {
   profiles: ProfilesSettings;
   settings: AppDisplaySettings;
   updates: UpdateSettings;
+  diagnostics: DiagnosticsSettings;
 }
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
@@ -189,6 +203,12 @@ export function createDefaultAppSettings(): AppSettings {
       check_update_enabled: false,
       update_check_prompted: false,
       last_shown_update_version: "",
+    },
+    diagnostics: {
+      oom_killer_enabled: false,
+      oom_memory_limit_mb: 200,
+      oom_killer_kill_connections: false,
+      power_report_enabled: false,
     },
   };
 }
@@ -338,6 +358,21 @@ export function normalizeAppSettings(
       last_shown_update_version:
         settings.updates?.last_shown_update_version ?? "",
     },
+    diagnostics: {
+      oom_killer_enabled:
+        settings.diagnostics?.oom_killer_enabled ??
+        defaults.diagnostics.oom_killer_enabled,
+      oom_memory_limit_mb:
+        typeof settings.diagnostics?.oom_memory_limit_mb === "number"
+          ? settings.diagnostics.oom_memory_limit_mb
+          : defaults.diagnostics.oom_memory_limit_mb,
+      oom_killer_kill_connections:
+        settings.diagnostics?.oom_killer_kill_connections ??
+        defaults.diagnostics.oom_killer_kill_connections,
+      power_report_enabled:
+        settings.diagnostics?.power_report_enabled ??
+        defaults.diagnostics.power_report_enabled,
+    },
   };
 }
 
@@ -466,4 +501,77 @@ export interface LogEntry extends CoreLogMessage {
   seq: number;
   time: string;
   category: string;
+}
+
+// ── Advanced page: diagnostics tools + reports ──────────────────────────
+
+/** Mirrors `sing-box`'s `networkquality.Phase`. */
+export const NETWORK_QUALITY_PHASE = {
+  idle: 0,
+  download: 1,
+  upload: 2,
+  done: 3,
+} as const;
+
+/** One `tools-network-quality-progress` event payload — see
+ * `services::tools::start_network_quality_test`. `0` accuracy/RPM/capacity
+ * values mean "not measured yet". Accuracy is `0`=Low, `1`=Medium, `2`=High. */
+export interface NetworkQualityProgress {
+  phase: number;
+  downloadCapacity: number;
+  uploadCapacity: number;
+  downloadRPM: number;
+  uploadRPM: number;
+  idleLatencyMs: number;
+  elapsedMs: number;
+  isFinal: boolean;
+  error: string;
+  downloadCapacityAccuracy: number;
+  uploadCapacityAccuracy: number;
+  downloadRPMAccuracy: number;
+  uploadRPMAccuracy: number;
+}
+
+export interface NetworkQualityTestOptions {
+  configURL: string;
+  outboundTag: string;
+  serial: boolean;
+  http3: boolean;
+  maxRuntimeSeconds: number;
+}
+
+/** One `tools-stun-test-progress` event payload — see
+ * `services::tools::start_stun_test`. */
+export interface StunTestProgress {
+  phase: number;
+  externalAddr: string;
+  latencyMs: number;
+  natMapping: number;
+  natFiltering: number;
+  isFinal: boolean;
+  error: string;
+  natTypeSupported: boolean;
+}
+
+export interface StunTestOptions {
+  server: string;
+  outboundTag: string;
+}
+
+/** A crash/OOM/power report's list entry. Crash report `id`s carry an
+ * `app:`/`daemon:` source prefix (see `commands::reports`); OOM/power report
+ * `name`s don't need one — they only ever come from the daemon. */
+export interface ReportSummary {
+  id: string;
+  /** RFC3339. */
+  time: string;
+  isRead: boolean;
+}
+
+/** One file within a report's detail view. `content` is `null` for a binary
+ * file (an OOM memory profile) that isn't shown inline. */
+export interface ReportFileView {
+  name: string;
+  content: string | null;
+  isBinary: boolean;
 }

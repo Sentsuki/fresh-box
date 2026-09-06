@@ -45,6 +45,7 @@ fn main() {
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(singbox_state)
         .manage(services::streams::StreamsState::new())
+        .manage(services::tools::ToolsState::new())
         .manage(config::app_settings::BackendPrefsState::load())
         .invoke_handler(tauri::generate_handler![
             commands::singbox::start_singbox,
@@ -82,7 +83,6 @@ fn main() {
             commands::priority::save_priority_config,
             commands::priority::load_priority_config,
             commands::priority::check_config_fields,
-            commands::diagnostics::list_crash_reports,
             commands::diagnostics::record_frontend_error,
             commands::app::update_mica_theme,
             commands::streams::start_traffic_stream,
@@ -97,6 +97,22 @@ fn main() {
             commands::proxy::close_connection,
             commands::config::add_subscription,
             commands::config::update_subscription,
+            commands::tools::start_network_quality_test,
+            commands::tools::cancel_network_quality_test,
+            commands::tools::start_stun_test,
+            commands::tools::cancel_stun_test,
+            commands::reports::list_crash_reports_all,
+            commands::reports::read_crash_report,
+            commands::reports::delete_crash_report,
+            commands::reports::delete_all_crash_reports,
+            commands::reports::list_oom_reports,
+            commands::reports::read_oom_report,
+            commands::reports::delete_oom_report,
+            commands::reports::delete_all_oom_reports,
+            commands::reports::list_power_reports,
+            commands::reports::read_power_report,
+            commands::reports::delete_power_report,
+            commands::reports::delete_all_power_reports,
         ])
         .setup(|app| {
             // 首次启动时生成含完整默认值的 priority_config.json（幂等）

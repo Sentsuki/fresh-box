@@ -31,11 +31,15 @@ use super::daemon_api::managed_service_client::ManagedServiceClient;
 use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
     ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups, Log,
+    NetworkQualityTestProgress, NetworkQualityTestRequest, StunTestProgress, StunTestRequest,
     SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
     SubscribeStatusRequest, UrlTestRequest,
 };
+use super::desktop_api::{
+    CrashReportEntry, CrashReportFile, CrashReportRequest, DaemonInfo, OomReportEntry,
+    OomReportFile, OomReportRequest, StartOptions, StartServiceRequest,
+};
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
-use super::desktop_api::{DaemonInfo, StartOptions, StartServiceRequest};
 use super::worker;
 
 fn map_status(context: &str, status: tonic::Status) -> CommandError {
@@ -136,10 +140,14 @@ impl DaemonConnection {
             .map_err(|e| map_status("claim daemon service", e))
     }
 
-    pub async fn start_service(&self, config_content: String) -> Result<(), CommandError> {
+    pub async fn start_service(
+        &self,
+        config_content: String,
+        options: StartOptions,
+    ) -> Result<(), CommandError> {
         let request = StartServiceRequest {
             config_content,
-            options: Some(StartOptions::default()),
+            options: Some(options),
         };
         self.desktop()
             .start_service(request)
@@ -263,5 +271,160 @@ impl DaemonConnection {
             .await
             .map(|_| ())
             .map_err(|e| map_status("close all connections", e))
+    }
+
+    /// Run a network quality (RPM/responsiveness) test through the running
+    /// instance's outbound(s) — see `crate::services::tools`, which drains
+    /// this stream and republishes each step as a Tauri event.
+    pub async fn start_network_quality_test(
+        &self,
+        request: NetworkQualityTestRequest,
+    ) -> Result<Streaming<NetworkQualityTestProgress>, CommandError> {
+        self.started()
+            .start_network_quality_test(request)
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("start network quality test", e))
+    }
+
+    /// Run a STUN test (external address + NAT mapping/filtering behavior)
+    /// through the running instance's outbound(s).
+    pub async fn start_stun_test(
+        &self,
+        request: StunTestRequest,
+    ) -> Result<Streaming<StunTestProgress>, CommandError> {
+        self.started()
+            .start_stun_test(request)
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("start STUN test", e))
+    }
+
+    // ── DesktopService: crash/OOM/power reports ─────────────────────────
+
+    pub async fn list_crash_reports(&self) -> Result<Vec<CrashReportEntry>, CommandError> {
+        self.desktop()
+            .list_crash_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list crash reports", e))
+    }
+
+    pub async fn read_crash_report(
+        &self,
+        name: String,
+    ) -> Result<Vec<CrashReportFile>, CommandError> {
+        self.desktop()
+            .read_crash_report(CrashReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read crash report", e))
+    }
+
+    pub async fn mark_crash_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_crash_report_read(CrashReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("mark crash report read", e))
+    }
+
+    pub async fn delete_crash_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_crash_report(CrashReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete crash report", e))
+    }
+
+    pub async fn delete_all_crash_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_crash_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all crash reports", e))
+    }
+
+    pub async fn list_oom_reports(&self) -> Result<Vec<OomReportEntry>, CommandError> {
+        self.desktop()
+            .list_oom_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list OOM reports", e))
+    }
+
+    pub async fn read_oom_report(&self, name: String) -> Result<Vec<OomReportFile>, CommandError> {
+        self.desktop()
+            .read_oom_report(OomReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read OOM report", e))
+    }
+
+    pub async fn mark_oom_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_oom_report_read(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("mark OOM report read", e))
+    }
+
+    pub async fn delete_oom_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_oom_report(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete OOM report", e))
+    }
+
+    pub async fn delete_all_oom_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_oom_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all OOM reports", e))
+    }
+
+    pub async fn list_power_reports(&self) -> Result<Vec<OomReportEntry>, CommandError> {
+        self.desktop()
+            .list_power_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list power reports", e))
+    }
+
+    pub async fn read_power_report(
+        &self,
+        name: String,
+    ) -> Result<Vec<OomReportFile>, CommandError> {
+        self.desktop()
+            .read_power_report(OomReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read power report", e))
+    }
+
+    pub async fn mark_power_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_power_report_read(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("mark power report read", e))
+    }
+
+    pub async fn delete_power_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_power_report(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete power report", e))
+    }
+
+    pub async fn delete_all_power_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_power_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all power reports", e))
     }
 }

@@ -1,10 +1,10 @@
 // Vendored from sing-box 1.14.0 `experimental/boxdd/desktop_service.proto`,
 // trimmed to the subset fresh-box actually calls (claim ownership, start the
 // service, read daemon identity, check a config before persisting it — see
-// `daemon::validate`). Crash/OOM/power reports, self-update, insecure mode
-// and locale RPCs, and the rest of ApplicationService are dropped — fresh-box
-// doesn't use them yet. Keep in sync with the sing-box version the bundled
-// `sing-box-daemon.exe` is built from.
+// `daemon::validate` — and list/read/delete crash/OOM/power reports). Self-
+// update, insecure mode and locale RPCs, and the rest of ApplicationService
+// are dropped — fresh-box doesn't use them yet. Keep in sync with the
+// sing-box version the bundled `sing-box-daemon.exe` is built from.
 syntax = "proto3";
 
 package desktop;
@@ -15,6 +15,22 @@ service DesktopService {
   rpc GetDaemonInfo(google.protobuf.Empty) returns (DaemonInfo) {}
   rpc ClaimService(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   rpc StartService(StartServiceRequest) returns (google.protobuf.Empty) {}
+
+  rpc ListCrashReports(google.protobuf.Empty) returns (CrashReportList) {}
+  rpc ReadCrashReport(CrashReportRequest) returns (CrashReportContent) {}
+  rpc MarkCrashReportRead(CrashReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeleteCrashReport(CrashReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeleteAllCrashReports(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc ListOOMReports(google.protobuf.Empty) returns (OOMReportList) {}
+  rpc ReadOOMReport(OOMReportRequest) returns (OOMReportContent) {}
+  rpc MarkOOMReportRead(OOMReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeleteOOMReport(OOMReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeleteAllOOMReports(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc ListPowerReports(google.protobuf.Empty) returns (OOMReportList) {}
+  rpc ReadPowerReport(OOMReportRequest) returns (OOMReportContent) {}
+  rpc MarkPowerReportRead(OOMReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeletePowerReport(OOMReportRequest) returns (google.protobuf.Empty) {}
+  rpc DeleteAllPowerReports(google.protobuf.Empty) returns (google.protobuf.Empty) {}
 }
 
 // Served by the *worker* process on its own `--socket` pipe, independent of
@@ -51,4 +67,51 @@ message StartOptions {
   bool oom_killer_disabled = 2;
   int64 oom_memory_limit = 3;
   bool power_report_enabled = 4;
+}
+
+message CrashReportList {
+  repeated CrashReportEntry reports = 1;
+}
+
+message CrashReportEntry {
+  string name = 1;
+  int64 crashed_at = 2;
+  bool is_read = 3;
+}
+
+message CrashReportRequest {
+  string name = 1;
+}
+
+message CrashReportContent {
+  repeated CrashReportFile files = 1;
+}
+
+message CrashReportFile {
+  string name = 1;
+  string content = 2;
+}
+
+message OOMReportList {
+  repeated OOMReportEntry reports = 1;
+}
+
+message OOMReportEntry {
+  string name = 1;
+  int64 recorded_at = 2;
+  bool is_read = 3;
+}
+
+message OOMReportRequest {
+  string name = 1;
+}
+
+message OOMReportContent {
+  repeated OOMReportFile files = 1;
+}
+
+message OOMReportFile {
+  string name = 1;
+  bytes content = 2;
+  bool is_profile = 3;
 }

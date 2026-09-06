@@ -31,6 +31,8 @@ pub struct AppSettings {
     pub settings: AppDisplaySettings,
     #[serde(default)]
     pub updates: UpdateSettings,
+    #[serde(default)]
+    pub diagnostics: DiagnosticsSettings,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -107,6 +109,35 @@ pub struct UpdateSettings {
     pub last_shown_update_version: String,
 }
 
+/// Passed to the daemon's `StartOptions` on every `StartService` call (see
+/// `services::singbox::start_singbox`) — mirrors the official desktop
+/// client's own OOM-killer/power-report settings
+/// (`setOOMKillerEnabled`/`setOOMMemoryLimitMB`/`setOOMKillerKillConnections`/
+/// `setPowerReportEnabled` in `host.ts`). Both are off by default, same as
+/// the daemon's own `StartOptions::default()` fresh-box used to always send
+/// — enabling either only takes effect the next time sing-box (re)starts,
+/// same as fresh-box's other startup-only options (e.g. the TUN stack
+/// setting).
+#[derive(Debug, Clone, Serialize, Deserialize)]
+#[serde(default)]
+pub struct DiagnosticsSettings {
+    pub oom_killer_enabled: bool,
+    pub oom_memory_limit_mb: i64,
+    pub oom_killer_kill_connections: bool,
+    pub power_report_enabled: bool,
+}
+
+impl Default for DiagnosticsSettings {
+    fn default() -> Self {
+        Self {
+            oom_killer_enabled: false,
+            oom_memory_limit_mb: 200,
+            oom_killer_kill_connections: false,
+            power_report_enabled: false,
+        }
+    }
+}
+
 impl Default for AppSettings {
     fn default() -> Self {
         Self {
@@ -118,6 +149,7 @@ impl Default for AppSettings {
             profiles: ProfilesSettings::default(),
             settings: AppDisplaySettings::default(),
             updates: UpdateSettings::default(),
+            diagnostics: DiagnosticsSettings::default(),
         }
     }
 }
