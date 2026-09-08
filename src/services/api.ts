@@ -113,6 +113,11 @@ export async function retryDaemonConnection(): Promise<void> {
   return invokeCommand<void>("retry_daemon_connection");
 }
 
+/** 从另一个 Windows 用户会话接管 daemon —— `owned-by-other-user` 的出口。 */
+export async function takeOverDaemon(): Promise<void> {
+  return invokeCommand<void>("take_over_daemon");
+}
+
 export async function isDaemonServiceInstalled(): Promise<boolean> {
   return invokeCommand<boolean>("is_daemon_service_installed");
 }

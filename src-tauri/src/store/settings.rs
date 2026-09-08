@@ -28,6 +28,24 @@ pub const KEY_BEHAVIOR: &str = "behavior";
 /// 也不该被当作身份来传（那正是 H-03 的老毛病）。
 pub const KEY_SELECTED_PROFILE: &str = "selectedProfile";
 
+/// 上次生效的 Clash 模式（rule / global / direct）。
+///
+/// 由 `services::resident` 的 `SubscribeClashMode` 订阅写入，启动合成配置时
+/// 回填成 `clash_api.default_mode` —— 用户选的模式因此能跨重启保留，而 daemon
+/// 仍是运行期唯一的真相源（审计项 M-09）。
+pub const KEY_CLASH_MODE: &str = "clashMode";
+
+pub fn last_clash_mode(store: &Store) -> Option<String> {
+    get_or_default::<Option<String>>(store, SCOPE_APP, KEY_CLASH_MODE)
+        .ok()
+        .flatten()
+        .filter(|value| !value.is_empty())
+}
+
+pub fn set_last_clash_mode(store: &Store, mode: &str) -> Result<(), CommandError> {
+    set(store, SCOPE_APP, KEY_CLASH_MODE, &Some(mode))
+}
+
 /// 读一个区，没有或解析失败就返回默认值。
 ///
 /// 解析失败按「没有」处理而不是报错：一区设置坏掉不该让应用起不来，而它坏了

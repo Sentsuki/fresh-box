@@ -68,7 +68,7 @@ export function useConfigs() {
     info: toastInfo,
     warning: toastWarning,
   } = useToast();
-  const { startService, stopService } = useSingbox();
+  const { startService } = useSingbox();
 
   const initializeConfigs = useCallback(async () => {
     const config = useConfigStore.getState();
@@ -94,14 +94,16 @@ export function useConfigs() {
       await settings.setSelectedProfile(cfg.id);
 
       if (singbox.isRunning) {
-        toastInfo("Config changed. Restarting service...");
-        await stopService();
-        await startService();
+        // 直接再 start 一次 —— daemon 的 `StartService` 就是
+        // `StartOrReloadService`，在同一把锁下原子换配置。以前这里要
+        // stop→start 两次 RPC，中间隧道完全断开（审计项 H-02）。
+        toastInfo("Applying the new config…");
+        await startService({ reload: true });
       } else {
         toastSuccess(`Selected config: ${cfg.name}`);
       }
     },
-    [toastInfo, toastSuccess, stopService, startService],
+    [toastInfo, toastSuccess, startService],
   );
 
   const selectConfigFile = useCallback(async () => {
@@ -163,7 +165,16 @@ export function useConfigs() {
       try {
         const result = await updateSubscriptionCmd(id);
         await applyProfileResult(result);
-        toastSuccess(`Updated subscription: ${result.entry.name}`);
+        // 刷新的正是当前跑着的那份配置，就顺手重载让它生效 —— 以前新内容写进
+        // 磁盘、跑着的还是旧的，界面上却提示「更新成功」（审计项 H-02）。
+        const selectedId =
+          useSettingsStore.getState().settings.profiles.selected_profile_id;
+        if (selectedId === id && useSingboxStore.getState().isRunning) {
+          await startService({ reload: true });
+          toastSuccess(`Updated and reloaded: ${result.entry.name}`);
+        } else {
+          toastSuccess(`Updated subscription: ${result.entry.name}`);
+        }
         return true;
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
@@ -172,7 +183,7 @@ export function useConfigs() {
         config.setPending(false);
       }
     },
-    [toastError, toastSuccess],
+    [toastError, toastSuccess, startService],
   );
 
   const editSubscription = useCallback(

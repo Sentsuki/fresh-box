@@ -49,15 +49,9 @@ export function OomSettingsPanel() {
                 ))}
               </Select>
             </label>
-            <Switch
-              checked={diagnostics.oom_killer_kill_connections}
-              onCheckedChange={(value) =>
-                void updateSettings((s) => {
-                  s.diagnostics.oom_killer_kill_connections = value;
-                })
-              }
-              label="Kill connections to free memory when over the limit"
-            />
+            {/* 这里曾经有一个「超限时断开连接以释放内存」开关 —— 但
+                `StartOptions` proto 根本没有对应字段，打开它什么都不会发生
+                （审计项 M-11）。阶段 5 连同它的设置项一起删除。 */}
           </>
         )}
       </div>

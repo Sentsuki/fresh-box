@@ -72,6 +72,7 @@ fn main() {
             commands::singbox::stop_singbox,
             commands::singbox::get_daemon_state,
             commands::singbox::retry_daemon_connection,
+            commands::singbox::take_over_daemon,
             commands::singbox::is_daemon_service_installed,
             commands::singbox::install_daemon_service,
             commands::singbox::uninstall_daemon_service,

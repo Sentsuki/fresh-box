@@ -17,16 +17,25 @@ import { useToast } from "./useToast";
 export function useSingbox() {
   const { error: toastError, info: toastInfo } = useToast();
 
-  const startService = useCallback(async () => {
+  /**
+   * 启动 sing-box。
+   *
+   * `reload: true` 表示「实例已经在跑，要换配置」—— daemon 的 `StartService`
+   * 本身就是 `StartOrReloadService`，所以这两件事是同一个调用，不需要先停
+   * （审计项 H-02）。区别只在于要不要跳过「已经在跑就别重复点」的防抖。
+   */
+  const startService = useCallback(async (options?: { reload?: boolean }) => {
     const singbox = useSingboxStore.getState();
     const settings = useSettingsStore.getState();
     const profileId = settings.settings.profiles.selected_profile_id;
+    const reload = options?.reload ?? false;
 
-    if (singbox.isRunning || singbox.pendingOperation || !profileId) return;
+    if (singbox.pendingOperation || !profileId) return;
+    if (singbox.isRunning && !reload) return;
 
     singbox.setPending(true);
     try {
-      toastInfo("Starting sing-box...");
+      toastInfo(reload ? "Reloading sing-box…" : "Starting sing-box...");
       await startSingbox(profileId);
     } catch (err) {
       toastError(`Error starting sing-box: ${getErrorMessage(err)}`);

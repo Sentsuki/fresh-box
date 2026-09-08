@@ -93,9 +93,14 @@ pub enum ConnectionPhase {
     /// Connected and owning (or nobody yet owns) the daemon's working
     /// directory. `status` is the actual sing-box instance state.
     Connected { status: SingboxStatus },
-    /// `sing-box-daemon` isn't registered as a Windows service at all —
-    /// see `daemon::install`.
+    /// `sing-box-daemon` 根本没注册成 Windows 服务 —— 见 `daemon::install`。
     NotInstalled,
+    /// 服务装了但没在跑（被管理员或优化软件停掉、崩了没起来……）。
+    ///
+    /// 这是最常见的一类故障，以前会落进 `Unavailable` 里变成一句看不懂的
+    /// 原始 IO 错误（审计项 H-04）。它有对症的修法：`repair_daemon_service`
+    /// 就是一次提权的 `service start`。
+    NotRunning,
     /// The running service reports a different version than the daemon exe
     /// bundled with this install (stale service after an app update).
     #[serde(rename_all = "camelCase")]
@@ -230,11 +235,10 @@ enum AttemptOutcome {
     /// Couldn't get connected this time; the corresponding phase has
     /// already been published. Back off before retrying.
     Failed,
-    /// Not installed at all — checked before ever trying to connect.
-    /// Backed off on a fixed, longer interval since this won't change on
-    /// its own; `retry_connection` (called right after an install) is what
-    /// actually recovers this promptly in the common case.
-    NotInstalled,
+    /// 服务不可用（没装 / 没跑）—— 连都没尝试就返回了。用固定的较长间隔重试，
+    /// 因为它不会自己好；真正让它及时恢复的是 `retry_connection`
+    /// （安装或修复之后会调）。
+    ServiceUnavailable,
 }
 
 /// One full connect → claim → subscribe attempt. Runs until either it
@@ -247,9 +251,26 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     // needs neither: nothing spawns a worker on that path.
     let dev_address = crate::daemon::dev_daemon_address();
 
-    if dev_address.is_none() && !crate::daemon::install::is_service_installed() {
-        publish(app, state, ConnectionPhase::NotInstalled);
-        return AttemptOutcome::NotInstalled;
+    if dev_address.is_none() {
+        // 探测是同步的进程调用，放到阻塞线程池上，别占着 async 工作线程
+        // （审计项 M-05）。
+        let status = tokio::task::spawn_blocking(crate::daemon::install::probe_service)
+            .await
+            .unwrap_or(crate::daemon::install::ServiceStatus::Unknown);
+        match status {
+            crate::daemon::install::ServiceStatus::NotInstalled => {
+                publish(app, state, ConnectionPhase::NotInstalled);
+                return AttemptOutcome::ServiceUnavailable;
+            }
+            crate::daemon::install::ServiceStatus::NotRunning => {
+                publish(app, state, ConnectionPhase::NotRunning);
+                return AttemptOutcome::ServiceUnavailable;
+            }
+            // `Unknown` 不当成「不可用」：探测本身可能只是一时失败，让它照常
+            // 往下走去连一次，连不上自然会落到 `Unavailable` 并带上真实错误。
+            crate::daemon::install::ServiceStatus::Running
+            | crate::daemon::install::ServiceStatus::Unknown => {}
+        }
     }
 
     publish(app, state, ConnectionPhase::Connecting);
@@ -362,7 +383,19 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     let _session = app
         .try_state::<std::sync::Arc<crate::services::resident::ResidentState>>()
         .map(|resident| {
-            crate::services::resident::spawn_session(resident.inner().clone(), connection.clone())
+            let app_for_mode = app.clone();
+            crate::services::resident::spawn_session(
+                resident.inner().clone(),
+                connection.clone(),
+                std::sync::Arc::new(move |mode: &str| {
+                    if let Some(store) = app_for_mode.try_state::<Store>()
+                        && let Err(e) =
+                            crate::store::settings::set_last_clash_mode(store.inner(), mode)
+                    {
+                        tracing::warn!(error = ?e, "failed to remember the clash mode");
+                    }
+                }),
+            )
         });
 
     let mut stream = match connection.subscribe_service_status().await {
@@ -417,7 +450,7 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
                     attempt = 0;
                     wait_or_retry(&state, SESSION_RESTART_DELAY).await;
                 }
-                AttemptOutcome::NotInstalled => {
+                AttemptOutcome::ServiceUnavailable => {
                     wait_or_retry(&state, Duration::from_secs(3)).await;
                 }
                 AttemptOutcome::Failed => {
@@ -451,7 +484,12 @@ fn build_config_content(store: &Store, profile_id: &str) -> Result<String, Comma
     }
 
     let priority_config = crate::config::priority::load_priority_config_inner(store)?;
-    if let Err(e) = crate::config::apply_priority_config(&mut base_config, &priority_config) {
+    let last_mode = crate::store::settings::last_clash_mode(store);
+    if let Err(e) = crate::config::apply_priority_config(
+        &mut base_config,
+        &priority_config,
+        last_mode.as_deref(),
+    ) {
         tracing::warn!(error = ?e, "failed to apply priority configuration");
     }
 
@@ -513,15 +551,21 @@ fn build_start_options(store: &Store) -> StartOptions {
 
 /// 合成配置并交给 daemon 启动 —— 命令（前端）与托盘（无窗口时）共用这一条
 /// 路径，所以它不依赖 `State<'_>`。
+/// 合成配置并交给 daemon —— **实例已经在跑时这就是一次原子重载**。
+///
+/// 上游的 `StartService` 实际调的是 `StartOrReloadService`（`server.go`
+/// → `started_service.go:250`）：在同一把 `lifecycleAccess` 锁下先关旧实例再起
+/// 新实例。以前这里有一道 `if running { return ProcessAlreadyRunning }` 的自设
+/// 拦截，把这条路堵死了（审计项 H-02），于是切换配置只能由前端编排
+/// stop→start：两次 RPC、中间隧道完全断开，而且刷新订阅后压根不重载 —— 新配置
+/// 写进了磁盘，跑着的还是旧的，界面上毫无提示。
+///
+/// 现在切配置、刷订阅、改设置、托盘启动全走这一个入口。
 pub async fn start_with_profile(
     state: &SingboxState,
     store: &Store,
     profile_id: &str,
 ) -> Result<(), CommandError> {
-    if state.phase_rx.borrow().running() {
-        return Err(CommandError::ProcessAlreadyRunning);
-    }
-
     let config_content = build_config_content(store, profile_id)?;
     let connection = get_connection(state).await?;
     with_lifecycle_timeout(

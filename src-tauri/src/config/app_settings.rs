@@ -105,8 +105,12 @@ pub struct UpdateSettings {
 /// Passed to the daemon's `StartOptions` on every `StartService` call (see
 /// `services::singbox::start_singbox`) — mirrors the official desktop
 /// client's own OOM-killer/power-report settings
-/// (`setOOMKillerEnabled`/`setOOMMemoryLimitMB`/`setOOMKillerKillConnections`/
-/// `setPowerReportEnabled` in `host.ts`). Both are off by default, same as
+/// （`host.ts` 的 `setOOMKillerEnabled`/`setOOMMemoryLimitMB`/
+/// `setPowerReportEnabled`）。
+///
+/// 曾经还有一个 `oom_killer_kill_connections`：设置页能开、会持久化、类型里也
+/// 有 —— 但 `StartOptions` proto 根本没这个字段，`build_start_options` 也从不
+/// 读它。纯粹的死开关，用户打开什么都不会发生（审计项 M-11），阶段 5 删除。 Both are off by default, same as
 /// the daemon's own `StartOptions::default()` fresh-box used to always send
 /// — enabling either only takes effect the next time sing-box (re)starts,
 /// same as fresh-box's other startup-only options (e.g. the TUN stack
@@ -116,7 +120,6 @@ pub struct UpdateSettings {
 pub struct DiagnosticsSettings {
     pub oom_killer_enabled: bool,
     pub oom_memory_limit_mb: i64,
-    pub oom_killer_kill_connections: bool,
     pub power_report_enabled: bool,
 }
 
@@ -125,7 +128,6 @@ impl Default for DiagnosticsSettings {
         Self {
             oom_killer_enabled: false,
             oom_memory_limit_mb: 200,
-            oom_killer_kill_connections: false,
             power_report_enabled: false,
         }
     }

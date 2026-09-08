@@ -4,7 +4,7 @@
 
 use crate::errors::CommandError;
 use crate::store::{Store, settings};
-use serde_json::{Value, json};
+use serde_json::Value;
 
 const KEY_PRIORITY: &str = "priorityConfig";
 
@@ -173,6 +173,7 @@ pub(crate) fn check_config_fields_inner(
 pub fn apply_priority_config(
     config: &mut Value,
     priority_config: &PriorityConfig,
+    default_mode: Option<&str>,
 ) -> Result<(), CommandError> {
     if let Some(first) = priority_config.inbounds.first()
         && let Err(e) = apply_stack_config(config, &first.stack)
@@ -182,7 +183,7 @@ pub fn apply_priority_config(
 
     apply_log_config(config, &priority_config.log)?;
 
-    if let Err(error) = apply_clash_api_config(config) {
+    if let Err(error) = apply_clash_api_config(config, default_mode) {
         tracing::warn!(error = ?error, "failed to apply clash_api configuration");
     }
 
@@ -254,7 +255,10 @@ pub fn apply_log_config(config: &mut Value, log_config: &LogConfig) -> Result<()
 /// config — so this block still needs to exist, just with nothing exposed
 /// over the network. Not user-configurable: there's no controller/secret
 /// left for a user to usefully set.
-pub fn apply_clash_api_config(config: &mut Value) -> Result<(), CommandError> {
+pub fn apply_clash_api_config(
+    config: &mut Value,
+    default_mode: Option<&str>,
+) -> Result<(), CommandError> {
     if config.get("experimental").is_none() {
         config
             .as_object_mut()
@@ -277,13 +281,18 @@ pub fn apply_clash_api_config(config: &mut Value) -> Result<(), CommandError> {
             )
         })?;
 
-    experimental.insert(
-        "clash_api".to_string(),
-        json!({
-            "external_controller": "",
-            "default_mode": "Rule"
-        }),
-    );
+    // `default_mode` 只在确实知道用户上次选了什么时才写。
+    //
+    // 以前这里无条件写死 `"Rule"`，于是用户切到 Global、重启一次就被打回 Rule
+    // （审计项 M-09）。当前模式由 `SubscribeClashMode` 推送并存进 `settings`
+    // 表，启动时回填 —— daemon 仍是运行期唯一真相源，我们只是把它上次说的话
+    // 记住了。
+    let mut clash_api = serde_json::Map::new();
+    clash_api.insert("external_controller".to_string(), Value::String(String::new()));
+    if let Some(mode) = default_mode.filter(|m| !m.is_empty()) {
+        clash_api.insert("default_mode".to_string(), Value::String(mode.to_string()));
+    }
+    experimental.insert("clash_api".to_string(), Value::Object(clash_api));
 
     Ok(())
 }

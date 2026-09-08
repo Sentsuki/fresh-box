@@ -19,6 +19,20 @@
 // call going through `invoke`/`invokeCommand`/`invokeRaw` with a string literal name
 // (never a dynamically constructed one).
 //
+// 它检查两件事：
+//   1. 命令**名**两侧一致
+//   2. 命令**参数名**两侧一致（Tauri 把 Rust 的 snake_case 暴露成 JS 的
+//      camelCase，所以比较前先归一化）
+//
+// 第 2 条是阶段 5 加的：把 `start_singbox(config_path)` 改成
+// `start_singbox(profile_id)` 时，只改一侧不会有任何编译错误，运行时表现是那个
+// 参数恒为 `undefined` —— 静默且难查。
+//
+// 真正的解法是从 Rust 生成 TS 类型（`tauri-specta`），但它对 Tauri v2 目前只有
+// release candidate（crates.io 上的稳定版 1.0.2 是 Tauri v1 时代的），不适合放进
+// 一个代理客户端的 IPC 边界。等它出稳定版再换 —— 在那之前这个脚本覆盖命令名和
+// 参数名，**载荷的字段形状仍然没有护栏**。
+//
 // Run via `npm run build`'s `prebuild` step (see package.json) — a
 // mismatch fails the build instead of shipping silently.
 
@@ -41,6 +55,83 @@ function listFiles(dir, exts, out = []) {
     }
   }
   return out;
+}
+
+/** Tauri 把 Rust 的 snake_case 参数名暴露成 JS 的 camelCase。 */
+function toCamelCase(name) {
+  return name.replace(/_([a-z0-9])/g, (_, c) => c.toUpperCase());
+}
+
+/** Tauri 自己注入的参数 —— 不由前端提供，不参与比较。 */
+const INJECTED_PARAM_TYPES =
+  /^(?:tauri::)?(?:State|AppHandle|Window|WebviewWindow|Webview)\b/;
+
+/** 从 `#[tauri::command]` 的签名里取出前端需要提供的参数名（camelCase）。 */
+function extractCommandParams(dir) {
+  const params = new Map();
+  for (const file of listFiles(dir, [".rs"])) {
+    const text = readFileSync(file, "utf8");
+    const pattern =
+      /#\[tauri::command\]\s*(?:pub\s+)?(?:async\s+)?fn\s+(\w+)\s*\(([\s\S]*?)\)\s*(?:->|\{)/g;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const [, name, rawArgs] = match;
+      // 按顶层逗号切分 —— 泛型里的逗号（`State<'_, Store>`）不能算。
+      const args = [];
+      let depth = 0;
+      let current = "";
+      for (const ch of rawArgs) {
+        if ("<([".includes(ch)) depth += 1;
+        else if (">)]".includes(ch)) depth -= 1;
+        if (ch === "," && depth === 0) {
+          args.push(current);
+          current = "";
+        } else {
+          current += ch;
+        }
+      }
+      args.push(current);
+
+      const provided = new Set();
+      for (const arg of args) {
+        const trimmed = arg.trim();
+        const colon = trimmed.indexOf(":");
+        if (!trimmed || colon === -1) continue;
+        const paramName = trimmed.slice(0, colon).trim();
+        const paramType = trimmed.slice(colon + 1).trim();
+        if (paramName.startsWith("_")) continue;
+        if (INJECTED_PARAM_TYPES.test(paramType)) continue;
+        provided.add(toCamelCase(paramName));
+      }
+      params.set(name, provided);
+    }
+  }
+  return params;
+}
+
+/** 从 `invoke*("name", { a, b })` 里取出前端实际传了哪些键。 */
+function extractInvokedParams(files) {
+  const invoked = new Map();
+  const pattern =
+    /\b(?:invoke|invokeCommand|invokeRaw)\b[^(\n]*\(\s*["'](\w+)["']\s*,\s*\{([\s\S]*?)\}\s*,?\s*\)/g;
+  for (const file of files) {
+    const text = readFileSync(file, "utf8");
+    pattern.lastIndex = 0;
+    let match;
+    while ((match = pattern.exec(text)) !== null) {
+      const [, name, body] = match;
+      const keys = new Set();
+      // 先去掉行注释：对象字面量里常有解释性注释，留着会把紧跟其后的那个键
+      // 连同注释文本一起吞进 `split(":")[0]`，于是那个键被漏掉。
+      const withoutComments = body.replace(/\/\/[^\n]*/g, "");
+      for (const piece of withoutComments.split(",")) {
+        const key = piece.split(":")[0].trim();
+        if (/^\w+$/.test(key)) keys.add(key);
+      }
+      invoked.set(name, keys);
+    }
+  }
+  return invoked;
 }
 
 function extractRegisteredCommands(mainRsSource) {
@@ -118,9 +209,42 @@ function main() {
     return;
   }
 
+  const declared = extractCommandParams(join(rootDir, "src-tauri", "src"));
+  const passed = extractInvokedParams(tsFiles);
+  const paramProblems = [];
+  for (const [command, keys] of passed) {
+    const expected = declared.get(command);
+    if (!expected) continue; // 命令名那一关已经查过
+    for (const key of keys) {
+      if (!expected.has(key)) {
+        paramProblems.push(
+          `  - "${command}" is passed "${key}", which it does not declare ` +
+            `(declares: ${[...expected].join(", ") || "nothing"})`,
+        );
+      }
+    }
+    for (const key of expected) {
+      if (!keys.has(key)) {
+        paramProblems.push(
+          `  - "${command}" declares "${key}", which the frontend never passes`,
+        );
+      }
+    }
+  }
+
+  if (paramProblems.length > 0) {
+    console.error(
+      `check-commands: ${paramProblems.length} command argument mismatch(es) — a rename that ` +
+        `only landed on one side surfaces at runtime as a silently undefined argument:\n` +
+        paramProblems.join("\n"),
+    );
+    process.exitCode = 1;
+    return;
+  }
+
   console.log(
     `check-commands: OK — ${invoked.size} invoked command name(s) all match a registered ` +
-      `command (${registered.size} registered).`,
+      `command (${registered.size} registered), and their argument names line up.`,
   );
 }
 

@@ -74,3 +74,12 @@ pub async fn repair_daemon_service(state: State<'_, SingboxState>) -> Result<(),
     crate::services::singbox::retry_connection(state.inner());
     Ok(())
 }
+
+/// 从另一个 Windows 用户会话接管 daemon —— `owned-by-other-user` 相位的出口。
+#[tauri::command]
+pub async fn take_over_daemon(state: State<'_, SingboxState>) -> Result<(), CommandError> {
+    let connection = crate::services::singbox::get_connection(state.inner()).await?;
+    connection.take_over_service().await?;
+    crate::services::singbox::retry_connection(state.inner());
+    Ok(())
+}

@@ -119,9 +119,26 @@ impl Drop for SessionGuard {
 ///
 /// 返回的 `SessionGuard` 一旦 drop，两条订阅退出、常驻状态清空 —— 所以调用
 /// 方只要把它留在会话作用域里就行，不需要记得手动收尾。
+/// Clash 模式变化时的落盘回调。
+///
+/// 做成回调而不是让 `run_clash_mode` 自己去 Tauri managed state 里反查 Store：
+/// 这样这个模块不依赖 Tauri 的状态容器，测试里给个空实现就能跑。
+pub type ModeSink = Arc<dyn Fn(&str) + Send + Sync>;
+
+/// 什么都不做的 `ModeSink` —— 集成测试用。
+///
+/// bin 目标看不到它的使用者（集成测试链接的是 lib 目标，而这个 crate 的
+/// `main.rs` 和 `lib.rs` 各自声明了一遍 `mod services`，所以两份都会编译），
+/// 于是 bin 那份会报 dead_code。
+#[allow(dead_code)]
+pub fn noop_mode_sink() -> ModeSink {
+    Arc::new(|_| {})
+}
+
 pub fn spawn_session(
     resident: Arc<ResidentState>,
     connection: DaemonConnection,
+    remember_mode: ModeSink,
 ) -> SessionGuard {
     let (tx, rx) = watch::channel(false);
 
@@ -130,7 +147,7 @@ pub fn spawn_session(
         connection.clone(),
         rx.clone(),
     ));
-    tauri::async_runtime::spawn(run_clash_mode(resident.clone(), connection, rx));
+    tauri::async_runtime::spawn(run_clash_mode(resident.clone(), connection, rx, remember_mode));
 
     SessionGuard { tx, resident }
 }
@@ -196,6 +213,7 @@ async fn run_clash_mode(
     resident: Arc<ResidentState>,
     connection: DaemonConnection,
     mut cancel: watch::Receiver<bool>,
+    remember_mode: ModeSink,
 ) {
     while !*cancel.borrow() {
         match connection.subscribe_clash_mode().await {
@@ -216,6 +234,9 @@ async fn run_clash_mode(
                                 {
                                     available = status.mode_list;
                                 }
+                                // 记住当前模式，下次启动实例时回填成
+                                // `clash_api.default_mode`（审计项 M-09）。
+                                remember_mode(&mode.mode);
                                 let _ = resident.mode_tx.send(ModeState {
                                     available: available.clone(),
                                     current: mode.mode,

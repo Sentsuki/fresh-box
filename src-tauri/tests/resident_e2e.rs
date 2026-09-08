@@ -18,7 +18,7 @@ use std::sync::Arc;
 use std::time::Duration;
 
 use fresh_box_lib::daemon::DaemonClient;
-use fresh_box_lib::services::resident::{ResidentState, spawn_session};
+use fresh_box_lib::services::resident::{ResidentState, noop_mode_sink, spawn_session};
 
 const DEV_ADDR: &str = "127.0.0.1:19090";
 
@@ -51,7 +51,7 @@ async fn session_subscriptions_wait_quietly_without_a_running_instance() {
 
     let resident = Arc::new(ResidentState::new());
     let connection = connect().await;
-    let session = spawn_session(resident.clone(), connection);
+    let session = spawn_session(resident.clone(), connection, noop_mode_sink());
 
     // 两条订阅都会在 `waitForStarted` 上挂住。给足够时间让「实现写错成重试
     // 打转」暴露出来 —— 那种写法会反复建流失败、也不会往状态里写东西。
@@ -79,7 +79,7 @@ async fn dropping_the_session_guard_clears_resident_state() {
     let resident = Arc::new(ResidentState::new());
     let mut changes = resident.subscribe_groups();
 
-    let session = spawn_session(resident.clone(), connect().await);
+    let session = spawn_session(resident.clone(), connect().await, noop_mode_sink());
     tokio::time::sleep(Duration::from_millis(200)).await;
 
     // 会话结束必须把常驻状态清空，否则托盘会在断连后继续显示一份已经不对的

@@ -1,6 +1,7 @@
 import { FluentProvider } from "@fluentui/react-components";
 import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
+import { DaemonGate } from "./components/global/DaemonGate";
 import { ErrorBoundary } from "./components/global/ErrorBoundary";
 import { GlobalToaster } from "./components/global/GlobalToaster";
 import { PageTransition } from "./components/layout/PageTransition";
@@ -180,7 +181,11 @@ export default function App() {
               <div className="flex-1 overflow-y-auto">
                 <div className="max-w-7xl mx-auto w-full p-5">
                   <ErrorBoundary key={currentPage}>
-                    <PageContent page={currentPage} />
+                    {/* daemon 连接相位的唯一闸门 —— 见 DaemonGate 的注释：
+                        相位穷举由类型系统保证，漏掉一个是编译错误。 */}
+                    <DaemonGate>
+                      <PageContent page={currentPage} />
+                    </DaemonGate>
                   </ErrorBoundary>
                 </div>
               </div>

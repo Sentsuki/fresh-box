@@ -120,7 +120,6 @@ export interface UpdateSettings {
 export interface DiagnosticsSettings {
   oom_killer_enabled: boolean;
   oom_memory_limit_mb: number;
-  oom_killer_kill_connections: boolean;
   power_report_enabled: boolean;
 }
 
@@ -203,7 +202,6 @@ export function createDefaultAppSettings(): AppSettings {
     diagnostics: {
       oom_killer_enabled: false,
       oom_memory_limit_mb: 200,
-      oom_killer_kill_connections: false,
       power_report_enabled: false,
     },
   };
@@ -360,9 +358,6 @@ export function normalizeAppSettings(
         typeof settings.diagnostics?.oom_memory_limit_mb === "number"
           ? settings.diagnostics.oom_memory_limit_mb
           : defaults.diagnostics.oom_memory_limit_mb,
-      oom_killer_kill_connections:
-        settings.diagnostics?.oom_killer_kill_connections ??
-        defaults.diagnostics.oom_killer_kill_connections,
       power_report_enabled:
         settings.diagnostics?.power_report_enabled ??
         defaults.diagnostics.power_report_enabled,

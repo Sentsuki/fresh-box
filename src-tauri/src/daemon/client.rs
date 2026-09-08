@@ -175,6 +175,19 @@ impl DaemonConnection {
             .map_err(|e| map_status("claim daemon service", e))
     }
 
+    /// 从另一个 Windows 用户会话手里接管 daemon。
+    ///
+    /// `OwnedByOtherUser` 以前是个死胡同：相位建模了，但没有任何出口，用户只能
+    /// 去把对方的会话注销掉。boxdd 本来就提供了这个 RPC（上游
+    /// `desktop_service.go` 的 `TakeOverService`），只是之前没 vendor 进来。
+    pub async fn take_over_service(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .take_over_service(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("take over daemon service", e))
+    }
+
     pub async fn start_service(
         &self,
         config_content: String,

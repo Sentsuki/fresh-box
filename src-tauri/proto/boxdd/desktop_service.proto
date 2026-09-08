@@ -14,6 +14,7 @@ import "google/protobuf/empty.proto";
 service DesktopService {
   rpc GetDaemonInfo(google.protobuf.Empty) returns (DaemonInfo) {}
   rpc ClaimService(google.protobuf.Empty) returns (google.protobuf.Empty) {}
+  rpc TakeOverService(google.protobuf.Empty) returns (google.protobuf.Empty) {}
   rpc StartService(StartServiceRequest) returns (google.protobuf.Empty) {}
 
   rpc ListCrashReports(google.protobuf.Empty) returns (CrashReportList) {}
