@@ -164,3 +164,116 @@ async fn bridge_refuses_a_method_that_is_not_exposed() {
         "expected PermissionDenied, got {error:?}"
     );
 }
+
+// ── 阶段 2：服务端流 ────────────────────────────────────────────────────────
+
+/// `SubscribeServiceStatus` 是唯一一条既不需要 peer identity、也不需要实例已
+/// 启动的服务端流（`started_service.go`：订阅建立即刻 `Send` 当前状态），所以
+/// 它是开发模式下唯一能真正跑通的流式往返。
+#[tokio::test]
+async fn server_streaming_delivers_a_real_frame() {
+    if !daemon_is_listening() {
+        eprintln!("skipping: no development daemon on {DEV_ADDR}");
+        return;
+    }
+
+    // SAFETY: 单线程测试，在任何其他线程读环境变量之前设置。
+    unsafe {
+        std::env::set_var("FRESH_BOX_DAEMON_ADDR", DEV_ADDR);
+    }
+
+    let client = DaemonClient::connect(&PathBuf::from("unused-in-dev-mode"))
+        .await
+        .expect("connect to the development daemon over TCP");
+
+    let mut stream = bridge::server_streaming(
+        &client.connection,
+        "daemon.StartedService",
+        "SubscribeServiceStatus",
+        Vec::new(),
+    )
+    .await
+    .expect("SubscribeServiceStatus through the byte-passthrough bridge");
+
+    let payload = tokio::time::timeout(std::time::Duration::from_secs(3), stream.message())
+        .await
+        .expect("the daemon sends the current status immediately on subscribe")
+        .expect("stream is healthy")
+        .expect("first frame is present");
+
+    // Rust 全程没解析过 —— 解一次只为断言这确实是前端会拿到的那串字节。
+    let status = fresh_box_lib::daemon::daemon_api::ServiceStatus::decode(payload.as_ref())
+        .expect("frame decodes as a ServiceStatus");
+    eprintln!(
+        "streaming round-trip ok: status={} ({} bytes)",
+        status.status,
+        payload.len()
+    );
+}
+
+/// 一元方法当成流来订阅必须被拒 —— 而且要在字节碰到网络之前拒。
+#[tokio::test]
+async fn server_streaming_rejects_a_unary_method() {
+    if !daemon_is_listening() {
+        eprintln!("skipping: no development daemon on {DEV_ADDR}");
+        return;
+    }
+
+    // SAFETY: 同上。
+    unsafe {
+        std::env::set_var("FRESH_BOX_DAEMON_ADDR", DEV_ADDR);
+    }
+
+    let client = DaemonClient::connect(&PathBuf::from("unused-in-dev-mode"))
+        .await
+        .expect("connect to the development daemon over TCP");
+
+    let error = bridge::server_streaming(
+        &client.connection,
+        "daemon.StartedService",
+        "GetStartedAt",
+        Vec::new(),
+    )
+    .await
+    .expect_err("GetStartedAt is unary, not server-streaming");
+    assert!(matches!(error, fresh_box_lib::CommandError::ValidationError(_)));
+}
+
+/// 丢掉 `Streaming` 会让 tonic 关掉这条 gRPC 流 —— 这是 `StreamRegistry` 用
+/// `AbortHandle` 取消任务时依赖的机制：任务被 abort → future 被 drop →
+/// `Streaming` 被 drop → 流关闭。这里验证 drop 之后还能正常再开一条，即上一条
+/// 确实没把连接卡住。
+#[tokio::test]
+async fn dropping_a_stream_releases_it() {
+    if !daemon_is_listening() {
+        eprintln!("skipping: no development daemon on {DEV_ADDR}");
+        return;
+    }
+
+    // SAFETY: 同上。
+    unsafe {
+        std::env::set_var("FRESH_BOX_DAEMON_ADDR", DEV_ADDR);
+    }
+
+    let client = DaemonClient::connect(&PathBuf::from("unused-in-dev-mode"))
+        .await
+        .expect("connect to the development daemon over TCP");
+
+    for round in 0..20 {
+        let mut stream = bridge::server_streaming(
+            &client.connection,
+            "daemon.StartedService",
+            "SubscribeServiceStatus",
+            Vec::new(),
+        )
+        .await
+        .unwrap_or_else(|e| panic!("round {round}: subscribe failed: {e}"));
+
+        tokio::time::timeout(std::time::Duration::from_secs(3), stream.message())
+            .await
+            .unwrap_or_else(|_| panic!("round {round}: no frame"))
+            .unwrap_or_else(|e| panic!("round {round}: stream error: {e}"));
+
+        drop(stream);
+    }
+}

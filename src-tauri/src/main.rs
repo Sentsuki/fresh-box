@@ -44,6 +44,7 @@ fn main() {
         // Cargo.toml entry for why.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(singbox_state)
+        .manage(daemon::bridge::registry::StreamRegistry::new())
         .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
         .manage(services::streams::StreamsState::new())
         .manage(services::tools::ToolsState::new())
@@ -53,6 +54,8 @@ fn main() {
             // `daemon_stream`/`daemon_cancel`）。下面那一长串 host 域命令
             // 会在阶段 3-5 里逐步收缩掉大半 —— 见重构方案 08 节。
             commands::bridge::daemon_unary,
+            commands::bridge::daemon_stream,
+            commands::bridge::daemon_cancel,
             commands::singbox::start_singbox,
             commands::singbox::stop_singbox,
             commands::singbox::get_daemon_state,
@@ -90,14 +93,8 @@ fn main() {
             commands::priority::check_config_fields,
             commands::diagnostics::record_frontend_error,
             commands::app::update_mica_theme,
-            commands::streams::start_traffic_stream,
-            commands::streams::stop_traffic_stream,
-            commands::streams::start_memory_stream,
-            commands::streams::stop_memory_stream,
             commands::streams::start_connections_stream,
             commands::streams::stop_connections_stream,
-            commands::streams::start_logs_stream,
-            commands::streams::stop_logs_stream,
             commands::proxy::close_all_connections,
             commands::proxy::close_connection,
             commands::config::add_subscription,
@@ -218,7 +215,27 @@ fn main() {
                     retry_connection(&state);
                 }
             }
-            tauri::WindowEvent::Destroyed => {}
+            tauri::WindowEvent::Destroyed => {
+                // 销毁模式下每次关闭窗口都会走到这里，所以这是流回收的主路径
+                // 而不是边角情况：漏收一次，daemon 那边就多留一条永远没人读的
+                // 订阅。见 `daemon::bridge::registry` 的模块注释。
+                if let Some(registry) =
+                    window.app_handle().try_state::<daemon::bridge::registry::StreamRegistry>()
+                {
+                    let cancelled = registry.cancel_window(window.label());
+                    if cancelled > 0 {
+                        // info 而不是 debug：每关一次窗口一行，而 `remaining`
+                        // 正是流泄漏的观测指标 —— 这是出问题时第一个想看的东西，
+                        // 不该藏在需要 RUST_LOG=debug 才出现的地方。
+                        tracing::info!(
+                            label = window.label(),
+                            cancelled,
+                            remaining = registry.active_count(),
+                            "cancelled daemon streams owned by a destroyed window"
+                        );
+                    }
+                }
+            }
             _ => {}
         })
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {

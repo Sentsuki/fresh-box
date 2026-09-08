@@ -14,15 +14,15 @@
 // 模块划分：
 //   codec.rs      `BytesCodec`，两端都是 `Bytes` 的 tonic Codec
 //   allowlist.rs  由 build.rs 从 proto 生成的方法表 = bridge 的能力边界
-//
-// 阶段 0 只做一元调用。服务端流（`daemon_stream` + `StreamRegistry` + 按窗口
-// 回收）是阶段 2 的内容 —— 见方案 08 节。
+//   registry.rs   活跃流按窗口分组，窗口销毁时一并取消
 
 pub mod allowlist;
 pub mod codec;
+pub mod registry;
 
 use tonic::client::Grpc;
 use tonic::codegen::Bytes;
+use tonic::{Streaming};
 
 use crate::daemon::DaemonConnection;
 use crate::errors::CommandError;
@@ -65,4 +65,73 @@ pub async fn unary(
         })?;
 
     Ok(response.into_inner().to_vec())
+}
+
+/// 流帧的一字节标签。
+///
+/// `Channel<InvokeResponseBody>` 只能送裸字节，没有地方放「这是消息 / 结束 /
+/// 出错」这类控制信息，所以在载荷前面加一个字节。
+///
+/// 这不算「发明数据」：加的是传输分帧，protobuf 载荷本身一个字节都没动 ——
+/// 前端剥掉标签拿到的就是 daemon 原样发出的那串字节。对照 gRPC 自己也在每条
+/// 消息前加 5 字节的压缩标志+长度。
+///
+/// 前端的对应实现见 `src/daemon/transport.ts`，两边的常量必须一致。
+pub mod frame {
+    /// `0x00` + protobuf 载荷
+    pub const MESSAGE: u8 = 0x00;
+    /// `0x01`，无载荷 —— 流正常结束
+    pub const END: u8 = 0x01;
+    /// `0x02` + UTF-8 错误描述
+    pub const ERROR: u8 = 0x02;
+
+    pub fn message(payload: &[u8]) -> Vec<u8> {
+        let mut framed = Vec::with_capacity(payload.len() + 1);
+        framed.push(MESSAGE);
+        framed.extend_from_slice(payload);
+        framed
+    }
+
+    pub fn end() -> Vec<u8> {
+        vec![END]
+    }
+
+    pub fn error(message: &str) -> Vec<u8> {
+        let mut framed = Vec::with_capacity(message.len() + 1);
+        framed.push(ERROR);
+        framed.extend_from_slice(message.as_bytes());
+        framed
+    }
+}
+
+/// 建立一条服务端流，返回逐帧的原始字节。
+///
+/// 和 `unary` 一样：请求字节由前端编码好，响应字节原样交回，Rust 不解析。
+pub async fn server_streaming(
+    connection: &DaemonConnection,
+    service: &str,
+    method: &str,
+    request: Vec<u8>,
+) -> Result<Streaming<Bytes>, CommandError> {
+    let path = allowlist::resolve(service, method, MethodKind::ServerStreaming)?;
+
+    let mut grpc = Grpc::new(connection.raw_channel());
+    grpc.ready()
+        .await
+        .map_err(|e| CommandError::network(format!("daemon bridge channel not ready: {e}")))?;
+
+    grpc.server_streaming(
+        tonic::Request::new(Bytes::from(request)),
+        path,
+        codec::BytesCodec,
+    )
+    .await
+    .map(|response| response.into_inner())
+    .map_err(|status| {
+        CommandError::network(format!(
+            "{service}/{method}: {} ({:?})",
+            status.message(),
+            status.code()
+        ))
+    })
 }

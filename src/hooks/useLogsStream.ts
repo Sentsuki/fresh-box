@@ -1,14 +1,12 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
-import type { CoreLogMessage, LogEntry } from "../types/app";
+import type { LogEntry } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import {
-  startLogsStream as startLogsStreamCmd,
-  stopLogsStream as stopLogsStreamCmd,
-} from "../services/api";
-import { createStreamGuard } from "./streamGuard";
+import { loadPriorityConfig } from "../services/api";
+import { startedService } from "../daemon/clients";
+import { createStreamController } from "../daemon/subscription";
+import { LogLevel } from "../gen/daemon/started_service_pb";
 
 const LOG_LIMIT = 2000;
 
@@ -70,27 +68,62 @@ function extractCategory(payload: string): string {
   return payload.split(/\s+/)[0];
 }
 
-// ---------------------------------------------------------------------------
-// Module-level stream management — shares `createStreamGuard` with
-// useTrafficStream/useMemoryStream/useConnectionsStream.
-// ---------------------------------------------------------------------------
+/**
+ * 去掉终端颜色转义（`ESC [ … <终止字节>`）。
+ *
+ * 这不是编码问题，daemon 真的会送这些字节：`SubscribeLog` 抓的日志走
+ * `log.PlatformWriter` 路径，而那个 formatter 的 `DisableColors` 从来没被接上
+ * （上游 `log/observable.go` 里那行是注释掉的死代码），所以每行日志都是给终端
+ * 上色过的。
+ *
+ * 以前这一步在 Rust 的 `strip_ansi_codes` 里做 —— 但那是在**改载荷**，正是
+ * 「不可以在 Rust 侧发明数据」要挡住的那类事。它本来就是显示层的关心：这个页面
+ * 是纯文本查看器所以要剥掉，将来若想真的渲染颜色，原始字节还在。
+ */
+/** ESC (0x1B)。用转义常量而不是把控制字符直接写进源码 —— 裸控制字符在编辑器
+ * 里不可见，被各种工具处理时也容易悄悄丢掉。 */
+const ESC = "\u001b";
 
-const guard = createStreamGuard({
-  start: startLogsStreamCmd,
-  stop: stopLogsStreamCmd,
-});
+function stripAnsiCodes(input: string): string {
+  if (!input.includes(ESC)) return input;
+  let out = "";
+  for (let i = 0; i < input.length; i += 1) {
+    if (input[i] === ESC && input[i + 1] === "[") {
+      i += 2;
+      // 消费到 CSI 序列的终止字节（0x40–0x7E，不只是 SGR 的 'm'）。
+      while (i < input.length) {
+        const code = input.charCodeAt(i);
+        if (code >= 0x40 && code <= 0x7e) break;
+        i += 1;
+      }
+      continue;
+    }
+    out += input[i];
+  }
+  return out;
+}
 
-// Register event listeners once at module load, always active.
-void listen<CoreLogMessage>("stream-logs", (e) => {
-  if (!guard.isActive()) return;
+/** proto 的 `LogLevel` 枚举 → 页面一直在用的那套字符串。 */
+const LEVEL_NAMES: Record<LogLevel, string> = {
+  [LogLevel.PANIC]: "panic",
+  [LogLevel.FATAL]: "fatal",
+  [LogLevel.ERROR]: "error",
+  [LogLevel.WARN]: "warning",
+  [LogLevel.INFO]: "info",
+  [LogLevel.DEBUG]: "debug",
+  [LogLevel.TRACE]: "trace",
+};
+
+function appendEntry(level: LogLevel, message: string) {
   const store = useLogsStore.getState();
   if (store.isPaused) return;
-  const msg = e.payload;
   const seq = store._seq;
-  // Increment seq in the store without triggering a render.
+  // 只改 _seq，不触发渲染。
   useLogsStore.setState((s) => ({ _seq: s._seq + 1 }));
-  const entry: LogEntry = {
-    ...msg,
+  const payload = stripAnsiCodes(message);
+  store.pushEntry({
+    type: LEVEL_NAMES[level] ?? "info",
+    payload,
     seq,
     time: new Date().toLocaleTimeString(undefined, {
       hour: "2-digit",
@@ -98,34 +131,47 @@ void listen<CoreLogMessage>("stream-logs", (e) => {
       second: "2-digit",
       hour12: false,
     }),
-    category: extractCategory(msg.payload),
-  };
-  store.pushEntry(entry);
-});
+    category: extractCategory(payload),
+  });
+}
 
-void listen<string>("stream-logs-status", (e) => {
-  const status = e.payload as LogsState["streamStatus"];
-  useLogsStore.getState().setStreamStatus(status);
-  if (status === "disabled" || status === "error") {
-    // The backend itself says this stream isn't usable right now — stop
-    // applying incoming data without waiting for someone to call
-    // `stopLogsStream()` (which, unlike this, would also re-issue the
-    // `stop_logs_stream` command — redundant here since the backend is
-    // the one telling us).
-    guard.forceInactive();
-  }
+const controller = createStreamController({
+  subscribe: (signal) => startedService.subscribeLog({}, { signal }),
+  onMessage: (log) => {
+    for (const message of log.messages) {
+      appendEntry(message.level, message.message);
+    }
+  },
+  onStatus: (status) => {
+    // `disabled` 是配置状态，不该被流的生命周期覆盖掉 —— 它一直挂到用户改配置
+    // 为止（页面据此显示「日志在核心配置里被关闭」而不是「未连接」）。
+    if (useLogsStore.getState().streamStatus === "disabled") return;
+    useLogsStore.getState().setStreamStatus(status);
+  },
 });
 
 export async function startLogsStream() {
-  await guard.start();
+  // 日志是否输出由 fresh-box 自己的 priority config 决定（host 域的设置），
+  // 关掉时 daemon 那条流会一直是空的，订阅它没有意义也没法给用户解释。
+  // 以前这个判断在 Rust 的 `start_logs_stream` 里，现在归调用方 —— 前端本来
+  // 就有读这份配置的命令。
+  try {
+    const priority = await loadPriorityConfig();
+    if (priority.log.disabled) {
+      useLogsStore.getState().setStreamStatus("disabled");
+      return;
+    }
+  } catch {
+    // 读不到就当没禁用，照常订阅 —— 顶多是空流，比因为读配置失败而看不到日志好。
+  }
+  if (useLogsStore.getState().streamStatus === "disabled") {
+    useLogsStore.getState().setStreamStatus("disconnected");
+  }
+  controller.start();
 }
 
 export async function stopLogsStream(clear = false) {
-  await guard.stop(
-    clear ? () => useLogsStore.getState().clearLogs() : undefined,
-  );
-  // Only reset to disconnected if not disabled — "disabled" is a core config
-  // state that should persist until the backend explicitly changes it.
+  controller.stop(clear ? () => useLogsStore.getState().clearLogs() : undefined);
   if (useLogsStore.getState().streamStatus !== "disabled") {
     useLogsStore.getState().setStreamStatus("disconnected");
   }

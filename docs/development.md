@@ -72,3 +72,20 @@ cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 
 `src/gen/` 是生成产物，不入库。首次 clone 后需要跑一次 `pnpm gen:proto`
 才能通过类型检查。
+
+## 验证流是否泄漏
+
+销毁模式（关窗 = 销毁 webview）下每次开关窗口都会新建一批订阅，漏收就会在
+daemon 那边越攒越多。回收有两道保险（`WindowEvent::Destroyed` + `Channel::send`
+失败自取消，见 `daemon::bridge::registry`），机制部分由
+`cargo test daemon::bridge::registry` 覆盖。
+
+端到端那半要看日志：每关一次窗口会打一行
+
+```
+cancelled daemon streams owned by a destroyed window  label=main cancelled=3 remaining=0
+```
+
+`remaining` 是全进程活跃流数。反复开关窗口，它必须回到同一个基线（只开一个
+窗口时是 0）。这行是 `info` 级别，默认就会出现在 `%LOCALAPPDATA%resh-box\log\`
+下的日志里，不用开 `RUST_LOG=debug`。

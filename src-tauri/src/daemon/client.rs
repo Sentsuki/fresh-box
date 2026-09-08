@@ -30,10 +30,9 @@ use crate::errors::CommandError;
 use super::daemon_api::managed_service_client::ManagedServiceClient;
 use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
-    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups, Log,
-    NetworkQualityTestProgress, NetworkQualityTestRequest, StunTestProgress, StunTestRequest,
-    SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
-    SubscribeStatusRequest, UrlTestRequest,
+    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups,
+    NetworkQualityTestProgress, NetworkQualityTestRequest, SelectOutboundRequest, ServiceStatus,
+    StunTestProgress, StunTestRequest, SubscribeConnectionsRequest, UrlTestRequest,
 };
 use super::desktop_api::{
     CrashReportEntry, CrashReportFile, CrashReportRequest, DaemonInfo, OomReportEntry,
@@ -50,13 +49,16 @@ fn map_status(context: &str, status: tonic::Status) -> CommandError {
     ))
 }
 
-/// `SubscribeStatusRequest.interval` / `SubscribeConnectionsRequest.interval`
-/// are fed straight into Go's `time.Duration(request.Interval)` on the
-/// daemon side (`StartedService.SubscribeStatus`/`SubscribeConnections` in
-/// `daemon/started_service.go` upstream) — `time.Duration` counts
-/// *nanoseconds*, not milliseconds. `subscribe_status`/`subscribe_connections`
-/// below take milliseconds (matching every caller's `_MS` constants), so
-/// convert here rather than at each call site.
+/// `SubscribeConnectionsRequest.interval` is fed straight into Go's
+/// `time.Duration(request.Interval)` on the daemon side
+/// (`StartedService.SubscribeConnections` in `daemon/started_service.go`
+/// upstream) — `time.Duration` counts *nanoseconds*, not milliseconds.
+/// `subscribe_connections` below takes milliseconds (matching its caller's
+/// `_MS` constant), so convert here rather than at the call site.
+///
+/// The frontend does this conversion itself now for the streams it
+/// subscribes to directly through the bridge — see
+/// `STATUS_INTERVAL_NANOS` in `src/daemon/statusStream.ts`.
 ///
 /// A non-positive value is passed through unchanged: the daemon's own
 /// `if interval <= 0 { interval = time.Second }` already does the right
@@ -207,19 +209,6 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to service status", e))
     }
 
-    pub async fn subscribe_status(
-        &self,
-        interval_ms: i64,
-    ) -> Result<Streaming<Status>, CommandError> {
-        self.started()
-            .subscribe_status(SubscribeStatusRequest {
-                interval: to_interval_nanos(interval_ms),
-            })
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("subscribe to traffic/memory status", e))
-    }
-
     pub async fn subscribe_groups(&self) -> Result<Streaming<Groups>, CommandError> {
         self.started()
             .subscribe_groups(())
@@ -239,14 +228,6 @@ impl DaemonConnection {
             .await
             .map(|r| r.into_inner())
             .map_err(|e| map_status("subscribe to connections", e))
-    }
-
-    pub async fn subscribe_log(&self) -> Result<Streaming<Log>, CommandError> {
-        self.started()
-            .subscribe_log(())
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("subscribe to logs", e))
     }
 
     /// The current Clash mode, pushed on every change — what `services::resident`

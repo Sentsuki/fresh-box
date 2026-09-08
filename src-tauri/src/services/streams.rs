@@ -1,12 +1,12 @@
-// streams.rs — push traffic/memory/connections/logs updates to the
-// frontend as Tauri events, sourced from `sing-box-daemon.exe`'s gRPC
-// streaming RPCs instead of four separate Clash API WebSockets.
+// streams.rs — 只剩连接流了。
 //
-// Event names and payload shapes are kept identical to the old Clash-API
-// backed implementation (see `src/hooks/use{Traffic,Memory,Connections,Logs}Stream.ts`)
-// so the frontend doesn't need to change. A few fields don't have a clean
-// source in boxdd's API and are approximated — search this file for
-// "NOTE:" to find them.
+// 流量、内存、日志已经在阶段 2 迁到前端直连 daemon（`src/daemon/statusStream.ts`、
+// `src/hooks/useLogsStream.ts`），Rust 这边不再转发也不再改形状。连接流是阶段 3
+// 的最后一块 —— 它需要把事件累加逻辑一起搬过去，所以单独一步。
+//
+// 剩下的这份实现仍带着 Clash 兼容形状的历史包袱（搜 "NOTE:"），那些正是阶段 3
+// 要一起消掉的东西：恒空字段、`downloadTotal` 用活跃连接求和（会回落）、CLOSED
+// 事件里 daemon 给的最终统计被丢弃。
 
 use std::collections::HashMap;
 use std::sync::Arc;
@@ -16,27 +16,20 @@ use tauri::Emitter;
 use tokio::sync::{Mutex, watch};
 
 use crate::daemon::DaemonConnection;
-use crate::daemon::daemon_api::{ConnectionEvents, Log};
+use crate::daemon::daemon_api::ConnectionEvents;
 use crate::errors::CommandError;
 use crate::services::singbox::{SingboxState, get_connection};
 
-const STATUS_INTERVAL_MS: i64 = 1_000;
 const CONNECTIONS_INTERVAL_MS: i64 = 1_000;
 
 pub struct StreamsState {
-    traffic: Mutex<Option<watch::Sender<bool>>>,
-    memory: Mutex<Option<watch::Sender<bool>>>,
     connections: Mutex<Option<watch::Sender<bool>>>,
-    logs: Mutex<Option<watch::Sender<bool>>>,
 }
 
 impl StreamsState {
     pub fn new() -> Self {
         Self {
-            traffic: Mutex::new(None),
-            memory: Mutex::new(None),
             connections: Mutex::new(None),
-            logs: Mutex::new(None),
         }
     }
 }
@@ -159,73 +152,6 @@ async fn run_with_reconnect<F, Fut>(
     }
 
     let _ = app.emit(status_event, "disconnected");
-}
-
-// ── Traffic stream ─────────────────────────────────────────────────────────
-
-pub async fn start_traffic_stream(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, StreamsState>,
-    singbox: tauri::State<'_, SingboxState>,
-) -> Result<(), CommandError> {
-    let rx = start_stream_slot(&state.traffic).await;
-    let singbox = singbox.inner().clone();
-    tokio::spawn(run_with_reconnect(
-        app,
-        singbox,
-        rx,
-        "stream-traffic-status",
-        |app, connection| async move {
-            let Ok(mut stream) = connection.subscribe_status(STATUS_INTERVAL_MS).await else {
-                return;
-            };
-            while let Ok(Some(status)) = stream.message().await {
-                let _ = app.emit(
-                    "stream-traffic",
-                    json!({ "down": status.downlink, "up": status.uplink }),
-                );
-            }
-        },
-    ));
-    Ok(())
-}
-
-pub async fn stop_traffic_stream(
-    state: tauri::State<'_, StreamsState>,
-) -> Result<(), CommandError> {
-    stop_stream_slot(&state.traffic).await;
-    Ok(())
-}
-
-// ── Memory stream ──────────────────────────────────────────────────────────
-
-pub async fn start_memory_stream(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, StreamsState>,
-    singbox: tauri::State<'_, SingboxState>,
-) -> Result<(), CommandError> {
-    let rx = start_stream_slot(&state.memory).await;
-    let singbox = singbox.inner().clone();
-    tokio::spawn(run_with_reconnect(
-        app,
-        singbox,
-        rx,
-        "stream-memory-status",
-        |app, connection| async move {
-            let Ok(mut stream) = connection.subscribe_status(STATUS_INTERVAL_MS).await else {
-                return;
-            };
-            while let Ok(Some(status)) = stream.message().await {
-                let _ = app.emit("stream-memory", json!({ "inuse": status.memory }));
-            }
-        },
-    ));
-    Ok(())
-}
-
-pub async fn stop_memory_stream(state: tauri::State<'_, StreamsState>) -> Result<(), CommandError> {
-    stop_stream_slot(&state.memory).await;
-    Ok(())
 }
 
 // ── Connections stream ─────────────────────────────────────────────────────
@@ -420,110 +346,5 @@ pub async fn stop_connections_stream(
     state: tauri::State<'_, StreamsState>,
 ) -> Result<(), CommandError> {
     stop_stream_slot(&state.connections).await;
-    Ok(())
-}
-
-// ── Logs stream ────────────────────────────────────────────────────────────
-
-fn log_level_name(level: crate::daemon::daemon_api::LogLevel) -> &'static str {
-    use crate::daemon::daemon_api::LogLevel;
-    match level {
-        LogLevel::Panic => "panic",
-        LogLevel::Fatal => "fatal",
-        LogLevel::Error => "error",
-        LogLevel::Warn => "warning",
-        LogLevel::Info => "info",
-        LogLevel::Debug => "debug",
-        LogLevel::Trace => "trace",
-    }
-}
-
-/// Strip terminal color escape codes (`ESC [ ... <final byte>`, e.g. the
-/// SGR sequences `aurora.Colorize`/`aurora.Cyan`/etc. produce) out of a log
-/// message.
-///
-/// This isn't a character-encoding problem — the daemon really does send
-/// these bytes, and they're valid UTF-8 (prost would refuse to decode a
-/// `string` field otherwise). It's an upstream sing-box quirk: the log
-/// entries `StartedService` captures for `SubscribeLog` are delivered
-/// through the `log.PlatformWriter` path (`AttachPlatformWriter` in
-/// `daemon/attached_service.go`), which always formats through
-/// `platformFormatter` — and that formatter's `DisableColors` is never set
-/// (the one line that would wire it up to `PlatformWriter.DisableColors()`
-/// is dead code, commented out in `log/observable.go` upstream). So every
-/// log line comes through pre-colorized for a terminal, regardless of the
-/// config's own `log.disabled`/`level`. fresh-box's Logs page is a
-/// plain-text viewer, so left alone those escape sequences render as
-/// garbled control characters — strip them here so only the sink (this
-/// Tauri event, and anything that reads it downstream) ever needs to care.
-fn strip_ansi_codes(input: &str) -> String {
-    if !input.contains('\u{1b}') {
-        return input.to_string();
-    }
-    let mut out = String::with_capacity(input.len());
-    let mut chars = input.chars().peekable();
-    while let Some(c) = chars.next() {
-        if c == '\u{1b}' && chars.peek() == Some(&'[') {
-            chars.next(); // consume the '['
-            // Consume through the CSI sequence's final byte (0x40..=0x7E
-            // covers every terminator, not just SGR's 'm', in case aurora
-            // ever emits something else).
-            for next in chars.by_ref() {
-                if ('\x40'..='\x7e').contains(&next) {
-                    break;
-                }
-            }
-            continue;
-        }
-        out.push(c);
-    }
-    out
-}
-
-async fn run_logs(app: tauri::AppHandle, connection: DaemonConnection) {
-    let Ok(mut stream) = connection.subscribe_log().await else {
-        return;
-    };
-    while let Ok(Some(Log { messages, .. })) = stream.message().await {
-        for message in messages {
-            let _ = app.emit(
-                "stream-logs",
-                json!({
-                    "type": log_level_name(message.level()),
-                    "payload": strip_ansi_codes(&message.message),
-                }),
-            );
-        }
-    }
-}
-
-pub async fn start_logs_stream(
-    app: tauri::AppHandle,
-    state: tauri::State<'_, StreamsState>,
-    singbox: tauri::State<'_, SingboxState>,
-) -> Result<(), CommandError> {
-    let rx = start_stream_slot(&state.logs).await;
-
-    let priority_config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)
-            .unwrap_or_default();
-    if priority_config.log.disabled {
-        let _ = app.emit("stream-logs-status", "disabled");
-        return Ok(());
-    }
-
-    let singbox = singbox.inner().clone();
-    tokio::spawn(run_with_reconnect(
-        app,
-        singbox,
-        rx,
-        "stream-logs-status",
-        run_logs,
-    ));
-    Ok(())
-}
-
-pub async fn stop_logs_stream(state: tauri::State<'_, StreamsState>) -> Result<(), CommandError> {
-    stop_stream_slot(&state.logs).await;
     Ok(())
 }

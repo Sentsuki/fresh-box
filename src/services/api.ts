@@ -247,36 +247,12 @@ export async function closeConnection(id: string): Promise<void> {
   return invokeCommand<void>("close_connection", { id });
 }
 
-export async function startTrafficStream(): Promise<void> {
-  return invokeCommand<void>("start_traffic_stream");
-}
-
-export async function stopTrafficStream(): Promise<void> {
-  return invokeCommand<void>("stop_traffic_stream");
-}
-
-export async function startMemoryStream(): Promise<void> {
-  return invokeCommand<void>("start_memory_stream");
-}
-
-export async function stopMemoryStream(): Promise<void> {
-  return invokeCommand<void>("stop_memory_stream");
-}
-
 export async function startConnectionsStream(): Promise<void> {
   return invokeCommand<void>("start_connections_stream");
 }
 
 export async function stopConnectionsStream(): Promise<void> {
   return invokeCommand<void>("stop_connections_stream");
-}
-
-export async function startLogsStream(): Promise<void> {
-  return invokeCommand<void>("start_logs_stream");
-}
-
-export async function stopLogsStream(): Promise<void> {
-  return invokeCommand<void>("stop_logs_stream");
 }
 
 /**

@@ -1,7 +1,10 @@
 /**
- * Shared "is this stream still supposed to be running" guard + start/stop
- * wrapper, used by every `stream-*` feature (traffic/memory/connections/
- * logs) instead of each reimplementing it slightly differently.
+ * "这条流还该不该应用数据" 的守卫 + 起停包装。
+ *
+ * 阶段 2 之后只剩连接流在用：流量/内存/日志已经改成前端直接向 daemon 订阅
+ * （`daemon/subscription.ts` 的 `createStreamController`），那条路径上流的
+ * 生命周期由 `AbortController` 管，迟到的数据在 `AbortSignal` 触发后根本不会
+ * 再送达，不需要这层守卫。连接流迁完（阶段 3）之后这个文件就可以删掉。
  *
  * Before this existed, only `useLogsStream` guarded against a data event
  * arriving just after `stop` was called (its module-level `isStreaming`
