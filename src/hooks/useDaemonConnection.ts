@@ -1,9 +1,4 @@
 import { listen } from "@tauri-apps/api/event";
-import {
-  isPermissionGranted,
-  requestPermission,
-  sendNotification,
-} from "@tauri-apps/plugin-notification";
 import { useEffect } from "react";
 import { getDaemonState } from "../services/api";
 import type { DaemonConnectionPhase } from "../types/daemon";
@@ -13,19 +8,6 @@ import { isWindowVisible } from "./useWindowVisibility";
 import { startAllStreams, stopAllStreams } from "./streamLifecycle";
 import { runBridgeSelfCheckOnce } from "../daemon/selfcheck";
 import { useToast } from "./useToast";
-
-async function notifyOs(body: string) {
-  try {
-    let permitted = await isPermissionGranted();
-    if (!permitted) {
-      const result = await requestPermission();
-      permitted = result === "granted";
-    }
-    if (permitted) sendNotification({ title: "sing-box", body });
-  } catch {
-    // notifications are best-effort
-  }
-}
 
 type Toast = ReturnType<typeof useToast>;
 
@@ -41,7 +23,15 @@ type Toast = ReturnType<typeof useToast>;
  * `announce` is false only for the very first phase applied at mount (the
  * synchronous `getDaemonState()` snapshot) — otherwise every app launch
  * where sing-box happened to already be running would fire a "sing-box is
- * running" notification.
+ * running" toast.
+ *
+ * OS notifications are deliberately NOT sent from here any more — they live
+ * in Rust (`services::resident::spawn_notifier`). Closing the window
+ * destroys the webview, so anything that must still fire with no window
+ * open cannot live in the renderer: this file used to send them, which
+ * meant a sing-box crash produced no notification at all once the window
+ * was closed. What stays here is the in-window toast, which only makes
+ * sense while a window exists.
  */
 function applyPhase(
   phase: DaemonConnectionPhase,
@@ -72,7 +62,6 @@ function applyPhase(
     void useProxyStore.getState().refreshOverview(announce);
     if (announce) {
       toast.success("sing-box is running.");
-      void notifyOs("sing-box is running.");
     }
     return;
   }
@@ -87,18 +76,15 @@ function applyPhase(
       "sing-box has stopped unexpectedly.",
       phase.status.errorMessage || undefined,
     );
-    void notifyOs("sing-box has stopped unexpectedly.");
   } else if (phase.phase === "connected") {
     // Idle/Starting/Stopping — a clean stop, whether we asked for it
     // (`stopService`) or something else did.
     toast.success("sing-box is stopped.");
-    void notifyOs("sing-box is stopped.");
   } else {
     // Dropped out of "connected" entirely — lost the daemon, not just the
     // sing-box instance (worker died, service restarted out from under
     // us, ...). The reconciliation loop is already retrying on its own.
     toast.error("Lost connection to sing-box-daemon.");
-    void notifyOs("Lost connection to sing-box-daemon.");
   }
 }
 

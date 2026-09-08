@@ -1,0 +1,295 @@
+// resident.rs — Rust 自己作为 daemon 客户端所需的常驻状态。
+//
+// 为什么需要它：关闭主窗口会**销毁** webview（见 `main.rs` 的
+// `CloseRequested` 处理），所以任何「关了窗口还得继续工作」的东西都不能住在
+// 前端。目前是两件：托盘（要画节点/模式菜单、要能启停）和状态变化通知。
+//
+// 这不违反「不可以在 Rust 侧发明数据」：Rust 在这里是 daemon 的一个客户端，
+// 和前端平级，它解码 `Groups`/`ClashMode` 是为了画自己的 UI（托盘）。被禁止
+// 的是另一件事 —— 把解码后的结果重新打包成一个自创的形状，当作前端的数据源。
+// 下面这些类型没有一个会跨过 IPC 边界：前端要代理组，走 bridge 自己订
+// `SubscribeGroups`。同一条流两个独立消费者，中间零翻译。
+//
+// 生命周期：三条订阅（ServiceStatus 由 `services::singbox` 的
+// reconciliation loop 自己持有，Groups 和 ClashMode 在这里）都绑定在一次
+// 连接会话上。会话结束时取消并清空，托盘随之回到「未连接」的样子。
+//
+// 对照官方客户端的 `main/state.ts`：`loopConnection` 里 `void
+// this.loopGroups(session.signal)` 就是同一个形状。
+
+use std::sync::Arc;
+use std::time::Duration;
+
+use tauri::AppHandle;
+use tauri_plugin_notification::NotificationExt;
+use tokio::sync::watch;
+
+use crate::daemon::DaemonConnection;
+use crate::services::singbox::{ConnectionPhase, SingboxState};
+
+/// 一条订阅失败后重试前的等待 —— 对齐官方 `state.ts` 的 `RECONNECT_DELAY`。
+/// 这两条流会在 daemon 的 `waitForStarted` 上阻塞到实例真的起来，所以正常
+/// 情况下根本走不到重试；这个延迟防的是「订阅立刻出错」时的紧循环。
+const RESUBSCRIBE_DELAY: Duration = Duration::from_secs(3);
+
+/// 托盘节点子菜单需要的那点信息，从 `daemon_api::Group` 里摘出来。
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct TrayGroup {
+    pub tag: String,
+    pub selected: String,
+    pub items: Vec<String>,
+}
+
+/// 托盘模式子菜单需要的信息。`available` 来自一次 `GetClashModeStatus`，
+/// `current` 由 `SubscribeClashMode` 持续更新。
+#[derive(Clone, Debug, Default, PartialEq)]
+pub struct ModeState {
+    pub available: Vec<String>,
+    pub current: String,
+}
+
+/// 进程级常驻状态，作为 Tauri managed state 注册。托盘从这里读，
+/// `spawn_session` 往这里写。
+pub struct ResidentState {
+    groups_tx: watch::Sender<Vec<TrayGroup>>,
+    groups_rx: watch::Receiver<Vec<TrayGroup>>,
+    mode_tx: watch::Sender<ModeState>,
+    mode_rx: watch::Receiver<ModeState>,
+}
+
+impl ResidentState {
+    pub fn new() -> Self {
+        let (groups_tx, groups_rx) = watch::channel(Vec::new());
+        let (mode_tx, mode_rx) = watch::channel(ModeState::default());
+        Self {
+            groups_tx,
+            groups_rx,
+            mode_tx,
+            mode_rx,
+        }
+    }
+
+    pub fn groups(&self) -> Vec<TrayGroup> {
+        self.groups_rx.borrow().clone()
+    }
+
+    pub fn mode(&self) -> ModeState {
+        self.mode_rx.borrow().clone()
+    }
+
+    pub fn subscribe_groups(&self) -> watch::Receiver<Vec<TrayGroup>> {
+        self.groups_rx.clone()
+    }
+
+    pub fn subscribe_mode(&self) -> watch::Receiver<ModeState> {
+        self.mode_rx.clone()
+    }
+
+    /// 会话结束时调用 —— 托盘立刻回到「没有节点、没有模式」的样子，而不是
+    /// 继续显示一份已经不对的快照。
+    fn clear(&self) {
+        let _ = self.groups_tx.send(Vec::new());
+        let _ = self.mode_tx.send(ModeState::default());
+    }
+}
+
+impl Default for ResidentState {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+
+/// 会话取消信号：`true` = 这次连接已经结束，两条订阅都该退出。
+/// 沿用 `services::streams` 里 `stop_rx` 的约定。
+pub struct SessionGuard {
+    tx: watch::Sender<bool>,
+    resident: Arc<ResidentState>,
+}
+
+/// 收尾只走 `Drop`：`run_reconciliation_attempt` 里有多条提前 `return` 的
+/// 路径（订阅失败、流断开），显式的 `end()` 迟早会漏掉一条。
+impl Drop for SessionGuard {
+    fn drop(&mut self) {
+        let _ = self.tx.send(true);
+        self.resident.clear();
+    }
+}
+
+/// 为一次成功建立的连接启动 Groups / ClashMode 两条常驻订阅。
+///
+/// 返回的 `SessionGuard` 一旦 drop，两条订阅退出、常驻状态清空 —— 所以调用
+/// 方只要把它留在会话作用域里就行，不需要记得手动收尾。
+pub fn spawn_session(
+    resident: Arc<ResidentState>,
+    connection: DaemonConnection,
+) -> SessionGuard {
+    let (tx, rx) = watch::channel(false);
+
+    tauri::async_runtime::spawn(run_groups(
+        resident.clone(),
+        connection.clone(),
+        rx.clone(),
+    ));
+    tauri::async_runtime::spawn(run_clash_mode(resident.clone(), connection, rx));
+
+    SessionGuard { tx, resident }
+}
+
+/// 会话还活着就返回 `true`；被取消了返回 `false`。
+async fn wait_before_resubscribe(cancel: &mut watch::Receiver<bool>) -> bool {
+    tokio::select! {
+        _ = tokio::time::sleep(RESUBSCRIBE_DELAY) => !*cancel.borrow(),
+        result = cancel.changed() => result.is_ok() && !*cancel.borrow(),
+    }
+}
+
+async fn run_groups(
+    resident: Arc<ResidentState>,
+    connection: DaemonConnection,
+    mut cancel: watch::Receiver<bool>,
+) {
+    while !*cancel.borrow() {
+        // 这里会阻塞到 sing-box 实例真的启动（daemon 的 `waitForStarted`），
+        // 所以连上就订阅、由它自己等，比在这边轮询状态更省事也更准。
+        match connection.subscribe_groups().await {
+            Ok(mut stream) => loop {
+                tokio::select! {
+                    _ = cancel.changed() => return,
+                    message = stream.message() => match message {
+                        Ok(Some(groups)) => {
+                            let _ = resident.groups_tx.send(to_tray_groups(groups));
+                        }
+                        // 流正常结束或出错都退到外层重订阅：实例停了、daemon
+                        // 重启了，都属于「等一下再来」而不是「彻底放弃」。
+                        _ => break,
+                    },
+                }
+            },
+            Err(e) => tracing::debug!(error = ?e, "resident: subscribe to proxy groups failed"),
+        }
+
+        if !wait_before_resubscribe(&mut cancel).await {
+            return;
+        }
+    }
+}
+
+/// 只保留 daemon 自己标了 `selectable` 的组。
+///
+/// 比按 `type` 字符串猜（`selector`/`urltest`）准确：`urltest` 组是自动选路
+/// 的，从托盘手点一个节点没有意义，而 `selectable` 正是 daemon 对「这个组
+/// 能不能手动选」的回答。
+fn to_tray_groups(groups: crate::daemon::daemon_api::Groups) -> Vec<TrayGroup> {
+    groups
+        .group
+        .into_iter()
+        .filter(|g| g.selectable)
+        .map(|g| TrayGroup {
+            tag: g.tag,
+            selected: g.selected,
+            items: g.items.into_iter().map(|item| item.tag).collect(),
+        })
+        .collect()
+}
+
+async fn run_clash_mode(
+    resident: Arc<ResidentState>,
+    connection: DaemonConnection,
+    mut cancel: watch::Receiver<bool>,
+) {
+    while !*cancel.borrow() {
+        match connection.subscribe_clash_mode().await {
+            Ok(mut stream) => {
+                // `SubscribeClashMode` 只推当前模式，不带可选模式列表。列表
+                // 从 `GetClashModeStatus` 取一次就够 —— 它由配置决定，实例
+                // 运行期间不会变。等第一条推送到达再取，因为那条推送到达就
+                // 意味着实例已经 started，而 `GetClashModeStatus` 恰好要求
+                // 这一点。
+                let mut available: Vec<String> = Vec::new();
+                loop {
+                    tokio::select! {
+                        _ = cancel.changed() => return,
+                        message = stream.message() => match message {
+                            Ok(Some(mode)) => {
+                                if available.is_empty()
+                                    && let Ok(status) = connection.clash_mode_status().await
+                                {
+                                    available = status.mode_list;
+                                }
+                                let _ = resident.mode_tx.send(ModeState {
+                                    available: available.clone(),
+                                    current: mode.mode,
+                                });
+                            }
+                            _ => break,
+                        },
+                    }
+                }
+            }
+            Err(e) => tracing::debug!(error = ?e, "resident: subscribe to clash mode failed"),
+        }
+
+        if !wait_before_resubscribe(&mut cancel).await {
+            return;
+        }
+    }
+}
+
+// ── 状态变化通知 ────────────────────────────────────────────────────────────
+
+/// 把「sing-box 起了/停了/挂了/连接丢了」发成系统通知。
+///
+/// 这段逻辑原来在前端 `useDaemonConnection.ts` 的 `notifyOs` 里 —— 在销毁
+/// 模式下等于不存在：窗口一关 webview 就没了，sing-box 崩溃时用户收不到
+/// 任何提示。搬到这里之后它和进程同寿。
+///
+/// 窗口里的 toast 仍然留在前端：那是窗口内的 UI，本来就只在有窗口时才有
+/// 意义，也不该和系统通知重复。
+pub fn spawn_notifier(app: AppHandle, state: SingboxState) {
+    tauri::async_runtime::spawn(async move {
+        let mut rx = crate::services::singbox::subscribe(&state);
+        // 用当前相位做基线，不为「应用启动时 sing-box 恰好已经在跑」发一条
+        // 通知 —— 对齐前端原来 `announce=false` 的首帧处理。
+        let mut was_running = rx.borrow().running();
+
+        while rx.changed().await.is_ok() {
+            let phase = rx.borrow().clone();
+            let running = phase.running();
+            if running == was_running {
+                continue;
+            }
+            was_running = running;
+
+            let (title, body) = match (&phase, running) {
+                (_, true) => ("sing-box", "sing-box is running.".to_string()),
+                (ConnectionPhase::Connected { status }, false)
+                    if status.state == crate::services::singbox::SingboxRunState::Fatal =>
+                {
+                    let detail = if status.error_message.is_empty() {
+                        "sing-box has stopped unexpectedly.".to_string()
+                    } else {
+                        format!(
+                            "sing-box has stopped unexpectedly: {}",
+                            status.error_message
+                        )
+                    };
+                    ("sing-box", detail)
+                }
+                // Idle / Starting / Stopping —— 一次干净的停止，不管是谁发起的。
+                (ConnectionPhase::Connected { .. }, false) => {
+                    ("sing-box", "sing-box is stopped.".to_string())
+                }
+                // 整个掉出了 connected：丢的是 daemon 连接，不只是实例。
+                // reconciliation loop 自己在重试。
+                (_, false) => (
+                    "sing-box",
+                    "Lost connection to sing-box-daemon.".to_string(),
+                ),
+            };
+
+            if let Err(e) = app.notification().builder().title(title).body(&body).show() {
+                tracing::warn!(error = ?e, "failed to show state-change notification");
+            }
+        }
+    });
+}

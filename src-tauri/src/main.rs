@@ -44,6 +44,7 @@ fn main() {
         // Cargo.toml entry for why.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(singbox_state)
+        .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
         .manage(services::streams::StreamsState::new())
         .manage(services::tools::ToolsState::new())
         .manage(config::app_settings::BackendPrefsState::load())
@@ -150,6 +151,20 @@ fn main() {
             let state = app.state::<SingboxState>();
             spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
             commands::config::spawn_auto_update_scheduler(app.handle().clone());
+
+            // 关闭窗口会销毁 webview，所以这两件事必须由 Rust 拥有：状态变化
+            // 的系统通知（原来在前端，销毁模式下等于不存在），以及托盘菜单的
+            // 持续同步。见 `services::resident` 的模块注释。
+            let resident = app
+                .state::<std::sync::Arc<services::resident::ResidentState>>()
+                .inner()
+                .clone();
+            services::resident::spawn_notifier(app.handle().clone(), state.inner().clone());
+            tray::spawn_tray_sync(
+                app.handle().clone(),
+                state.inner().clone(),
+                resident,
+            );
 
             Ok(())
         })

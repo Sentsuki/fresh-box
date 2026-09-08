@@ -63,8 +63,12 @@ sing-box 实例，所以那些带 `waitForStarted` 的方法（如 `SubscribeGro
 pnpm gen:proto      # 从 src-tauri/proto 生成 src/gen 下的 TS 类型（buf）
 pnpm build          # tsc + vite（prebuild 会校验 IPC 命令名两侧一致）
 cargo test          # 含 bridge allowlist 单测
-cargo test --test bridge_e2e -- --nocapture   # 端到端，需要上面那个 daemon
+cargo test --test bridge_e2e -- --nocapture     # bridge 端到端，需要上面那个 daemon
+cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 ```
+
+带 `_e2e` 的测试在没有开发 daemon 时会**跳过而不是失败**（各花约 0.3 秒做 TCP
+探活）。想确认它们真的跑了，看耗时：跳过约 0.3 秒，真跑起来会明显更久。
 
 `src/gen/` 是生成产物，不入库。首次 clone 后需要跑一次 `pnpm gen:proto`
 才能通过类型检查。

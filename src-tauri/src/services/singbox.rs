@@ -27,7 +27,7 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, Notify, watch};
 
 use crate::daemon::daemon_api::ServiceStatus;
@@ -354,6 +354,16 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     let connection = client.connection.clone();
     *state.client.lock().await = Some(client);
 
+    // 这次会话期间的常驻订阅（代理组、Clash 模式），供托盘使用 —— 它们和
+    // 前端各订各的，中间不经过任何翻译，见 `services::resident` 的模块注释。
+    // `_session` 一旦离开作用域就会取消订阅并清空常驻状态，所以下面每一条
+    // 提前 return 的路径都不需要自己收尾。
+    let _session = app
+        .try_state::<std::sync::Arc<crate::services::resident::ResidentState>>()
+        .map(|resident| {
+            crate::services::resident::spawn_session(resident.inner().clone(), connection.clone())
+        });
+
     let mut stream = match connection.subscribe_service_status().await {
         Ok(stream) => stream,
         Err(e) => {
@@ -508,19 +518,18 @@ fn build_start_options() -> StartOptions {
     }
 }
 
-pub async fn start_singbox(
-    _app_handle: tauri::AppHandle,
-    state: State<'_, SingboxState>,
-    config_path: String,
+/// 合成配置并交给 daemon 启动 —— 命令（前端）与托盘（无窗口时）共用这一条
+/// 路径，所以它不依赖 `State<'_>`。
+pub async fn start_with_config(
+    state: &SingboxState,
+    config_path: &str,
 ) -> Result<(), CommandError> {
-    let state = state.inner().clone();
-
     if state.phase_rx.borrow().running() {
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
-    let config_content = build_config_content(&config_path).await?;
-    let connection = get_connection(&state).await?;
+    let config_content = build_config_content(config_path).await?;
+    let connection = get_connection(state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
         connection.start_service(config_content, build_start_options()),
@@ -528,10 +537,21 @@ pub async fn start_singbox(
     .await
 }
 
-pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
-    let state = state.inner().clone();
-    let connection = get_connection(&state).await?;
+pub async fn stop(state: &SingboxState) -> Result<(), CommandError> {
+    let connection = get_connection(state).await?;
     with_lifecycle_timeout("stop sing-box service", connection.stop_service()).await
+}
+
+pub async fn start_singbox(
+    _app_handle: tauri::AppHandle,
+    state: State<'_, SingboxState>,
+    config_path: String,
+) -> Result<(), CommandError> {
+    start_with_config(state.inner(), &config_path).await
+}
+
+pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
+    stop(state.inner()).await
 }
 
 /// Current connection phase, for a component's first render — the

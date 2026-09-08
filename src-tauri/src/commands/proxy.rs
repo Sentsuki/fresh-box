@@ -6,19 +6,17 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn get_proxy_overview(
-    app: tauri::AppHandle,
     state: State<'_, SingboxState>,
 ) -> Result<ProxyOverview, CommandError> {
-    crate::services::daemon_control::get_proxy_overview(app, state.inner()).await
+    crate::services::daemon_control::get_proxy_overview(state.inner()).await
 }
 
 #[tauri::command]
 pub async fn update_proxy_mode(
-    app: tauri::AppHandle,
     state: State<'_, SingboxState>,
     mode: String,
 ) -> Result<ProxyOverview, CommandError> {
-    crate::services::daemon_control::update_proxy_mode(app, state.inner(), mode).await
+    crate::services::daemon_control::update_proxy_mode(state.inner(), mode).await
 }
 
 #[tauri::command]
@@ -42,18 +40,12 @@ pub async fn test_proxy_delay(
 
 #[tauri::command]
 pub async fn test_proxy_group_delay(
-    app: tauri::AppHandle,
     state: State<'_, SingboxState>,
     proxy_group: String,
     timeout_ms: Option<u64>,
 ) -> Result<IndexMap<String, i64>, CommandError> {
-    crate::services::daemon_control::test_proxy_group_delay(
-        app,
-        state.inner(),
-        proxy_group,
-        timeout_ms,
-    )
-    .await
+    crate::services::daemon_control::test_proxy_group_delay(state.inner(), proxy_group, timeout_ms)
+        .await
 }
 
 #[tauri::command]

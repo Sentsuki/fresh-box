@@ -249,6 +249,22 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to logs", e))
     }
 
+    /// The current Clash mode, pushed on every change — what `services::resident`
+    /// keeps the tray's mode submenu checkmark in sync with.
+    ///
+    /// Carries only the mode string, not the list of available modes; pair it
+    /// with one `clash_mode_status()` call for that. Blocks on the daemon's
+    /// `waitForStarted` until a sing-box instance is actually running
+    /// (`started_service.go`), so a caller can subscribe eagerly at connect
+    /// time and let it come alive on its own once the instance starts.
+    pub async fn subscribe_clash_mode(&self) -> Result<Streaming<ClashMode>, CommandError> {
+        self.started()
+            .subscribe_clash_mode(())
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("subscribe to clash mode", e))
+    }
+
     pub async fn clash_mode_status(&self) -> Result<ClashModeStatus, CommandError> {
         self.started()
             .get_clash_mode_status(())

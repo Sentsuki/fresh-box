@@ -17,6 +17,10 @@
 //   * `GroupItem` doesn't carry the Clash API's `alive`/`udp` flags, so
 //     `ProxyNodeOverview::alive` is always `None` and `::udp` is always
 //     `false` here.
+//
+// 这里不再手动同步托盘：托盘由 `services::resident` 的常驻 `SubscribeGroups`
+// 驱动（见 `tray::spawn_tray_sync`），所以它对「别的客户端切了节点」「urltest
+// 组自动改选」同样跟得上，而不只是 fresh-box 自己发起的那些改动。
 
 use std::time::Duration;
 
@@ -137,18 +141,13 @@ pub(crate) async fn fetch_overview(
     Ok(build_overview(mode, groups))
 }
 
-pub async fn get_proxy_overview(
-    app: AppHandle,
-    state: &SingboxState,
-) -> Result<ProxyOverview, CommandError> {
+pub async fn get_proxy_overview(state: &SingboxState) -> Result<ProxyOverview, CommandError> {
     let connection = get_connection(state).await?;
     let overview = fetch_overview(&connection).await?;
-    crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
 }
 
 pub async fn update_proxy_mode(
-    app: AppHandle,
     state: &SingboxState,
     mode: String,
 ) -> Result<ProxyOverview, CommandError> {
@@ -158,7 +157,6 @@ pub async fn update_proxy_mode(
     let connection = get_connection(state).await?;
     connection.set_clash_mode(mode).await?;
     let overview = fetch_overview(&connection).await?;
-    crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
 }
 
@@ -197,7 +195,6 @@ pub async fn select_proxy(
     }
 
     let overview = fetch_overview(&connection).await?;
-    crate::tray::sync_tray_from_overview(&app, &overview);
     Ok(overview)
 }
 
@@ -274,7 +271,6 @@ pub async fn test_proxy_delay(
 }
 
 pub async fn test_proxy_group_delay(
-    app: AppHandle,
     state: &SingboxState,
     proxy_group: String,
     timeout_ms: Option<u64>,
@@ -320,9 +316,6 @@ pub async fn test_proxy_group_delay(
         ))
     })?;
 
-    if let Ok(overview) = fetch_overview(&connection).await {
-        crate::tray::sync_tray_from_overview(&app, &overview);
-    }
     Ok(result)
 }
 

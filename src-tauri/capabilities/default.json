@@ -15,7 +15,6 @@
     "core:window:allow-set-theme",
     "core:path:allow-resolve",
     "dialog:default",
-    "notification:default",
     "updater:default"
   ]
 }
