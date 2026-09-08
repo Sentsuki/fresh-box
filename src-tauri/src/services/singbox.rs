@@ -35,6 +35,7 @@ use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
 use crate::daemon::desktop_api::{DaemonOwnership, StartOptions};
 use crate::daemon::{DaemonClient, DaemonConnection};
 use crate::errors::CommandError;
+use crate::store::Store;
 
 /// The Tauri event name every `ConnectionPhase` change is published under.
 pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
@@ -429,9 +430,8 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
     });
 }
 
-/// Builds the actual config content handed to `StartService`: the selected
-/// profile's own JSON, with the user's config override (if enabled) merged
-/// in, then fresh-box's own priority config applied on top of *that*.
+/// 合成真正交给 `StartService` 的配置内容：档案自身的 JSON，先叠用户的
+/// override（若启用），再把 fresh-box 自己的 priority config 盖在最上层。
 ///
 /// The order — override before priority config, never the reverse — is
 /// deliberate and load-bearing, not an accident of write order: priority
@@ -442,20 +442,15 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
 /// otherwise ignored rather than failing the start outright — see
 /// `apply_priority_config`'s own doc comment for why each of its fields is
 /// independent best-effort in the same way.
-async fn build_config_content(config_path: &str) -> Result<String, CommandError> {
-    if !std::path::Path::new(config_path).exists() {
-        return Err(CommandError::resource_not_found("config file", config_path));
-    }
+fn build_config_content(store: &Store, profile_id: &str) -> Result<String, CommandError> {
+    let content = crate::store::profiles::read_content(store, profile_id)?;
+    let mut base_config: serde_json::Value = serde_json::from_str(&content)?;
 
-    let config_content = std::fs::read_to_string(config_path)?;
-    let mut base_config: serde_json::Value = serde_json::from_str(&config_content)?;
-
-    if let Some(override_config) = crate::config::get_override_config_if_enabled().await? {
+    if let Some(override_config) = crate::config::get_override_config_if_enabled(store)? {
         crate::config::apply_config_override(&mut base_config, &override_config);
     }
 
-    let priority_config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)?;
+    let priority_config = crate::config::priority::load_priority_config_inner(store)?;
     if let Err(e) = crate::config::apply_priority_config(&mut base_config, &priority_config) {
         tracing::warn!(error = ?e, "failed to apply priority configuration");
     }
@@ -504,10 +499,8 @@ async fn with_lifecycle_timeout<T>(
 /// `config::app_settings::DiagnosticsSettings`) — OOM killer/power report
 /// are both off unless explicitly enabled there, matching what
 /// `StartOptions::default()` used to always send.
-fn build_start_options() -> StartOptions {
-    let diagnostics = crate::config::app_settings::load_app_settings_file()
-        .map(|s| s.diagnostics)
-        .unwrap_or_default();
+fn build_start_options(store: &Store) -> StartOptions {
+    let diagnostics = crate::config::app_settings::load_diagnostics(store);
     StartOptions {
         oom_killer_enabled: diagnostics.oom_killer_enabled,
         oom_killer_disabled: false,
@@ -520,19 +513,20 @@ fn build_start_options() -> StartOptions {
 
 /// 合成配置并交给 daemon 启动 —— 命令（前端）与托盘（无窗口时）共用这一条
 /// 路径，所以它不依赖 `State<'_>`。
-pub async fn start_with_config(
+pub async fn start_with_profile(
     state: &SingboxState,
-    config_path: &str,
+    store: &Store,
+    profile_id: &str,
 ) -> Result<(), CommandError> {
     if state.phase_rx.borrow().running() {
         return Err(CommandError::ProcessAlreadyRunning);
     }
 
-    let config_content = build_config_content(config_path).await?;
+    let config_content = build_config_content(store, profile_id)?;
     let connection = get_connection(state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
-        connection.start_service(config_content, build_start_options()),
+        connection.start_service(config_content, build_start_options(store)),
     )
     .await
 }
@@ -543,11 +537,11 @@ pub async fn stop(state: &SingboxState) -> Result<(), CommandError> {
 }
 
 pub async fn start_singbox(
-    _app_handle: tauri::AppHandle,
     state: State<'_, SingboxState>,
-    config_path: String,
+    store: State<'_, Store>,
+    profile_id: String,
 ) -> Result<(), CommandError> {
-    start_with_config(state.inner(), &config_path).await
+    start_with_profile(state.inner(), store.inner(), &profile_id).await
 }
 
 pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {

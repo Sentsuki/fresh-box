@@ -5,11 +5,10 @@
 // `windowState.ts` + `index.ts`'s `registerMainWindowStatePersistence`.
 
 use serde::{Deserialize, Serialize};
-use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow, Window};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window};
 
-use crate::config;
 
-const WINDOW_STATE_FILE: &str = "window_state.json";
+const WINDOW_STATE_KEY: &str = "windowState";
 
 /// Smallest size `restore()` will ever apply — keep in sync with
 /// `tauri.conf.json`'s `app.windows[0].minWidth`/`minHeight`, which stops
@@ -29,18 +28,29 @@ struct WindowState {
     maximized: bool,
 }
 
-fn load() -> Option<WindowState> {
-    let path = config::io::get_named_config_path(WINDOW_STATE_FILE).ok()?;
-    if !path.exists() {
-        return None;
-    }
-    config::io::read_json_file(&path).ok()
+// 窗口位置/大小也存在 `settings` 表里（阶段 4 之前是 `window_state.json`）。
+// 需要 `AppHandle` 才能拿到 Store，所以这两个函数比原来多一个参数。
+fn load(app: &tauri::AppHandle) -> Option<WindowState> {
+    let store = app.try_state::<crate::store::Store>()?;
+    let value: Option<WindowState> = crate::store::settings::get_or_default(
+        store.inner(),
+        crate::store::settings::SCOPE_APP,
+        WINDOW_STATE_KEY,
+    )
+    .ok()?;
+    value
 }
 
-fn save(state: &WindowState) {
-    if let Ok(path) = config::io::get_named_config_path(WINDOW_STATE_FILE) {
-        let _ = config::io::write_json_file(&path, state);
-    }
+fn save(app: &tauri::AppHandle, state: &WindowState) {
+    let Some(store) = app.try_state::<crate::store::Store>() else {
+        return;
+    };
+    let _ = crate::store::settings::set(
+        store.inner(),
+        crate::store::settings::SCOPE_APP,
+        WINDOW_STATE_KEY,
+        &Some(state),
+    );
 }
 
 /// Area (in px²) where rect `a` and rect `b` overlap, each given as
@@ -119,7 +129,7 @@ fn clamp_tolerant(value: i32, min: i32, max: i32) -> i32 {
 /// to fix it. Mirrors the official Electron client's
 /// `restoredMainWindowBounds` (`windowState.ts`).
 pub fn restore(window: &WebviewWindow) {
-    let Some(state) = load() else { return };
+    let Some(state) = load(window.app_handle()) else { return };
 
     let monitors = window.available_monitors().unwrap_or_default();
     let target = (state.width > 0 && state.height > 0)
@@ -165,7 +175,7 @@ pub fn restore(window: &WebviewWindow) {
 /// current, so a maximized window comes back maximized.
 pub fn persist(window: &Window) {
     let maximized = window.is_maximized().unwrap_or(false);
-    let mut state = load().unwrap_or(WindowState {
+    let mut state = load(window.app_handle()).unwrap_or(WindowState {
         x: 0,
         y: 0,
         width: 0,
@@ -183,5 +193,5 @@ pub fn persist(window: &Window) {
             state.height = size.height;
         }
     }
-    save(&state);
+    save(window.app_handle(), &state);
 }

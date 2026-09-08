@@ -4,11 +4,11 @@ use tauri::State;
 
 #[tauri::command]
 pub async fn start_singbox(
-    _app_handle: tauri::AppHandle,
     state: State<'_, SingboxState>,
-    config_path: String,
+    store: State<'_, crate::store::Store>,
+    profile_id: String,
 ) -> Result<(), CommandError> {
-    crate::services::singbox::start_singbox(_app_handle, state, config_path).await
+    crate::services::singbox::start_singbox(state, store, profile_id).await
 }
 
 #[tauri::command]

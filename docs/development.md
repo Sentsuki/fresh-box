@@ -65,6 +65,7 @@ pnpm build          # tsc + vite（prebuild 会校验 IPC 命令名两侧一致�
 cargo test          # 含 bridge allowlist 单测
 cargo test --test bridge_e2e -- --nocapture     # bridge 端到端，需要上面那个 daemon
 cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
+cargo test --test store_e2e                     # SQLite 验收，不需要 daemon
 ```
 
 带 `_e2e` 的测试在没有开发 daemon 时会**跳过而不是失败**（各花约 0.3 秒做 TCP
@@ -72,6 +73,20 @@ cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 
 `src/gen/` 是生成产物，不入库。首次 clone 后需要跑一次 `pnpm gen:proto`
 才能通过类型检查。
+
+## 数据存放位置
+
+```
+%LOCALAPPDATA%resh-box  fresh-box.db          SQLite（WAL）：profiles / settings / meta
+  profiles\<uuid>.json  配置内容，文件名与显示名彻底解耦
+  log\  crash_reports```
+
+阶段 4 起不再有 `profile_index.json` / `app_settings.json` /
+`backend_prefs.json` / `priority_config.json` / `config_override.json` /
+`window_state.json`。**不做迁移**：场景是全新安装。磁盘上若有旧布局残留，
+不读也不删。
+
+想从头来过就把 `fresh-box.db` 和 `profiles\` 删掉，下次启动会建一个空库。
 
 ## 停掉开发 daemon 时别误伤安装版服务
 

@@ -40,22 +40,22 @@ export function usePriorityConfig() {
   const [logDisabled, setLogDisabled] = useState(false);
   const [selectedLogLevel, setSelectedLogLevel] = useState<LogLevel>("info");
 
-  const selectedConfigPath = useSettingsStore(
-    (s) => s.settings.profiles.selected_config_path,
+  const selectedProfileId = useSettingsStore(
+    (s) => s.settings.profiles.selected_profile_id,
   );
   const { success, error: toastError } = useToast();
 
   const loadConfiguration = useCallback(async () => {
     setIsLoading(true);
     try {
-      if (!selectedConfigPath) {
+      if (!selectedProfileId) {
         setHasStackField(false);
         setHasLogField(false);
         return;
       }
       const [fieldsCheck, priorityConfig]: [ConfigFieldsCheck, PriorityConfig] =
         await Promise.all([
-          checkConfigFields(selectedConfigPath),
+          checkConfigFields(selectedProfileId),
           loadPriorityConfig(), // backend always returns defaults, never null fields
         ]);
 
@@ -84,7 +84,7 @@ export function usePriorityConfig() {
     } finally {
       setIsLoading(false);
     }
-  }, [selectedConfigPath, toastError]);
+  }, [selectedProfileId, toastError]);
 
   const updatePriorityConfig = useCallback(
     async (partial: Partial<PriorityConfig>) => {

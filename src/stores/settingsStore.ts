@@ -20,10 +20,7 @@ interface SettingsActions {
   hydrate: () => Promise<void>;
   updateSettings: (updater: (s: AppSettings) => void) => Promise<void>;
   setCurrentPage: (page: AppPage) => Promise<void>;
-  setSelectedConfig: (
-    path: string | null,
-    displayName: string | null,
-  ) => Promise<void>;
+  setSelectedProfile: (id: string | null) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
   setConnectionsVisibleColumns: (
@@ -78,10 +75,9 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       });
     },
 
-    setSelectedConfig: async (path, displayName) => {
+    setSelectedProfile: async (id) => {
       await get().updateSettings((s) => {
-        s.profiles.selected_config_path = path;
-        s.profiles.selected_config_display = displayName;
+        s.profiles.selected_profile_id = id;
       });
     },
 

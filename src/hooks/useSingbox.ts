@@ -20,14 +20,14 @@ export function useSingbox() {
   const startService = useCallback(async () => {
     const singbox = useSingboxStore.getState();
     const settings = useSettingsStore.getState();
-    const configPath = settings.settings.profiles.selected_config_path;
+    const profileId = settings.settings.profiles.selected_profile_id;
 
-    if (singbox.isRunning || singbox.pendingOperation || !configPath) return;
+    if (singbox.isRunning || singbox.pendingOperation || !profileId) return;
 
     singbox.setPending(true);
     try {
       toastInfo("Starting sing-box...");
-      await startSingbox(configPath);
+      await startSingbox(profileId);
     } catch (err) {
       toastError(`Error starting sing-box: ${getErrorMessage(err)}`);
     } finally {

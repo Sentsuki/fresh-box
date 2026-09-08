@@ -20,13 +20,13 @@ import TrafficChart from "./TrafficChart";
 export default function Overview() {
   const isRunning = useSingboxStore((s) => s.isRunning);
   const isPending = useSingboxStore((s) => s.pendingOperation);
-  const selectedDisplay = useSettingsStore(
-    (s) => s.settings.profiles.selected_config_display,
-  );
-  const selectedPath = useSettingsStore(
-    (s) => s.settings.profiles.selected_config_path,
+  const selectedProfileId = useSettingsStore(
+    (s) => s.settings.profiles.selected_profile_id,
   );
   const profiles = useConfigStore((s) => s.profiles);
+  // 显示名从档案列表里查 —— 名字是可变的展示属性，不再是身份。
+  const selectedProfile = profiles.find((p) => p.id === selectedProfileId);
+  const selectedDisplay = selectedProfile?.name ?? null;
   const overview = useProxyStore((s) => s.overview);
   const refreshOverview = useProxyStore((s) => s.refreshOverview);
 
@@ -106,11 +106,11 @@ export default function Overview() {
             {/* Action Button */}
             <div className="w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
               <button
-                disabled={isPending || !selectedPath}
+                disabled={isPending || !selectedProfileId}
                 onClick={isRunning ? stopService : startService}
                 className={`
                   flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-200
-                  ${isPending || !selectedPath ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
+                  ${isPending || !selectedProfileId ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
                   ${
                     isRunning
                       ? "bg-(--wb-error) text-white hover:bg-[#ff6666]"

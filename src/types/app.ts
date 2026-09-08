@@ -40,19 +40,19 @@ export type LogLevel =
  * present only for subscriptions (fetched from a URL); a locally imported
  * file has neither.
  */
+export interface ProfilesSettings {
+  /** 选中的档案 id。阶段 4 之前存的是磁盘路径 —— 内容文件现在按 UUID 命名，
+   * 路径对前端没有意义，也不该被当成身份来传。 */
+  selected_profile_id: string | null;
+}
+
 export interface ProfileEntry {
   id: string;
   name: string;
-  path: string;
-  url?: string;
-  lastUpdated?: string;
-  /** Whether the backend's background scheduler should periodically
-   * re-fetch this subscription on its own. Always `false` for a locally
-   * imported file (no `url`). */
+  url?: string | null;
+  lastUpdated?: string | null;
   autoUpdate: boolean;
-  /** `undefined` means "use the backend's default interval" — see
-   * `DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES`. */
-  updateIntervalMinutes?: number;
+  updateIntervalMinutes?: number | null;
 }
 
 /** Mirrors the backend's `config::profiles::MINIMUM_UPDATE_INTERVAL_MINUTES`
@@ -66,10 +66,7 @@ export interface AppConfig {
   current_page: AppPage;
 }
 
-export interface ProfilesSettings {
-  selected_config_path: string | null;
-  selected_config_display: string | null;
-}
+
 
 export interface AppDisplaySettings {
   theme_mode: ThemeMode;
@@ -191,8 +188,7 @@ export function createDefaultAppSettings(): AppSettings {
       type_filter: "",
     },
     profiles: {
-      selected_config_path: null,
-      selected_config_display: null,
+      selected_profile_id: null,
     },
     settings: {
       theme_mode: "system",
@@ -337,9 +333,7 @@ export function normalizeAppSettings(
       type_filter: settings.logs?.type_filter ?? "",
     },
     profiles: {
-      selected_config_path: settings.profiles?.selected_config_path ?? null,
-      selected_config_display:
-        settings.profiles?.selected_config_display ?? null,
+      selected_profile_id: settings.profiles?.selected_profile_id ?? null,
     },
     settings: {
       theme_mode:

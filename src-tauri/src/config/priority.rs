@@ -1,7 +1,12 @@
+// fresh-box 自己的运行要求（TUN 栈、日志级别、必须存在的 clash_api 块）。
+// **应用逻辑**在这里，**存储**在 `store::settings`（阶段 4 之前是
+// `priority_config.json`）。
+
 use crate::errors::CommandError;
+use crate::store::{Store, settings};
 use serde_json::{Value, json};
 
-pub(crate) const PRIORITY_CONFIG_FILE: &str = "priority_config.json";
+const KEY_PRIORITY: &str = "priorityConfig";
 
 pub const DEFAULT_STACK: &str = "mixed";
 
@@ -39,41 +44,17 @@ pub struct PriorityConfig {
     pub log: LogConfig,
 }
 
-pub(crate) fn save_priority_config_inner(config: PriorityConfig) -> Result<(), CommandError> {
-    super::io::save_named_config(PRIORITY_CONFIG_FILE, &config)
+pub(crate) fn save_priority_config_inner(
+    store: &Store,
+    config: PriorityConfig,
+) -> Result<(), CommandError> {
+    settings::set(store, settings::SCOPE_APP, KEY_PRIORITY, &config)
 }
 
-pub(crate) fn load_priority_config_inner() -> Result<PriorityConfig, CommandError> {
-    super::io::load_named_config_or_default(PRIORITY_CONFIG_FILE)
+pub(crate) fn load_priority_config_inner(store: &Store) -> Result<PriorityConfig, CommandError> {
+    settings::get_or_default(store, settings::SCOPE_APP, KEY_PRIORITY)
 }
 
-pub fn ensure_priority_config_initialized() {
-    let config_dir = match super::paths::get_config_dir() {
-        Ok(dir) => dir,
-        Err(e) => {
-            tracing::warn!(error = ?e, "ensure_priority_config_initialized: failed to get config dir");
-            return;
-        }
-    };
-
-    let path = config_dir.join(PRIORITY_CONFIG_FILE);
-    if path.exists() {
-        return;
-    }
-
-    let default_config = PriorityConfig {
-        inbounds: vec![PriorityInbound {
-            stack: DEFAULT_STACK.to_string(),
-        }],
-        log: LogConfig::default(),
-    };
-
-    if let Err(e) = super::io::save_named_config(PRIORITY_CONFIG_FILE, &default_config) {
-        tracing::warn!(error = ?e, "ensure_priority_config_initialized: failed to write defaults");
-    } else {
-        tracing::info!("priority_config.json initialized with defaults");
-    }
-}
 
 #[derive(serde::Serialize, serde::Deserialize)]
 pub struct ConfigFieldsCheck {
@@ -85,11 +66,10 @@ pub struct ConfigFieldsCheck {
 }
 
 pub(crate) fn check_config_fields_inner(
-    config_path: String,
+    store: &Store,
+    profile_id: &str,
 ) -> Result<ConfigFieldsCheck, CommandError> {
-    use std::fs;
-
-    let config_content = fs::read_to_string(&config_path)?;
+    let config_content = crate::store::profiles::read_content(store, profile_id)?;
     let config: Value = serde_json::from_str(&config_content)?;
 
     let mut result = ConfigFieldsCheck {
@@ -133,9 +113,9 @@ pub(crate) fn check_config_fields_inner(
     // Fall back to the override config for fields not present in the main config.
     // Reuse the existing abstraction rather than reading the file directly.
     let override_enabled =
-        super::config_override::is_config_override_enabled_inner().unwrap_or(false);
+        super::config_override::is_config_override_enabled_inner(store).unwrap_or(false);
     if override_enabled
-        && let Ok(override_config) = super::config_override::load_config_override_inner()
+        && let Ok(override_config) = super::config_override::load_config_override_inner(store)
     {
         if !result.has_stack_field
             && let Some(override_inbounds) = override_config.get("inbounds")

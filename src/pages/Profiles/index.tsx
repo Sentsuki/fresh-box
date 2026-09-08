@@ -26,8 +26,8 @@ import { DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES } from "../../types/app";
 
 export default function Profiles() {
   const profiles = useConfigStore((s) => s.profiles);
-  const selectedDisplay = useSettingsStore(
-    (s) => s.settings.profiles.selected_config_display,
+  const selectedProfileId = useSettingsStore(
+    (s) => s.settings.profiles.selected_profile_id,
   );
   const pendingOperation = useConfigStore((s) => s.pendingOperation);
 
@@ -162,10 +162,10 @@ export default function Profiles() {
                   key={file.id}
                   name={file.name}
                   url={file.url ?? ""}
-                  lastUpdated={file.lastUpdated}
+                  lastUpdated={file.lastUpdated ?? undefined}
                   autoUpdate={file.autoUpdate}
-                  updateIntervalMinutes={file.updateIntervalMinutes}
-                  selected={selectedDisplay === file.name}
+                  updateIntervalMinutes={file.updateIntervalMinutes ?? undefined}
+                  selected={selectedProfileId === file.id}
                   onSelect={() => void selectConfig(file)}
                   onUpdate={() => updateSubscription(file.id)}
                   onOpen={() => void openConfigFile(file.id)}
@@ -197,12 +197,11 @@ export default function Profiles() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {localFiles.map((file) => {
-                const isSelected = selectedDisplay === file.name;
+                const isSelected = selectedProfileId === file.id;
                 return (
                   <LocalFileCard
                     key={file.id}
                     name={file.name}
-                    path={file.path}
                     selected={isSelected}
                     onSelect={() => void selectConfig(file)}
                     onOpen={() => void openConfigFile(file.id)}
@@ -233,7 +232,6 @@ async function renameAndEditSub(
 
 function LocalFileCard({
   name,
-  path,
   selected,
   onSelect,
   onOpen,
@@ -241,7 +239,6 @@ function LocalFileCard({
   onRename,
 }: {
   name: string;
-  path: string;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
@@ -336,14 +333,11 @@ function LocalFileCard({
           <DocumentRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
+          {/* 阶段 4 起内容文件按 UUID 命名，路径对用户没有信息量了
+              （`...\profiles3f2....json`），所以不再显示 —— 要看内容点
+              「打开配置文件」。 */}
           <p className="text-sm font-semibold truncate text-(--wb-text-primary)">
             {name}
-          </p>
-          <p
-            className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
-            title={path}
-          >
-            {path}
           </p>
         </div>
       </div>

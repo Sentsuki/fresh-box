@@ -2,7 +2,7 @@ import { useCallback } from "react";
 import { open } from "@tauri-apps/plugin-dialog";
 import {
   addSubscription as addSubscriptionCmd,
-  copyConfigToBin,
+  importProfileFile,
   deleteProfile as deleteProfileCmd,
   editSubscriptionUrl,
   listProfiles,
@@ -39,26 +39,26 @@ function isInsecureSubscriptionUrl(url: string): boolean {
  */
 async function applyProfiles(
   profiles: ProfileEntry[],
-  preferredName?: string | null,
+  preferredId?: string | null,
 ) {
   useConfigStore.getState().setProfiles(profiles);
 
   const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.profiles.selected_config_path;
-  if (currentPath && profiles.find((p) => p.path === currentPath)) {
+  const currentId = settings.settings.profiles.selected_profile_id;
+  if (currentId && profiles.some((p) => p.id === currentId)) {
     return;
   }
 
   const target =
-    (preferredName && profiles.find((p) => p.name === preferredName)) ||
+    (preferredId && profiles.find((p) => p.id === preferredId)) ||
     profiles[0] ||
     null;
 
-  await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
+  await settings.setSelectedProfile(target?.id ?? null);
 }
 
 async function applyProfileResult(result: ProfileOperationResult) {
-  await applyProfiles(result.profiles, result.entry.name);
+  await applyProfiles(result.profiles, result.entry.id);
 }
 
 export function useConfigs() {
@@ -78,18 +78,9 @@ export function useConfigs() {
       config.setProfiles(profiles);
 
       const settings = useSettingsStore.getState();
-      const savedDisplay = settings.settings.profiles.selected_config_display;
-      const savedPath = settings.settings.profiles.selected_config_path;
-      const target =
-        (savedDisplay && profiles.find((p) => p.name === savedDisplay)) ||
-        (savedPath && profiles.find((p) => p.path === savedPath)) ||
-        profiles[0] ||
-        null;
-
-      await settings.setSelectedConfig(
-        target?.path ?? null,
-        target?.name ?? null,
-      );
+      const savedId = settings.settings.profiles.selected_profile_id;
+      const target = profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
+      await settings.setSelectedProfile(target?.id ?? null);
     } finally {
       config.setPending(false);
     }
@@ -100,7 +91,7 @@ export function useConfigs() {
       const settings = useSettingsStore.getState();
       const singbox = useSingboxStore.getState();
 
-      await settings.setSelectedConfig(cfg.path, cfg.name);
+      await settings.setSelectedProfile(cfg.id);
 
       if (singbox.isRunning) {
         toastInfo("Config changed. Restarting service...");
@@ -124,7 +115,7 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const result = await copyConfigToBin(file as string);
+        const result = await importProfileFile(file as string);
         await applyProfileResult(result);
         toastSuccess("Added config file successfully");
       } finally {
@@ -244,7 +235,7 @@ export function useConfigs() {
       config.setPending(true);
       try {
         const profiles = await renameProfileCmd(id, newName);
-        await applyProfiles(profiles, newName);
+        await applyProfiles(profiles, id);
         toastSuccess(`Renamed ${current?.name ?? id} to ${newName}`);
       } catch (err) {
         toastError(`Error renaming config: ${getErrorMessage(err)}`);
@@ -263,7 +254,7 @@ export function useConfigs() {
       const cfg = config.profiles.find((p) => p.id === id);
       const settings = useSettingsStore.getState();
       if (
-        cfg?.path === settings.settings.profiles.selected_config_path &&
+        cfg?.id === settings.settings.profiles.selected_profile_id &&
         useSingboxStore.getState().isRunning
       ) {
         toastError(

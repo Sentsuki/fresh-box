@@ -174,7 +174,7 @@ fn current_model(app: &AppHandle) -> TrayModel {
     TrayModel {
         running,
         connected,
-        has_config: selected_config_path().is_some(),
+        has_config: selected_profile(app).is_some(),
         mode,
         groups,
     }
@@ -206,17 +206,13 @@ fn apply(app: &AppHandle) {
     }
 }
 
-/// 当前选中的配置路径。
+/// 当前选中的配置档案 id。
 ///
-/// 读的是前端那份 `app_settings.json` —— 阶段 4 会把它挪进 SQLite 的
-/// `settings` 表，届时这里跟着换。现在沿用 `build_start_options` 已有的做法，
-/// 不为它单开一套存储。
-fn selected_config_path() -> Option<String> {
-    crate::config::app_settings::load_app_settings_file()
-        .ok()?
-        .profiles
-        .selected_config_path
-        .filter(|path| !path.is_empty())
+/// 存的是 id 而不是路径：内容文件按 UUID 命名，路径对调用方没有意义
+/// （阶段 4 起）。
+fn selected_profile(app: &AppHandle) -> Option<String> {
+    let store = app.try_state::<crate::store::Store>()?;
+    crate::store::settings::selected_profile(store.inner()).ok().flatten()
 }
 
 /// 相位、代理组、模式任何一个变了就重建菜单。
@@ -245,17 +241,24 @@ pub fn spawn_tray_sync(app: AppHandle, singbox: SingboxState, resident: Arc<Resi
 // ── 菜单动作 ────────────────────────────────────────────────────────────────
 
 fn handle_start(app: &AppHandle) {
-    let Some(config_path) = selected_config_path() else {
-        tracing::warn!("tray: start requested with no selected config");
+    let Some(profile_id) = selected_profile(app) else {
+        tracing::warn!("tray: start requested with no selected profile");
         return;
     };
     let app = app.clone();
     tauri::async_runtime::spawn(async move {
-        let Some(state) = app.try_state::<SingboxState>() else {
+        let (Some(state), Some(store)) = (
+            app.try_state::<SingboxState>(),
+            app.try_state::<crate::store::Store>(),
+        ) else {
             return;
         };
-        if let Err(e) =
-            crate::services::singbox::start_with_config(state.inner(), &config_path).await
+        if let Err(e) = crate::services::singbox::start_with_profile(
+            state.inner(),
+            store.inner(),
+            &profile_id,
+        )
+        .await
         {
             tracing::warn!(error = %e, "tray: failed to start sing-box");
         }

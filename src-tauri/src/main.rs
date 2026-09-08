@@ -8,6 +8,7 @@ mod daemon;
 mod errors;
 mod logger;
 mod services;
+mod store;
 mod tray;
 mod window_state;
 mod window_utils;
@@ -30,6 +31,18 @@ fn main() {
 
     let singbox_state = SingboxState::new();
 
+    // 数据库要在其他一切之前打开：BackendPrefsState 从它加载，命令也都要用它。
+    // 打不开就没法继续 —— 这是持久化层，带着一个不可用的 store 跑起来只会在
+    // 每个操作上报错，不如在这里说清楚。
+    let store = match store::Store::open() {
+        Ok(store) => store,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to open the fresh-box database");
+            std::process::exit(1);
+        }
+    };
+    let backend_prefs = config::app_settings::BackendPrefsState::load(&store);
+
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
         .plugin(tauri_plugin_dialog::init())
@@ -46,7 +59,8 @@ fn main() {
         .manage(singbox_state)
         .manage(daemon::bridge::registry::StreamRegistry::new())
         .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
-        .manage(config::app_settings::BackendPrefsState::load())
+        .manage(store)
+        .manage(backend_prefs)
         .invoke_handler(tauri::generate_handler![
             // daemon 域：整个 daemon 的能力都从这一个命令过（阶段 2 会加
             // `daemon_stream`/`daemon_cancel`）。下面那一长串 host 域命令
@@ -66,7 +80,7 @@ fn main() {
             commands::app::enable_autostart,
             commands::app::disable_autostart,
             commands::config::list_profiles,
-            commands::config::copy_config_to_bin,
+            commands::config::import_profile_file,
             commands::config::delete_profile,
             commands::config::rename_profile,
             commands::config::edit_subscription_url,
@@ -102,9 +116,6 @@ fn main() {
             commands::reports::delete_all_power_reports,
         ])
         .setup(|app| {
-            // 首次启动时生成含完整默认值的 priority_config.json（幂等）
-            config::ensure_priority_config_initialized();
-
             tray::setup_system_tray(app)?;
 
             let window = app.get_webview_window("main").unwrap();

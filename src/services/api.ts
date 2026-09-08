@@ -56,11 +56,11 @@ export async function setSubscriptionAutoUpdate(
   });
 }
 
-export async function copyConfigToBin(
-  configPath: string,
+export async function importProfileFile(
+  sourcePath: string,
 ): Promise<ProfileOperationResult> {
-  return invokeCommand<ProfileOperationResult>("copy_config_to_bin", {
-    configPath,
+  return invokeCommand<ProfileOperationResult>("import_profile_file", {
+    sourcePath,
   });
 }
 
@@ -88,8 +88,8 @@ export async function saveAppSettings(settings: AppSettings): Promise<void> {
   return invokeCommand<void>("save_app_settings", { settings });
 }
 
-export async function startSingbox(configPath: string): Promise<void> {
-  return invokeCommand<void>("start_singbox", { configPath });
+export async function startSingbox(profileId: string): Promise<void> {
+  return invokeCommand<void>("start_singbox", { profileId });
 }
 
 export async function stopSingbox(): Promise<void> {
@@ -187,10 +187,10 @@ export async function savePriorityConfig(
 }
 
 export async function checkConfigFields(
-  configPath: string,
+  profileId: string,
 ): Promise<ConfigFieldsCheck> {
   return invokeCommand<ConfigFieldsCheck>("check_config_fields", {
-    configPath,
+    profileId,
   });
 }
 

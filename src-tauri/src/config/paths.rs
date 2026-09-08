@@ -141,24 +141,6 @@ pub fn get_app_data_root() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_app_data_root()?.join("sub");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("sub directory", e))?;
-    }
-    Ok(dir)
-}
-
-pub fn get_config_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_app_data_root()?.join("config");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("config directory", e))?;
-    }
-    Ok(dir)
-}
-
 pub fn get_log_dir() -> Result<PathBuf, CommandError> {
     let dir = get_app_data_root()?.join("log");
     if !dir.exists() {

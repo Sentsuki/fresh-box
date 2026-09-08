@@ -1,22 +1,15 @@
+// 设置的**形状**定义在这里；**存储**在 `store::settings`（SQLite 分区键值
+// 表）。阶段 4 之前是 `app_settings.json` 加拆出来的 `backend_prefs.json`。
+//
+// `schema_version` 那套版本容错也一并去掉了：场景是全新安装，只有一个版本，
+// 没有需要兼容的旧格式（见重构方案 01 节末的边界说明）。
+
 use crate::errors::CommandError;
+use crate::store::{Store, settings};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-const APP_SETTINGS_FILE: &str = "app_settings.json";
-const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
-
-/// Where `BackendPrefsState` persists — physically separate from
-/// `APP_SETTINGS_FILE`, not just cached in memory over it. See
-/// `BackendPrefsState`'s doc comment for why: the backend's own
-/// close-behavior/auto-close-connections decisions no longer depend, even
-/// at process startup, on successfully parsing the rest of the (much
-/// larger, frontend-owned) settings blob at all.
-const BACKEND_PREFS_FILE: &str = "backend_prefs.json";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
 pub struct AppSettings {
-    #[serde(default = "default_app_settings_schema_version")]
-    pub schema_version: u32,
     #[serde(default)]
     pub app: AppConfig,
     #[serde(default)]
@@ -138,22 +131,6 @@ impl Default for DiagnosticsSettings {
     }
 }
 
-impl Default for AppSettings {
-    fn default() -> Self {
-        Self {
-            schema_version: APP_SETTINGS_SCHEMA_VERSION,
-            app: AppConfig::default(),
-            proxies: ProxyPageSettings::default(),
-            connections: ConnectionPageSettings::default(),
-            logs: LogsPageSettings::default(),
-            profiles: ProfilesSettings::default(),
-            settings: AppDisplaySettings::default(),
-            updates: UpdateSettings::default(),
-            diagnostics: DiagnosticsSettings::default(),
-        }
-    }
-}
-
 impl Default for AppConfig {
     fn default() -> Self {
         Self {
@@ -192,82 +169,64 @@ impl Default for ConnectionPageSettings {
     }
 }
 
-fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
-    let mut settings = serde_json::from_value::<AppSettings>(value).unwrap_or_default();
-    settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
-    Ok(settings)
+/// 各区在 `settings` 表里的 key。一区一行 —— 一区坏掉碰不到别的区。
+const KEY_APP: &str = "app";
+const KEY_PROXIES: &str = "proxies";
+const KEY_CONNECTIONS: &str = "connections";
+const KEY_LOGS: &str = "logs";
+const KEY_PROFILES: &str = "profiles";
+const KEY_UPDATES: &str = "updates";
+const KEY_DIAGNOSTICS: &str = "diagnostics";
+
+/// 读回前端要的整份设置。逐区读取，任何一区解析失败只影响它自己
+/// （`settings::get_or_default` 会退回该区的默认值）。
+pub fn load_app_settings(store: &Store) -> Result<AppSettings, CommandError> {
+    use settings::{SCOPE_APP, get_or_default};
+    Ok(AppSettings {
+        app: get_or_default(store, SCOPE_APP, KEY_APP)?,
+        proxies: get_or_default(store, SCOPE_APP, KEY_PROXIES)?,
+        connections: get_or_default(store, SCOPE_APP, KEY_CONNECTIONS)?,
+        logs: get_or_default(store, SCOPE_APP, KEY_LOGS)?,
+        profiles: get_or_default(store, SCOPE_APP, KEY_PROFILES)?,
+        settings: get_or_default(store, SCOPE_APP, settings::KEY_BEHAVIOR)?,
+        updates: get_or_default(store, SCOPE_APP, KEY_UPDATES)?,
+        diagnostics: get_or_default(store, SCOPE_APP, KEY_DIAGNOSTICS)?,
+    })
 }
 
-fn default_app_settings_schema_version() -> u32 {
-    APP_SETTINGS_SCHEMA_VERSION
+pub fn save_app_settings(store: &Store, value: &AppSettings) -> Result<(), CommandError> {
+    use settings::{SCOPE_APP, set};
+    set(store, SCOPE_APP, KEY_APP, &value.app)?;
+    set(store, SCOPE_APP, KEY_PROXIES, &value.proxies)?;
+    set(store, SCOPE_APP, KEY_CONNECTIONS, &value.connections)?;
+    set(store, SCOPE_APP, KEY_LOGS, &value.logs)?;
+    set(store, SCOPE_APP, KEY_PROFILES, &value.profiles)?;
+    set(store, SCOPE_APP, settings::KEY_BEHAVIOR, &value.settings)?;
+    set(store, SCOPE_APP, KEY_UPDATES, &value.updates)?;
+    set(store, SCOPE_APP, KEY_DIAGNOSTICS, &value.diagnostics)
 }
 
-fn get_app_settings_path() -> Result<std::path::PathBuf, CommandError> {
-    Ok(super::paths::get_config_dir()?.join(APP_SETTINGS_FILE))
+/// 后端自己要用的那一区（诊断选项），单独读，不必解析整份设置。
+pub fn load_diagnostics(store: &Store) -> DiagnosticsSettings {
+    settings::get_or_default(store, settings::SCOPE_APP, KEY_DIAGNOSTICS).unwrap_or_default()
 }
 
-pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
-    let path = get_app_settings_path()?;
-    if !path.exists() {
-        return Ok(AppSettings::default());
-    }
-    let value: Value = super::io::read_json_file(&path)?;
-    normalize_app_settings(value)
-}
-
-pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
-    super::io::write_json_file(&get_app_settings_path()?, settings)
-}
-
-fn get_backend_prefs_path() -> Result<std::path::PathBuf, CommandError> {
-    Ok(super::paths::get_config_dir()?.join(BACKEND_PREFS_FILE))
-}
-
-fn load_backend_prefs_file() -> Result<AppDisplaySettings, CommandError> {
-    let path = get_backend_prefs_path()?;
-    if !path.exists() {
-        return Ok(AppDisplaySettings::default());
-    }
-    super::io::read_json_file(&path)
-}
-
-fn save_backend_prefs_file(settings: &AppDisplaySettings) -> Result<(), CommandError> {
-    super::io::write_json_file(&get_backend_prefs_path()?, settings)
-}
-
-/// The subset of app settings the *backend* needs to make control-flow
-/// decisions with — window-close behavior (`main.rs`'s `CloseRequested`
-/// handler) and whether to auto-close connections on a proxy switch
-/// (`services::daemon_control`, `tray.rs`) — as opposed to the rest of
-/// `AppSettings` (current page, table column layout, collapsed groups, ...),
-/// which only the frontend ever reads. Backed by its own file
-/// (`BACKEND_PREFS_FILE`), physically separate from the much larger
-/// `APP_SETTINGS_FILE` the frontend round-trips wholesale, plus an
-/// in-memory cache (managed Tauri state) of the same content for the
-/// backend's own reads — so nothing on the backend's decision path ever
-/// has to parse the frontend's blob at all. `save_app_settings` keeps a
-/// mirror copy inside `APP_SETTINGS_FILE` too (so `load_app_settings`
-/// still round-trips the *whole* settings shape in one call for the
-/// frontend, unchanged), but that copy is never read back by anything on
-/// the backend — `BACKEND_PREFS_FILE`/this cache are.
+/// 后端做控制流判断要用的那一小撮设置：窗口关闭行为（`main.rs` 的
+/// `CloseRequested`）和切换节点后是否自动断开连接（`tray.rs`）。其余的
+/// `AppSettings`（当前页面、表格列宽、折叠状态……）只有前端读。
 ///
-/// Splitting this out physically, not just caching it in memory over one
-/// shared file, closes the gap the in-memory-only version still had: a
-/// parse failure elsewhere in `APP_SETTINGS_FILE` (a stray value in
-/// `connections.column_sizes`, say) could still reset
-/// `close_behavior`/`auto_close_connections` to defaults the moment the
-/// process restarted and reloaded that cache from the same corrupted blob.
-/// With its own file, a problem anywhere in `APP_SETTINGS_FILE` can no
-/// longer touch this at all, at startup or otherwise.
+/// 独立缓存一份在内存里，是为了让这些判断路径不必每次都去查库。持久化则和
+/// 其他区一样走 `settings` 表的 `behavior` 行 —— 阶段 4 之前它需要一个单独的
+/// `backend_prefs.json`，因为整块 JSON 里任何一处解析失败都会把它一起打回
+/// 默认值；一区一行之后这个隔离是 schema 自带的，不用再靠拆文件实现。
 pub struct BackendPrefsState(std::sync::RwLock<AppDisplaySettings>);
 
 impl BackendPrefsState {
-    /// Read once at startup — a normal disk load, same fallback-to-default
-    /// behavior as everywhere else. From here on, every read goes through
-    /// `get()` instead.
-    pub fn load() -> Self {
-        let settings = load_backend_prefs_file().unwrap_or_default();
-        Self(std::sync::RwLock::new(settings))
+    /// 启动时读一次；之后每次读都走 `get()` 的内存缓存。
+    pub fn load(store: &Store) -> Self {
+        let value = settings::get_or_default(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR)
+            .unwrap_or_default();
+        Self(std::sync::RwLock::new(value))
     }
 
     pub fn get(&self) -> AppDisplaySettings {
@@ -283,10 +242,10 @@ impl BackendPrefsState {
     /// still report that failure to the caller (`save_app_settings`, which
     /// folds it into the same error it'd return for the main settings file
     /// failing to save).
-    pub fn set(&self, settings: AppDisplaySettings) -> Result<(), CommandError> {
+    pub fn set(&self, store: &Store, value: AppDisplaySettings) -> Result<(), CommandError> {
         if let Ok(mut guard) = self.0.write() {
-            *guard = settings.clone();
+            *guard = value.clone();
         }
-        save_backend_prefs_file(&settings)
+        settings::set(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR, &value)
     }
 }
