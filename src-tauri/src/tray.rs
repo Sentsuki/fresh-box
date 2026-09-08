@@ -312,9 +312,7 @@ fn handle_select_proxy(app: &AppHandle, group: String, node: String) {
             }
         };
 
-        if let Err(e) =
-            crate::services::daemon_control::select_proxy_inner(&connection, &group, &node).await
-        {
+        if let Err(e) = connection.select_outbound(group.clone(), node.clone()).await {
             tracing::warn!(error = %e, "tray: failed to switch proxy");
             return;
         }
@@ -324,8 +322,7 @@ fn handle_select_proxy(app: &AppHandle, group: String, node: String) {
             .get()
             .auto_close_connections;
         if auto_close {
-            crate::services::daemon_control::close_connections_by_group_pub(&connection, &group)
-                .await;
+            crate::services::resident::close_connections_by_group(&connection, &group).await;
         }
 
         // 同上：勾选状态由 `SubscribeGroups` 推回来驱动，不在这里手动改。

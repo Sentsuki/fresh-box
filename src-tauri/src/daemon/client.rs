@@ -16,11 +16,14 @@
 //                       each RPC call below builds a fresh typed client
 //                       wrapper around that shared channel rather than
 //                       fighting other callers over a `&mut` client.
-//                       `services/singbox.rs`, `services/daemon_control.rs`
-//                       and `services/streams.rs` each hold their own
-//                       cloned `DaemonConnection` and can issue calls
-//                       (including concurrent streaming subscriptions)
-//                       independently.
+//                       `services/singbox.rs` 和 `services/resident.rs` 各持
+//                       一份克隆，可以独立发起调用（包括并发的流式订阅）。
+//
+// 这里的类型化封装只剩 **Rust 自己要用的那些**：reconciliation loop 的连接握手、
+// 常驻订阅（托盘用的代理组 / Clash 模式）、以及托盘的切换动作。前端要的 RPC
+// 一个都不在这里 —— 它通过 `daemon::bridge` 字节透传直接调用，Rust 不认识那些
+// 方法。阶段 2/3 每迁走一块，这个文件就短一截：这正是「翻译层被移除」在代码
+// 量上的样子。
 
 use tonic::Streaming;
 use tonic::transport::Channel;
@@ -31,8 +34,7 @@ use super::daemon_api::managed_service_client::ManagedServiceClient;
 use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
     ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups,
-    NetworkQualityTestProgress, NetworkQualityTestRequest, SelectOutboundRequest, ServiceStatus,
-    StunTestProgress, StunTestRequest, SubscribeConnectionsRequest, UrlTestRequest,
+    SelectOutboundRequest, ServiceStatus, SubscribeConnectionsRequest,
 };
 use super::desktop_api::{
     CrashReportEntry, CrashReportFile, CrashReportRequest, DaemonInfo, OomReportEntry,
@@ -262,14 +264,6 @@ impl DaemonConnection {
             .map_err(|e| map_status("set clash mode", e))
     }
 
-    pub async fn url_test(&self, outbound_tag: String) -> Result<(), CommandError> {
-        self.started()
-            .url_test(UrlTestRequest { outbound_tag })
-            .await
-            .map(|_| ())
-            .map_err(|e| map_status("test proxy delay", e))
-    }
-
     pub async fn select_outbound(
         &self,
         group_tag: String,
@@ -291,41 +285,6 @@ impl DaemonConnection {
             .await
             .map(|_| ())
             .map_err(|e| map_status("close connection", e))
-    }
-
-    pub async fn close_all_connections(&self) -> Result<(), CommandError> {
-        self.started()
-            .close_all_connections(())
-            .await
-            .map(|_| ())
-            .map_err(|e| map_status("close all connections", e))
-    }
-
-    /// Run a network quality (RPM/responsiveness) test through the running
-    /// instance's outbound(s) — see `crate::services::tools`, which drains
-    /// this stream and republishes each step as a Tauri event.
-    pub async fn start_network_quality_test(
-        &self,
-        request: NetworkQualityTestRequest,
-    ) -> Result<Streaming<NetworkQualityTestProgress>, CommandError> {
-        self.started()
-            .start_network_quality_test(request)
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("start network quality test", e))
-    }
-
-    /// Run a STUN test (external address + NAT mapping/filtering behavior)
-    /// through the running instance's outbound(s).
-    pub async fn start_stun_test(
-        &self,
-        request: StunTestRequest,
-    ) -> Result<Streaming<StunTestProgress>, CommandError> {
-        self.started()
-            .start_stun_test(request)
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("start STUN test", e))
     }
 
     // ── DesktopService: crash/OOM/power reports ─────────────────────────

@@ -293,3 +293,42 @@ pub fn spawn_notifier(app: AppHandle, state: SingboxState) {
         }
     });
 }
+
+// ── 托盘切换节点的副作用 ────────────────────────────────────────────────────
+
+/// 关掉链路里经过 `group_tag` 的全部连接。
+///
+/// 前端有一份等价实现（`src/daemon/proxyActions.ts`），因为它本来就持有活跃
+/// 连接表、不需要另开流。这里这一份是给**托盘**用的：窗口销毁后托盘还要能切
+/// 节点，那时前端根本不存在。这是「关了窗口还得跑的留在 Rust」的直接后果，
+/// 不是重复实现的疏忽。
+///
+/// 没有窗口就没有累加好的连接表，所以只能现开一条 `SubscribeConnections` 取
+/// 第一帧 —— 上游订阅建立时会先发一份带 `reset` 的全量快照
+/// （`started_service.go` 的 `buildInitialConnectionState`），正好够用。
+pub async fn close_connections_by_group(connection: &DaemonConnection, group_tag: &str) {
+    let mut stream = match connection.subscribe_connections(0).await {
+        Ok(stream) => stream,
+        Err(e) => {
+            tracing::warn!(error = ?e, "tray: failed to subscribe to connections");
+            return;
+        }
+    };
+
+    let Ok(Some(frame)) = stream.message().await else {
+        return;
+    };
+    // 快照读完就把流放掉，别为了一帧一直占着。
+    drop(stream);
+
+    for event in frame.events {
+        let Some(conn) = event.connection else {
+            continue;
+        };
+        if conn.chain_list.iter().any(|chain| chain == group_tag)
+            && let Err(e) = connection.close_connection(conn.id).await
+        {
+            tracing::warn!(error = ?e, "tray: failed to close connection");
+        }
+    }
+}

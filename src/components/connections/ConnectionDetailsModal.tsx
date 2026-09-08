@@ -160,11 +160,6 @@ export function ConnectionDetailsModal({
                       <p className="text-sm font-semibold text-(--wb-accent)">
                         {connection.rule || "--"}
                       </p>
-                      {connection.rulePayload && (
-                        <p className="text-xs text-(--wb-text-secondary) font-mono break-all">
-                          {connection.rulePayload}
-                        </p>
-                      )}
                     </div>
                   </div>
                 </div>

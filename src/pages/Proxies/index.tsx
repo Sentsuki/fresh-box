@@ -127,11 +127,6 @@ const NodeCard = memo(function NodeCard({
           <span className="text-xs font-medium lowercase tracking-wider truncate text-(--wb-text-tertiary)">
             {abbreviateType(node.kind)}
           </span>
-          {node.udp && (
-            <span className="text-xs font-medium lowercase tracking-wider text-(--wb-text-disabled)">
-              udp
-            </span>
-          )}
         </div>
         <button
           onClick={(e) => {

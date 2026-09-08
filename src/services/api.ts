@@ -1,12 +1,9 @@
 import type {
   AppSettings,
-  ProxyOverview,
   ConfigFieldsCheck,
   ConfigOverride,
   PriorityConfig,
   ProfileEntry,
-  NetworkQualityTestOptions,
-  StunTestOptions,
   ReportSummary,
   ReportFileView,
 } from "../types/app";
@@ -153,44 +150,6 @@ export async function disableAutostart(): Promise<void> {
   return invokeCommand<void>("disable_autostart");
 }
 
-export async function getProxyOverview(): Promise<ProxyOverview> {
-  return invokeCommand<ProxyOverview>("get_proxy_overview");
-}
-
-export async function updateProxyMode(mode: string): Promise<ProxyOverview> {
-  return invokeCommand<ProxyOverview>("update_proxy_mode", { mode });
-}
-
-export async function selectProxy(
-  proxyGroup: string,
-  name: string,
-): Promise<ProxyOverview> {
-  return invokeCommand<ProxyOverview>("select_proxy", {
-    proxyGroup,
-    name,
-  });
-}
-
-export async function testProxyDelay(
-  proxyName: string,
-  timeoutMs?: number,
-): Promise<number> {
-  return invokeCommand<number>("test_proxy_delay", {
-    proxyName,
-    timeoutMs,
-  });
-}
-
-export async function testProxyGroupDelay(
-  proxyGroup: string,
-  timeoutMs?: number,
-): Promise<Record<string, number>> {
-  return invokeCommand<Record<string, number>>("test_proxy_group_delay", {
-    proxyGroup,
-    timeoutMs,
-  });
-}
-
 export async function enableConfigOverride(): Promise<void> {
   return invokeCommand<void>("enable_config_override");
 }
@@ -239,22 +198,6 @@ export async function openAppDirectory(): Promise<void> {
   return invokeCommand<void>("open_app_directory");
 }
 
-export async function closeAllConnections(): Promise<void> {
-  return invokeCommand<void>("close_all_connections");
-}
-
-export async function closeConnection(id: string): Promise<void> {
-  return invokeCommand<void>("close_connection", { id });
-}
-
-export async function startConnectionsStream(): Promise<void> {
-  return invokeCommand<void>("start_connections_stream");
-}
-
-export async function stopConnectionsStream(): Promise<void> {
-  return invokeCommand<void>("stop_connections_stream");
-}
-
 /**
  * Record a renderer-side error caught by `ErrorBoundary` so it's not just
  * lost to `console.error` the moment the user closes the app — it lands
@@ -271,28 +214,6 @@ export async function recordFrontendError(
 }
 
 // ── Advanced page: diagnostics tools ────────────────────────────────────
-
-/** Kicks off a network quality test in the background — progress arrives as
- * `tools-network-quality-progress` events (see `useNetworkQualityTest`),
- * not as this call's return value. */
-export async function startNetworkQualityTest(
-  options: NetworkQualityTestOptions,
-): Promise<void> {
-  return invokeCommand<void>("start_network_quality_test", { options });
-}
-
-export async function cancelNetworkQualityTest(): Promise<void> {
-  return invokeCommand<void>("cancel_network_quality_test");
-}
-
-/** Progress arrives as `tools-stun-test-progress` events. */
-export async function startStunTest(options: StunTestOptions): Promise<void> {
-  return invokeCommand<void>("start_stun_test", { options });
-}
-
-export async function cancelStunTest(): Promise<void> {
-  return invokeCommand<void>("cancel_stun_test");
-}
 
 // ── Advanced page: crash/OOM/power reports ──────────────────────────────
 

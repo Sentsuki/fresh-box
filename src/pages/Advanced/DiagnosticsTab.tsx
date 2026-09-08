@@ -1,5 +1,4 @@
 import { PlayRegular, StopRegular } from "@fluentui/react-icons";
-import { listen } from "@tauri-apps/api/event";
 import { useEffect, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
@@ -9,6 +8,7 @@ import { Select } from "../../components/ui/Select";
 import { Switch } from "../../components/ui/Switch";
 import { useSingboxStore } from "../../stores/singboxStore";
 import { useProxyStore } from "../../stores/proxyStore";
+import { runNetworkQualityTest, runStunTest } from "../../daemon/toolStreams";
 import {
   accuracyLabel,
   accuracyVariant,
@@ -18,10 +18,6 @@ import {
   natBehaviorVariant,
 } from "../../services/format";
 import {
-  cancelNetworkQualityTest,
-  cancelStunTest,
-  startNetworkQualityTest,
-  startStunTest,
 } from "../../services/api";
 import { NETWORK_QUALITY_PHASE } from "../../types/app";
 import type { NetworkQualityProgress, StunTestProgress } from "../../types/app";
@@ -96,39 +92,28 @@ export function NetworkQualityCard() {
   const [maxRuntimeSeconds, setMaxRuntimeSeconds] = useState(20);
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<NetworkQualityProgress | null>(null);
-  const runningRef = useRef(false);
+  // 取消 = abort 这个 signal，流随之关闭。不再需要一个单独的 cancel 命令，
+  // 也不需要 Rust 侧维护「当前这次测试」的任务槽位。
+  const abortRef = useRef<AbortController | null>(null);
 
-  useEffect(() => {
-    const unlisten = listen<NetworkQualityProgress>(
-      "tools-network-quality-progress",
-      (event) => {
-        if (!runningRef.current) return;
-        setProgress(event.payload);
-        if (event.payload.isFinal) {
-          runningRef.current = false;
-          setRunning(false);
-        }
-      },
-    );
-    return () => {
-      void unlisten.then((f) => f());
-    };
-  }, []);
+  // 组件卸载时收掉还在跑的测试，免得流一直挂着。
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const start = async () => {
     setProgress(null);
-    runningRef.current = true;
     setRunning(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      await startNetworkQualityTest({
-        configURL,
-        outboundTag,
-        serial,
-        http3,
-        maxRuntimeSeconds,
-      });
+      await runNetworkQualityTest(
+        { configURL, outboundTag, serial, http3, maxRuntimeSeconds },
+        setProgress,
+        controller.signal,
+      );
+      setRunning(false);
     } catch (err) {
-      runningRef.current = false;
+      if (controller.signal.aborted) return;
       setRunning(false);
       setProgress({
         phase: NETWORK_QUALITY_PHASE.done,
@@ -148,10 +133,9 @@ export function NetworkQualityCard() {
     }
   };
 
-  const stop = async () => {
-    runningRef.current = false;
+  const stop = () => {
+    abortRef.current?.abort();
     setRunning(false);
-    await cancelNetworkQualityTest().catch(() => {});
   };
 
   const finished = progress?.isFinal ?? false;
@@ -343,33 +327,21 @@ export function StunTestCard() {
   const [outboundTag, setOutboundTag] = useState("");
   const [running, setRunning] = useState(false);
   const [progress, setProgress] = useState<StunTestProgress | null>(null);
-  const runningRef = useRef(false);
-
-  useEffect(() => {
-    const unlisten = listen<StunTestProgress>(
-      "tools-stun-test-progress",
-      (event) => {
-        if (!runningRef.current) return;
-        setProgress(event.payload);
-        if (event.payload.isFinal) {
-          runningRef.current = false;
-          setRunning(false);
-        }
-      },
-    );
-    return () => {
-      void unlisten.then((f) => f());
-    };
-  }, []);
+  // 同网络质量测试：取消就是 abort signal。
+  const abortRef = useRef<AbortController | null>(null);
+  useEffect(() => () => abortRef.current?.abort(), []);
 
   const start = async () => {
     setProgress(null);
-    runningRef.current = true;
     setRunning(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
     try {
-      await startStunTest({ server, outboundTag });
+      await runStunTest({ server, outboundTag }, setProgress, controller.signal);
+      setRunning(false);
     } catch (err) {
-      runningRef.current = false;
+      if (controller.signal.aborted) return;
       setRunning(false);
       setProgress({
         phase: 0,
@@ -384,10 +356,9 @@ export function StunTestCard() {
     }
   };
 
-  const stop = async () => {
-    runningRef.current = false;
+  const stop = () => {
+    abortRef.current?.abort();
     setRunning(false);
-    await cancelStunTest().catch(() => {});
   };
 
   return (

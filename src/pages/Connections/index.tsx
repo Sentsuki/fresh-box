@@ -10,7 +10,7 @@ import {
   useConnectionsStream,
 } from "../../hooks/useConnectionsStream";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { closeConnection } from "../../services/api";
+import { startedService } from "../../daemon/clients";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
 
 function useConnectionSettings() {
@@ -195,7 +195,7 @@ export default function Connections() {
   );
 
   const disconnectConnection = useCallback(async (id: string) => {
-    await closeConnection(id);
+    await startedService.closeConnection({ id });
   }, []);
 
   return (

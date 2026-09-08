@@ -2,7 +2,6 @@ import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { getDaemonState } from "../services/api";
 import type { DaemonConnectionPhase } from "../types/daemon";
-import { useProxyStore } from "../stores/proxyStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { isWindowVisible } from "./useWindowVisibility";
 import { startAllStreams, stopAllStreams } from "./streamLifecycle";
@@ -59,7 +58,6 @@ function applyPhase(
     if (isWindowVisible()) {
       startAllStreams();
     }
-    void useProxyStore.getState().refreshOverview(announce);
     if (announce) {
       toast.success("sing-box is running.");
     }
@@ -67,7 +65,6 @@ function applyPhase(
   }
 
   stopAllStreams(true);
-  useProxyStore.getState().clearOverview();
 
   if (!announce) return;
 

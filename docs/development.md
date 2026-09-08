@@ -73,6 +73,20 @@ cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 `src/gen/` 是生成产物，不入库。首次 clone 后需要跑一次 `pnpm gen:proto`
 才能通过类型检查。
 
+## 停掉开发 daemon 时别误伤安装版服务
+
+安装版服务的进程名同样是 `sing-box-daemon.exe`，所以**不要**用
+`taskkill /IM sing-box-daemon.exe` —— 那会连同用户正在用的服务一起杀掉
+（它有恢复动作会自己起来，但代理会断几秒）。按命令行认人：
+
+```powershell
+Get-CimInstance Win32_Process -Filter "Name='sing-box-daemon.exe'" |
+  Where-Object { $_.CommandLine -like '*--listen 127.0.0.1:19090*' } |
+  ForEach-Object { Stop-Process -Id $_.ProcessId -Force }
+```
+
+只有开发实例带 `--listen`，安装版服务和它派生的 worker 都不带。
+
 ## 验证流是否泄漏
 
 销毁模式（关窗 = 销毁 webview）下每次开关窗口都会新建一批订阅，漏收就会在

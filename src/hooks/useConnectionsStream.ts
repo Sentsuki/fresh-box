@@ -1,13 +1,12 @@
 import { useCallback, useMemo } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
+import { startedService } from "../daemon/clients";
+import { useTrafficStore } from "./useTrafficStream";
 import {
-  closeAllConnections,
-  startConnectionsStream as startConnectionsStreamCmd,
-  stopConnectionsStream as stopConnectionsStreamCmd,
-} from "../services/api";
+  startConnectionsStream,
+  stopConnectionsStream,
+} from "../daemon/connectionsStream";
 import { formatRelativeDuration, formatSpeed } from "../services/utils";
-import { createStreamGuard } from "./streamGuard";
 import type {
   ConnectionColumnKey,
   ConnectionEntry,
@@ -211,10 +210,7 @@ const columnDefinitions: Record<
     groupable: true,
     defaultDirection: "asc",
     getValue: (c) =>
-      c.metadata.inboundUser ||
-      c.metadata.inboundName ||
-      c.metadata.inboundPort ||
-      "-",
+      c.metadata.inboundUser || c.metadata.inboundName || "-",
   },
 };
 
@@ -224,8 +220,6 @@ export const allColumns: ConnectionColumnOption[] =
 interface ConnectionsState {
   active: ConnectionEntry[];
   closed: ConnectionEntry[];
-  downloadTotal: number;
-  uploadTotal: number;
   totalDownloadSpeed: number;
   totalUploadSpeed: number;
   streamStatus: "disconnected" | "connecting" | "connected" | "error";
@@ -234,49 +228,32 @@ interface ConnectionsState {
 
 interface ConnectionsActions {
   setFrame: (frame: CoreConnectionsFrame) => void;
-  addClosed: (entries: ConnectionEntry[]) => void;
   setStreamStatus: (s: ConnectionsState["streamStatus"]) => void;
   setIsPaused: (paused: boolean) => void;
   clear: () => void;
 }
-
-const MAX_CLOSED = 1000;
 
 export const useConnectionsStore = create<
   ConnectionsState & ConnectionsActions
 >((set, get) => ({
   active: [],
   closed: [],
-  downloadTotal: 0,
-  uploadTotal: 0,
   totalDownloadSpeed: 0,
   totalUploadSpeed: 0,
   streamStatus: "disconnected",
   isPaused: false,
 
+  // 累加在 `daemon/connectionsStream.ts` 里做（含「已关闭」列表）——
+  // 这里只负责把整帧结果放进 store。以前「已关闭」是靠逐帧 diff 反推的，
+  // 因为 Rust 把 CLOSED 事件的载荷丢掉了；现在那份载荷直接可用。
   setFrame: (frame) => {
     if (get().isPaused) return;
-    const prevActive = get().active;
-    const newIds = new Set(frame.connections.map((c) => c.id));
-    const disappeared = prevActive.filter((c) => !newIds.has(c.id));
-
-    set((state) => ({
+    set({
       active: frame.connections,
-      downloadTotal: frame.downloadTotal,
-      uploadTotal: frame.uploadTotal,
+      closed: frame.closed,
       totalDownloadSpeed: frame.totalDownloadSpeed,
       totalUploadSpeed: frame.totalUploadSpeed,
-      closed:
-        disappeared.length > 0
-          ? [...disappeared, ...state.closed].slice(0, MAX_CLOSED)
-          : state.closed,
-    }));
-  },
-
-  addClosed: (entries) => {
-    set((state) => ({
-      closed: [...entries, ...state.closed].slice(0, MAX_CLOSED),
-    }));
+    });
   },
 
   setStreamStatus: (streamStatus) => set({ streamStatus }),
@@ -287,8 +264,6 @@ export const useConnectionsStore = create<
     set({
       active: [],
       closed: [],
-      downloadTotal: 0,
-      uploadTotal: 0,
       totalDownloadSpeed: 0,
       totalUploadSpeed: 0,
       streamStatus: "disconnected",
@@ -296,20 +271,7 @@ export const useConnectionsStore = create<
     }),
 }));
 
-const guard = createStreamGuard({
-  start: startConnectionsStreamCmd,
-  stop: stopConnectionsStreamCmd,
-});
-
-export function startConnectionsStream() {
-  void guard.start();
-}
-
-export function stopConnectionsStream(clear = false) {
-  void guard.stop(
-    clear ? () => useConnectionsStore.getState().clear() : undefined,
-  );
-}
+export { startConnectionsStream, stopConnectionsStream };
 
 function sortEntries(
   entries: ConnectionEntry[],
@@ -383,34 +345,19 @@ export function formatConnectionValue(
       return entry.metadata.remoteDestination || "-";
     case "inboundUser":
       return (
-        entry.metadata.inboundUser ||
-        entry.metadata.inboundName ||
-        entry.metadata.inboundPort ||
-        "-"
+        entry.metadata.inboundUser || entry.metadata.inboundName || "-"
       );
   }
 }
-
-// Register event listeners at module level so they're always active.
-void listen<string>("stream-connections-status", (e) => {
-  useConnectionsStore
-    .getState()
-    .setStreamStatus(
-      e.payload as "disconnected" | "connecting" | "connected" | "error",
-    );
-});
-
-void listen<CoreConnectionsFrame>("stream-connections", (e) => {
-  if (!guard.isActive()) return;
-  useConnectionsStore.getState().setFrame(e.payload);
-});
 
 export function useConnectionsStream() {
   const { success, error } = useToast();
   const active = useConnectionsStore((s) => s.active);
   const closed = useConnectionsStore((s) => s.closed);
-  const downloadTotal = useConnectionsStore((s) => s.downloadTotal);
-  const uploadTotal = useConnectionsStore((s) => s.uploadTotal);
+  // 会话累计流量来自 `Status.downlinkTotal`/`uplinkTotal`（流量 store），
+  // 不是对活跃连接求和 —— 后者会随连接关闭而回落（审计项 M-07）。
+  const downloadTotal = useTrafficStore((s) => s.downloadTotal);
+  const uploadTotal = useTrafficStore((s) => s.uploadTotal);
   const streamStatus = useConnectionsStore((s) => s.streamStatus);
   const isPaused = useConnectionsStore((s) => s.isPaused);
 
@@ -449,7 +396,7 @@ export function useConnectionsStream() {
 
   const closeAll = useCallback(async () => {
     try {
-      await closeAllConnections();
+      await startedService.closeAllConnections({});
       success("All connections closed");
     } catch {
       error("Failed to close connections");

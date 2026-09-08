@@ -14,8 +14,8 @@ import { useTrafficStore } from "../hooks/useTrafficStream";
  * 前端自己订阅之后这个问题不是被修好，是不再存在：一条流，两个 store。
  *
  * 顺带，`Status` 还带着 `uplinkTotal`/`downlinkTotal` —— 那才是会话累计流量的
- * 正确来源（审计项 M-07 里被 Rust 用「活跃连接求和」顶替掉的那个）。阶段 3 做
- * 连接页时会用到，这里先不引入没有消费者的状态。
+ * 正确来源（审计项 M-07 里被 Rust 用「活跃连接求和」顶替掉的那个）。阶段 3 起
+ * 连接页就是读的它。
  */
 
 /**
@@ -34,9 +34,10 @@ const controller = createStreamController({
       { signal },
     ),
   onMessage: (status) => {
-    useTrafficStore
-      .getState()
-      .setTraffic(Number(status.downlink), Number(status.uplink));
+    const traffic = useTrafficStore.getState();
+    traffic.setTraffic(Number(status.downlink), Number(status.uplink));
+    // 会话累计 —— 连接页显示的「总量」用这个，不是对活跃连接求和。
+    traffic.setTotals(Number(status.downlinkTotal), Number(status.uplinkTotal));
 
     // 上报 0 视为「这一拍还没有真实采样」而不是真的零占用：sing-box 的内存
     // 读数在流刚（重）连时可能有一两拍是 0，直接显示会变成「已用 0 B」而不是

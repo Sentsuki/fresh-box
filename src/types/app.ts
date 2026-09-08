@@ -430,9 +430,7 @@ export interface ProxyNodeOverview {
   name: string;
   kind: string;
   delay: number | null;
-  alive?: boolean;
   is_selected?: boolean;
-  udp: boolean;
 }
 
 export interface ProxyGroupOverview {
@@ -457,13 +455,11 @@ export interface ConnectionMetadata {
   sourcePort: string;
   destinationIP: string;
   destinationPort: string;
-  dnsMode: string;
   processPath?: string;
   remoteDestination?: string;
   sniffHost?: string;
   inboundUser?: string;
   inboundName?: string;
-  inboundPort?: string;
   process?: string;
 }
 
@@ -475,19 +471,26 @@ export interface CoreConnectionSnapshot {
   start: string;
   chains: string[];
   rule: string;
-  rulePayload: string;
 }
 
 export interface ConnectionEntry extends CoreConnectionSnapshot {
   uploadSpeed: number;
   downloadSpeed: number;
+  /** RFC3339，仅「已关闭」标签页里的条目有 —— 来自 CLOSED 事件带的
+   * `Connection.closedAt`。以前这个信息在 Rust 侧被丢弃了。 */
+  closedAt?: string;
 }
 
+/**
+ * 一帧累加后的连接状态。
+ *
+ * 注意这里没有 `downloadTotal`/`uploadTotal`：会话累计流量的正确来源是
+ * `Status.downlinkTotal`/`uplinkTotal`（见 `daemon/statusStream.ts`），而不是
+ * 对活跃连接求和 —— 后者会随连接关闭而回落（审计项 M-07）。
+ */
 export interface CoreConnectionsFrame {
-  downloadTotal: number;
-  uploadTotal: number;
-  memory?: number;
   connections: ConnectionEntry[];
+  closed: ConnectionEntry[];
   totalDownloadSpeed: number;
   totalUploadSpeed: number;
 }

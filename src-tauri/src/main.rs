@@ -46,8 +46,6 @@ fn main() {
         .manage(singbox_state)
         .manage(daemon::bridge::registry::StreamRegistry::new())
         .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
-        .manage(services::streams::StreamsState::new())
-        .manage(services::tools::ToolsState::new())
         .manage(config::app_settings::BackendPrefsState::load())
         .invoke_handler(tauri::generate_handler![
             // daemon 域：整个 daemon 的能力都从这一个命令过（阶段 2 会加
@@ -67,11 +65,6 @@ fn main() {
             commands::app::is_autostart_enabled,
             commands::app::enable_autostart,
             commands::app::disable_autostart,
-            commands::proxy::get_proxy_overview,
-            commands::proxy::update_proxy_mode,
-            commands::proxy::select_proxy,
-            commands::proxy::test_proxy_delay,
-            commands::proxy::test_proxy_group_delay,
             commands::config::list_profiles,
             commands::config::copy_config_to_bin,
             commands::config::delete_profile,
@@ -93,16 +86,8 @@ fn main() {
             commands::priority::check_config_fields,
             commands::diagnostics::record_frontend_error,
             commands::app::update_mica_theme,
-            commands::streams::start_connections_stream,
-            commands::streams::stop_connections_stream,
-            commands::proxy::close_all_connections,
-            commands::proxy::close_connection,
             commands::config::add_subscription,
             commands::config::update_subscription,
-            commands::tools::start_network_quality_test,
-            commands::tools::cancel_network_quality_test,
-            commands::tools::start_stun_test,
-            commands::tools::cancel_stun_test,
             commands::reports::list_crash_reports_all,
             commands::reports::read_crash_report,
             commands::reports::delete_crash_report,
