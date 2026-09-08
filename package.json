@@ -6,6 +6,7 @@
   "scripts": {
     "//postinstall": "react-flagpack",
     "dev": "vite",
+    "gen:proto": "buf generate",
     "prebuild": "node scripts/check-commands.mjs",
     "build": "tsc && vite build",
     "check:commands": "node scripts/check-commands.mjs",
@@ -17,6 +18,8 @@
     "format:check": "prettier --check src/**/*.{js,ts,tsx,json,css,scss}"
   },
   "dependencies": {
+    "@bufbuild/protobuf": "^2.14.1",
+    "@connectrpc/connect": "^2.2.0",
     "@fluentui/react-components": "^9.74.7",
     "@fluentui/react-icons": "^2.0.339",
     "@radix-ui/react-accordion": "^1.2.20",
@@ -36,6 +39,8 @@
     "zustand": "^5.0.15"
   },
   "devDependencies": {
+    "@bufbuild/buf": "^1.72.0",
+    "@bufbuild/protoc-gen-es": "^2.14.1",
     "@eslint/js": "^9.39.5",
     "@tailwindcss/vite": "^4.3.3",
     "@tauri-apps/cli": "^2.11.4",

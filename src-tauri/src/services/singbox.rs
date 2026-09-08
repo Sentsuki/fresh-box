@@ -239,7 +239,14 @@ enum AttemptOutcome {
 /// One full connect → claim → subscribe attempt. Runs until either it
 /// fails outright or the status stream it subscribed to ends.
 async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> AttemptOutcome {
-    if !crate::daemon::install::is_service_installed() {
+    // Both checks below describe the *packaged* layout — a registered
+    // Windows service, and a bundled daemon exe at a fixed relative path. A
+    // debug build pointed at a development daemon over TCP (see
+    // `daemon::dev_daemon_address`) satisfies neither by construction, and
+    // needs neither: nothing spawns a worker on that path.
+    let dev_address = crate::daemon::dev_daemon_address();
+
+    if dev_address.is_none() && !crate::daemon::install::is_service_installed() {
         publish(app, state, ConnectionPhase::NotInstalled);
         return AttemptOutcome::NotInstalled;
     }
@@ -247,7 +254,7 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
     publish(app, state, ConnectionPhase::Connecting);
 
     let daemon_path = match crate::daemon::install::daemon_executable_path() {
-        Ok(path) if path.exists() => path,
+        Ok(path) if path.exists() || dev_address.is_some() => path,
         _ => {
             publish(
                 app,
@@ -274,13 +281,65 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
         }
     };
 
-    // Always fetch daemon info: it's how we learn ownership (needed every
-    // attempt, not just when we can also check the version below), mirroring
-    // the official client's `getDaemonInfo` call at the top of every
-    // `loopConnection` iteration.
-    let info = match client.connection.daemon_info().await {
-        Ok(info) => info,
-        Err(e) => {
+    // `daemon_info` / `claim_service` 都在 `DesktopService` 上，而
+    // `DesktopService` 的每个方法都要求一个 peer identity（upstream
+    // `desktop_service.go` 里 10 处 `peerIdentityFromContext`）。开发直连模式
+    // 走 TCP，boxdd 只是关掉了传输层凭据、并没有伪造出 peer identity，所以
+    // 这几步在开发模式下必然失败 —— 跳过它们，直接去订阅
+    // `StartedService.SubscribeServiceStatus`（`started_service.go` 里 0 处
+    // 需要 peer identity，整个 StartedService 在开发模式下都可用）。
+    //
+    // 跳过的是所有权与版本一致性检查，它们保护的是产品部署下的真实风险
+    // （另一个用户会话占着 daemon、app 升级后服务没重装）。开发模式本来就
+    // 只连一个自己起的、无访问控制的实例，这些检查没有意义。
+    if dev_address.is_none() {
+        // Always fetch daemon info: it's how we learn ownership (needed every
+        // attempt, not just when we can also check the version below), mirroring
+        // the official client's `getDaemonInfo` call at the top of every
+        // `loopConnection` iteration.
+        let info = match client.connection.daemon_info().await {
+            Ok(info) => info,
+            Err(e) => {
+                publish(
+                    app,
+                    state,
+                    ConnectionPhase::Unavailable {
+                        error_message: e.to_string(),
+                    },
+                );
+                return AttemptOutcome::Failed;
+            }
+        };
+
+        // Best-effort version-consistency check, mirroring the official
+        // client's `state.ts`: if the *running* privileged service reports a
+        // different version than the exe currently bundled with this install
+        // (e.g. the app was updated but the Windows service wasn't
+        // reinstalled), refuse to claim/start against it rather than talking
+        // an unknown protocol to a stale daemon. Skipped (not failed) if we
+        // can't determine the bundled version at all — this is a UX/integrity
+        // guard, not the actual security boundary (that's boxdd's own
+        // signature/ACL checks in `security_windows.go`).
+        if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
+            && info.version != bundled_version
+        {
+            publish(
+                app,
+                state,
+                ConnectionPhase::VersionMismatch {
+                    daemon_version: info.version,
+                    bundled_version,
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+
+        if info.ownership() == DaemonOwnership::Other {
+            publish(app, state, ConnectionPhase::OwnedByOtherUser);
+            return AttemptOutcome::Failed;
+        }
+
+        if let Err(e) = client.connection.claim_service().await {
             publish(
                 app,
                 state,
@@ -290,45 +349,6 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
             );
             return AttemptOutcome::Failed;
         }
-    };
-
-    // Best-effort version-consistency check, mirroring the official
-    // client's `state.ts`: if the *running* privileged service reports a
-    // different version than the exe currently bundled with this install
-    // (e.g. the app was updated but the Windows service wasn't
-    // reinstalled), refuse to claim/start against it rather than talking
-    // an unknown protocol to a stale daemon. Skipped (not failed) if we
-    // can't determine the bundled version at all — this is a UX/integrity
-    // guard, not the actual security boundary (that's boxdd's own
-    // signature/ACL checks in `security_windows.go`).
-    if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
-        && info.version != bundled_version
-    {
-        publish(
-            app,
-            state,
-            ConnectionPhase::VersionMismatch {
-                daemon_version: info.version,
-                bundled_version,
-            },
-        );
-        return AttemptOutcome::Failed;
-    }
-
-    if info.ownership() == DaemonOwnership::Other {
-        publish(app, state, ConnectionPhase::OwnedByOtherUser);
-        return AttemptOutcome::Failed;
-    }
-
-    if let Err(e) = client.connection.claim_service().await {
-        publish(
-            app,
-            state,
-            ConnectionPhase::Unavailable {
-                error_message: e.to_string(),
-            },
-        );
-        return AttemptOutcome::Failed;
     }
 
     let connection = client.connection.clone();

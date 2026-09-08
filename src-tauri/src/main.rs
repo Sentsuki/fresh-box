@@ -48,6 +48,10 @@ fn main() {
         .manage(services::tools::ToolsState::new())
         .manage(config::app_settings::BackendPrefsState::load())
         .invoke_handler(tauri::generate_handler![
+            // daemon 域：整个 daemon 的能力都从这一个命令过（阶段 2 会加
+            // `daemon_stream`/`daemon_cancel`）。下面那一长串 host 域命令
+            // 会在阶段 3-5 里逐步收缩掉大半 —— 见重构方案 08 节。
+            commands::bridge::daemon_unary,
             commands::singbox::start_singbox,
             commands::singbox::stop_singbox,
             commands::singbox::get_daemon_state,

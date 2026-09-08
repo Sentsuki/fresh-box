@@ -1,3 +1,4 @@
+pub mod bridge;
 pub mod app;
 pub mod config;
 pub mod config_override;

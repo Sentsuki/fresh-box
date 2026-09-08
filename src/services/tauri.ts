@@ -88,3 +88,26 @@ export async function invokeCommand<T>(
     );
   }
 }
+
+/**
+ * Same as `invokeCommand`, for a command whose Rust side returns
+ * `tauri::ipc::Response` — that arrives as an `ArrayBuffer` rather than
+ * JSON-decoded data, so it can't go through `invokeCommand`'s `T`.
+ *
+ * Used by the daemon bridge (`src/daemon/transport.ts`), where the payload
+ * is raw protobuf that only the caller's generated code knows how to read.
+ */
+export async function invokeRaw(
+  command: string,
+  args?: Record<string, unknown>,
+): Promise<ArrayBuffer> {
+  try {
+    return await invoke<ArrayBuffer>(command, args);
+  } catch (error) {
+    throw new CommandInvocationError(
+      getErrorMessage(error),
+      getErrorKind(error),
+      error,
+    );
+  }
+}

@@ -74,6 +74,19 @@ pub struct DaemonClient {
     pub connection: DaemonConnection,
 }
 
+#[cfg(debug_assertions)]
+async fn connect_dev_tcp(address: &str) -> Result<Channel, CommandError> {
+    tracing::warn!(
+        %address,
+        "connecting to sing-box-daemon over TCP — development only, peer authentication is disabled"
+    );
+    tonic::transport::Endpoint::try_from(format!("http://{address}"))
+        .map_err(|e| CommandError::validation(format!("invalid FRESH_BOX_DAEMON_ADDR: {e}")))?
+        .connect()
+        .await
+        .map_err(|e| CommandError::network(format!("connect to daemon at {address}: {e}")))
+}
+
 impl DaemonClient {
     /// Connect through the process-wide shared worker (see
     /// `worker::shared_worker`), spawning one first if none is currently
@@ -82,6 +95,16 @@ impl DaemonClient {
     /// that no longer means respawning the worker itself, just redialing
     /// its relay pipe.
     pub async fn connect(daemon_executable: &std::path::Path) -> Result<Self, CommandError> {
+        // See `daemon::dev_daemon_address` — debug builds only.
+        #[cfg(debug_assertions)]
+        if let Some(address) = super::dev_daemon_address() {
+            return Ok(Self {
+                connection: DaemonConnection {
+                    channel: connect_dev_tcp(&address).await?,
+                },
+            });
+        }
+
         let worker = worker::shared_worker().get(daemon_executable).await?;
         // Dial the *relay* pipe, not the worker's own `--socket` pipe —
         // see the doc comment on `WorkerProcess::relay_socket_path`.
@@ -101,6 +124,14 @@ pub struct DaemonConnection {
 }
 
 impl DaemonConnection {
+    /// The underlying gRPC channel, for `daemon::bridge`'s byte-passthrough
+    /// proxy — it dials methods by `PathAndQuery` with its own codec rather
+    /// than through any of the typed wrappers below, so it needs the raw
+    /// channel. Cloning is just an Arc bump (see this type's doc comment).
+    pub(crate) fn raw_channel(&self) -> Channel {
+        self.channel.clone()
+    }
+
     fn desktop(&self) -> DesktopServiceClient<Channel> {
         DesktopServiceClient::new(self.channel.clone())
     }

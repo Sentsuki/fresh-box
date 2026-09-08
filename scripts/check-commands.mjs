@@ -16,7 +16,7 @@
 // accurate for this codebase's actual conventions: one
 // `tauri::generate_handler!` block, `#[tauri::command]` functions that are
 // never renamed via `#[tauri::command(rename = ...)]`, and every frontend
-// call going through `invoke`/`invokeCommand` with a string literal name
+// call going through `invoke`/`invokeCommand`/`invokeRaw` with a string literal name
 // (never a dynamically constructed one).
 //
 // Run via `npm run build`'s `prebuild` step (see package.json) — a
@@ -70,7 +70,7 @@ function extractInvokedCommands(files) {
   // valid in that position ever contains a literal `(`. Scoped to a single
   // line: every call site in this codebase keeps the command name literal
   // on the same line as the `invoke`/`invokeCommand` it belongs to.
-  const callPattern = /\b(?:invoke|invokeCommand)\b[^(\n]*\(\s*["']([a-zA-Z0-9_]+)["']/g;
+  const callPattern = /\b(?:invoke|invokeCommand|invokeRaw)\b[^(\n]*\(\s*["']([a-zA-Z0-9_]+)["']/g;
 
   for (const file of files) {
     const text = readFileSync(file, "utf8");

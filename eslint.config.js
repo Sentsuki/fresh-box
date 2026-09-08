@@ -13,6 +13,8 @@ export default [
       '**/dist-ssr/**',
       '**/node_modules/**',
       'src-tauri/**',
+      // buf 生成的 protobuf 类型（pnpm gen:proto）——构建产物，不入库也不 lint
+      'src/gen/**',
       '**/*.config.js',
     ],
   },

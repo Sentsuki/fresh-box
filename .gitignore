@@ -35,3 +35,6 @@ sing-box-1.14.0
 sing-box-for-desktop
 sing-box-dashboard
 daemon-bundle
+
+# buf 生成的 protobuf 类型（pnpm gen:proto）
+src/gen/
