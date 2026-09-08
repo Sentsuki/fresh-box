@@ -5,7 +5,7 @@ import {
   type Theme,
 } from "@fluentui/react-components";
 import { getCurrentWindow } from "@tauri-apps/api/window";
-import { invoke } from "@tauri-apps/api/core";
+import { updateMicaTheme } from "../services/api";
 import { useSettingsStore } from "../stores/settingsStore";
 
 const BASE_OVERRIDES = {
@@ -40,10 +40,10 @@ export function useTheme(): Theme {
     const win = getCurrentWindow();
     if (themeMode === "system") {
       win.setTheme(null).catch(console.error);
-      invoke("update_mica_theme", { isLight: null }).catch(console.error);
+      updateMicaTheme(null).catch(console.error);
     } else {
       win.setTheme(themeMode).catch(console.error);
-      invoke("update_mica_theme", { isLight }).catch(console.error);
+      updateMicaTheme(isLight).catch(console.error);
     }
   }, [isLight, themeMode]);
 

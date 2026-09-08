@@ -6,6 +6,7 @@ pub mod crash_reports;
 pub mod daemon;
 pub mod errors;
 pub mod logger;
+pub mod ipc;
 pub mod services;
 pub mod store;
 pub mod tray;

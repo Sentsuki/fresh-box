@@ -25,7 +25,6 @@ import {
   deletePowerReport,
   deleteAllPowerReports,
 } from "../../services/api";
-import type { ConfigOverride } from "../../types/app";
 import DiagnosticsTab from "./DiagnosticsTab";
 import { ReportsPanel } from "./ReportsPanel";
 import { OomSettingsPanel, PowerSettingsPanel } from "./ReportSettings";
@@ -40,9 +39,11 @@ function ConfigOverrideTab() {
 
   useEffect(() => {
     void Promise.all([
+      // 覆盖层现在以 JSON 文本过界（见 `save_config_override` 的注释），
+      // 前端本来就是当文本编辑的，不用再 stringify 一次。
       loadConfigOverride().then((raw) => {
-        if (raw && Object.keys(raw).length > 0) {
-          setRawJson(JSON.stringify(raw, null, 2));
+        if (raw.trim() && raw.trim() !== "{}") {
+          setRawJson(raw);
         }
       }),
       isConfigOverrideEnabled().then(setOverrideEnabled),
@@ -73,11 +74,8 @@ function ConfigOverrideTab() {
   const handleSave = async () => {
     setSaving(true);
     try {
-      let payload: ConfigOverride = {};
-      if (rawJson.trim()) {
-        payload = JSON.parse(rawJson) as ConfigOverride;
-      }
-      await saveConfigOverride(payload);
+      // JSON 合法性由 Rust 侧判断，报错信息更贴合上下文。
+      await saveConfigOverride(rawJson);
       toast.success("Config overrides saved");
     } catch (err) {
       toast.error(

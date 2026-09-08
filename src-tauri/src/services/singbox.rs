@@ -43,7 +43,7 @@ pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
 /// sing-box's own run state, once we're actually connected — mirrors
 /// `daemon_api::service_status::Type` in a form that serializes cleanly for
 /// the frontend (the generated prost enum doesn't derive `Serialize`).
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SingboxRunState {
     Idle,
@@ -53,7 +53,7 @@ pub enum SingboxRunState {
     Fatal,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SingboxStatus {
     pub state: SingboxRunState,
@@ -84,7 +84,7 @@ fn to_singbox_status(status: &ServiceStatus) -> SingboxStatus {
 /// already claimed by a different Windows user session
 /// (`OwnedByOtherUser`) — both used to just surface as an opaque
 /// `CommandError` with no dedicated UI.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "phase", rename_all = "kebab-case")]
 pub enum ConnectionPhase {
     /// Establishing (or re-establishing) the connection — also the phase
@@ -542,8 +542,7 @@ fn build_start_options(store: &Store) -> StartOptions {
     StartOptions {
         oom_killer_enabled: diagnostics.oom_killer_enabled,
         oom_killer_disabled: false,
-        oom_memory_limit: diagnostics
-            .oom_memory_limit_mb
+        oom_memory_limit: i64::from(diagnostics.oom_memory_limit_mb)
             .saturating_mul(1024 * 1024),
         power_report_enabled: diagnostics.power_report_enabled,
     }

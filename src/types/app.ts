@@ -1,3 +1,79 @@
+// 前端自己的视图模型与常量。
+//
+// 跨 IPC 的 host 域类型**不在这里** —— 它们由 Rust 生成（`src/gen/host.ts`，
+// 见 `src-tauri/src/ipc.rs`），这里只做重导出，让调用点的 import 路径不用改。
+// daemon 域的类型同理，由 protobuf 生成（`src/gen/daemon/`、`src/gen/boxdd/`）。
+//
+// 阶段 5 之前这个文件里有一份手抄的镜像：Rust 改个字段名，这边不会有任何编译
+// 错误，运行时表现是那个字段恒为 `undefined`。
+
+export type {
+  AppConfig,
+  AppDisplaySettings,
+  CommandError,
+  ConfigFieldsCheck,
+  ConnectionPageSettings,
+  DiagnosticsSettings,
+  LogConfig,
+  LogsPageSettings,
+  PriorityConfig,
+  PriorityInbound,
+  ProfileOperationResult,
+  ProfilesSettings,
+  ProxyPageSettings,
+  ReportFileView,
+  ReportSummary,
+  UpdateSettings,
+} from "../gen/host";
+
+/** Rust 侧叫 `Profile`；前端一直用 `ProfileEntry` 这个名字。 */
+export type { Profile as ProfileEntry } from "../gen/host";
+
+import type * as Host from "../gen/host";
+
+/**
+ * 归一化后的设置：每个区、每个字段都一定在。
+ *
+ * 生成的 `Host.AppSettings` 里字段全是可选的 —— Rust 侧每个区都带
+ * `#[serde(default)]`，那是**反序列化的健壮性**（某一区的行损坏时退回默认值），
+ * 不该扩散成前端每次读设置都要 `?.` 和 `??`。
+ *
+ * 所以这里从生成类型派生出一份全必填的形状（字段名一个都没重抄），由
+ * `normalizeAppSettings` 在 IPC 边界上补齐一次。
+ */
+export type AppSettings = {
+  app: Omit<Required<Host.AppConfig>, "current_page"> & { current_page: AppPage };
+  proxies: Required<Host.ProxyPageSettings>;
+  // Rust 侧这些是 `String`/`Vec<String>`（存储层不该知道有哪些列、有哪些标签
+  // 页）。前端知道得更具体，所以在这里收窄 —— 这不是重抄类型，是给同一个
+  // 字段加上前端才有的约束。
+  connections: Omit<
+    Required<Host.ConnectionPageSettings>,
+    | "current_tab"
+    | "visible_columns"
+    | "pinned_columns"
+    | "sort_key"
+    | "sort_direction"
+    | "grouped_column"
+    | "column_sizes"
+  > & {
+    current_tab: ConnectionPageTab;
+    visible_columns: ConnectionColumnKey[];
+    pinned_columns: ConnectionColumnKey[];
+    sort_key: ConnectionColumnKey;
+    sort_direction: SortDirection;
+    grouped_column: ConnectionColumnKey | null;
+    column_sizes: Record<string, number>;
+  };
+  logs: Required<Host.LogsPageSettings>;
+  profiles: Required<Host.ProfilesSettings>;
+  settings: Omit<Required<Host.AppDisplaySettings>, "theme_mode"> & {
+    theme_mode: ThemeMode;
+  };
+  updates: Required<Host.UpdateSettings>;
+  diagnostics: Required<Host.DiagnosticsSettings>;
+};
+
 export type ThemeMode = "light" | "dark" | "system";
 
 export type AppPage =
@@ -34,27 +110,6 @@ export type ConnectionColumnKey =
 export type LogLevel =
   "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
-/**
- * A config file fresh-box manages, keyed by a stable `id` that never
- * changes — renaming only ever changes `name`. `url`/`lastUpdated` are
- * present only for subscriptions (fetched from a URL); a locally imported
- * file has neither.
- */
-export interface ProfilesSettings {
-  /** 选中的档案 id。阶段 4 之前存的是磁盘路径 —— 内容文件现在按 UUID 命名，
-   * 路径对前端没有意义，也不该被当成身份来传。 */
-  selected_profile_id: string | null;
-}
-
-export interface ProfileEntry {
-  id: string;
-  name: string;
-  url?: string | null;
-  lastUpdated?: string | null;
-  autoUpdate: boolean;
-  updateIntervalMinutes?: number | null;
-}
-
 /** Mirrors the backend's `config::profiles::MINIMUM_UPDATE_INTERVAL_MINUTES`
  * — kept here too so the UI can reject/clamp an obviously-too-small value
  * before round-tripping to the backend at all. */
@@ -62,78 +117,7 @@ export const MINIMUM_AUTO_UPDATE_INTERVAL_MINUTES = 15;
 /** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
 export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
 
-export interface AppConfig {
-  current_page: AppPage;
-}
 
-
-
-export interface AppDisplaySettings {
-  theme_mode: ThemeMode;
-  close_behavior: "hide" | "destroy";
-  auto_close_connections: boolean;
-}
-
-export interface ProxyPageSettings {
-  collapsed_groups: Record<string, boolean>;
-}
-
-export interface ConnectionPageSettings {
-  current_tab: ConnectionPageTab;
-  visible_columns: ConnectionColumnKey[];
-  pinned_columns: ConnectionColumnKey[];
-  sort_key: ConnectionColumnKey;
-  sort_direction: SortDirection;
-  grouped_column: ConnectionColumnKey | null;
-  column_sizes: Record<string, number>;
-}
-
-export interface LogsPageSettings {
-  type_filter: string;
-}
-
-/**
- * Pure frontend bookkeeping for the update-check flow —
- * `@tauri-apps/plugin-updater` does the actual checking/downloading/
- * installing; this only ever decides *when* to call it and *whether to
- * bother the user again* about a version already shown. Mirrors the
- * backend's `config::app_settings::UpdateSettings`.
- */
-export interface UpdateSettings {
-  /** Opt-in, like the official desktop client — `false` on a fresh install
-   * so nothing phones home to GitHub until the user agrees to it. */
-  check_update_enabled: boolean;
-  /** Whether the one-time "enable automatic update checks?" prompt has
-   * already been shown, regardless of which way it was answered. */
-  update_check_prompted: boolean;
-  /** The version of the last update the user was actually notified about —
-   * so it isn't re-announced on every single launch. */
-  last_shown_update_version: string;
-}
-
-/**
- * Passed to the daemon's `StartOptions` on every start — mirrors the
- * backend's `config::app_settings::DiagnosticsSettings`. Both OOM killer and
- * power-event recording are off by default; changing either only takes
- * effect the next time sing-box (re)starts, same as the TUN stack setting.
- */
-export interface DiagnosticsSettings {
-  oom_killer_enabled: boolean;
-  oom_memory_limit_mb: number;
-  power_report_enabled: boolean;
-}
-
-export interface AppSettings {
-  schema_version: number;
-  app: AppConfig;
-  proxies: ProxyPageSettings;
-  connections: ConnectionPageSettings;
-  logs: LogsPageSettings;
-  profiles: ProfilesSettings;
-  settings: AppDisplaySettings;
-  updates: UpdateSettings;
-  diagnostics: DiagnosticsSettings;
-}
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
   "host",
@@ -167,7 +151,6 @@ export const DEFAULT_CONNECTION_VISIBLE_COLUMNS: ConnectionColumnKey[] = [
 
 export function createDefaultAppSettings(): AppSettings {
   return {
-    schema_version: 1,
     app: {
       current_page: "overview",
     },
@@ -266,8 +249,34 @@ function normalizeNumberRecord(value: unknown): Record<string, number> {
   );
 }
 
+/**
+ * 把 Rust 传回来的（各字段可选的）设置补齐成前端用的全必填形状。
+ *
+ * 入参是**生成的** `Host.AppSettings`，出参是本文件里那个窄化过的
+ * `AppSettings` —— 这个函数就是两者之间唯一的转换点。
+ */
+/**
+ * 从一组允许值里挑，挑不中就退回默认值。
+ *
+ * Rust 侧这些字段是 `String`（存储层不该知道有哪些页面、哪些列），生成的类型
+ * 因此是 `string | undefined`。这个 helper 就是收窄的那一步 —— 它是类型守卫，
+ * 所以调用点不需要 `as`。
+ */
+function oneOf<T extends string>(
+  allowed: readonly T[] | ReadonlySet<T>,
+  value: string | null | undefined,
+  fallback: T,
+): T {
+  if (value === null || value === undefined) return fallback;
+  const ok =
+    allowed instanceof Set
+      ? allowed.has(value as T)
+      : (allowed as readonly T[]).includes(value as T);
+  return ok ? (value as T) : fallback;
+}
+
 export function normalizeAppSettings(
-  settings: AppSettings | null | undefined,
+  settings: Host.AppSettings | null | undefined,
 ): AppSettings {
   const defaults = createDefaultAppSettings();
   if (!settings) return defaults;
@@ -294,12 +303,12 @@ export function normalizeAppSettings(
     : defaults.connections.pinned_columns;
 
   return {
-    schema_version:
-      typeof settings.schema_version === "number" ? settings.schema_version : 1,
     app: {
-      current_page: APP_PAGES.includes(settings.app?.current_page)
-        ? settings.app.current_page
-        : defaults.app.current_page,
+      current_page: oneOf(
+        APP_PAGES,
+        settings.app?.current_page,
+        defaults.app.current_page,
+      ),
     },
     proxies: {
       collapsed_groups: normalizeBooleanRecord(
@@ -307,23 +316,29 @@ export function normalizeAppSettings(
       ),
     },
     connections: {
-      current_tab: CONNECTION_TABS.includes(settings.connections?.current_tab)
-        ? settings.connections.current_tab
-        : defaults.connections.current_tab,
+      current_tab: oneOf(
+        CONNECTION_TABS,
+        settings.connections?.current_tab,
+        defaults.connections.current_tab,
+      ),
       visible_columns: visibleColumns,
       pinned_columns: pinnedColumns,
-      sort_key: CONNECTION_COLUMNS.has(settings.connections?.sort_key)
-        ? settings.connections.sort_key
-        : defaults.connections.sort_key,
-      sort_direction: SORT_DIRECTIONS.includes(
+      sort_key: oneOf(
+        CONNECTION_COLUMNS,
+        settings.connections?.sort_key,
+        defaults.connections.sort_key,
+      ),
+      sort_direction: oneOf(
+        SORT_DIRECTIONS,
         settings.connections?.sort_direction,
-      )
-        ? settings.connections.sort_direction
-        : defaults.connections.sort_direction,
-      grouped_column: CONNECTION_COLUMNS.has(
-        settings.connections?.grouped_column as ConnectionColumnKey,
-      )
-        ? (settings.connections?.grouped_column ?? null)
+        defaults.connections.sort_direction,
+      ),
+      grouped_column: settings.connections?.grouped_column
+        ? oneOf(
+            CONNECTION_COLUMNS,
+            settings.connections.grouped_column,
+            defaults.connections.sort_key,
+          )
         : null,
       column_sizes: normalizeNumberRecord(settings.connections?.column_sizes),
     },
@@ -387,33 +402,7 @@ export interface CommandErrorPayload {
   [key: string]: unknown;
 }
 
-export interface ConfigOverride {
-  [key: string]: unknown;
-}
-
 export type StackOption = "mixed" | "gvisor" | "system";
-
-export interface LogConfig {
-  disabled: boolean;
-  level: LogLevel | string;
-}
-
-export interface PriorityInbound {
-  stack: string;
-}
-
-export interface PriorityConfig {
-  inbounds: PriorityInbound[];
-  log: LogConfig;
-}
-
-export interface ConfigFieldsCheck {
-  has_stack_field: boolean;
-  has_log_field: boolean;
-  current_stack_value?: string;
-  current_log_disabled?: boolean;
-  current_log_level?: string;
-}
 
 export interface ProxyNodeOverview {
   name: string;
@@ -550,20 +539,3 @@ export interface StunTestOptions {
   outboundTag: string;
 }
 
-/** A crash/OOM/power report's list entry. Crash report `id`s carry an
- * `app:`/`daemon:` source prefix (see `commands::reports`); OOM/power report
- * `name`s don't need one — they only ever come from the daemon. */
-export interface ReportSummary {
-  id: string;
-  /** RFC3339. */
-  time: string;
-  isRead: boolean;
-}
-
-/** One file within a report's detail view. `content` is `null` for a binary
- * file (an OOM memory profile) that isn't shown inline. */
-export interface ReportFileView {
-  name: string;
-  content: string | null;
-  isBinary: boolean;
-}

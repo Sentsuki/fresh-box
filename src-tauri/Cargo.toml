@@ -20,7 +20,7 @@ tauri-build = { version = "2", features = [] }
 tonic-prost-build = "0.14.6"
 
 [dependencies]
-tauri = { version = "2", features = ["tray-icon"] }
+tauri = { version = "2", features = ["tray-icon", "specta", "test"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 tauri-plugin-dialog = "2"
@@ -66,6 +66,16 @@ tracing = "0.1"
 tracing-subscriber = { version = "0.3", features = ["env-filter"] }
 tracing-appender = "0.2"
 rusqlite = { version = "0.40.2", features = ["bundled"] }
+# 从 Rust 生成前端的 host 域类型与命令签名。锁死到 rc.25 —— 这条线目前只有
+# release candidate，不锁的话一次 `cargo update` 就可能把 IPC 边界换掉。
+#
+# 只覆盖 host 域：daemon 域的类型早就由 protobuf 生成（见 buf.gen.yaml），而
+# `daemon::bridge` 那三个命令的签名用了 `ipc::Response` / `Channel<InvokeResponseBody>`
+# —— specta 描述不了它们，改成能描述的类型又会毁掉二进制透传路径（阶段 2/3 的
+# 前提）。所以它们留在 `generate_handler!` 上，见 main.rs 的分派。
+tauri-specta = { version = "=2.0.0-rc.25", features = ["typescript"] }
+specta = { version = "=2.0.0-rc.25", features = ["derive"] }
+specta-typescript = "0.0.12"
 
 [target.'cfg(not(any(target_os = "android", target_os = "ios")))'.dependencies]
 tauri-plugin-single-instance = "2"
@@ -86,3 +96,7 @@ windows = { version = "0.61", features = [
     "Win32_Security",
     "Win32_System_Threading",
 ] }
+
+[dev-dependencies]
+# `test` feature 提供 `MockRuntime` —— 见 tests/bindings.rs。
+tauri = { version = "2", features = ["test"] }

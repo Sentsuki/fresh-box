@@ -11,8 +11,10 @@ import type { ReportFileView, ReportSummary } from "../../types/app";
 export interface ReportsApi {
   list: () => Promise<ReportSummary[]>;
   read: (id: string) => Promise<ReportFileView[]>;
-  remove: (id: string) => Promise<void>;
-  removeAll: () => Promise<void>;
+  // `Promise<unknown>`：生成的命令对 Rust 的 `()` 返回 `Promise<null>`，
+  // 这里只关心它完成。
+  remove: (id: string) => Promise<unknown>;
+  removeAll: () => Promise<unknown>;
 }
 
 interface ReportsPanelProps {

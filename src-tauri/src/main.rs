@@ -7,6 +7,7 @@ mod crash_reports;
 mod daemon;
 mod errors;
 mod logger;
+mod ipc;
 mod services;
 mod store;
 mod tray;
@@ -26,6 +27,29 @@ use tauri_plugin_autostart::MacosLauncher;
 const AUTOSTART_ARG: &str = "--autostart";
 
 fn main() {
+    // `--export-bindings <path>`：只生成前端的 host 域绑定然后退出，不起窗口。
+    //
+    // 为什么不做成 `cargo test`：导出要走 `collect_commands!`，它把整个 wry
+    // 运行时链进调用它的二进制；集成测试的测试二进制这么一链，启动时就
+    // `STATUS_ENTRYPOINT_NOT_FOUND`（缺的不是 WebView2Loader，试过了）。而应用
+    // 自己本来就带着能正常加载的那套依赖，所以让它顺带干这件事最省事。
+    //
+    //     pnpm gen:host      # package.json 里包好了
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--export-bindings") {
+        let path = args.next().unwrap_or_else(|| "../src/gen/host.ts".to_string());
+        match ipc::export_bindings(&path) {
+            Ok(()) => {
+                println!("exported host bindings to {path}");
+                return;
+            }
+            Err(e) => {
+                eprintln!("failed to export host bindings: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     logger::init_tracing();
     logger::install_panic_hook();
 
@@ -61,61 +85,7 @@ fn main() {
         .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
         .manage(store)
         .manage(backend_prefs)
-        .invoke_handler(tauri::generate_handler![
-            // daemon 域：整个 daemon 的能力都从这一个命令过（阶段 2 会加
-            // `daemon_stream`/`daemon_cancel`）。下面那一长串 host 域命令
-            // 会在阶段 3-5 里逐步收缩掉大半 —— 见重构方案 08 节。
-            commands::bridge::daemon_unary,
-            commands::bridge::daemon_stream,
-            commands::bridge::daemon_cancel,
-            commands::singbox::start_singbox,
-            commands::singbox::stop_singbox,
-            commands::singbox::get_daemon_state,
-            commands::singbox::retry_daemon_connection,
-            commands::singbox::take_over_daemon,
-            commands::singbox::is_daemon_service_installed,
-            commands::singbox::install_daemon_service,
-            commands::singbox::uninstall_daemon_service,
-            commands::singbox::repair_daemon_service,
-            commands::app::is_autostart_enabled,
-            commands::app::enable_autostart,
-            commands::app::disable_autostart,
-            commands::config::list_profiles,
-            commands::config::import_profile_file,
-            commands::config::delete_profile,
-            commands::config::rename_profile,
-            commands::config::edit_subscription_url,
-            commands::config::set_subscription_auto_update,
-            commands::config::open_config_file,
-            commands::config::open_app_directory,
-            commands::config::load_app_settings,
-            commands::config::save_app_settings,
-            commands::config_override::enable_config_override,
-            commands::config_override::disable_config_override,
-            commands::config_override::save_config_override,
-            commands::config_override::clear_config_override,
-            commands::config_override::load_config_override,
-            commands::config_override::is_config_override_enabled,
-            commands::priority::save_priority_config,
-            commands::priority::load_priority_config,
-            commands::priority::check_config_fields,
-            commands::diagnostics::record_frontend_error,
-            commands::app::update_mica_theme,
-            commands::config::add_subscription,
-            commands::config::update_subscription,
-            commands::reports::list_crash_reports_all,
-            commands::reports::read_crash_report,
-            commands::reports::delete_crash_report,
-            commands::reports::delete_all_crash_reports,
-            commands::reports::list_oom_reports,
-            commands::reports::read_oom_report,
-            commands::reports::delete_oom_report,
-            commands::reports::delete_all_oom_reports,
-            commands::reports::list_power_reports,
-            commands::reports::read_power_report,
-            commands::reports::delete_power_report,
-            commands::reports::delete_all_power_reports,
-        ])
+        .invoke_handler(ipc::invoke_handler())
         .setup(|app| {
             tray::setup_system_tray(app)?;
 

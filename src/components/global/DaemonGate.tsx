@@ -33,7 +33,8 @@ interface PhaseView {
     label: string;
     /** 会弹 UAC 的动作标出来，按钮上提示一下，用户不会被突然的提权吓到。 */
     elevated?: boolean;
-    run: () => Promise<void>;
+    /** 生成的命令对 Rust 的 `()` 返回 `Promise<null>`，这里只关心它完成。 */
+    run: () => Promise<unknown>;
   };
   /** `true` = 这个相位下正常渲染页面内容，不拦。 */
   passthrough?: boolean;

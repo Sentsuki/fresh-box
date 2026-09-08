@@ -10,7 +10,6 @@ import {
   renameProfile as renameProfileCmd,
   setSubscriptionAutoUpdate,
   updateSubscription as updateSubscriptionCmd,
-  type ProfileOperationResult,
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useConfigStore } from "../stores/configStore";
@@ -18,7 +17,7 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useToast } from "./useToast";
 import { useSingbox } from "./useSingbox";
-import type { ProfileEntry } from "../types/app";
+import type { ProfileEntry, ProfileOperationResult } from "../types/app";
 
 /** Subscription content fetched over plain HTTP isn't encrypted or
  * authenticated in transit, so it can be tampered with in flight (and, per
@@ -217,7 +216,7 @@ export function useConfigs() {
         const profiles = await setSubscriptionAutoUpdate(
           id,
           enabled,
-          intervalMinutes,
+          intervalMinutes ?? null,
         );
         useConfigStore.getState().setProfiles(profiles);
       } catch (err) {

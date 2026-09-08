@@ -22,11 +22,11 @@ pub const SCOPE_APP: &str = "app";
 /// 后端唯一关心的那一区 —— 窗口关闭行为、切换节点后是否自动断连接。
 pub const KEY_BEHAVIOR: &str = "behavior";
 
-/// 当前选中的配置档案 id。
+/// 档案相关的设置区（`ProfilesSettings`），选中的档案 id 就在里面。
 ///
-/// 存的是 **id** 而不是路径：内容文件按 UUID 命名，路径对前端没有意义，
-/// 也不该被当作身份来传（那正是 H-03 的老毛病）。
-pub const KEY_SELECTED_PROFILE: &str = "selectedProfile";
+/// 和前端读的是**同一个键**：一度这里另开了一个 `selectedProfile` 键，而前端
+/// 读的是 `profiles` 区里的字段，两边各写各的谁也看不见谁。
+pub const KEY_PROFILES: &str = "profiles";
 
 /// 上次生效的 Clash 模式（rule / global / direct）。
 ///
@@ -99,12 +99,18 @@ pub fn set<T: Serialize>(
 
 /// 当前选中的配置档案 id（没选过则为 `None`）。
 pub fn selected_profile(store: &Store) -> Result<Option<String>, CommandError> {
-    let id: Option<String> = get_or_default(store, SCOPE_APP, KEY_SELECTED_PROFILE)?;
-    Ok(id.filter(|value| !value.is_empty()))
+    let profiles: crate::config::app_settings::ProfilesSettings =
+        get_or_default(store, SCOPE_APP, KEY_PROFILES)?;
+    Ok(profiles
+        .selected_profile_id
+        .filter(|value| !value.is_empty()))
 }
 
 pub fn set_selected_profile(store: &Store, id: Option<&str>) -> Result<(), CommandError> {
-    set(store, SCOPE_APP, KEY_SELECTED_PROFILE, &id)
+    let mut profiles: crate::config::app_settings::ProfilesSettings =
+        get_or_default(store, SCOPE_APP, KEY_PROFILES)?;
+    profiles.selected_profile_id = id.map(str::to_string);
+    set(store, SCOPE_APP, KEY_PROFILES, &profiles)
 }
 
 #[cfg(test)]
@@ -163,6 +169,17 @@ mod tests {
         assert_eq!(broken, Behavior::default());
         let intact: Behavior = get_or_default(&store, SCOPE_APP, KEY_BEHAVIOR).expect("read");
         assert_eq!(intact, good, "a corrupt neighbour must not affect this section");
+    }
+
+    /// 选中的档案 id 必须和前端读的是同一个键 —— 曾经不是（后端另开了一个
+    /// `selectedProfile` 键，前端读 `profiles` 区），两边各写各的。
+    #[test]
+    fn selected_profile_lives_in_the_profiles_section() {
+        let store = Store::open_in_memory().expect("store");
+        set_selected_profile(&store, Some("abc")).unwrap();
+        let section: crate::config::app_settings::ProfilesSettings =
+            get_or_default(&store, SCOPE_APP, KEY_PROFILES).unwrap();
+        assert_eq!(section.selected_profile_id.as_deref(), Some("abc"));
     }
 
     #[test]

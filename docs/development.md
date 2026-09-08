@@ -60,7 +60,9 @@ sing-box 实例，所以那些带 `waitForStarted` 的方法（如 `SubscribeGro
 ## 相关命令
 
 ```powershell
-pnpm gen:proto      # 从 src-tauri/proto 生成 src/gen 下的 TS 类型（buf）
+pnpm gen            # = gen:proto + gen:host，两条 codegen 一起跑
+pnpm gen:proto      # daemon 域：从 src-tauri/proto 生成 TS 类型（buf）
+pnpm gen:host       # host 域：从 Rust 生成命令与类型（tauri-specta）
 pnpm build          # tsc + vite（prebuild 会校验 IPC 命令名两侧一致）
 cargo test          # 含 bridge allowlist 单测
 cargo test --test bridge_e2e -- --nocapture     # bridge 端到端，需要上面那个 daemon
@@ -71,8 +73,28 @@ cargo test --test store_e2e                     # SQLite 验收，不需要 daem
 带 `_e2e` 的测试在没有开发 daemon 时会**跳过而不是失败**（各花约 0.3 秒做 TCP
 探活）。想确认它们真的跑了，看耗时：跳过约 0.3 秒，真跑起来会明显更久。
 
-`src/gen/` 是生成产物，不入库。首次 clone 后需要跑一次 `pnpm gen:proto`
-才能通过类型检查。
+## 两条 codegen
+
+跨 IPC 的类型没有一处是手写的：
+
+| 域 | 来源 | 产物 | 命令 |
+|---|---|---|---|
+| daemon | `src-tauri/proto/*.proto` | `src/gen/daemon/`、`src/gen/boxdd/` | `pnpm gen:proto` |
+| host | Rust 的 `#[tauri::command]` + `#[derive(specta::Type)]` | `src/gen/host.ts` | `pnpm gen:host` |
+
+`src/gen/` 是生成产物，不入库。**首次 clone 后必须跑一次 `pnpm gen`**，否则
+类型检查过不了。
+
+host 域的导出走应用自己的一个开关（`fresh-box.exe --export-bindings <path>`）
+而不是 `cargo test`：`collect_commands!` 会把整个 wry 运行时链进调用它的二进制，
+集成测试的测试二进制这么一链，启动时就 `STATUS_ENTRYPOINT_NOT_FOUND`（缺的
+不是 WebView2Loader，试过了）。应用自身带着能正常加载的那套依赖。
+
+`tauri-specta` 锁死在 `=2.0.0-rc.25`：这条线目前只有 release candidate，不锁的
+话一次 `cargo update` 就可能把 IPC 边界换掉。
+
+`scripts/check-commands.mjs` 现在只守 daemon bridge 那三个手写调用 —— 其余
+47 个命令的漂移已经是编译错误。
 
 ## 数据存放位置
 

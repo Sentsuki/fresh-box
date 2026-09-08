@@ -1,47 +1,27 @@
 #!/usr/bin/env node
-// check-commands.mjs — a build-time cross-check between the two sides of
-// fresh-box's Tauri IPC boundary, which otherwise have no compile-time
-// connection to each other at all: `src/services/api.ts` invokes ~40 Rust
-// commands by string name, and `src-tauri/src/main.rs`'s
-// `tauri::generate_handler![...]` list is the only place those names are
-// registered. Renaming or removing a command on one side without updating
-// the other used to fail silently at compile time on both sides — Rust
-// doesn't know the frontend ever calls it, TypeScript doesn't know the
-// backend ever defines it — and only surface at runtime, as an opaque
-// "command not found" the very first time a user hits that code path.
+// check-commands.mjs —— 守住**手写**的那几个 IPC 调用。
 //
-// This is a lightweight regex-based scan, not a real Rust/TS parser —
-// deliberately so, rather than pulling in a full codegen pipeline
-// (`tauri-specta` et al.) for a single-developer app this size. It's
-// accurate for this codebase's actual conventions: one
-// `tauri::generate_handler!` block, `#[tauri::command]` functions that are
-// never renamed via `#[tauri::command(rename = ...)]`, and every frontend
-// call going through `invoke`/`invokeCommand`/`invokeRaw` with a string literal name
-// (never a dynamically constructed one).
+// 阶段 5 之后 host 域的命令名、参数名、返回类型全部由 `tauri-specta` 从 Rust
+// 生成（`src/gen/host.ts`，见 `src-tauri/src/ipc.rs`），前端通过
+// `services/api.ts` 重导出使用 —— 那 47 个命令的漂移已经是编译错误，不需要这
+// 个脚本再管。
 //
-// 它检查两件事：
-//   1. 命令**名**两侧一致
-//   2. 命令**参数名**两侧一致（Tauri 把 Rust 的 snake_case 暴露成 JS 的
-//      camelCase，所以比较前先归一化）
+// 剩下手写字符串的只有 daemon bridge 的三个：`daemon_unary`/`daemon_stream`/
+// `daemon_cancel`（`src/daemon/transport.ts`）。它们的签名用了
+// `ipc::Response` 和 `Channel<InvokeResponseBody>`，specta 描述不了，所以留在
+// 原生 `generate_handler!` 上 —— 也就还留在这个脚本的护栏里。
 //
-// 第 2 条是阶段 5 加的：把 `start_singbox(config_path)` 改成
-// `start_singbox(profile_id)` 时，只改一侧不会有任何编译错误，运行时表现是那个
-// 参数恒为 `undefined` —— 静默且难查。
+// 检查两件事：命令名两侧一致，参数名两侧一致（Rust 的 snake_case 会被 Tauri
+// 暴露成 JS 的 camelCase，比较前先归一化）。
 //
-// 真正的解法是从 Rust 生成 TS 类型（`tauri-specta`），但它对 Tauri v2 目前只有
-// release candidate（crates.io 上的稳定版 1.0.2 是 Tauri v1 时代的），不适合放进
-// 一个代理客户端的 IPC 边界。等它出稳定版再换 —— 在那之前这个脚本覆盖命令名和
-// 参数名，**载荷的字段形状仍然没有护栏**。
-//
-// Run via `npm run build`'s `prebuild` step (see package.json) — a
-// mismatch fails the build instead of shipping silently.
+// Run via `npm run build`'s `prebuild` step (see package.json).
 
 import { readFileSync, readdirSync, statSync } from "node:fs";
 import { extname, join } from "node:path";
 import { fileURLToPath } from "node:url";
 
 const rootDir = fileURLToPath(new URL("..", import.meta.url));
-const mainRsPath = join(rootDir, "src-tauri", "src", "main.rs");
+const handlerPath = join(rootDir, "src-tauri", "src", "ipc.rs");
 const srcDir = join(rootDir, "src");
 
 function listFiles(dir, exts, out = []) {
@@ -134,11 +114,11 @@ function extractInvokedParams(files) {
   return invoked;
 }
 
-function extractRegisteredCommands(mainRsSource) {
-  const match = mainRsSource.match(/tauri::generate_handler!\s*\[([\s\S]*?)\]/);
+function extractRegisteredCommands(handlerSource) {
+  const match = handlerSource.match(/tauri::generate_handler!\s*\[([\s\S]*?)\]/);
   if (!match) {
     throw new Error(
-      `check-commands: couldn't find a tauri::generate_handler![...] block in ${mainRsPath}`,
+      `check-commands: couldn't find a tauri::generate_handler![...] block in ${handlerPath}`,
     );
   }
   return new Set(
@@ -179,8 +159,8 @@ function extractInvokedCommands(files) {
 }
 
 function main() {
-  const mainRsSource = readFileSync(mainRsPath, "utf8");
-  const registered = extractRegisteredCommands(mainRsSource);
+  const handlerSource = readFileSync(handlerPath, "utf8");
+  const registered = extractRegisteredCommands(handlerSource);
 
   const tsFiles = listFiles(srcDir, [".ts", ".tsx"]);
   const invoked = extractInvokedCommands(tsFiles);
@@ -190,7 +170,7 @@ function main() {
 
   if (unused.length > 0) {
     console.warn(
-      `check-commands: ${unused.length} command(s) registered in main.rs but never invoked ` +
+      `check-commands: ${unused.length} command(s) registered in ipc.rs but never invoked ` +
         `from src/ (may be intentional — e.g. only called from Rust itself):\n` +
         unused.map((n) => `  - ${n}`).join("\n"),
     );
@@ -199,7 +179,7 @@ function main() {
   if (missing.length > 0) {
     console.error(
       `check-commands: ${missing.length} command name(s) invoked from src/ aren't registered ` +
-        `in main.rs's tauri::generate_handler![...] — likely a typo, or a rename that only ` +
+        `in ipc.rs's tauri::generate_handler![...] — likely a typo, or a rename that only ` +
         `landed on one side:\n` +
         missing
           .map(([name, locations]) => `  - "${name}" (${locations.join(", ")})`)

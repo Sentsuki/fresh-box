@@ -128,16 +128,19 @@ fn open_with_system(path: &str) -> Result<(), CommandError> {
 // ── 设置 ────────────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn open_app_directory() -> Result<(), CommandError> {
     open_with_system(&crate::config::get_app_data_root()?.to_string_lossy())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn load_app_settings(store: State<'_, Store>) -> Result<AppSettings, CommandError> {
     crate::config::app_settings::load_app_settings(store.inner())
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_app_settings(
     store: State<'_, Store>,
     backend_prefs: State<'_, crate::config::app_settings::BackendPrefsState>,
@@ -152,13 +155,14 @@ pub fn save_app_settings(
 // ── 档案列表 ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub fn list_profiles(store: State<'_, Store>) -> Result<Vec<profiles::Profile>, CommandError> {
     profiles::list(store.inner())
 }
 
 /// 增 / 导入 / 刷新单个档案的统一返回：`entry` 是这一个，`profiles` 是刷新后
 /// 的完整列表 —— 前端一次 IPC 就能把状态更新完，不用「改完再查一遍」。
-#[derive(serde::Serialize)]
+#[derive(serde::Serialize, specta::Type)]
 pub struct ProfileOperationResult {
     pub entry: profiles::Profile,
     pub profiles: Vec<profiles::Profile>,
@@ -174,6 +178,7 @@ fn result_for(store: &Store, entry: profiles::Profile) -> Result<ProfileOperatio
 // ── 导入 / 抓取 ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn import_profile_file(
     store: State<'_, Store>,
     source_path: String,
@@ -220,6 +225,7 @@ async fn fetch_subscription(url: &str) -> Result<String, CommandError> {
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn add_subscription(
     store: State<'_, Store>,
     url: String,
@@ -236,6 +242,7 @@ pub async fn add_subscription(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn update_subscription(
     store: State<'_, Store>,
     id: String,
@@ -258,6 +265,7 @@ async fn refresh_subscription(store: &Store, id: &str) -> Result<(), CommandErro
 // ── 改 / 删 / 打开 ──────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub fn edit_subscription_url(
     store: State<'_, Store>,
     id: String,
@@ -272,6 +280,7 @@ pub fn edit_subscription_url(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn set_subscription_auto_update(
     store: State<'_, Store>,
     id: String,
@@ -283,6 +292,7 @@ pub fn set_subscription_auto_update(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn rename_profile(
     store: State<'_, Store>,
     id: String,
@@ -297,6 +307,7 @@ pub fn rename_profile(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn delete_profile(
     store: State<'_, Store>,
     id: String,
@@ -310,6 +321,7 @@ pub fn delete_profile(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn open_config_file(store: State<'_, Store>, id: String) -> Result<(), CommandError> {
     // 存在性通过 `read_content` 确认（它会区分「没这个档案」和「内容文件丢了」）。
     profiles::read_content(store.inner(), &id)?;

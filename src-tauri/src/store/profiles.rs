@@ -20,7 +20,7 @@ pub const MINIMUM_UPDATE_INTERVAL_MINUTES: u32 = 15;
 /// `interval_min` 为空时用的默认值。
 pub const DEFAULT_UPDATE_INTERVAL_MINUTES: u32 = 60;
 
-#[derive(Debug, Clone, Serialize)]
+#[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct Profile {
     pub id: String,

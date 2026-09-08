@@ -12,6 +12,7 @@ use crate::errors::CommandError;
 /// error's own stack, when available — both are useful for tracing which
 /// page/component actually broke.
 #[tauri::command]
+#[specta::specta]
 pub async fn record_frontend_error(
     name: String,
     message: String,

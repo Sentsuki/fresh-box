@@ -8,40 +8,37 @@ use crate::errors::CommandError;
 use crate::store::{Store, settings};
 use serde::{Deserialize, Serialize};
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct AppSettings {
-    #[serde(default)]
     pub app: AppConfig,
-    #[serde(default)]
     pub proxies: ProxyPageSettings,
-    #[serde(default)]
     pub connections: ConnectionPageSettings,
-    #[serde(default)]
     pub logs: LogsPageSettings,
-    #[serde(default)]
     pub profiles: ProfilesSettings,
-    #[serde(default)]
     pub settings: AppDisplaySettings,
-    #[serde(default)]
     pub updates: UpdateSettings,
-    #[serde(default)]
     pub diagnostics: DiagnosticsSettings,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AppConfig {
     pub current_page: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ProfilesSettings {
-    pub selected_config_path: Option<String>,
-    pub selected_config_display: Option<String>,
+    /// 选中的档案 id。
+    ///
+    /// 阶段 4 把内容文件改成按 UUID 命名之后，路径就不再是身份了 —— 但这个
+    /// 结构当时漏改了，一直还留着 `selected_config_path`/`_display` 两个字段，
+    /// 而实际的选中值被写在另一个设置键上。前端和后端因此指着两个不同的地方，
+    /// 且没有任何编译错误提示。接 specta 生成类型时立刻暴露了出来。
+    pub selected_profile_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AppDisplaySettings {
     pub theme_mode: String,
@@ -49,14 +46,14 @@ pub struct AppDisplaySettings {
     pub auto_close_connections: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ProxyPageSettings {
     #[serde(default)]
     pub collapsed_groups: std::collections::BTreeMap<String, bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ConnectionPageSettings {
     pub current_tab: String,
@@ -69,7 +66,7 @@ pub struct ConnectionPageSettings {
     pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct LogsPageSettings {
     pub type_filter: String,
@@ -84,7 +81,7 @@ pub struct LogsPageSettings {
 /// `last_shown_update_version` in `updates.ts`). None of this belongs in
 /// `AppDisplaySettings`/`BackendPrefsState` — the backend never reads any
 /// of it, unlike `close_behavior`/`auto_close_connections`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct UpdateSettings {
     /// Opt-in, like the official client — defaults to `false` so a fresh
@@ -115,11 +112,14 @@ pub struct UpdateSettings {
 /// — enabling either only takes effect the next time sing-box (re)starts,
 /// same as fresh-box's other startup-only options (e.g. the TUN stack
 /// setting).
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct DiagnosticsSettings {
     pub oom_killer_enabled: bool,
-    pub oom_memory_limit_mb: i64,
+    /// `u32` 而不是 `i64`：这是个「多少 MB」的上限，值域小得很，而 specta
+    /// 会拒绝导出 64 位整数——它在 JS 里是 `number`，超过 2^53 会静默丢精度。
+    /// 这个字段本来也不该有负数或天文数字。
+    pub oom_memory_limit_mb: u32,
     pub power_report_enabled: bool,
 }
 
@@ -176,7 +176,6 @@ const KEY_APP: &str = "app";
 const KEY_PROXIES: &str = "proxies";
 const KEY_CONNECTIONS: &str = "connections";
 const KEY_LOGS: &str = "logs";
-const KEY_PROFILES: &str = "profiles";
 const KEY_UPDATES: &str = "updates";
 const KEY_DIAGNOSTICS: &str = "diagnostics";
 
@@ -189,7 +188,7 @@ pub fn load_app_settings(store: &Store) -> Result<AppSettings, CommandError> {
         proxies: get_or_default(store, SCOPE_APP, KEY_PROXIES)?,
         connections: get_or_default(store, SCOPE_APP, KEY_CONNECTIONS)?,
         logs: get_or_default(store, SCOPE_APP, KEY_LOGS)?,
-        profiles: get_or_default(store, SCOPE_APP, KEY_PROFILES)?,
+        profiles: get_or_default(store, SCOPE_APP, settings::KEY_PROFILES)?,
         settings: get_or_default(store, SCOPE_APP, settings::KEY_BEHAVIOR)?,
         updates: get_or_default(store, SCOPE_APP, KEY_UPDATES)?,
         diagnostics: get_or_default(store, SCOPE_APP, KEY_DIAGNOSTICS)?,
@@ -202,7 +201,7 @@ pub fn save_app_settings(store: &Store, value: &AppSettings) -> Result<(), Comma
     set(store, SCOPE_APP, KEY_PROXIES, &value.proxies)?;
     set(store, SCOPE_APP, KEY_CONNECTIONS, &value.connections)?;
     set(store, SCOPE_APP, KEY_LOGS, &value.logs)?;
-    set(store, SCOPE_APP, KEY_PROFILES, &value.profiles)?;
+    set(store, SCOPE_APP, settings::KEY_PROFILES, &value.profiles)?;
     set(store, SCOPE_APP, settings::KEY_BEHAVIOR, &value.settings)?;
     set(store, SCOPE_APP, KEY_UPDATES, &value.updates)?;
     set(store, SCOPE_APP, KEY_DIAGNOSTICS, &value.diagnostics)

@@ -4,6 +4,7 @@ use crate::store::Store;
 use tauri::State;
 
 #[tauri::command]
+#[specta::specta]
 pub fn save_priority_config(
     store: State<'_, Store>,
     config: PriorityConfig,
@@ -12,6 +13,7 @@ pub fn save_priority_config(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub fn load_priority_config(store: State<'_, Store>) -> Result<PriorityConfig, CommandError> {
     crate::config::priority::load_priority_config_inner(store.inner())
 }
@@ -22,6 +24,7 @@ pub fn load_priority_config(store: State<'_, Store>) -> Result<PriorityConfig, C
 /// 按 **profile id** 取内容，不再收路径：内容文件按 UUID 命名，路径对前端没有
 /// 意义（阶段 4 起）。
 #[tauri::command]
+#[specta::specta]
 pub fn check_config_fields(
     store: State<'_, Store>,
     profile_id: String,

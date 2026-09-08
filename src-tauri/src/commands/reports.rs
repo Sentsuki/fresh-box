@@ -17,7 +17,7 @@ use tauri::State;
 const APP_PREFIX: &str = "app:";
 const DAEMON_PREFIX: &str = "daemon:";
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportSummary {
     pub id: String,
@@ -26,7 +26,7 @@ pub struct ReportSummary {
     pub is_read: bool,
 }
 
-#[derive(Debug, Clone, serde::Serialize)]
+#[derive(Debug, Clone, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct ReportFileView {
     pub name: String,
@@ -81,6 +81,7 @@ fn oom_files_view(files: Vec<OomReportFile>) -> Vec<ReportFileView> {
 // ── Crash reports (merged app + daemon) ─────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_crash_reports_all(
     singbox: State<'_, SingboxState>,
 ) -> Result<Vec<ReportSummary>, CommandError> {
@@ -111,6 +112,7 @@ pub async fn list_crash_reports_all(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_crash_report(
     singbox: State<'_, SingboxState>,
     id: String,
@@ -140,6 +142,7 @@ pub async fn read_crash_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_crash_report(
     singbox: State<'_, SingboxState>,
     id: String,
@@ -154,6 +157,7 @@ pub async fn delete_crash_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_all_crash_reports(
     singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {
@@ -167,6 +171,7 @@ pub async fn delete_all_crash_reports(
 // ── OOM reports ──────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_oom_reports(
     singbox: State<'_, SingboxState>,
 ) -> Result<Vec<ReportSummary>, CommandError> {
@@ -178,6 +183,7 @@ pub async fn list_oom_reports(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_oom_report(
     singbox: State<'_, SingboxState>,
     name: String,
@@ -189,6 +195,7 @@ pub async fn read_oom_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_oom_report(
     singbox: State<'_, SingboxState>,
     name: String,
@@ -198,6 +205,7 @@ pub async fn delete_oom_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_all_oom_reports(singbox: State<'_, SingboxState>) -> Result<(), CommandError> {
     let connection = get_connection(singbox.inner()).await?;
     connection.delete_all_oom_reports().await
@@ -206,6 +214,7 @@ pub async fn delete_all_oom_reports(singbox: State<'_, SingboxState>) -> Result<
 // ── Power reports ────────────────────────────────────────────────────────
 
 #[tauri::command]
+#[specta::specta]
 pub async fn list_power_reports(
     singbox: State<'_, SingboxState>,
 ) -> Result<Vec<ReportSummary>, CommandError> {
@@ -217,6 +226,7 @@ pub async fn list_power_reports(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn read_power_report(
     singbox: State<'_, SingboxState>,
     name: String,
@@ -228,6 +238,7 @@ pub async fn read_power_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_power_report(
     singbox: State<'_, SingboxState>,
     name: String,
@@ -237,6 +248,7 @@ pub async fn delete_power_report(
 }
 
 #[tauri::command]
+#[specta::specta]
 pub async fn delete_all_power_reports(
     singbox: State<'_, SingboxState>,
 ) -> Result<(), CommandError> {

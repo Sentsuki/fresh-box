@@ -10,7 +10,7 @@ const KEY_PRIORITY: &str = "priorityConfig";
 
 pub const DEFAULT_STACK: &str = "mixed";
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct PriorityInbound {
     pub stack: String,
 }
@@ -23,7 +23,7 @@ impl Default for PriorityInbound {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, specta::Type)]
 pub struct LogConfig {
     pub disabled: bool,
     pub level: String,
@@ -38,7 +38,7 @@ impl Default for LogConfig {
     }
 }
 
-#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default)]
+#[derive(serde::Serialize, serde::Deserialize, Clone, Debug, Default, specta::Type)]
 pub struct PriorityConfig {
     pub inbounds: Vec<PriorityInbound>,
     pub log: LogConfig,
@@ -56,7 +56,7 @@ pub(crate) fn load_priority_config_inner(store: &Store) -> Result<PriorityConfig
 }
 
 
-#[derive(serde::Serialize, serde::Deserialize)]
+#[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ConfigFieldsCheck {
     pub has_stack_field: bool,
     pub has_log_field: bool,
