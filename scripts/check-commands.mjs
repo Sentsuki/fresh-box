@@ -30,7 +30,9 @@ function listFiles(dir, exts, out = []) {
     const stat = statSync(full);
     if (stat.isDirectory()) {
       listFiles(full, exts, out);
-    } else if (exts.includes(extname(full))) {
+    } else if (exts.includes(extname(full)) && !entry.includes(".test.")) {
+      // 测试文件里的 `invoke("…")` 打的是 mock，不是真命令 —— 拿它们跟
+      // `generate_handler!` 对账只会误报。
       out.push(full);
     }
   }

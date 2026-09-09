@@ -109,6 +109,7 @@ jobs:
         shell: pwsh
         run: pnpm build
 
+      # 带覆盖率跑 —— `vitest.config.ts` 里设了阈值，掉下去这一步就红。
       - name: Frontend tests
         shell: pwsh
-        run: pnpm test
+        run: pnpm test:coverage

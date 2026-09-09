@@ -139,3 +139,49 @@ pub async fn server_streaming(
         ))
     })
 }
+
+#[cfg(test)]
+mod tests {
+    use super::frame;
+
+    // 分帧的两端必须逐字节一致 —— 前端那半在 `src/daemon/transport.test.ts`。
+    // 标签值写死在断言里而不是引用常量：常量被改动时这里要红，那正是重点。
+
+    #[test]
+    fn a_message_frame_is_the_tag_then_the_payload_verbatim() {
+        let payload = [0x00, 0xff, 0x08, 0x96];
+        let framed = frame::message(&payload);
+        assert_eq!(framed[0], 0x00);
+        assert_eq!(&framed[1..], &payload);
+    }
+
+    #[test]
+    fn an_empty_payload_still_produces_a_message_frame() {
+        // 全字段默认值的 protobuf 消息编码后是零字节 —— 帧里只剩标签。
+        assert_eq!(frame::message(&[]), vec![0x00]);
+    }
+
+    #[test]
+    fn the_end_frame_carries_nothing() {
+        assert_eq!(frame::end(), vec![0x01]);
+    }
+
+    #[test]
+    fn an_error_frame_carries_utf8_text() {
+        let framed = frame::error("instance stopped");
+        assert_eq!(framed[0], 0x02);
+        assert_eq!(
+            std::str::from_utf8(&framed[1..]).expect("error text is utf-8"),
+            "instance stopped"
+        );
+    }
+
+    #[test]
+    fn non_ascii_error_text_survives() {
+        let framed = frame::error("实例已停止");
+        assert_eq!(
+            std::str::from_utf8(&framed[1..]).expect("error text is utf-8"),
+            "实例已停止"
+        );
+    }
+}

@@ -64,9 +64,13 @@ export function getErrorMessage(error: unknown): string {
     if (typeof error.message === "string" && error.message.trim()) {
       return error.message;
     }
-    const firstString = Object.values(error).find(
-      (value) => typeof value === "string" && (value as string).trim(),
-    );
+    // 跳过 `kind`：它是判别式，永远存在、永远是字符串，不跳过的话下面这行
+    // 永远返回它（"io_error" 之类），把真正带信息的字段挡在后面 —— 这个
+    // 兜底也就等于没有。
+    const firstString = Object.entries(error).find(
+      ([key, value]) =>
+        key !== "kind" && typeof value === "string" && value.trim(),
+    )?.[1];
     if (typeof firstString === "string") return firstString;
   }
 

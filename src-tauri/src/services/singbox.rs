@@ -647,3 +647,161 @@ pub async fn cleanup_process(state: &SingboxState) {
         tracing::warn!(error = ?e, "failed to stop sing-box service during cleanup");
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `start_with_profile` 那一半要真 daemon。这里测的是它之前的那一步：
+    // 三层合并出最终交给 `StartService` 的内容。单独的合并函数各自有测试
+    // （`config::config_override` / `config::priority`），这里钉的是**顺序**
+    // 和**取值来源** —— 写反了不会有编译错误，只会在运行时悄悄用错配置。
+
+    fn store_with_profile(content: &str) -> (Store, String) {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let profile =
+            crate::store::profiles::create(&store, "test", None, content).expect("create profile");
+        (store, profile.id)
+    }
+
+    const BASE: &str = r#"{
+        "log": { "level": "trace" },
+        "inbounds": [{ "type": "tun", "stack": "system" }],
+        "outbounds": [{ "type": "direct", "tag": "direct" }]
+    }"#;
+
+    #[test]
+    fn the_profile_content_is_the_base() {
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["outbounds"][0]["tag"], "direct");
+    }
+
+    #[test]
+    fn clash_api_is_injected_even_when_the_profile_has_no_experimental_block() {
+        // 没有它 daemon 就不会构造 `ClashServer`，代理页、模式切换、测速、
+        // 连接全是空的 —— 这是技术必需，不是可选项。
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(
+            value["experimental"]["clash_api"]["external_controller"],
+            ""
+        );
+    }
+
+    #[test]
+    fn a_disabled_override_changes_nothing() {
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "outbounds": [{ "type": "block", "tag": "block" }] }),
+        )
+        .expect("save override");
+        // 存了但没启用 —— 不该生效。
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["outbounds"][0]["tag"], "direct");
+    }
+
+    #[test]
+    fn an_enabled_override_is_merged_in() {
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "dns": { "servers": [{ "address": "1.1.1.1" }] } }),
+        )
+        .expect("save override");
+        crate::config::config_override::enable_config_override_inner(&store).expect("enable");
+
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["dns"]["servers"][0]["address"], "1.1.1.1");
+        assert_eq!(value["outbounds"][0]["tag"], "direct", "base survives");
+    }
+
+    #[test]
+    fn priority_config_gets_the_last_word_over_the_override() {
+        // 顺序是载荷 → 用户覆盖 → priority。priority 存在的意义就是保证
+        // fresh-box 自己的运行前提成立，所以它必须压在覆盖层之上。
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "log": { "level": "debug", "disabled": false } }),
+        )
+        .expect("save override");
+        crate::config::config_override::enable_config_override_inner(&store).expect("enable");
+        crate::config::priority::save_priority_config_inner(
+            &store,
+            crate::config::priority::PriorityConfig {
+                inbounds: vec![crate::config::priority::PriorityInbound {
+                    stack: "gvisor".into(),
+                }],
+                log: crate::config::priority::LogConfig {
+                    disabled: false,
+                    level: "warn".into(),
+                },
+            },
+        )
+        .expect("save priority");
+
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["log"]["level"], "warn", "priority wins over override");
+        assert_eq!(value["inbounds"][0]["stack"], "gvisor");
+    }
+
+    #[test]
+    fn the_remembered_clash_mode_is_written_back() {
+        // 审计项 M-09：记得住上次选的模式才不会每次启动都被打回 Rule；
+        // 没记住过就干脆不写这个字段。
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert!(
+            value["experimental"]["clash_api"]
+                .get("default_mode")
+                .is_none()
+        );
+
+        crate::store::settings::set_last_clash_mode(&store, "global").expect("remember mode");
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["experimental"]["clash_api"]["default_mode"], "global");
+    }
+
+    #[test]
+    fn a_missing_profile_is_an_error_not_an_empty_config() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        assert!(build_config_content(&store, "no-such-id").is_err());
+    }
+
+    #[test]
+    fn start_options_come_from_the_diagnostics_section() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let mut settings = crate::config::app_settings::AppSettings::default();
+        settings.diagnostics.oom_killer_enabled = true;
+        settings.diagnostics.oom_memory_limit_mb = 2048;
+        settings.diagnostics.power_report_enabled = true;
+        crate::config::app_settings::save_app_settings(&store, &settings).expect("save");
+
+        let options = build_start_options(&store);
+        assert!(options.oom_killer_enabled);
+        assert!(!options.oom_killer_disabled);
+        assert!(options.power_report_enabled);
+        // MB → 字节，daemon 那边要的是字节。
+        assert_eq!(options.oom_memory_limit, 2048 * 1024 * 1024);
+    }
+
+    #[test]
+    fn a_huge_memory_limit_saturates_instead_of_overflowing() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let mut settings = crate::config::app_settings::AppSettings::default();
+        settings.diagnostics.oom_memory_limit_mb = u32::MAX;
+        crate::config::app_settings::save_app_settings(&store, &settings).expect("save");
+
+        let options = build_start_options(&store);
+        assert!(options.oom_memory_limit > 0, "must not wrap around");
+    }
+}

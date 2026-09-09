@@ -275,7 +275,7 @@ jobs:
         shell: pwsh
         run: |
           pnpm lint:check --max-warnings=0
-          pnpm test
+          pnpm test:coverage
           cargo test --manifest-path src-tauri/Cargo.toml
 
       # Builds the frontend, compiles fresh-box (renamed sing-box.exe via

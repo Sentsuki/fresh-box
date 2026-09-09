@@ -317,10 +317,87 @@ pub fn probe_service() -> ServiceStatus {
     }
 }
 
+/// 状态 → 「装没装」。
+///
+/// 单独抽出来只为可测：`is_service_installed` 自己要跑一次真实探测，而这里
+/// 想钉住的是四个状态各自该映射成什么 —— 尤其是 `NotRunning` 算「装了」，
+/// 那正是 H-04 的核心区分。
+fn installed_from_status(status: ServiceStatus) -> bool {
+    !matches!(status, ServiceStatus::NotInstalled | ServiceStatus::Unknown)
+}
+
 /// 服务是否已注册（不论在不在跑）—— 设置页据此显示「安装」还是「卸载」。
 pub fn is_service_installed() -> bool {
-    !matches!(
-        probe_service(),
-        ServiceStatus::NotInstalled | ServiceStatus::Unknown
-    )
+    installed_from_status(probe_service())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quoting_wraps_in_single_quotes() {
+        assert_eq!(
+            powershell_quote(r"C:\Program Files\fresh-box"),
+            r"'C:\Program Files\fresh-box'"
+        );
+    }
+
+    #[test]
+    fn an_embedded_quote_is_doubled_not_escaped() {
+        // PowerShell 单引号串里转义 `'` 的方式是把它写两遍；用反斜杠转义在这
+        // 里是**无效**的，会把参数截断 —— 而这些参数最后交给的是一个提权进程。
+        assert_eq!(powershell_quote("it's"), "'it''s'");
+        assert_eq!(powershell_quote("''"), "''''''");
+    }
+
+    #[test]
+    fn characters_powershell_would_otherwise_interpret_are_inert() {
+        // 单引号串里 `$`、反引号、`;`、`|`、`&` 都不展开也不断句 —— 这正是
+        // 选它而不是双引号的理由。
+        for hostile in ["$(whoami)", "a; whoami", "`whoami`", "a|b", "a&b"] {
+            let quoted = powershell_quote(hostile);
+            let inner = quoted
+                .strip_prefix('\'')
+                .and_then(|q| q.strip_suffix('\''))
+                .unwrap_or_else(|| panic!("{quoted} must be single-quoted"));
+            assert_eq!(inner, hostile, "nothing but the quotes should be added");
+        }
+    }
+
+    #[test]
+    fn system_paths_are_absolute_and_under_system32() {
+        let path = system32("icacls.exe");
+        assert!(path.is_absolute(), "{} must be absolute", path.display());
+        assert!(path.ends_with("System32\\icacls.exe"), "{}", path.display());
+    }
+
+    #[test]
+    fn powershell_comes_from_system32_not_the_path() {
+        // 审计项 L-14：这个进程可能从任意工作目录启动，而下一步就是提权。
+        let path = powershell_path();
+        assert!(path.is_absolute());
+        assert!(
+            path.ends_with("WindowsPowerShell\\v1.0\\powershell.exe"),
+            "{}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn service_status_maps_to_installed_the_same_way_everywhere() {
+        // `is_service_installed` 是 `probe_service` 的一个视图，不该有独立的
+        // 判断逻辑 —— `service_probe_e2e.rs` 验的是它们对真实机器状态一致，
+        // 这里验的是四个状态各自的映射。
+        assert!(matches!(ServiceStatus::Running, ServiceStatus::Running));
+        for status in [ServiceStatus::Running, ServiceStatus::NotRunning] {
+            assert!(installed_from_status(status), "{status:?} means installed");
+        }
+        for status in [ServiceStatus::NotInstalled, ServiceStatus::Unknown] {
+            assert!(
+                !installed_from_status(status),
+                "{status:?} does not mean installed"
+            );
+        }
+    }
 }

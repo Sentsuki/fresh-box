@@ -81,8 +81,8 @@ pnpm gen:proto      # daemon 域：从 src-tauri/proto 生成 TS 类型（buf）
 pnpm gen:host       # host 域：从 Rust 生成命令与类型（tauri-specta）
 pnpm build          # tsc + vite（prebuild 会校验 IPC 命令名两侧一致）
 pnpm lint:check     # eslint，零 warning
-pnpm test           # 前端单测（vitest），不需要 daemon 也不需要浏览器
-cargo test          # 含 bridge codec/allowlist、配置合成、SQLite 单测
+pnpm test           # 前端单测（vitest），见下一节
+cargo test          # 102 个单测 + 集成测试
 cargo test --test bridge_e2e -- --nocapture     # bridge 端到端，需要上面那个 daemon
 cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 cargo test --test store_e2e                     # SQLite 验收，不需要 daemon
@@ -91,23 +91,45 @@ cargo test --test store_e2e                     # SQLite 验收，不需要 daem
 带 `_e2e` 的测试在没有开发 daemon 时会**跳过而不是失败**（各花约 0.3 秒做 TCP
 探活）。想确认它们真的跑了，看耗时：跳过约 0.3 秒，真跑起来会明显更久。
 
-### 前端单测测什么
+### 测试跑在哪一层
 
-`pnpm test` 跑在 node 上，不起 jsdom、不碰 Tauri：
+```powershell
+pnpm test            # 前端单测（vitest），不需要 daemon
+pnpm test:coverage   # 同上 + 覆盖率，低于阈值就失败（阈值在 vitest.config.ts）
+pnpm test:watch
+```
 
-| 文件 | 测的东西 |
-|---|---|
-| `src/daemon/transport.test.ts` | 流分帧（消息/结束/出错标签）、取消回收流 id、错误包成 `ConnectError` |
-| `src/daemon/subscription.test.ts` | 「流结束 ≠ 出错」那条状态机分支、退避重订阅 |
-| `src/daemon/connectionEntries.test.ts` | 连接事件累加（NEW/UPDATE/CLOSED）、`host:port` 拆分 |
-| `src/daemon/proxyOverview.test.ts` | `Group` → 代理页视图模型，即翻译层的替代品 |
-| `src/hooks/logFormat.test.ts` | ANSI 转义剥离、日志分类提取 |
-| `src/types/app.test.ts` | 设置归一化对坏数据的态度 |
+前端跑在 node 上；需要 React 的那几个文件在文件头写 `// @vitest-environment
+jsdom` 单独切过去，其余保持 node（快得多）。当前覆盖率约 **83%** 语句 /
+**81%** 分支，分母是「有逻辑、可以测」的那部分：
 
-为了能这么测，几个纯函数从「顶层就建订阅」的模块里拆了出来
+| 目录 | 覆盖 | 测的是 |
+|---|---|---|
+| `src/daemon/` | ~93% | 分帧、累加、组视图、测速等待、两套测速 RPC 的取舍、流控制器状态机 |
+| `src/stores/` | ~98% | 切换动作的在途标记与「结果不自己写」、设置落盘时机、自更新状态机 |
+| `src/services/` | ~97% | 格式化（对齐 sing-box 自己的输出）、IPC 错误包装 |
+| `src/hooks/` | ~72% | 相位归约、流起停编排、日志缓冲与筛选、档案操作、主题三方同步 |
+| `src/types/app.ts` | ~95% | 设置归一化对坏数据的态度 |
+
+**不测**的：`src/gen/`（生成产物）、`src/components/ui/` 和各页面的布局
+（纯 JSX，渲染一遍只能证明它没崩）。有行为的组件不在这条线上 —— 相位表那类
+穷举由类型保证（`Record<DaemonPhaseName, …>`，见 `DaemonGate`），`tsc` 已经
+在管。
+
+为了能测，几个纯函数从「顶层就建订阅」的模块里拆了出来
 （`connectionEntries.ts`、`proxyOverview.ts`、`logFormat.ts`）——
-`import` 它们没有任何副作用。组件本身不测：相位表那类穷举由类型保证
-（`Record<DaemonPhaseName, …>`，见 `DaemonGate`），`tsc` 已经在管了。
+`import` 它们没有任何副作用。
+
+Rust 侧 **102 个单测 + 14 个集成测试**。`config::paths::get_app_data_root`
+在 `cfg(test)` 下指向临时目录（那是唯一一处测试专用的行为差异），所以碰到
+档案内容、配置合成的测试不会写进真实的 `%LOCALAPPDATA%`。
+
+写 mock 时注意两个坑，都真的踩过：
+
+* `beforeEach(() => mock.mockReset())` 的**花括号不能省** —— 箭头函数的隐式
+  返回会把 mock 交给 vitest，而 vitest 把 hook 返回的函数当成 teardown 去
+  调用它。
+* `vi.hoisted()` 的工厂跑在所有 import 之前，里面不能调被测模块的函数。
 
 ## 两条 codegen
 

@@ -354,3 +354,128 @@ pub async fn close_connections_by_group(connection: &DaemonConnection, group_tag
         }
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::daemon::daemon_api::{Group, GroupItem, Groups};
+
+    // 两条订阅本身要真 daemon（`tests/resident_e2e.rs` 管那一半）。这里测的是
+    // 它们写进/读出的那个状态容器，以及 `Groups` → 托盘菜单的那次摘取 ——
+    // 托盘在窗口关掉之后就是靠这两样活着的。
+
+    fn group(tag: &str, selectable: bool, selected: &str, items: &[&str]) -> Group {
+        Group {
+            tag: tag.to_string(),
+            r#type: "selector".to_string(),
+            selectable,
+            selected: selected.to_string(),
+            is_expand: false,
+            items: items
+                .iter()
+                .map(|t| GroupItem {
+                    tag: t.to_string(),
+                    r#type: "shadowsocks".to_string(),
+                    url_test_time: 0,
+                    url_test_delay: 0,
+                })
+                .collect(),
+        }
+    }
+
+    #[test]
+    fn only_selectable_groups_reach_the_tray() {
+        // 托盘菜单点一下就是切节点，所以「不能手动选」的组根本不该出现在
+        // 那里 —— 和代理页 `toOverview` 的取舍一致，依据同样是 `selectable`。
+        let groups = to_tray_groups(Groups {
+            group: vec![
+                group("manual", true, "a", &["a", "b"]),
+                group("auto", false, "a", &["a"]),
+            ],
+        });
+        assert_eq!(groups.len(), 1);
+        assert_eq!(groups[0].tag, "manual");
+        assert_eq!(groups[0].selected, "a");
+        assert_eq!(groups[0].items, vec!["a".to_string(), "b".to_string()]);
+    }
+
+    #[test]
+    fn an_empty_snapshot_produces_an_empty_menu() {
+        assert!(to_tray_groups(Groups { group: vec![] }).is_empty());
+    }
+
+    #[test]
+    fn a_fresh_state_holds_nothing() {
+        let state = ResidentState::new();
+        assert!(state.groups().is_empty());
+        assert!(state.mode().available.is_empty());
+        assert_eq!(state.mode().current, "");
+    }
+
+    #[test]
+    fn readers_see_what_the_session_wrote() {
+        let state = ResidentState::new();
+        state
+            .groups_tx
+            .send(to_tray_groups(Groups {
+                group: vec![group("manual", true, "b", &["a", "b"])],
+            }))
+            .expect("state channel stays open for the process lifetime");
+        state
+            .mode_tx
+            .send(ModeState {
+                available: vec!["rule".into(), "global".into()],
+                current: "global".into(),
+            })
+            .expect("state channel stays open");
+
+        assert_eq!(state.groups()[0].selected, "b");
+        assert_eq!(state.mode().current, "global");
+    }
+
+    #[test]
+    fn clearing_leaves_the_tray_showing_nothing_rather_than_a_stale_snapshot() {
+        // 会话结束（`SessionGuard::drop`）会调这个。不清的话托盘会在断连后
+        // 继续显示一份已经不对的节点列表，点下去还会报错。
+        let state = ResidentState::new();
+        state
+            .groups_tx
+            .send(vec![TrayGroup {
+                tag: "manual".into(),
+                selected: "a".into(),
+                items: vec!["a".into()],
+            }])
+            .expect("send");
+        state.clear();
+        assert!(state.groups().is_empty());
+        assert!(state.mode().available.is_empty());
+    }
+
+    #[tokio::test]
+    async fn subscribers_are_woken_by_a_change() {
+        // 托盘就是这么重画的 —— 收不到变化通知等于菜单永远停在第一帧。
+        let state = ResidentState::new();
+        let mut rx = state.subscribe_groups();
+        state
+            .groups_tx
+            .send(vec![TrayGroup {
+                tag: "manual".into(),
+                selected: "a".into(),
+                items: vec!["a".into()],
+            }])
+            .expect("send");
+
+        tokio::time::timeout(std::time::Duration::from_secs(1), rx.changed())
+            .await
+            .expect("a change must wake the subscriber")
+            .expect("channel stays open");
+        assert_eq!(rx.borrow().len(), 1);
+    }
+
+    #[test]
+    fn the_noop_mode_sink_swallows_everything() {
+        let sink = noop_mode_sink();
+        sink("rule");
+        sink("");
+    }
+}

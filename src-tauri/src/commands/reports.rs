@@ -342,3 +342,98 @@ pub async fn delete_all_power_reports(
     let connection = get_connection(singbox.inner()).await?;
     connection.delete_all_power_reports().await
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn crash(name: &str, at: i64, read: bool) -> CrashReportEntry {
+        CrashReportEntry {
+            name: name.to_string(),
+            crashed_at: at,
+            is_read: read,
+        }
+    }
+
+    #[test]
+    fn daemon_crash_reports_are_prefixed_and_exportable() {
+        // 前缀是 id 的传输形式：`read`/`delete`/`export` 都靠它区分这条报告
+        // 归谁管。`exportable` 则是给 UI 的判断依据，免得前端自己去嗅前缀。
+        let summary = crash_entry_summary(crash("2026-01-01T00-00-00", 1_700_000_000_000, false));
+        assert_eq!(summary.id, "daemon:2026-01-01T00-00-00");
+        assert!(summary.exportable);
+        assert!(!summary.is_read);
+    }
+
+    #[test]
+    fn oom_reports_carry_no_prefix() {
+        // OOM / 电源报告只有 daemon 一个来源，不需要区分，所以 id 就是名字
+        // 本身 —— `read_oom_report(name)` 直接拿它去调。
+        let summary = oom_entry_summary(OomReportEntry {
+            name: "oom-1".to_string(),
+            recorded_at: 1_700_000_000_000,
+            is_read: true,
+        });
+        assert_eq!(summary.id, "oom-1");
+        assert!(summary.is_read);
+        assert!(summary.exportable);
+    }
+
+    #[test]
+    fn timestamps_become_rfc3339() {
+        assert_eq!(
+            millis_to_rfc3339(0),
+            chrono::DateTime::from_timestamp_millis(0)
+                .expect("epoch")
+                .to_rfc3339()
+        );
+        assert!(millis_to_rfc3339(1_700_000_000_000).starts_with("2023-11-"));
+    }
+
+    #[test]
+    fn an_unrepresentable_timestamp_becomes_an_empty_string_not_a_panic() {
+        // daemon 送来的是 int64 毫秒；坏数据不该让整个报告列表挂掉，最多是
+        // 那一行没有时间显示。
+        assert_eq!(millis_to_rfc3339(i64::MIN), "");
+        assert_eq!(millis_to_rfc3339(i64::MAX), "");
+    }
+
+    #[test]
+    fn a_memory_profile_is_marked_binary_and_not_inlined() {
+        // 内存 profile 是 pprof 二进制，塞进 JSON 会变成一大坨乱码 ——
+        // 前端据 `is_binary` 只显示文件名。
+        let views = oom_files_view(vec![OomReportFile {
+            name: "heap.pprof".to_string(),
+            content: vec![0x1f, 0x8b, 0x00, 0xff],
+            is_profile: true,
+        }]);
+        assert_eq!(views.len(), 1);
+        assert!(views[0].is_binary);
+        assert!(views[0].content.is_none());
+    }
+
+    #[test]
+    fn a_text_file_is_inlined() {
+        let views = oom_files_view(vec![OomReportFile {
+            name: "report.txt".to_string(),
+            content: b"out of memory".to_vec(),
+            is_profile: false,
+        }]);
+        assert!(!views[0].is_binary);
+        assert_eq!(views[0].content.as_deref(), Some("out of memory"));
+    }
+
+    #[test]
+    fn invalid_utf8_in_a_text_file_is_replaced_rather_than_dropped() {
+        // `from_utf8_lossy`：宁可显示替换字符，也不要因为一个坏字节就让整份
+        // 报告读不出来 —— 这些报告的用途就是出问题之后拿来看。
+        let views = oom_files_view(vec![OomReportFile {
+            name: "report.txt".to_string(),
+            content: vec![b'o', b'k', 0xff],
+            is_profile: false,
+        }]);
+        let content = views[0].content.as_deref().expect("text file is inlined");
+        assert!(content.starts_with("ok"));
+        assert!(content.contains('\u{fffd}'));
+    }
+}

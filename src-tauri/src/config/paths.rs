@@ -7,6 +7,10 @@ use std::process::Command;
 
 /// Marks that `harden_directory_acl` has already run for this directory —
 /// see `get_app_data_root`.
+///
+/// `cfg(not(test))`：单测走 `test_app_data_root()`，那条路径不加固 ACL
+/// （目标是临时目录，而 icacls 是个真实副作用）。
+#[cfg(not(test))]
 const ACL_MARKER_FILE: &str = ".access-control";
 
 /// `CREATE_NO_WINDOW` — same reasoning as `daemon::install`: spawning a
@@ -38,6 +42,7 @@ fn is_reparse_point(path: &Path) -> bool {
 /// directly — same tradeoff `daemon::install` makes for elevation:
 /// less code, and boxdd/Windows itself already knows how to do this
 /// correctly.
+#[cfg(not(test))]
 fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
     set_directory_acl(dir, "(OI)(CI)F")
 }
@@ -107,7 +112,35 @@ pub fn get_exe_dir() -> Result<PathBuf, CommandError> {
 /// unelevated, so it can't write there. `%LOCALAPPDATA%` is always
 /// writable by the current user and is the standard place for a Windows
 /// app's own per-user data.
+/// 单测里的应用数据目录 —— 临时目录，整个测试二进制共用一个。
+///
+/// 没有这个的话，凡是碰到 `profiles_dir()` 的测试（档案内容、配置合成）都会
+/// 写进用户真实的 `%LOCALAPPDATA%resh-box`，还会顺带触发一次 icacls。
+/// 这是唯一一处 `#[cfg(test)]` 的行为差异，就为了让下面那些函数可测。
+#[cfg(test)]
+fn test_app_data_root() -> PathBuf {
+    static OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    OVERRIDE
+        .get_or_init(|| {
+            let dir = std::env::temp_dir().join(format!("fresh-box-tests-{}", std::process::id()));
+            fs::create_dir_all(&dir).expect("create the test app data directory");
+            dir
+        })
+        .clone()
+}
+
 pub fn get_app_data_root() -> Result<PathBuf, CommandError> {
+    #[cfg(test)]
+    return Ok(test_app_data_root());
+
+    #[cfg(not(test))]
+    {
+        get_app_data_root_inner()
+    }
+}
+
+#[cfg(not(test))]
+fn get_app_data_root_inner() -> Result<PathBuf, CommandError> {
     let local_app_data = std::env::var_os("LOCALAPPDATA").ok_or_else(|| {
         CommandError::resource_not_found("LOCALAPPDATA", "environment variable is not set")
     })?;

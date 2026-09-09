@@ -248,3 +248,124 @@ impl BackendPrefsState {
         settings::set(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR, &value)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store() -> Store {
+        Store::open_in_memory().expect("in-memory store")
+    }
+
+    #[test]
+    fn a_fresh_database_reads_back_as_defaults() {
+        let settings = load_app_settings(&store()).expect("load");
+        let defaults = AppSettings::default();
+        assert_eq!(settings.app.current_page, defaults.app.current_page);
+        assert_eq!(settings.settings.theme_mode, "system");
+        assert!(settings.settings.auto_close_connections);
+        assert!(!settings.updates.check_update_enabled);
+    }
+
+    #[test]
+    fn every_section_round_trips() {
+        let store = store();
+        let mut value = AppSettings::default();
+        value.app.current_page = "logs".into();
+        value.settings.theme_mode = "dark".into();
+        value.settings.auto_close_connections = false;
+        value.logs.type_filter = "error".into();
+        value.profiles.selected_profile_id = Some("abc".into());
+        value.connections.sort_key = "upload".into();
+        value.connections.column_sizes.insert("host".into(), 120.0);
+        value.updates.check_update_enabled = true;
+        value.diagnostics.oom_memory_limit_mb = 4096;
+        value.proxies.collapsed_groups.insert("g".into(), true);
+
+        save_app_settings(&store, &value).expect("save");
+        let read = load_app_settings(&store).expect("load");
+
+        assert_eq!(read.app.current_page, "logs");
+        assert_eq!(read.settings.theme_mode, "dark");
+        assert!(!read.settings.auto_close_connections);
+        assert_eq!(read.logs.type_filter, "error");
+        assert_eq!(read.profiles.selected_profile_id.as_deref(), Some("abc"));
+        assert_eq!(read.connections.sort_key, "upload");
+        assert_eq!(read.connections.column_sizes.get("host"), Some(&120.0));
+        assert!(read.updates.check_update_enabled);
+        assert_eq!(read.diagnostics.oom_memory_limit_mb, 4096);
+        assert_eq!(read.proxies.collapsed_groups.get("g"), Some(&true));
+    }
+
+    #[test]
+    fn one_corrupt_section_does_not_reset_the_others() {
+        // 这是 `backend_prefs.json` 当初拆出来要解决的问题，现在是 schema 的
+        // 自然性质：一区一行，坏的那行自己回默认。
+        let store = store();
+        let mut value = AppSettings::default();
+        value.app.current_page = "logs".into();
+        value.settings.theme_mode = "dark".into();
+        save_app_settings(&store, &value).expect("save");
+
+        // 手动把连接页那一区写成解析不了的东西。
+        store
+            .with(|connection| {
+                connection
+                    .execute(
+                        "UPDATE settings SET value = ?1 WHERE scope = ?2 AND key = ?3",
+                        rusqlite::params!["{not json", settings::SCOPE_APP, "connections"],
+                    )
+                    .map_err(|e| CommandError::io("corrupt a section", e))?;
+                Ok(())
+            })
+            .expect("corrupt");
+
+        let read = load_app_settings(&store).expect("load still succeeds");
+        assert_eq!(read.app.current_page, "logs", "neighbour section survives");
+        assert_eq!(read.settings.theme_mode, "dark");
+        assert_eq!(
+            read.connections.sort_key,
+            ConnectionPageSettings::default().sort_key,
+            "the corrupt section falls back to its own defaults"
+        );
+    }
+
+    #[test]
+    fn diagnostics_can_be_read_without_parsing_everything_else() {
+        let store = store();
+        let mut value = AppSettings::default();
+        value.diagnostics.oom_killer_enabled = true;
+        value.diagnostics.oom_memory_limit_mb = 2048;
+        save_app_settings(&store, &value).expect("save");
+
+        let diagnostics = load_diagnostics(&store);
+        assert!(diagnostics.oom_killer_enabled);
+        assert_eq!(diagnostics.oom_memory_limit_mb, 2048);
+    }
+
+    #[test]
+    fn backend_prefs_serve_from_memory_and_persist() {
+        let store = store();
+        let prefs = BackendPrefsState::load(&store);
+        assert!(prefs.get().auto_close_connections, "default");
+
+        prefs
+            .set(
+                &store,
+                AppDisplaySettings {
+                    theme_mode: "dark".into(),
+                    auto_close_connections: false,
+                },
+            )
+            .expect("set");
+
+        // 内存缓存立刻可见……
+        assert!(!prefs.get().auto_close_connections);
+        // ……而且确实落到了同一行上，下次启动读得回来。
+        assert!(!BackendPrefsState::load(&store).get().auto_close_connections);
+        assert_eq!(
+            load_app_settings(&store).expect("load").settings.theme_mode,
+            "dark"
+        );
+    }
+}
