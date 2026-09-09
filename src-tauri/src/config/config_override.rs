@@ -94,3 +94,66 @@ pub fn get_override_config_if_enabled(store: &Store) -> Result<Option<Value>, Co
         Ok(None)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn merged(base: serde_json::Value, overlay: serde_json::Value) -> serde_json::Value {
+        let mut result = base;
+        apply_config_override(&mut result, &overlay);
+        result
+    }
+
+    #[test]
+    fn adds_keys_the_base_does_not_have() {
+        let result = merged(json!({ "a": 1 }), json!({ "b": 2 }));
+        assert_eq!(result, json!({ "a": 1, "b": 2 }));
+    }
+
+    #[test]
+    fn overlay_wins_on_scalars() {
+        let result = merged(json!({ "level": "info" }), json!({ "level": "debug" }));
+        assert_eq!(result, json!({ "level": "debug" }));
+    }
+
+    #[test]
+    fn objects_merge_recursively_rather_than_being_replaced() {
+        // 这是这个函数最容易被误解的地方：覆盖 `log.level` 不该把 `log.disabled`
+        // 一起抹掉。整体替换的话用户想改一个字段就得把整块抄一遍。
+        let result = merged(
+            json!({ "log": { "disabled": false, "level": "info" } }),
+            json!({ "log": { "level": "debug" } }),
+        );
+        assert_eq!(result, json!({ "log": { "disabled": false, "level": "debug" } }));
+    }
+
+    #[test]
+    fn arrays_are_replaced_wholesale_not_merged() {
+        // 数组按整体替换 —— 逐元素合并对 `inbounds`/`outbounds` 这种没有意义
+        // （第 0 个 inbound 和第 0 个覆盖项没有任何对应关系）。
+        let result = merged(
+            json!({ "dns": { "servers": ["a", "b"] } }),
+            json!({ "dns": { "servers": ["c"] } }),
+        );
+        assert_eq!(result, json!({ "dns": { "servers": ["c"] } }));
+    }
+
+    #[test]
+    fn a_scalar_can_replace_an_object_and_vice_versa() {
+        assert_eq!(merged(json!({ "x": { "y": 1 } }), json!({ "x": 5 })), json!({ "x": 5 }));
+        assert_eq!(merged(json!({ "x": 5 }), json!({ "x": { "y": 1 } })), json!({ "x": { "y": 1 } }));
+    }
+
+    #[test]
+    fn an_empty_overlay_changes_nothing() {
+        let base = json!({ "log": { "level": "info" }, "inbounds": [1, 2] });
+        assert_eq!(merged(base.clone(), json!({})), base);
+    }
+
+    #[test]
+    fn a_non_object_base_is_left_alone() {
+        // 防御性：配置理应是对象，但传进来别的东西时不该 panic。
+        assert_eq!(merged(json!([1, 2]), json!({ "a": 1 })), json!([1, 2]));
+    }
+}

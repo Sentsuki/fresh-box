@@ -296,3 +296,126 @@ pub fn apply_clash_api_config(
 
     Ok(())
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use serde_json::json;
+
+    fn priority(stack: &str, log_disabled: bool, level: &str) -> PriorityConfig {
+        PriorityConfig {
+            inbounds: vec![PriorityInbound {
+                stack: stack.to_string(),
+            }],
+            log: LogConfig {
+                disabled: log_disabled,
+                level: level.to_string(),
+            },
+        }
+    }
+
+    // ── clash_api ────────────────────────────────────────────────────────
+
+    #[test]
+    fn clash_api_is_always_injected_with_no_external_controller() {
+        // 这一块是**技术必需**，不是可选项：boxdd 的 `StartedService`（代理组、
+        // Clash 模式、测速、连接）全都建立在内部的 `adapter.ClashServer` 对象
+        // 上，而那个对象只在配置里存在 `experimental.clash_api` 时才会被构造。
+        // `external_controller` 留空 = 不监听任何 HTTP 端口
+        // （`experimental/clashapi/server.go`）。
+        let mut config = json!({});
+        apply_clash_api_config(&mut config, None).unwrap();
+        assert_eq!(config["experimental"]["clash_api"]["external_controller"], "");
+    }
+
+    #[test]
+    fn default_mode_is_omitted_when_unknown() {
+        // 以前这里无条件写死 `"Rule"`，用户切到 Global 重启一次就被打回
+        // （审计项 M-09）。不知道上次选了什么就干脆不写这个字段。
+        let mut config = json!({});
+        apply_clash_api_config(&mut config, None).unwrap();
+        assert!(
+            config["experimental"]["clash_api"].get("default_mode").is_none(),
+            "must not invent a default_mode"
+        );
+    }
+
+    #[test]
+    fn default_mode_is_written_back_when_known() {
+        let mut config = json!({});
+        apply_clash_api_config(&mut config, Some("global")).unwrap();
+        assert_eq!(config["experimental"]["clash_api"]["default_mode"], "global");
+    }
+
+    #[test]
+    fn an_empty_remembered_mode_counts_as_unknown() {
+        let mut config = json!({});
+        apply_clash_api_config(&mut config, Some("")).unwrap();
+        assert!(config["experimental"]["clash_api"].get("default_mode").is_none());
+    }
+
+    #[test]
+    fn existing_experimental_siblings_survive() {
+        let mut config = json!({ "experimental": { "cache_file": { "enabled": true } } });
+        apply_clash_api_config(&mut config, None).unwrap();
+        assert_eq!(config["experimental"]["cache_file"]["enabled"], true);
+        assert!(config["experimental"]["clash_api"].is_object());
+    }
+
+    // ── log ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn log_settings_overwrite_whatever_the_profile_said() {
+        let mut config = json!({ "log": { "disabled": false, "level": "trace", "output": "x.log" } });
+        apply_log_config(&mut config, &LogConfig { disabled: true, level: "warn".into() }).unwrap();
+        assert_eq!(config["log"]["disabled"], true);
+        assert_eq!(config["log"]["level"], "warn");
+        // 只覆盖这两个键，别的保留。
+        assert_eq!(config["log"]["output"], "x.log");
+    }
+
+    #[test]
+    fn log_block_is_created_when_absent() {
+        let mut config = json!({});
+        apply_log_config(&mut config, &LogConfig { disabled: false, level: "info".into() }).unwrap();
+        assert_eq!(config["log"]["level"], "info");
+    }
+
+    // ── stack ────────────────────────────────────────────────────────────
+
+    #[test]
+    fn stack_is_applied_only_to_inbounds_that_already_declare_one() {
+        // 只改已经写了 `stack` 的 inbound —— 给一个 mixed 入站硬塞 `stack`
+        // 字段会让配置非法。
+        let mut config = json!({
+            "inbounds": [
+                { "type": "mixed", "listen": "127.0.0.1" },
+                { "type": "tun", "stack": "system" }
+            ]
+        });
+        apply_stack_config(&mut config, "gvisor").unwrap();
+        assert!(config["inbounds"][0].get("stack").is_none());
+        assert_eq!(config["inbounds"][1]["stack"], "gvisor");
+    }
+
+    #[test]
+    fn no_stack_field_anywhere_is_an_error_the_caller_logs() {
+        // `apply_priority_config` 把它降级成一条 warn 而不是让启动失败 ——
+        // 用户的配置没有 TUN 入站是完全合法的。
+        let mut config = json!({ "inbounds": [{ "type": "mixed" }] });
+        assert!(apply_stack_config(&mut config, "mixed").is_err());
+    }
+
+    // ── 整体 ──────────────────────────────────────────────────────────────
+
+    #[test]
+    fn one_failing_field_does_not_block_the_others() {
+        // 没有 TUN 入站 → stack 那步失败，但 log 和 clash_api 仍必须生效，
+        // 否则 sing-box 起来之后代理页整个是空的。
+        let mut config = json!({ "inbounds": [{ "type": "mixed" }] });
+        apply_priority_config(&mut config, &priority("gvisor", true, "error"), Some("rule")).unwrap();
+        assert_eq!(config["log"]["disabled"], true);
+        assert_eq!(config["log"]["level"], "error");
+        assert_eq!(config["experimental"]["clash_api"]["default_mode"], "rule");
+    }
+}

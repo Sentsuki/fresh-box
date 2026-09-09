@@ -380,30 +380,15 @@ export function normalizeAppSettings(
   };
 }
 
-/** Mirrors the backend's `errors::CommandError` discriminant (the `kind` of
- * its `#[serde(tag = "kind", content = "message")]` encoding) — lets the
- * frontend branch on *why* a command failed instead of pattern-matching the
- * human-readable message text. See `services/tauri.ts`'s `getErrorKind`. */
-export type CommandErrorKind =
-  | "process_already_running"
-  | "process_not_running"
-  | "network_error"
-  | "permission_denied"
-  | "validation_error"
-  | "invalid_state"
-  | "resource_not_found"
-  | "failed_to_start_process"
-  | "io_error"
-  | "json_error";
-
-export interface CommandErrorPayload {
-  kind?: CommandErrorKind;
-  message?: string;
-  [key: string]: unknown;
-}
-
 export type StackOption = "mixed" | "gvisor" | "system";
 
+/**
+ * 代理页的视图模型。
+ *
+ * 这**不是** IPC 类型 —— daemon 送来的是 protobuf 的 `Group`/`GroupItem`
+ * （`src/gen/daemon/`），`daemon/groupsStream.ts` 把它整理成这个形状给页面用。
+ * 阶段 3 之前这是 Rust 拼出来的 Clash 兼容结构，字段一半是硬造的空值。
+ */
 export interface ProxyNodeOverview {
   name: string;
   kind: string;

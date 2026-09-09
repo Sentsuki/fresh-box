@@ -5,7 +5,6 @@ import type { DaemonConnectionPhase } from "../types/daemon";
 import { useSingboxStore } from "../stores/singboxStore";
 import { isWindowVisible } from "./useWindowVisibility";
 import { startAllStreams, stopAllStreams } from "./streamLifecycle";
-import { runBridgeSelfCheckOnce } from "../daemon/selfcheck";
 import { useToast } from "./useToast";
 
 type Toast = ReturnType<typeof useToast>;
@@ -37,10 +36,6 @@ function applyPhase(
   announce: boolean,
   toast: Toast,
 ) {
-  // 阶段 0 脚手架：相位首次变成 `connected` 时，走新的 bridge 链路打一次
-  // `GetDaemonInfo` 验证整条路通了。阶段 5 接 `<DaemonGate>` 时删除。
-  if (phase.phase === "connected") runBridgeSelfCheckOnce();
-
   const singbox = useSingboxStore.getState();
   const wasRunning = singbox.isRunning;
   const running =
