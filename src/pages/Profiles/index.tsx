@@ -587,14 +587,14 @@ function SubscriptionCard({
           <Button
             size="sm"
             variant="ghost"
-            className="group active:scale-90 transition-transform"
+            className="active:scale-90 transition-transform"
             icon={
               updateStatus === "updating" ? (
                 <ArrowClockwiseRegular className="animate-spin" />
               ) : updateStatus === "success" ? (
                 <CheckmarkRegular className="text-(--wb-accent) animate-pop-in" />
               ) : (
-                <ArrowClockwiseRegular className="transition-transform duration-500 group-hover:rotate-180" />
+                <ArrowClockwiseRegular />
               )
             }
             onClick={async (e) => {

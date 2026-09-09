@@ -1,10 +1,21 @@
-import { SaveRegular } from "@fluentui/react-icons";
+import {
+  BoxRegular,
+  DocumentTextRegular,
+  SaveRegular,
+} from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
+import { Select } from "../../components/ui/Select";
+import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Tabs, TabContent } from "../../components/ui/Tabs";
 import { useToast } from "../../hooks/useToast";
+import {
+  LOG_LEVELS,
+  STACK_OPTIONS,
+  usePriorityConfig,
+} from "../../hooks/usePriorityConfig";
 import {
   clearConfigOverride,
   disableConfigOverride,
@@ -31,6 +42,99 @@ import {
 import DiagnosticsTab from "./DiagnosticsTab";
 import { ReportsPanel } from "./ReportsPanel";
 import { OomSettingsPanel, PowerSettingsPanel } from "./ReportSettings";
+
+/** TUN Stack / Core Log Level — moved here from Settings: both tune the
+ * running sing-box config the same way the JSON editor below does, so they
+ * belong next to it rather than in the general app-preferences page. */
+function CoreSettingsGroup() {
+  const {
+    isLoading,
+    hasStackField,
+    hasLogField,
+    selectedStack,
+    logDisabled,
+    setLogDisabled,
+    selectedLogLevel,
+    setSelectedLogLevel,
+    loadConfiguration,
+    setStackOption,
+    updateLogConfiguration,
+  } = usePriorityConfig();
+
+  useEffect(() => {
+    void loadConfiguration();
+  }, [loadConfiguration]);
+
+  if (isLoading || (!hasStackField && !hasLogField)) return null;
+
+  return (
+    <SettingGroup title="sing-box Core">
+      {hasStackField && (
+        <SettingCard
+          icon={<BoxRegular />}
+          title="TUN Stack"
+          description="Select the network stack for the TUN interface (applied on restart)"
+          control={
+            <Select
+              value={selectedStack}
+              onChange={(e) =>
+                void setStackOption(
+                  e.target.value as (typeof STACK_OPTIONS)[number],
+                )
+              }
+            >
+              {STACK_OPTIONS.map((opt) => (
+                <option key={opt} value={opt}>
+                  {opt}
+                </option>
+              ))}
+            </Select>
+          }
+        />
+      )}
+
+      {hasLogField && (
+        <SettingCard
+          icon={<DocumentTextRegular />}
+          title="Core Log Level"
+          description="Log output detail from the sing-box core"
+          control={
+            <div className="flex items-center gap-3">
+              <Select
+                value={selectedLogLevel}
+                onChange={(e) => {
+                  const level = e.target.value as (typeof LOG_LEVELS)[number];
+                  setSelectedLogLevel(level);
+                  void updateLogConfiguration(logDisabled, level);
+                }}
+                disabled={logDisabled}
+              >
+                {LOG_LEVELS.map((l) => (
+                  <option key={l} value={l}>
+                    {l}
+                  </option>
+                ))}
+              </Select>
+              <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
+              <div className="flex items-center gap-2.5">
+                <span className="text-sm text-(--wb-text-secondary)">
+                  Disable
+                </span>
+                <Switch
+                  checked={logDisabled}
+                  onCheckedChange={(checked) => {
+                    setLogDisabled(checked);
+                    void updateLogConfiguration(checked, selectedLogLevel);
+                  }}
+                />
+              </div>
+            </div>
+          }
+        />
+      )}
+    </SettingGroup>
+  );
+}
 
 function ConfigOverrideTab() {
   const toast = useToast();
@@ -103,9 +207,16 @@ function ConfigOverrideTab() {
 
   return (
     <div className="flex flex-col gap-6 h-full">
-      <p className="text-xs text-(--wb-text-secondary) -mt-2">
-        Write custom JSON rules to override the active sing-box configuration.
-      </p>
+      <CoreSettingsGroup />
+
+      <div className="flex flex-col gap-1 pt-2 border-t border-(--wb-border-subtle)">
+        <h2 className="text-sm font-semibold text-(--wb-text-primary) px-1">
+          Config Override
+        </h2>
+        <p className="text-xs text-(--wb-text-secondary) px-1">
+          Write custom JSON rules to override the active sing-box configuration.
+        </p>
+      </div>
       <div className="flex items-center justify-between gap-4">
         <div className="flex items-center gap-2">
           <Switch
@@ -160,7 +271,7 @@ export default function Advanced() {
     <div className="flex flex-col h-full overflow-hidden pr-2 pb-10">
       <PageHeader
         title="Advanced"
-        description="Configuration overrides, network diagnostics and crash/OOM/power reports."
+        description="sing-box core settings, configuration overrides, network diagnostics and crash/OOM/power reports."
       />
 
       <Tabs
