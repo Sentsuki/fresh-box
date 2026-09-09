@@ -63,6 +63,21 @@ jobs:
         shell: pwsh
         run: pnpm install
 
+      # tauri.conf.json bundles `resources/daemon` (the sing-box-daemon build,
+      # its DLL and the USB-IP drivers). That directory is gitignored — main.yml
+      # fills it by downloading the build-daemon job's artifact. This workflow
+      # deliberately doesn't build boxdd (Go, several minutes, and nothing here
+      # needs the binary), but tauri-build still fails outright on a resource
+      # path that doesn't exist, so create it empty: tauri walks a resource
+      # directory and simply skips it when there's nothing inside.
+      #
+      # Consequence, on purpose: `service_probe_e2e` finds no
+      # `sing-box-daemon.exe` and skips itself, same as it does locally without
+      # a dev daemon.
+      - name: Create the empty daemon resource directory
+        shell: pwsh
+        run: New-Item -ItemType Directory -Force src-tauri/resources/daemon | Out-Null
+
       # src/gen/ is generated, not committed (see .gitignore), so every
       # type-check here starts by producing it:
       #   gen:proto  buf, from src-tauri/proto  -> src/gen/daemon, src/gen/boxdd
