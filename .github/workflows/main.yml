@@ -259,6 +259,24 @@ jobs:
         shell: pwsh
         run: pnpm install
 
+      # src/gen/ is generated, not committed (see .gitignore) — CI has to
+      # produce it before anything type-checks. `gen:proto` runs buf over
+      # src-tauri/proto; `gen:host` compiles fresh-box and runs it with
+      # --export-bindings, so it needs the Rust toolchain set up above.
+      - name: Generate IPC bindings
+        shell: pwsh
+        run: pnpm gen
+
+      # Unit tests. vitest runs on node — no jsdom, no WebView2, no Tauri.
+      # The Rust `*_e2e` tests skip themselves when no development daemon is
+      # listening, which is the case on a runner.
+      - name: Checks
+        shell: pwsh
+        run: |
+          pnpm lint:check
+          pnpm test
+          cargo test --manifest-path src-tauri/Cargo.toml
+
       # Builds the frontend, compiles fresh-box (renamed sing-box.exe via
       # mainBinaryName), and bundles the daemon + drivers from
       # resources/daemon — then signs the main binary, every resource exe,

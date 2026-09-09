@@ -64,7 +64,9 @@ pnpm gen            # = gen:proto + gen:host，两条 codegen 一起跑
 pnpm gen:proto      # daemon 域：从 src-tauri/proto 生成 TS 类型（buf）
 pnpm gen:host       # host 域：从 Rust 生成命令与类型（tauri-specta）
 pnpm build          # tsc + vite（prebuild 会校验 IPC 命令名两侧一致）
-cargo test          # 含 bridge allowlist 单测
+pnpm lint:check     # eslint，零 warning
+pnpm test           # 前端单测（vitest），不需要 daemon 也不需要浏览器
+cargo test          # 含 bridge codec/allowlist、配置合成、SQLite 单测
 cargo test --test bridge_e2e -- --nocapture     # bridge 端到端，需要上面那个 daemon
 cargo test --test resident_e2e -- --nocapture   # 常驻订阅，同上
 cargo test --test store_e2e                     # SQLite 验收，不需要 daemon
@@ -72,6 +74,24 @@ cargo test --test store_e2e                     # SQLite 验收，不需要 daem
 
 带 `_e2e` 的测试在没有开发 daemon 时会**跳过而不是失败**（各花约 0.3 秒做 TCP
 探活）。想确认它们真的跑了，看耗时：跳过约 0.3 秒，真跑起来会明显更久。
+
+### 前端单测测什么
+
+`pnpm test` 跑在 node 上，不起 jsdom、不碰 Tauri：
+
+| 文件 | 测的东西 |
+|---|---|
+| `src/daemon/transport.test.ts` | 流分帧（消息/结束/出错标签）、取消回收流 id、错误包成 `ConnectError` |
+| `src/daemon/subscription.test.ts` | 「流结束 ≠ 出错」那条状态机分支、退避重订阅 |
+| `src/daemon/connectionEntries.test.ts` | 连接事件累加（NEW/UPDATE/CLOSED）、`host:port` 拆分 |
+| `src/daemon/proxyOverview.test.ts` | `Group` → 代理页视图模型，即翻译层的替代品 |
+| `src/hooks/logFormat.test.ts` | ANSI 转义剥离、日志分类提取 |
+| `src/types/app.test.ts` | 设置归一化对坏数据的态度 |
+
+为了能这么测，几个纯函数从「顶层就建订阅」的模块里拆了出来
+（`connectionEntries.ts`、`proxyOverview.ts`、`logFormat.ts`）——
+`import` 它们没有任何副作用。组件本身不测：相位表那类穷举由类型保证
+（`Record<DaemonPhaseName, …>`，见 `DaemonGate`），`tsc` 已经在管了。
 
 ## 两条 codegen
 

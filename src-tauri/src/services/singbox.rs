@@ -166,11 +166,11 @@ impl Default for SingboxState {
 }
 
 /// Get a handle to the live gRPC connection, if one exists. Used by the
-/// other daemon-backed services (`daemon_control`, `streams`) that need to
-/// issue their own calls/subscriptions without going through this module,
-/// and by `start_singbox`/`stop_singbox` below. The reconciliation loop is
-/// solely responsible for populating this — nothing here connects on
-/// demand any more.
+/// bridge commands (`commands::bridge`), the crash/OOM report commands, the
+/// resident tray subscriptions, and `start_singbox`/`stop_singbox` below —
+/// everything that needs to issue its own calls without going through this
+/// module. The reconciliation loop is solely responsible for populating
+/// this — nothing here connects on demand any more.
 pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, CommandError> {
     let guard = state.client.lock().await;
     guard

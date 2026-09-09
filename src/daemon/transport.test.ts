@@ -77,7 +77,12 @@ async function collect(
 }
 
 describe("unary", () => {
-  beforeEach(() => invokeMock.mockReset());
+  // 花括号不能省 —— 箭头函数的隐式返回会把 `mockReset()` 返回的 mock 交给
+  // vitest，而 vitest 把 hook 返回的函数当成 teardown 回调去**调用**它。
+  // 那等于每个用例跑完都白调一次 `invoke()`。
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
 
   it("过界的只有 service 名、method 名和一坨字节", async () => {
     // 这条断言就是「Rust 是邮差不是翻译」的可执行版本：请求里除了这三样
@@ -110,12 +115,11 @@ describe("unary", () => {
   });
 
   it("Rust 侧的失败变成 ConnectError，而不是一个裸对象", async () => {
-    // 同步 throw 而不是返回一个已 reject 的 promise —— vi.fn 会给返回的
-    // promise 挂上自己的结算追踪，那条派生 promise 没人处理，会被 node 当成
-    // unhandled rejection 报上来，把测试搞成红的。被测代码 `await` 它，两种
-    // 写法效果一样。
-    invokeMock.mockImplementation(() => {
-      throw { kind: "daemon_unavailable", message: "pipe is gone" };
+    // Tauri 的 `invoke` 失败时 reject 的是序列化过的 `CommandError`，
+    // 一个裸对象 —— 不是 Error，所以调用方光靠 `instanceof Error` 分不出来。
+    invokeMock.mockRejectedValue({
+      kind: "daemon_unavailable",
+      message: "pipe is gone",
     });
 
     let thrown: unknown;
@@ -154,7 +158,12 @@ describe("unary", () => {
 });
 
 describe("server streaming", () => {
-  beforeEach(() => invokeMock.mockReset());
+  // 花括号不能省 —— 箭头函数的隐式返回会把 `mockReset()` 返回的 mock 交给
+  // vitest，而 vitest 把 hook 返回的函数当成 teardown 回调去**调用**它。
+  // 那等于每个用例跑完都白调一次 `invoke()`。
+  beforeEach(() => {
+    invokeMock.mockReset();
+  });
 
   it("剥掉标签之后就是 daemon 原样发出的 protobuf", async () => {
     const channel = captureChannel();
@@ -286,9 +295,7 @@ describe("server streaming", () => {
   });
 
   it("建流本身失败时抛出，而不是给一个立刻结束的空流", async () => {
-    invokeMock.mockImplementation(() => {
-      throw "method not allowed";
-    });
+    invokeMock.mockRejectedValue("method not allowed");
 
     let thrown: unknown;
     try {

@@ -93,7 +93,7 @@ function extractCommandParams(dir) {
 function extractInvokedParams(files) {
   const invoked = new Map();
   const pattern =
-    /\b(?:invoke|invokeCommand|invokeRaw)\b[^(\n]*\(\s*["'](\w+)["']\s*,\s*\{([\s\S]*?)\}\s*,?\s*\)/g;
+    /\b(?:invoke|invokeRaw)\b[^(\n]*\(\s*["'](\w+)["']\s*,\s*\{([\s\S]*?)\}\s*,?\s*\)/g;
   for (const file of files) {
     const text = readFileSync(file, "utf8");
     pattern.lastIndex = 0;
@@ -136,12 +136,12 @@ function extractRegisteredCommands(handlerSource) {
 function extractInvokedCommands(files) {
   const invokedAt = new Map(); // command name -> ["relative/path:line", ...]
   // Anything up to the opening `(` that isn't itself a `(` — covers a
-  // generic type argument list (`invokeCommand<Record<string, number>>(`)
+  // generic type argument list (`invokeRaw<Record<string, number>>(`)
   // without having to actually parse nested angle brackets, since nothing
   // valid in that position ever contains a literal `(`. Scoped to a single
   // line: every call site in this codebase keeps the command name literal
-  // on the same line as the `invoke`/`invokeCommand` it belongs to.
-  const callPattern = /\b(?:invoke|invokeCommand|invokeRaw)\b[^(\n]*\(\s*["']([a-zA-Z0-9_]+)["']/g;
+  // on the same line as the `invoke`/`invokeRaw` it belongs to.
+  const callPattern = /\b(?:invoke|invokeRaw)\b[^(\n]*\(\s*["']([a-zA-Z0-9_]+)["']/g;
 
   for (const file of files) {
     const text = readFileSync(file, "utf8");

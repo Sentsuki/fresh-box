@@ -1,6 +1,6 @@
 import type { Group } from "../gen/daemon/started_service_pb";
-import type { ProxyOverview } from "../types/app";
 import { useProxyStore } from "../stores/proxyStore";
+import { toOverview } from "./proxyOverview";
 import { startedService } from "./clients";
 import { createStreamController } from "./subscription";
 
@@ -20,39 +20,6 @@ import { createStreamController } from "./subscription";
  * 工作，不能依赖前端。同一条 RPC 两个独立消费者、同一条 HTTP/2 连接上的两个
  * stream，中间零翻译。
  */
-
-/** 组内节点的延迟，`urlTestDelay <= 0` 视为「还没测过」。 */
-function nodeDelay(delay: number): number | null {
-  return delay > 0 ? delay : null;
-}
-
-function toOverview(groups: Group[], mode: ProxyOverview["current_mode"], modes: string[]): ProxyOverview {
-  return {
-    current_mode: mode,
-    available_modes: modes,
-    proxy_groups: groups
-      // 只保留 daemon 自己标了 `selectable` 的组 —— 比按 `type` 字符串猜
-      // （`selector`/`urltest`）准确，`selectable` 正是它对「这组能不能手动
-      // 选」的回答。
-      .filter((group) => group.selectable)
-      .map((group) => ({
-        name: group.tag,
-        kind: group.type,
-        current: group.selected,
-        current_delay:
-          nodeDelay(
-            group.items.find((item) => item.tag === group.selected)
-              ?.urlTestDelay ?? 0,
-          ),
-        options: group.items.map((item) => ({
-          name: item.tag,
-          kind: item.type,
-          delay: nodeDelay(item.urlTestDelay),
-          is_selected: item.tag === group.selected,
-        })),
-      })),
-  };
-}
 
 /** 最近一次收到的原始组数据，供测速比对 `urlTestTime` 用。 */
 let latestGroups: Group[] = [];
