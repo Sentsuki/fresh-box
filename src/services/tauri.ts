@@ -1,16 +1,26 @@
 import { invoke } from "@tauri-apps/api/core";
-import type { CommandErrorKind, CommandErrorPayload } from "../types/app";
+import type { CommandError } from "../gen/host";
+
+/** `CommandError` 的判别式（`kind` 字段）—— 由 Rust 生成，不再手抄。 */
+export type CommandErrorKind = CommandError["kind"];
+
+interface CommandErrorPayload {
+  kind?: CommandErrorKind;
+  message?: string;
+  [key: string]: unknown;
+}
 
 function isCommandErrorPayload(value: unknown): value is CommandErrorPayload {
   return !!value && typeof value === "object";
 }
 
 /**
- * A command that failed on the Rust side — thrown by `invokeCommand` in
- * place of the raw rejection so callers get a real `Error` (a stack trace,
- * `instanceof Error`, ...) while still being able to branch on `kind`
- * without re-parsing `message`. The original rejection is still reachable
- * via `.cause` for anything that wants it.
+ * Rust 侧失败的命令 —— `invokeRaw` 抛这个而不是原始的 rejection，调用方因此拿到
+ * 一个真正的 `Error`（有栈、`instanceof Error` 成立），同时还能按 `kind` 分支而
+ * 不用去解析 `message`。原始 rejection 仍可从 `.cause` 取到。
+ *
+ * 生成的绑定（`src/gen/host.ts`）直接抛 Rust 的错误对象，不经过这里 ——
+ * `getErrorKind`/`getErrorMessage` 对两者都能用。
  */
 export class CommandInvocationError extends Error {
   readonly kind?: CommandErrorKind;
@@ -54,9 +64,13 @@ export function getErrorMessage(error: unknown): string {
     if (typeof error.message === "string" && error.message.trim()) {
       return error.message;
     }
-    const firstString = Object.values(error).find(
-      (value) => typeof value === "string" && (value as string).trim(),
-    );
+    // 跳过 `kind`：它是判别式，永远存在、永远是字符串，不跳过的话下面这行
+    // 永远返回它（"io_error" 之类），把真正带信息的字段挡在后面 —— 这个
+    // 兜底也就等于没有。
+    const firstString = Object.entries(error).find(
+      ([key, value]) =>
+        key !== "kind" && typeof value === "string" && value.trim(),
+    )?.[1];
     if (typeof firstString === "string") return firstString;
   }
 
@@ -74,12 +88,20 @@ export function getErrorMessage(error: unknown): string {
   return "Unknown error";
 }
 
-export async function invokeCommand<T>(
+/**
+ * 调用一个 Rust 侧返回 `tauri::ipc::Response` 的命令 —— 它到手是
+ * `ArrayBuffer` 而不是 JSON。
+ *
+ * 只有 daemon bridge 用（`src/daemon/transport.ts`）：那里的载荷是原始
+ * protobuf，只有调用方自己生成的代码知道怎么读。host 域的命令一律走生成的
+ * 绑定，不经过这里。
+ */
+export async function invokeRaw(
   command: string,
   args?: Record<string, unknown>,
-): Promise<T> {
+): Promise<ArrayBuffer> {
   try {
-    return await invoke<T>(command, args);
+    return await invoke<ArrayBuffer>(command, args);
   } catch (error) {
     throw new CommandInvocationError(
       getErrorMessage(error),

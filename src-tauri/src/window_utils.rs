@@ -1,6 +1,6 @@
 // window_utils.rs - 窗口操作工具与生命周期状态管理
 
-use std::{sync::Mutex, time::Duration};
+use std::sync::Mutex;
 use tauri::{AppHandle, Emitter, Manager, WebviewWindowBuilder};
 
 // ─── 关闭行为状态机 ────────────────────────────────────────────────
@@ -60,19 +60,6 @@ pub fn should_prevent_exit() -> bool {
         .lock()
         .map(|s| s.exit_guard == ExitGuard::KeptAlive)
         .unwrap_or(false)
-}
-
-// ─── 延迟执行工具 ──────────────────────────────────────────────────
-
-/// 在当前 tokio 运行时上延迟执行同步回调，避免创建额外 OS 线程
-pub fn run_after_delay<F>(delay: Duration, action: F)
-where
-    F: FnOnce() + Send + 'static,
-{
-    tauri::async_runtime::spawn(async move {
-        tokio::time::sleep(delay).await;
-        action();
-    });
 }
 
 // ─── 窗口操作 ──────────────────────────────────────────────────────

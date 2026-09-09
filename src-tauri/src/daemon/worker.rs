@@ -358,6 +358,29 @@ impl SharedWorker {
     }
 }
 
+/// 连到 worker 的 `ApplicationService`。
+///
+/// 这条管道和特权 daemon 服务装没装、跑没跑**无关**：`cmd_worker.go` 无条件
+/// 注册 `ApplicationService`，relay 只是它另外去连的东西。配置校验/格式化、
+/// profile 编解码、离线连通性测试因此在「什么都没启动」的状态下也能用 ——
+/// 那正是它们存在的意义。
+///
+/// 需要 worker 时才现连：`shared_worker().get()` 会在没有 worker 时拉起一个，
+/// 已经有就复用。
+pub async fn application_channel() -> Result<tonic::transport::Channel, CommandError> {
+    let daemon_path = super::install::daemon_executable_path()?;
+    if !daemon_path.exists() {
+        return Err(CommandError::resource_not_found(
+            "sing-box-daemon executable",
+            daemon_path.display(),
+        ));
+    }
+    let worker = shared_worker().get(&daemon_path).await?;
+    super::pipe::connect(worker.socket_path.clone())
+        .await
+        .map_err(|e| CommandError::network(format!("connect to worker application service: {e}")))
+}
+
 static SHARED_WORKER: std::sync::OnceLock<SharedWorker> = std::sync::OnceLock::new();
 
 /// The process-wide shared worker — see `SharedWorker`'s doc comment for

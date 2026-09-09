@@ -1,13 +1,13 @@
 import { create } from "zustand";
-import {
-  getProxyOverview,
-  selectProxy,
-  testProxyDelay,
-  testProxyGroupDelay,
-  updateProxyMode,
-} from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import type { ProxyOverview } from "../types/app";
+import { startedService } from "../daemon/clients";
+import {
+  awaitGroupDelays,
+  awaitNodeDelay,
+  closeConnectionsByGroup,
+} from "../daemon/proxyActions";
+import { useSettingsStore } from "./settingsStore";
 
 interface ProxyState {
   overview: ProxyOverview | null;
@@ -21,7 +21,10 @@ interface ProxyState {
 }
 
 interface ProxyActions {
+  /** 代理组现在由 `daemon/groupsStream.ts` 的常驻订阅推送 —— 不再需要拉取。
+   * 保留这个入口是因为它是幂等的「确保流开着」，调用点不用改。 */
   refreshOverview: (showToastOnError?: boolean) => Promise<void>;
+  setOverview: (overview: ProxyOverview) => void;
   clearOverview: () => void;
   changeMode: (
     mode: string,
@@ -46,8 +49,6 @@ interface ProxyActions {
   ) => Promise<void>;
 }
 
-let requestSequence = 0;
-
 export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
   overview: null,
   errorMessage: null,
@@ -58,28 +59,13 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
   activeGroupDelay: null,
   groupTestingNodes: new Set<string>(),
 
-  refreshOverview: async (showToastOnError = false) => {
-    const sequence = ++requestSequence;
-    set({ isRefreshing: true });
-    try {
-      const overview = await getProxyOverview();
-      if (sequence === requestSequence) {
-        set({ overview, errorMessage: null });
-      }
-    } catch (error) {
-      const message = getErrorMessage(error);
-      if (sequence === requestSequence) {
-        set({ overview: null, errorMessage: message });
-      }
-      if (showToastOnError) {
-        console.warn(`Failed to load proxy data: ${message}`);
-      }
-    } finally {
-      if (sequence === requestSequence) {
-        set({ isRefreshing: false });
-      }
-    }
+  refreshOverview: async () => {
+    // 数据由常驻订阅推送，这里没有什么可拉的 —— 只是把上一次的错误态清掉，
+    // 让「重试」之类的入口有个明确的行为。
+    set({ errorMessage: null, isRefreshing: false });
   },
+
+  setOverview: (overview) => set({ overview, errorMessage: null }),
 
   clearOverview: () => {
     set({
@@ -104,8 +90,9 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
     }
     set({ activeMode: mode });
     try {
-      const overview = await updateProxyMode(mode);
-      set({ overview, errorMessage: null });
+      await startedService.setClashMode({ mode });
+      // 新模式由 `SubscribeClashMode` 推回来，不在这里手动改 —— 让 daemon 当
+      // 唯一真相源，就不会出现「点了但没生效却已经显示切换成功」。
       onSuccess?.(`Proxy mode switched to ${mode}`);
     } catch (error) {
       onError?.(`Failed to switch proxy mode: ${getErrorMessage(error)}`);
@@ -119,8 +106,16 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
     if (get().activeSelectionKey === actionKey) return;
     set({ activeSelectionKey: actionKey });
     try {
-      const overview = await selectProxy(proxyGroup, proxyName);
-      set({ overview, errorMessage: null });
+      await startedService.selectOutbound({
+        groupTag: proxyGroup,
+        outboundTag: proxyName,
+      });
+      if (
+        useSettingsStore.getState().settings.settings.auto_close_connections
+      ) {
+        await closeConnectionsByGroup(proxyGroup);
+      }
+      // 勾选同样由 `SubscribeGroups` 推回来。
       onSuccess?.(`Switched ${proxyGroup} to ${proxyName}`);
     } catch (error) {
       onError?.(`Failed to switch proxy node: ${getErrorMessage(error)}`);
@@ -137,7 +132,7 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
       return { activeDelayNodes: next };
     });
     try {
-      const delay = await testProxyDelay(proxyName);
+      const delay = await awaitNodeDelay(proxyName);
       set((s) => ({
         overview: s.overview
           ? {
@@ -207,7 +202,7 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
       // Reached whether nodes were already available or just fetched above.
       set({ groupTestingNodes: new Set(nodes) });
 
-      const results = await testProxyGroupDelay(proxyGroup);
+      const results = await awaitGroupDelays(proxyGroup, nodes);
 
       set((s) => ({
         overview: s.overview

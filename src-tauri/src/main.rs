@@ -6,14 +6,15 @@ mod config;
 mod crash_reports;
 mod daemon;
 mod errors;
+mod ipc;
 mod logger;
 mod services;
+mod store;
 mod tray;
 mod window_state;
 mod window_utils;
 
 use services::singbox::{SingboxState, retry_connection, spawn_reconciliation_loop};
-use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 
@@ -25,10 +26,47 @@ use tauri_plugin_autostart::MacosLauncher;
 const AUTOSTART_ARG: &str = "--autostart";
 
 fn main() {
+    // `--export-bindings <path>`：只生成前端的 host 域绑定然后退出，不起窗口。
+    //
+    // 为什么不做成 `cargo test`：导出要走 `collect_commands!`，它把整个 wry
+    // 运行时链进调用它的二进制；集成测试的测试二进制这么一链，启动时就
+    // `STATUS_ENTRYPOINT_NOT_FOUND`（缺的不是 WebView2Loader，试过了）。而应用
+    // 自己本来就带着能正常加载的那套依赖，所以让它顺带干这件事最省事。
+    //
+    //     pnpm gen:host      # package.json 里包好了
+    let mut args = std::env::args().skip(1);
+    if args.next().as_deref() == Some("--export-bindings") {
+        let path = args
+            .next()
+            .unwrap_or_else(|| "../src/gen/host.ts".to_string());
+        match ipc::export_bindings(&path) {
+            Ok(()) => {
+                println!("exported host bindings to {path}");
+                return;
+            }
+            Err(e) => {
+                eprintln!("failed to export host bindings: {e}");
+                std::process::exit(1);
+            }
+        }
+    }
+
     logger::init_tracing();
     logger::install_panic_hook();
 
     let singbox_state = SingboxState::new();
+
+    // 数据库要在其他一切之前打开：BackendPrefsState 从它加载，命令也都要用它。
+    // 打不开就没法继续 —— 这是持久化层，带着一个不可用的 store 跑起来只会在
+    // 每个操作上报错，不如在这里说清楚。
+    let store = match store::Store::open() {
+        Ok(store) => store,
+        Err(e) => {
+            tracing::error!(error = %e, "failed to open the fresh-box database");
+            std::process::exit(1);
+        }
+    };
+    let backend_prefs = config::app_settings::BackendPrefsState::load(&store);
 
     tauri::Builder::default()
         .plugin(tauri_plugin_notification::init())
@@ -44,64 +82,12 @@ fn main() {
         // Cargo.toml entry for why.
         .plugin(tauri_plugin_updater::Builder::new().build())
         .manage(singbox_state)
-        .manage(services::streams::StreamsState::new())
-        .manage(config::app_settings::BackendPrefsState::load())
-        .invoke_handler(tauri::generate_handler![
-            commands::singbox::start_singbox,
-            commands::singbox::stop_singbox,
-            commands::singbox::get_daemon_state,
-            commands::singbox::retry_daemon_connection,
-            commands::singbox::is_daemon_service_installed,
-            commands::singbox::install_daemon_service,
-            commands::singbox::uninstall_daemon_service,
-            commands::singbox::repair_daemon_service,
-            commands::app::is_autostart_enabled,
-            commands::app::enable_autostart,
-            commands::app::disable_autostart,
-            commands::proxy::get_proxy_overview,
-            commands::proxy::update_proxy_mode,
-            commands::proxy::select_proxy,
-            commands::proxy::test_proxy_delay,
-            commands::proxy::test_proxy_group_delay,
-            commands::config::list_profiles,
-            commands::config::copy_config_to_bin,
-            commands::config::delete_profile,
-            commands::config::rename_profile,
-            commands::config::edit_subscription_url,
-            commands::config::set_subscription_auto_update,
-            commands::config::open_config_file,
-            commands::config::open_app_directory,
-            commands::config::load_app_settings,
-            commands::config::save_app_settings,
-            commands::config_override::enable_config_override,
-            commands::config_override::disable_config_override,
-            commands::config_override::save_config_override,
-            commands::config_override::clear_config_override,
-            commands::config_override::load_config_override,
-            commands::config_override::is_config_override_enabled,
-            commands::priority::save_priority_config,
-            commands::priority::load_priority_config,
-            commands::priority::check_config_fields,
-            commands::diagnostics::list_crash_reports,
-            commands::diagnostics::record_frontend_error,
-            commands::app::update_mica_theme,
-            commands::streams::start_traffic_stream,
-            commands::streams::stop_traffic_stream,
-            commands::streams::start_memory_stream,
-            commands::streams::stop_memory_stream,
-            commands::streams::start_connections_stream,
-            commands::streams::stop_connections_stream,
-            commands::streams::start_logs_stream,
-            commands::streams::stop_logs_stream,
-            commands::proxy::close_all_connections,
-            commands::proxy::close_connection,
-            commands::config::add_subscription,
-            commands::config::update_subscription,
-        ])
+        .manage(daemon::bridge::registry::StreamRegistry::new())
+        .manage(std::sync::Arc::new(services::resident::ResidentState::new()))
+        .manage(store)
+        .manage(backend_prefs)
+        .invoke_handler(ipc::invoke_handler())
         .setup(|app| {
-            // 首次启动时生成含完整默认值的 priority_config.json（幂等）
-            config::ensure_priority_config_initialized();
-
             tray::setup_system_tray(app)?;
 
             let window = app.get_webview_window("main").unwrap();
@@ -131,6 +117,16 @@ fn main() {
             spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
             commands::config::spawn_auto_update_scheduler(app.handle().clone());
 
+            // 关闭窗口会销毁 webview，所以这两件事必须由 Rust 拥有：状态变化
+            // 的系统通知（原来在前端，销毁模式下等于不存在），以及托盘菜单的
+            // 持续同步。见 `services::resident` 的模块注释。
+            let resident = app
+                .state::<std::sync::Arc<services::resident::ResidentState>>()
+                .inner()
+                .clone();
+            services::resident::spawn_notifier(app.handle().clone(), state.inner().clone());
+            tray::spawn_tray_sync(app.handle().clone(), state.inner().clone(), resident);
+
             Ok(())
         })
         .on_window_event(|window, event| match event {
@@ -148,29 +144,23 @@ fn main() {
                 // solely on those two events to have already caught it.
                 window_state::persist(window);
 
-                let close_behavior = window
-                    .app_handle()
-                    .state::<config::app_settings::BackendPrefsState>()
-                    .get()
-                    .close_behavior;
-
                 // 通知前端窗口即将不可见，触发流暂停与缓存清理
                 let _ = window.emit("window-visibility-changed", false);
 
-                let window_clone = window.clone();
-                if close_behavior == "destroy" {
-                    // 通知运行时：窗口将销毁，保持进程存活
-                    window_utils::set_keep_alive(true);
-                    // 直接销毁窗口（不会再次触发 CloseRequested）
-                    if let Err(e) = window_clone.destroy() {
-                        tracing::error!(error = %e, "failed to destroy window");
-                        window_utils::set_keep_alive(false);
-                    }
-                } else {
-                    // hide 模式：隐藏窗口，保持后台运行
-                    window_utils::run_after_delay(Duration::from_millis(10), move || {
-                        let _ = window_clone.hide();
-                    });
+                // 关窗一律**销毁** webview，没有「隐藏到托盘」那个选项了。
+                //
+                // 以前两种行为并存，是因为托盘和通知都依赖前端还活着：窗口一
+                // 销毁，托盘菜单就再也不更新、sing-box 崩了也不会有通知，于是
+                // 只能让用户在「省内存」和「托盘可用」之间自己选一个。
+                //
+                // 现在这两件事都在 Rust 常驻（`services::resident` 订阅代理组
+                // 与 Clash 模式，`spawn_notifier` 发通知），窗口在不在都一样，
+                // 那个取舍就不存在了 —— 隐藏模式只剩「白留着一个 WebView2
+                // 进程」这一个效果，所以直接去掉。
+                window_utils::set_keep_alive(true);
+                if let Err(e) = window.destroy() {
+                    tracing::error!(error = %e, "failed to destroy window");
+                    window_utils::set_keep_alive(false);
                 }
             }
             tauri::WindowEvent::Focused(true) => {
@@ -183,7 +173,28 @@ fn main() {
                     retry_connection(&state);
                 }
             }
-            tauri::WindowEvent::Destroyed => {}
+            tauri::WindowEvent::Destroyed => {
+                // 销毁模式下每次关闭窗口都会走到这里，所以这是流回收的主路径
+                // 而不是边角情况：漏收一次，daemon 那边就多留一条永远没人读的
+                // 订阅。见 `daemon::bridge::registry` 的模块注释。
+                if let Some(registry) = window
+                    .app_handle()
+                    .try_state::<daemon::bridge::registry::StreamRegistry>()
+                {
+                    let cancelled = registry.cancel_window(window.label());
+                    if cancelled > 0 {
+                        // info 而不是 debug：每关一次窗口一行，而 `remaining`
+                        // 正是流泄漏的观测指标 —— 这是出问题时第一个想看的东西，
+                        // 不该藏在需要 RUST_LOG=debug 才出现的地方。
+                        tracing::info!(
+                            label = window.label(),
+                            cancelled,
+                            remaining = registry.active_count(),
+                            "cancelled daemon streams owned by a destroyed window"
+                        );
+                    }
+                }
+            }
             _ => {}
         })
         .plugin(tauri_plugin_single_instance::init(|app, argv, cwd| {

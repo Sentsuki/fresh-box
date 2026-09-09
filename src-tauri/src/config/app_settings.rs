@@ -1,67 +1,58 @@
+// 设置的**形状**定义在这里；**存储**在 `store::settings`（SQLite 分区键值
+// 表）。阶段 4 之前是 `app_settings.json` 加拆出来的 `backend_prefs.json`。
+//
+// `schema_version` 那套版本容错也一并去掉了：场景是全新安装，只有一个版本，
+// 没有需要兼容的旧格式（见重构方案 01 节末的边界说明）。
+
 use crate::errors::CommandError;
+use crate::store::{Store, settings};
 use serde::{Deserialize, Serialize};
-use serde_json::Value;
 
-const APP_SETTINGS_FILE: &str = "app_settings.json";
-const APP_SETTINGS_SCHEMA_VERSION: u32 = 1;
-
-/// Where `BackendPrefsState` persists — physically separate from
-/// `APP_SETTINGS_FILE`, not just cached in memory over it. See
-/// `BackendPrefsState`'s doc comment for why: the backend's own
-/// close-behavior/auto-close-connections decisions no longer depend, even
-/// at process startup, on successfully parsing the rest of the (much
-/// larger, frontend-owned) settings blob at all.
-const BACKEND_PREFS_FILE: &str = "backend_prefs.json";
-
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 pub struct AppSettings {
-    #[serde(default = "default_app_settings_schema_version")]
-    pub schema_version: u32,
-    #[serde(default)]
     pub app: AppConfig,
-    #[serde(default)]
     pub proxies: ProxyPageSettings,
-    #[serde(default)]
     pub connections: ConnectionPageSettings,
-    #[serde(default)]
     pub logs: LogsPageSettings,
-    #[serde(default)]
     pub profiles: ProfilesSettings,
-    #[serde(default)]
     pub settings: AppDisplaySettings,
-    #[serde(default)]
     pub updates: UpdateSettings,
+    pub diagnostics: DiagnosticsSettings,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AppConfig {
     pub current_page: String,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ProfilesSettings {
-    pub selected_config_path: Option<String>,
-    pub selected_config_display: Option<String>,
+    /// 选中的档案 id。
+    ///
+    /// 阶段 4 把内容文件改成按 UUID 命名之后，路径就不再是身份了 —— 但这个
+    /// 结构当时漏改了，一直还留着 `selected_config_path`/`_display` 两个字段，
+    /// 而实际的选中值被写在另一个设置键上。前端和后端因此指着两个不同的地方，
+    /// 且没有任何编译错误提示。接 specta 生成类型时立刻暴露了出来。
+    pub selected_profile_id: Option<String>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct AppDisplaySettings {
     pub theme_mode: String,
-    pub close_behavior: String,
     pub auto_close_connections: bool,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ProxyPageSettings {
     #[serde(default)]
     pub collapsed_groups: std::collections::BTreeMap<String, bool>,
 }
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct ConnectionPageSettings {
     pub current_tab: String,
@@ -74,7 +65,7 @@ pub struct ConnectionPageSettings {
     pub column_sizes: std::collections::BTreeMap<String, f64>,
 }
 
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct LogsPageSettings {
     pub type_filter: String,
@@ -88,8 +79,8 @@ pub struct LogsPageSettings {
 /// (`check_update_enabled`, `update_check_prompted`,
 /// `last_shown_update_version` in `updates.ts`). None of this belongs in
 /// `AppDisplaySettings`/`BackendPrefsState` — the backend never reads any
-/// of it, unlike `close_behavior`/`auto_close_connections`.
-#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+/// of it, unlike `auto_close_connections`.
+#[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct UpdateSettings {
     /// Opt-in, like the official client — defaults to `false` so a fresh
@@ -107,17 +98,36 @@ pub struct UpdateSettings {
     pub last_shown_update_version: String,
 }
 
-impl Default for AppSettings {
+/// Passed to the daemon's `StartOptions` on every `StartService` call (see
+/// `services::singbox::start_singbox`) — mirrors the official desktop
+/// client's own OOM-killer/power-report settings
+/// （`host.ts` 的 `setOOMKillerEnabled`/`setOOMMemoryLimitMB`/
+/// `setPowerReportEnabled`）。
+///
+/// 曾经还有一个 `oom_killer_kill_connections`：设置页能开、会持久化、类型里也
+/// 有 —— 但 `StartOptions` proto 根本没这个字段，`build_start_options` 也从不
+/// 读它。纯粹的死开关，用户打开什么都不会发生（审计项 M-11），阶段 5 删除。 Both are off by default, same as
+/// the daemon's own `StartOptions::default()` fresh-box used to always send
+/// — enabling either only takes effect the next time sing-box (re)starts,
+/// same as fresh-box's other startup-only options (e.g. the TUN stack
+/// setting).
+#[derive(Debug, Clone, Serialize, Deserialize, specta::Type)]
+#[serde(default)]
+pub struct DiagnosticsSettings {
+    pub oom_killer_enabled: bool,
+    /// `u32` 而不是 `i64`：这是个「多少 MB」的上限，值域小得很，而 specta
+    /// 会拒绝导出 64 位整数——它在 JS 里是 `number`，超过 2^53 会静默丢精度。
+    /// 这个字段本来也不该有负数或天文数字。
+    pub oom_memory_limit_mb: u32,
+    pub power_report_enabled: bool,
+}
+
+impl Default for DiagnosticsSettings {
     fn default() -> Self {
         Self {
-            schema_version: APP_SETTINGS_SCHEMA_VERSION,
-            app: AppConfig::default(),
-            proxies: ProxyPageSettings::default(),
-            connections: ConnectionPageSettings::default(),
-            logs: LogsPageSettings::default(),
-            profiles: ProfilesSettings::default(),
-            settings: AppDisplaySettings::default(),
-            updates: UpdateSettings::default(),
+            oom_killer_enabled: false,
+            oom_memory_limit_mb: 200,
+            power_report_enabled: false,
         }
     }
 }
@@ -134,7 +144,6 @@ impl Default for AppDisplaySettings {
     fn default() -> Self {
         Self {
             theme_mode: "system".to_string(),
-            close_behavior: "hide".to_string(),
             auto_close_connections: true,
         }
     }
@@ -160,82 +169,63 @@ impl Default for ConnectionPageSettings {
     }
 }
 
-fn normalize_app_settings(value: Value) -> Result<AppSettings, CommandError> {
-    let mut settings = serde_json::from_value::<AppSettings>(value).unwrap_or_default();
-    settings.schema_version = APP_SETTINGS_SCHEMA_VERSION;
-    Ok(settings)
+/// 各区在 `settings` 表里的 key。一区一行 —— 一区坏掉碰不到别的区。
+const KEY_APP: &str = "app";
+const KEY_PROXIES: &str = "proxies";
+const KEY_CONNECTIONS: &str = "connections";
+const KEY_LOGS: &str = "logs";
+const KEY_UPDATES: &str = "updates";
+const KEY_DIAGNOSTICS: &str = "diagnostics";
+
+/// 读回前端要的整份设置。逐区读取，任何一区解析失败只影响它自己
+/// （`settings::get_or_default` 会退回该区的默认值）。
+pub fn load_app_settings(store: &Store) -> Result<AppSettings, CommandError> {
+    use settings::{SCOPE_APP, get_or_default};
+    Ok(AppSettings {
+        app: get_or_default(store, SCOPE_APP, KEY_APP)?,
+        proxies: get_or_default(store, SCOPE_APP, KEY_PROXIES)?,
+        connections: get_or_default(store, SCOPE_APP, KEY_CONNECTIONS)?,
+        logs: get_or_default(store, SCOPE_APP, KEY_LOGS)?,
+        profiles: get_or_default(store, SCOPE_APP, settings::KEY_PROFILES)?,
+        settings: get_or_default(store, SCOPE_APP, settings::KEY_BEHAVIOR)?,
+        updates: get_or_default(store, SCOPE_APP, KEY_UPDATES)?,
+        diagnostics: get_or_default(store, SCOPE_APP, KEY_DIAGNOSTICS)?,
+    })
 }
 
-fn default_app_settings_schema_version() -> u32 {
-    APP_SETTINGS_SCHEMA_VERSION
+pub fn save_app_settings(store: &Store, value: &AppSettings) -> Result<(), CommandError> {
+    use settings::{SCOPE_APP, set};
+    set(store, SCOPE_APP, KEY_APP, &value.app)?;
+    set(store, SCOPE_APP, KEY_PROXIES, &value.proxies)?;
+    set(store, SCOPE_APP, KEY_CONNECTIONS, &value.connections)?;
+    set(store, SCOPE_APP, KEY_LOGS, &value.logs)?;
+    set(store, SCOPE_APP, settings::KEY_PROFILES, &value.profiles)?;
+    set(store, SCOPE_APP, settings::KEY_BEHAVIOR, &value.settings)?;
+    set(store, SCOPE_APP, KEY_UPDATES, &value.updates)?;
+    set(store, SCOPE_APP, KEY_DIAGNOSTICS, &value.diagnostics)
 }
 
-fn get_app_settings_path() -> Result<std::path::PathBuf, CommandError> {
-    Ok(super::paths::get_config_dir()?.join(APP_SETTINGS_FILE))
+/// 后端自己要用的那一区（诊断选项），单独读，不必解析整份设置。
+pub fn load_diagnostics(store: &Store) -> DiagnosticsSettings {
+    settings::get_or_default(store, settings::SCOPE_APP, KEY_DIAGNOSTICS).unwrap_or_default()
 }
 
-pub fn load_app_settings_file() -> Result<AppSettings, CommandError> {
-    let path = get_app_settings_path()?;
-    if !path.exists() {
-        return Ok(AppSettings::default());
-    }
-    let value: Value = super::io::read_json_file(&path)?;
-    normalize_app_settings(value)
-}
-
-pub fn save_app_settings_file(settings: &AppSettings) -> Result<(), CommandError> {
-    super::io::write_json_file(&get_app_settings_path()?, settings)
-}
-
-fn get_backend_prefs_path() -> Result<std::path::PathBuf, CommandError> {
-    Ok(super::paths::get_config_dir()?.join(BACKEND_PREFS_FILE))
-}
-
-fn load_backend_prefs_file() -> Result<AppDisplaySettings, CommandError> {
-    let path = get_backend_prefs_path()?;
-    if !path.exists() {
-        return Ok(AppDisplaySettings::default());
-    }
-    super::io::read_json_file(&path)
-}
-
-fn save_backend_prefs_file(settings: &AppDisplaySettings) -> Result<(), CommandError> {
-    super::io::write_json_file(&get_backend_prefs_path()?, settings)
-}
-
-/// The subset of app settings the *backend* needs to make control-flow
-/// decisions with — window-close behavior (`main.rs`'s `CloseRequested`
-/// handler) and whether to auto-close connections on a proxy switch
-/// (`services::daemon_control`, `tray.rs`) — as opposed to the rest of
-/// `AppSettings` (current page, table column layout, collapsed groups, ...),
-/// which only the frontend ever reads. Backed by its own file
-/// (`BACKEND_PREFS_FILE`), physically separate from the much larger
-/// `APP_SETTINGS_FILE` the frontend round-trips wholesale, plus an
-/// in-memory cache (managed Tauri state) of the same content for the
-/// backend's own reads — so nothing on the backend's decision path ever
-/// has to parse the frontend's blob at all. `save_app_settings` keeps a
-/// mirror copy inside `APP_SETTINGS_FILE` too (so `load_app_settings`
-/// still round-trips the *whole* settings shape in one call for the
-/// frontend, unchanged), but that copy is never read back by anything on
-/// the backend — `BACKEND_PREFS_FILE`/this cache are.
+/// 后端做控制流判断要用的那一小撮设置：窗口关闭行为（`main.rs` 的
+/// `CloseRequested`）和切换节点后是否自动断开连接（`tray.rs`）。其余的
+/// `AppSettings`（当前页面、表格列宽、折叠状态……）只有前端读。
 ///
-/// Splitting this out physically, not just caching it in memory over one
-/// shared file, closes the gap the in-memory-only version still had: a
-/// parse failure elsewhere in `APP_SETTINGS_FILE` (a stray value in
-/// `connections.column_sizes`, say) could still reset
-/// `close_behavior`/`auto_close_connections` to defaults the moment the
-/// process restarted and reloaded that cache from the same corrupted blob.
-/// With its own file, a problem anywhere in `APP_SETTINGS_FILE` can no
-/// longer touch this at all, at startup or otherwise.
+/// 独立缓存一份在内存里，是为了让这些判断路径不必每次都去查库。持久化则和
+/// 其他区一样走 `settings` 表的 `behavior` 行 —— 阶段 4 之前它需要一个单独的
+/// `backend_prefs.json`，因为整块 JSON 里任何一处解析失败都会把它一起打回
+/// 默认值；一区一行之后这个隔离是 schema 自带的，不用再靠拆文件实现。
 pub struct BackendPrefsState(std::sync::RwLock<AppDisplaySettings>);
 
 impl BackendPrefsState {
-    /// Read once at startup — a normal disk load, same fallback-to-default
-    /// behavior as everywhere else. From here on, every read goes through
-    /// `get()` instead.
-    pub fn load() -> Self {
-        let settings = load_backend_prefs_file().unwrap_or_default();
-        Self(std::sync::RwLock::new(settings))
+    /// 启动时读一次；之后每次读都走 `get()` 的内存缓存。
+    pub fn load(store: &Store) -> Self {
+        let value = settings::get_or_default(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR)
+            .unwrap_or_default();
+        Self(std::sync::RwLock::new(value))
     }
 
     pub fn get(&self) -> AppDisplaySettings {
@@ -251,10 +241,131 @@ impl BackendPrefsState {
     /// still report that failure to the caller (`save_app_settings`, which
     /// folds it into the same error it'd return for the main settings file
     /// failing to save).
-    pub fn set(&self, settings: AppDisplaySettings) -> Result<(), CommandError> {
+    pub fn set(&self, store: &Store, value: AppDisplaySettings) -> Result<(), CommandError> {
         if let Ok(mut guard) = self.0.write() {
-            *guard = settings.clone();
+            *guard = value.clone();
         }
-        save_backend_prefs_file(&settings)
+        settings::set(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR, &value)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn store() -> Store {
+        Store::open_in_memory().expect("in-memory store")
+    }
+
+    #[test]
+    fn a_fresh_database_reads_back_as_defaults() {
+        let settings = load_app_settings(&store()).expect("load");
+        let defaults = AppSettings::default();
+        assert_eq!(settings.app.current_page, defaults.app.current_page);
+        assert_eq!(settings.settings.theme_mode, "system");
+        assert!(settings.settings.auto_close_connections);
+        assert!(!settings.updates.check_update_enabled);
+    }
+
+    #[test]
+    fn every_section_round_trips() {
+        let store = store();
+        let mut value = AppSettings::default();
+        value.app.current_page = "logs".into();
+        value.settings.theme_mode = "dark".into();
+        value.settings.auto_close_connections = false;
+        value.logs.type_filter = "error".into();
+        value.profiles.selected_profile_id = Some("abc".into());
+        value.connections.sort_key = "upload".into();
+        value.connections.column_sizes.insert("host".into(), 120.0);
+        value.updates.check_update_enabled = true;
+        value.diagnostics.oom_memory_limit_mb = 4096;
+        value.proxies.collapsed_groups.insert("g".into(), true);
+
+        save_app_settings(&store, &value).expect("save");
+        let read = load_app_settings(&store).expect("load");
+
+        assert_eq!(read.app.current_page, "logs");
+        assert_eq!(read.settings.theme_mode, "dark");
+        assert!(!read.settings.auto_close_connections);
+        assert_eq!(read.logs.type_filter, "error");
+        assert_eq!(read.profiles.selected_profile_id.as_deref(), Some("abc"));
+        assert_eq!(read.connections.sort_key, "upload");
+        assert_eq!(read.connections.column_sizes.get("host"), Some(&120.0));
+        assert!(read.updates.check_update_enabled);
+        assert_eq!(read.diagnostics.oom_memory_limit_mb, 4096);
+        assert_eq!(read.proxies.collapsed_groups.get("g"), Some(&true));
+    }
+
+    #[test]
+    fn one_corrupt_section_does_not_reset_the_others() {
+        // 这是 `backend_prefs.json` 当初拆出来要解决的问题，现在是 schema 的
+        // 自然性质：一区一行，坏的那行自己回默认。
+        let store = store();
+        let mut value = AppSettings::default();
+        value.app.current_page = "logs".into();
+        value.settings.theme_mode = "dark".into();
+        save_app_settings(&store, &value).expect("save");
+
+        // 手动把连接页那一区写成解析不了的东西。
+        store
+            .with(|connection| {
+                connection
+                    .execute(
+                        "UPDATE settings SET value = ?1 WHERE scope = ?2 AND key = ?3",
+                        rusqlite::params!["{not json", settings::SCOPE_APP, "connections"],
+                    )
+                    .map_err(|e| CommandError::io("corrupt a section", e))?;
+                Ok(())
+            })
+            .expect("corrupt");
+
+        let read = load_app_settings(&store).expect("load still succeeds");
+        assert_eq!(read.app.current_page, "logs", "neighbour section survives");
+        assert_eq!(read.settings.theme_mode, "dark");
+        assert_eq!(
+            read.connections.sort_key,
+            ConnectionPageSettings::default().sort_key,
+            "the corrupt section falls back to its own defaults"
+        );
+    }
+
+    #[test]
+    fn diagnostics_can_be_read_without_parsing_everything_else() {
+        let store = store();
+        let mut value = AppSettings::default();
+        value.diagnostics.oom_killer_enabled = true;
+        value.diagnostics.oom_memory_limit_mb = 2048;
+        save_app_settings(&store, &value).expect("save");
+
+        let diagnostics = load_diagnostics(&store);
+        assert!(diagnostics.oom_killer_enabled);
+        assert_eq!(diagnostics.oom_memory_limit_mb, 2048);
+    }
+
+    #[test]
+    fn backend_prefs_serve_from_memory_and_persist() {
+        let store = store();
+        let prefs = BackendPrefsState::load(&store);
+        assert!(prefs.get().auto_close_connections, "default");
+
+        prefs
+            .set(
+                &store,
+                AppDisplaySettings {
+                    theme_mode: "dark".into(),
+                    auto_close_connections: false,
+                },
+            )
+            .expect("set");
+
+        // 内存缓存立刻可见……
+        assert!(!prefs.get().auto_close_connections);
+        // ……而且确实落到了同一行上，下次启动读得回来。
+        assert!(!BackendPrefsState::load(&store).get().auto_close_connections);
+        assert_eq!(
+            load_app_settings(&store).expect("load").settings.theme_mode,
+            "dark"
+        );
     }
 }

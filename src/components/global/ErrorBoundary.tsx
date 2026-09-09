@@ -34,7 +34,7 @@ export class ErrorBoundary extends Component<Props, State> {
     void recordFrontendError(
       error.name || "Error",
       error.message || "An unexpected error occurred",
-      stack || undefined,
+      stack || null,
     ).catch((reportingError) => {
       console.error(
         "[ErrorBoundary] failed to record crash report",

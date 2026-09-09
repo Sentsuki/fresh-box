@@ -2,8 +2,11 @@ packages:
   - .
 
 allowBuilds:
+  # buf 的 postinstall 下载对应平台的 buf 可执行文件（`pnpm gen:proto` 需要）
+  '@bufbuild/buf': true
   esbuild: true
 
 onlyBuiltDependencies:
+  - '@bufbuild/buf'
   - '@tailwindcss/oxide'
   - esbuild

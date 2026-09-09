@@ -1,37 +1,21 @@
-// Mirrors `src-tauri/src/services/singbox.rs`'s `ConnectionPhase`/
-// `SingboxStatus` — kept in sync by hand (no shared codegen generates
-// either side from the other). `scripts/check-commands.mjs` (run via
-// `npm run build`'s `prebuild` step) only guards *command names* matching
-// across the IPC boundary, not payload shapes like this one — a field
-// added/renamed/retyped on the Rust side still needs the same change made
-// here by hand, with no build-time check catching a miss.
-
-export type SingboxRunState =
-  "idle" | "starting" | "started" | "stopping" | "fatal";
-
-export interface SingboxStatus {
-  state: SingboxRunState;
-  errorMessage: string;
-}
-
 /**
- * The daemon connection's current phase, as pushed by the Rust-side
- * reconciliation loop (`daemon-state-changed` event) and readable
- * synchronously via `getDaemonState()`. This is the single source of truth
- * for "is sing-box running" — see `useDaemonConnectionListener`.
+ * daemon 连接相位 —— 类型由 Rust 生成（`src/gen/host.ts`），这里只重命名。
+ *
+ * 阶段 5 之前这份是手抄的，文件顶上还写着「手工保持同步」。现在 Rust 侧加一个
+ * 相位，`DaemonGate` 的映射表会直接编译报错（见那里的注释）。
  */
-export type DaemonConnectionPhase =
-  | { phase: "connecting" }
-  | { phase: "connected"; status: SingboxStatus }
-  | { phase: "not-installed" }
-  | {
-      phase: "version-mismatch";
-      daemonVersion: string;
-      bundledVersion: string;
-    }
-  | { phase: "owned-by-other-user" }
-  | { phase: "unavailable"; errorMessage: string };
 
-export function isDaemonRunning(phase: DaemonConnectionPhase): boolean {
+export type {
+  ConnectionPhase as DaemonConnectionPhase,
+  SingboxRunState,
+  SingboxStatus,
+} from "../gen/host";
+
+import type { ConnectionPhase } from "../gen/host";
+
+/** 所有相位名 —— `DaemonGate` 的映射表按它做穷举校验。 */
+export type DaemonPhaseName = ConnectionPhase["phase"];
+
+export function isDaemonRunning(phase: ConnectionPhase): boolean {
   return phase.phase === "connected" && phase.status.state === "started";
 }

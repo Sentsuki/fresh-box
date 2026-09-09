@@ -1,35 +1,47 @@
+// 配置档案与设置的命令。
+//
+// 阶段 4 之后这个文件短了一大截（约 771 → 现在这些），因为整整两类代码没有
+// 存在理由了：
+//
+//   * **路径安全**（`resolve_safe_path`、`normalize_path`、
+//     `strip_verbatim_prefix`、`sanitize_filename_component`、
+//     `is_reserved_device_name`）—— 内容文件按 UUID 命名，文件名不再由用户
+//     输入或订阅 URL 派生，也就没有可以被穿越的路径。用户起的名字只是数据库
+//     里的一个字符串。
+//   * **索引与磁盘对账**（`with_index` 那一整套）—— 只有一份真相了。
+//
+// 剩下的是真正的应用逻辑：抓订阅（有大小上限、落盘前必须过真正的 sing-box
+// 解析器）、增删改、自动更新调度。
+
 use crate::config::AppSettings;
 use crate::errors::CommandError;
+use crate::store::{Store, profiles, settings};
 use futures_util::StreamExt;
-use std::fs;
 use std::sync::OnceLock;
+use tauri::{Manager, State};
 
-// ── Shared HTTP client for subscription fetching ───────────────────────────
+// ── 订阅抓取用的共享 HTTP 客户端 ────────────────────────────────────────────
 
 static SUBSCRIPTION_CLIENT: OnceLock<reqwest::Client> = OnceLock::new();
 
-fn subscription_client() -> Result<&'static reqwest::Client, CommandError> {
-    Ok(SUBSCRIPTION_CLIENT.get_or_init(|| {
+fn subscription_client() -> &'static reqwest::Client {
+    SUBSCRIPTION_CLIENT.get_or_init(|| {
         reqwest::Client::builder()
             .user_agent("fresh-box")
             .timeout(std::time::Duration::from_secs(30))
             .build()
             .expect("Failed to initialize the subscription HTTP client")
-    }))
+    })
 }
 
-/// Mirrors the official desktop client's `MAXIMUM_REMOTE_PROFILE_BYTES`
-/// (`src/main/profiles.ts`) — caps how much a subscription response can
-/// grow fresh-box's in-memory buffer / on-disk config file by, so a
-/// malicious or compromised subscription server can't exhaust memory or
-/// fill the disk with an unbounded response.
+/// 对齐官方客户端的 `MAXIMUM_REMOTE_PROFILE_BYTES`（`src/main/profiles.ts`）：
+/// 限制一次订阅响应能撑大多少内存 / 占多少磁盘，免得一个恶意或被攻陷的订阅
+/// 服务器把内存吃光或把盘写满。
 const MAX_SUBSCRIPTION_BYTES: usize = 16 * 1024 * 1024;
 
-/// Read `response`'s body as UTF-8 text, rejecting it once it (or its
-/// declared `Content-Length`) exceeds `max_bytes`. Reads incrementally via
-/// `bytes_stream()` rather than `.text()` so an unbounded/chunked response
-/// without a `Content-Length` header still can't be fully buffered before
-/// we notice it's too large.
+/// 以 UTF-8 读取响应体，超过 `max_bytes`（或声明的 `Content-Length` 超过）就
+/// 拒绝。用 `bytes_stream()` 增量读而不是 `.text()`：没有 `Content-Length` 的
+/// 分块响应不该等到全部缓冲完才发现它太大。
 async fn read_limited_response(
     response: reqwest::Response,
     max_bytes: usize,
@@ -46,7 +58,7 @@ async fn read_limited_response(
     let mut buf: Vec<u8> = Vec::new();
     while let Some(chunk) = stream.next().await {
         let chunk = chunk.map_err(|e| {
-            CommandError::network(format!("Failed to read subscription content: {}", e))
+            CommandError::network(format!("Failed to read subscription content: {e}"))
         })?;
         buf.extend_from_slice(&chunk);
         if buf.len() > max_bytes {
@@ -61,194 +73,50 @@ async fn read_limited_response(
     })
 }
 
-/// Characters no Windows filename may contain, plus ASCII control
-/// characters. Shared by `sanitize_filename_component` (auto-fixes a
-/// URL-derived name) and `validate_profile_name` (rejects a user-typed
-/// one) below — mirrors the class the official desktop client's
-/// `safeFileName` (`sharing.ts`) scrubs.
-fn has_forbidden_filename_char(c: char) -> bool {
-    matches!(c, '/' | '\\' | ':' | '*' | '?' | '"' | '<' | '>' | '|') || c.is_control()
-}
-
-/// Windows' reserved device names — refused as a filename stem regardless
-/// of case or extension, on every Windows filesystem.
-fn is_reserved_device_name(stem: &str) -> bool {
-    matches!(
-        stem.to_ascii_uppercase().as_str(),
-        "CON"
-            | "PRN"
-            | "AUX"
-            | "NUL"
-            | "COM1"
-            | "COM2"
-            | "COM3"
-            | "COM4"
-            | "COM5"
-            | "COM6"
-            | "COM7"
-            | "COM8"
-            | "COM9"
-            | "LPT1"
-            | "LPT2"
-            | "LPT3"
-            | "LPT4"
-            | "LPT5"
-            | "LPT6"
-            | "LPT7"
-            | "LPT8"
-            | "LPT9"
-    )
-}
-
-/// Reject forbidden characters, strip leading/trailing dots and spaces
-/// (Windows silently strips trailing ones itself, so leaving them in would
-/// let the result collapse to `.`/`..` or just not match what was passed
-/// in), and dodge a reserved device name — so the result can never be read
-/// as a relative/absolute path escape or a name Windows can't actually
-/// create, once `.json` is appended and joined onto `sub_dir`. Applied to a
-/// filename *derived* from untrusted input (a subscription URL) rather than
-/// typed by the user, so silently rewriting it instead of rejecting it is
-/// the right call — see `extract_file_name_from_url`. A user-typed rename
-/// goes through `validate_profile_name` instead, which rejects rather than
-/// rewrites.
-fn sanitize_filename_component(raw: &str) -> String {
-    let cleaned: String = raw
-        .chars()
-        .map(|c| {
-            if has_forbidden_filename_char(c) {
-                '_'
-            } else {
-                c
-            }
-        })
-        .collect();
-    let trimmed = cleaned.trim_matches(|c: char| c == ' ' || c == '.');
-    if trimmed.is_empty() {
-        return "subscription".to_string();
-    }
-    let named = if is_reserved_device_name(trimmed) {
-        format!("_{trimmed}")
+/// 从订阅 URL 派生一个**显示名**。
+///
+/// 注意这只是显示名，不再是文件名也不再是主键 —— 所以不需要清洗路径分隔符、
+/// 不需要躲 Windows 保留设备名、也不需要担心它和别的档案撞名（撞了由
+/// `store::profiles::unique_name` 自动加后缀）。这三件事以前都要做，因为
+/// 这个字符串会直接变成磁盘上的文件名（审计项 H-03 的根因）。
+fn display_name_from_url(url: &str) -> String {
+    let path = url.split(['?', '#']).next().unwrap_or(url);
+    let last = path.rsplit(['/', '\\']).next().unwrap_or("");
+    let stem = last.strip_suffix(".json").unwrap_or(last).trim();
+    if stem.is_empty() {
+        "subscription".to_string()
     } else {
-        trimmed.to_string()
-    };
-    named.chars().take(150).collect()
+        stem.chars().take(150).collect()
+    }
 }
 
-/// Reject a user-typed profile name outright instead of silently rewriting
-/// it the way `sanitize_filename_component` does for a URL-derived one —
-/// a rename is something the user explicitly chose character-by-character,
-/// so on a name a Windows filesystem can't represent faithfully (a
-/// forbidden character, a reserved device name, or leading/trailing
-/// dots/spaces Windows would quietly strip, leaving the saved name looking
-/// different from what was typed) fresh-box should say so rather than
-/// guess what was meant. Mirrors the same character/device-name class the
-/// official desktop client's `safeFileName` (`sharing.ts`) enforces.
 fn validate_profile_name(name: &str) -> Result<(), CommandError> {
-    if let Some(bad) = name.chars().find(|&c| has_forbidden_filename_char(c)) {
-        return Err(CommandError::validation(format!(
-            "Profile name cannot contain '{bad}'"
-        )));
+    let trimmed = name.trim();
+    if trimmed.is_empty() {
+        return Err(CommandError::validation("Profile name cannot be empty"));
     }
-    if name != name.trim_matches(|c: char| c == ' ' || c == '.') {
-        return Err(CommandError::validation(
-            "Profile name cannot start or end with a space or a period",
-        ));
-    }
-    if is_reserved_device_name(name) {
-        return Err(CommandError::validation(format!(
-            "'{name}' is a reserved name on Windows and can't be used"
-        )));
-    }
-    if name.len() > 150 {
+    if trimmed.len() > 150 {
         return Err(CommandError::validation("Profile name is too long"));
     }
     Ok(())
 }
 
-// ── Safe path resolution ──────────────────────────────────────────────────
-
-/// Resolve `file_name` relative to `base_dir` and verify the result stays
-/// inside `base_dir`.  Returns an error if the resolved path escapes the
-/// base directory (path traversal attempt).
-fn resolve_safe_path(
-    base_dir: &std::path::Path,
-    file_name: &str,
-) -> Result<std::path::PathBuf, CommandError> {
-    let full = base_dir.join(file_name);
-    // Canonicalize the base dir so we can compare prefixes reliably.
-    // The file doesn't need to exist yet, so we canonicalize the base only.
-    let canonical_base = base_dir
-        .canonicalize()
-        .map_err(|e| CommandError::resource_not_found("config directory", e))?;
-    // On Windows, canonicalize() returns a verbatim UNC path (\\?\C:\...)
-    // while normalize_path() produces a regular path (C:\...).
-    // Strip the verbatim prefix so both sides use the same format.
-    let canonical_base = strip_verbatim_prefix(&canonical_base);
-    // Normalize the target path without requiring it to exist.
-    let normalized = normalize_path(&full);
-    if !normalized.starts_with(&canonical_base) {
-        return Err(CommandError::validation(format!(
-            "Path '{}' escapes the config directory",
-            file_name
-        )));
-    }
-    Ok(full)
-}
-
-/// Lexically normalize a path (resolve `.` and `..`) without hitting the
-/// filesystem.  This is sufficient for traversal detection after we have
-/// already canonicalized the base directory.
-fn normalize_path(path: &std::path::Path) -> std::path::PathBuf {
-    use std::path::Component;
-    let mut out = std::path::PathBuf::new();
-    for component in path.components() {
-        match component {
-            Component::ParentDir => {
-                out.pop();
-            }
-            Component::CurDir => {}
-            c => out.push(c),
-        }
-    }
-    out
-}
-
-/// On Windows, `Path::canonicalize` returns a verbatim UNC path prefixed with
-/// `\\?\` (e.g. `\\?\C:\Users\...`).  Strip that prefix so the result can be
-/// compared with paths produced by `normalize_path`, which never adds it.
-fn strip_verbatim_prefix(path: &std::path::Path) -> std::path::PathBuf {
-    let s = path.to_string_lossy();
-    if let Some(stripped) = s.strip_prefix(r"\\?\") {
-        std::path::PathBuf::from(stripped)
-    } else {
-        path.to_path_buf()
-    }
-}
-
-/// Open `path` (a local file path, directory, or URL) with the OS default
-/// handler — equivalent of double-clicking it in Explorer.
+/// 用系统默认程序打开路径 / URL —— 等价于在资源管理器里双击。
 ///
-/// Calls `ShellExecuteW` directly instead of shelling out to
-/// `cmd /C start "" <path>`: cmd.exe re-parses whatever command line it's
-/// given, and characters like `&`, `|`, `^` are still meaningful to it even
-/// when the argument that contains them was passed through argv (this is
-/// the general class of issue behind advisories like CVE-2024-24576).
-/// `ShellExecuteW` hands `path` straight to the shell as a single value —
-/// no command-line grammar is involved, so it can't be reinterpreted this
-/// way regardless of what `path` contains.
+/// 直接调 `ShellExecuteW` 而不是 `cmd /C start "" <path>`：cmd.exe 会重新解析
+/// 它拿到的命令行，`&`、`|`、`^` 这些字符即使是通过 argv 传进去的也仍然对它有
+/// 意义（CVE-2024-24576 那一类问题的根源）。`ShellExecuteW` 把整个值原样交给
+/// shell，没有命令行语法参与，内容再怎么古怪也不会被重新解读。
 fn open_with_system(path: &str) -> Result<(), CommandError> {
     use windows::Win32::UI::Shell::ShellExecuteW;
     use windows::Win32::UI::WindowsAndMessaging::SW_SHOWNORMAL;
     use windows::core::{HSTRING, w};
 
     let target = HSTRING::from(path);
-    // SAFETY: every argument is either `None`/a `'static` wide-string
-    // literal or an owned `HSTRING` kept alive for the duration of this
-    // call; `ShellExecuteW` does not retain any of them afterward.
+    // SAFETY: 每个参数要么是 `None`/`'static` 宽字符串字面量，要么是活到调用
+    // 结束的 `HSTRING`；`ShellExecuteW` 调用后不保留其中任何一个。
     let result = unsafe { ShellExecuteW(None, w!("open"), &target, None, None, SW_SHOWNORMAL) };
 
-    // Per the Win32 docs, ShellExecuteW returns a value > 32 on success and
-    // an error code (castable from HINSTANCE) otherwise.
     if result.0 as isize > 32 {
         Ok(())
     } else {
@@ -262,180 +130,197 @@ fn open_with_system(path: &str) -> Result<(), CommandError> {
     }
 }
 
+// ── 设置 ────────────────────────────────────────────────────────────────────
+
 #[tauri::command]
+#[specta::specta]
 pub async fn open_app_directory() -> Result<(), CommandError> {
-    let app_data_root = crate::config::get_app_data_root()?;
-    open_with_system(&app_data_root.to_string_lossy())
+    open_with_system(&crate::config::get_app_data_root()?.to_string_lossy())
 }
 
 #[tauri::command]
-pub async fn load_app_settings() -> Result<AppSettings, CommandError> {
-    crate::config::app_settings::load_app_settings_file()
+#[specta::specta]
+pub fn load_app_settings(store: State<'_, Store>) -> Result<AppSettings, CommandError> {
+    crate::config::app_settings::load_app_settings(store.inner())
 }
 
 #[tauri::command]
-pub async fn save_app_settings(
-    backend_prefs: tauri::State<'_, crate::config::app_settings::BackendPrefsState>,
+#[specta::specta]
+pub fn save_app_settings(
+    store: State<'_, Store>,
+    backend_prefs: State<'_, crate::config::app_settings::BackendPrefsState>,
     settings: AppSettings,
 ) -> Result<(), CommandError> {
-    // Update the backend's own settings store (in-memory cache +
-    // `backend_prefs.json`) *before* persisting the frontend's full
-    // settings blob, not after — so a `CloseRequested`/proxy-switch handler
-    // that runs the instant this call returns can never observe a stale
-    // value (see `BackendPrefsState`'s doc comment).
-    backend_prefs.set(settings.settings.clone())?;
-    crate::config::app_settings::save_app_settings_file(&settings)
+    // 先更新后端自己那份缓存再落盘：这次调用一返回，`CloseRequested` 或切换
+    // 节点的处理器就可能读它，不能让它们看到旧值。
+    backend_prefs.set(store.inner(), settings.settings.clone())?;
+    crate::config::app_settings::save_app_settings(store.inner(), &settings)
 }
 
-// ── Profile listing (view model) ────────────────────────────────────────
-
-/// `ProfileEntry` plus the resolved on-disk path — the identity fields
-/// (`id`/`name`) live in `config::profiles::ProfileEntry`; `path` is a
-/// presentation-layer detail (it depends on `sub_dir`, which the storage
-/// layer itself doesn't need to know about) computed here instead.
-#[derive(Debug, Clone, serde::Serialize)]
-#[serde(rename_all = "camelCase")]
-pub struct ProfileEntryView {
-    pub id: String,
-    pub name: String,
-    pub path: String,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub url: Option<String>,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub last_updated: Option<String>,
-    pub auto_update: bool,
-    #[serde(skip_serializing_if = "Option::is_none")]
-    pub update_interval_minutes: Option<u32>,
-}
-
-fn to_views(
-    entries: &[crate::config::profiles::ProfileEntry],
-) -> Result<Vec<ProfileEntryView>, CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    Ok(entries
-        .iter()
-        .map(|e| ProfileEntryView {
-            id: e.id.clone(),
-            name: e.name.clone(),
-            path: sub_dir
-                .join(format!("{}.json", e.name))
-                .to_string_lossy()
-                .into_owned(),
-            url: e.url.clone(),
-            last_updated: e.last_updated.clone(),
-            auto_update: e.auto_update,
-            update_interval_minutes: e.update_interval_minutes,
-        })
-        .collect())
-}
+// ── 档案列表 ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn list_profiles() -> Result<Vec<ProfileEntryView>, CommandError> {
-    let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
-    to_views(&entries)
+#[specta::specta]
+pub fn list_profiles(store: State<'_, Store>) -> Result<Vec<profiles::Profile>, CommandError> {
+    profiles::list(store.inner())
 }
 
-/// Result returned by every command that adds/imports/refreshes a single
-/// profile — `entry` is that one profile (so the caller doesn't have to
-/// search `profiles` for it), `profiles` is the full updated list, letting
-/// the frontend refresh its state in one IPC round-trip instead of a
-/// mutate-then-refetch pair.
-#[derive(serde::Serialize)]
+/// 增 / 导入 / 刷新单个档案的统一返回：`entry` 是这一个，`profiles` 是刷新后
+/// 的完整列表 —— 前端一次 IPC 就能把状态更新完，不用「改完再查一遍」。
+#[derive(serde::Serialize, specta::Type)]
 pub struct ProfileOperationResult {
-    pub entry: ProfileEntryView,
-    pub profiles: Vec<ProfileEntryView>,
+    pub entry: profiles::Profile,
+    pub profiles: Vec<profiles::Profile>,
 }
 
-fn find_view(
-    views: Vec<ProfileEntryView>,
-    predicate: impl Fn(&ProfileEntryView) -> bool,
-) -> Result<(ProfileEntryView, Vec<ProfileEntryView>), CommandError> {
-    let entry = views
-        .iter()
-        .find(|v| predicate(v))
-        .cloned()
-        .ok_or_else(|| {
-            CommandError::invalid_state("profiles", "profile entry missing after write")
-        })?;
-    Ok((entry, views))
+fn result_for(
+    store: &Store,
+    entry: profiles::Profile,
+) -> Result<ProfileOperationResult, CommandError> {
+    Ok(ProfileOperationResult {
+        entry,
+        profiles: profiles::list(store)?,
+    })
 }
 
-// ── Import / fetch ──────────────────────────────────────────────────────
+// ── 导入 / 抓取 ─────────────────────────────────────────────────────────────
 
 #[tauri::command]
-pub async fn copy_config_to_bin(
-    config_path: String,
+#[specta::specta]
+pub async fn import_profile_file(
+    store: State<'_, Store>,
+    source_path: String,
 ) -> Result<ProfileOperationResult, CommandError> {
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let source_config_path = std::path::Path::new(&config_path);
+    let source = std::path::Path::new(&source_path);
+    // 用户挑的文件可能在网络盘上，读它是同步 I/O —— 和后面写库一样进阻塞
+    // 线程池（审计项 L-19）。
+    let content = {
+        let source = source.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            std::fs::read_to_string(&source)
+                .map_err(|e| CommandError::resource_not_found("source config file", e))
+        })
+        .await
+        .map_err(|e| CommandError::invalid_state("read config file", e.to_string()))??
+    };
 
-    if !source_config_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "source config file",
-            config_path,
-        ));
-    }
+    // 本地导入的文件以前是不校验的 —— 无效配置会一直躺在列表里，直到用户点
+    // 启动才报错。现在和订阅走同一条校验路径。
+    crate::daemon::validate::check_config(&content).await?;
 
-    let config_file = source_config_path
-        .file_name()
-        .ok_or_else(|| CommandError::invalid_state("copy config", "invalid config file path"))?;
-    let target_config_path = sub_dir.join(config_file);
-    let stem = target_config_path
+    let name = source
         .file_stem()
         .and_then(|s| s.to_str())
-        .unwrap_or("")
+        .filter(|s| !s.trim().is_empty())
+        .unwrap_or("imported")
         .to_string();
 
-    let source_content = fs::read(&config_path)
-        .map_err(|e| CommandError::resource_not_found("source config file", e))?;
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, None, &content)?;
+            result_for(store, entry)
+        })
+        .await
+}
 
-    if target_config_path.exists() {
-        let target_content = fs::read(&target_config_path)
-            .map_err(|e| CommandError::resource_not_found("target config file", e))?;
-        if source_content == target_content {
-            let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
-            let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
-            return Ok(ProfileOperationResult { entry, profiles });
-        }
-    }
+/// 把一份配置导出成可分享的 `.bpf` 文件。
+///
+/// 编解码是 daemon 的事（`daemon::profile`），读库、读内容文件、落盘是这边的
+/// 事 —— webview 碰不到文件系统，所以路径由前端在保存对话框里选好传进来。
+#[tauri::command]
+#[specta::specta]
+pub async fn export_profile(
+    store: State<'_, Store>,
+    id: String,
+    destination: String,
+) -> Result<String, CommandError> {
+    let lookup = id.clone();
+    let (profile, content) = store
+        .run_blocking(move |store| {
+            let profile = profiles::find(store, &lookup)?;
+            let content = profiles::read_content(store, &lookup)?;
+            Ok((profile, content))
+        })
+        .await?;
 
-    // Unlike the subscription-fetch commands, a locally imported file never
-    // went through `check_config` before — an invalid file just silently
-    // sat in the list until the user tried to start it. Validate it here
-    // too, same as every other path that writes into `sub_dir`.
-    let source_text = String::from_utf8(source_content.clone())
-        .map_err(|e| CommandError::validation(format!("Config file is not valid UTF-8: {e}")))?;
-    crate::daemon::validate::check_config(&source_text).await?;
-
-    let stem_for_index = stem.clone();
-    let entries = crate::config::profiles::with_index(move |index| {
-        crate::config::io::atomic_write(&target_config_path, &source_content)?;
-        index.upsert_by_name(&stem_for_index, None, None);
-        Ok(index.entries())
+    // 订阅带上 URL 和自动更新设置，本地文件就只有内容 —— 对方导入后能不能
+    // 继续自动更新，取决于这份配置本来是不是订阅。
+    let remote = profile.url.clone().unwrap_or_default();
+    let encoded = crate::daemon::profile::encode(crate::daemon::desktop_api::ProfileContent {
+        r#type: if remote.is_empty() {
+            crate::daemon::profile::TYPE_LOCAL
+        } else {
+            crate::daemon::profile::TYPE_REMOTE
+        },
+        name: profile.name,
+        config: content,
+        remote_path: remote,
+        auto_update: profile.auto_update,
+        auto_update_interval: profile
+            .update_interval_minutes
+            .map(|m| m as i32)
+            .unwrap_or_default(),
+        last_updated: 0,
     })
     .await?;
 
-    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
-    Ok(ProfileOperationResult { entry, profiles })
+    let path = std::path::PathBuf::from(&destination);
+    let written = path.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::write(&written, &encoded).map_err(|e| CommandError::io("write profile file", e))
+    })
+    .await
+    .map_err(|e| CommandError::invalid_state("write profile file", e.to_string()))??;
+    Ok(path.display().to_string())
 }
 
-/// Atomically fetch a subscription URL, save the config file, and record it
-/// in the profile index.
+/// 导入别人分享过来的 `.bpf`。
+///
+/// 和 `import_profile_file` 的区别只在最外层那一层封装：那个吃的是裸 JSON
+/// 配置，这个吃的是 libbox 打包过的形式，解开之后同样过一遍 `check_config`
+/// 再入库 —— 分享来的东西更不该被当成可信输入。
 #[tauri::command]
-pub async fn add_subscription(url: String) -> Result<ProfileOperationResult, CommandError> {
+#[specta::specta]
+pub async fn import_profile_data(
+    store: State<'_, Store>,
+    source_path: String,
+) -> Result<ProfileOperationResult, CommandError> {
+    let source = std::path::PathBuf::from(&source_path);
+    let data = tokio::task::spawn_blocking(move || {
+        std::fs::read(&source).map_err(|e| CommandError::resource_not_found("profile file", e))
+    })
+    .await
+    .map_err(|e| CommandError::invalid_state("read profile file", e.to_string()))??;
+
+    let decoded = crate::daemon::profile::decode(data).await?;
+    crate::daemon::validate::check_config(&decoded.config).await?;
+
+    let name = if decoded.name.trim().is_empty() {
+        "imported".to_string()
+    } else {
+        decoded.name
+    };
+    let url = Some(decoded.remote_path).filter(|path| !path.trim().is_empty());
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, url, &decoded.config)?;
+            result_for(store, entry)
+        })
+        .await
+}
+
+async fn fetch_subscription(url: &str) -> Result<String, CommandError> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(CommandError::validation(
             "Subscription URL must start with http:// or https://",
         ));
     }
 
-    let client = subscription_client()?;
-
-    let response = client
-        .get(&url)
+    let response = subscription_client()
+        .get(url)
         .send()
         .await
-        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
+        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {e}")))?;
 
     if !response.status().is_success() {
         return Err(CommandError::network(format!(
@@ -445,157 +330,156 @@ pub async fn add_subscription(url: String) -> Result<ProfileOperationResult, Com
     }
 
     let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
+    // 落盘前过一遍真正的 sing-box 解析器，报错直接带上它自己的话术。
     crate::daemon::validate::check_config(&content).await?;
-
-    let file_name = extract_file_name_from_url(&url);
-    let stem = crate::config::profiles::stem_from_filename(&file_name).to_string();
-
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    // `file_name` is sanitized by `extract_file_name_from_url`, but resolve
-    // it through the same traversal guard as the rest of the config
-    // commands anyway rather than relying solely on that sanitization.
-    let target_path = resolve_safe_path(&sub_dir, &file_name)?;
-
-    let stem_for_index = stem.clone();
-    let now = chrono::Utc::now().to_rfc3339();
-    let entries = crate::config::profiles::with_index(move |index| {
-        crate::config::io::atomic_write(&target_path, content.as_bytes())?;
-        index.upsert_by_name(&stem_for_index, Some(url), Some(now));
-        Ok(index.entries())
-    })
-    .await?;
-
-    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.name == stem)?;
-    Ok(ProfileOperationResult { entry, profiles })
+    Ok(content)
 }
 
-/// Atomically re-fetch an existing subscription (looked up by `id`) and
-/// overwrite its config file.
 #[tauri::command]
-pub async fn update_subscription(id: String) -> Result<ProfileOperationResult, CommandError> {
-    let entries = refresh_subscription_by_id(&id).await?;
-    let (entry, profiles) = find_view(to_views(&entries)?, |v| v.id == id)?;
-    Ok(ProfileOperationResult { entry, profiles })
-}
-
-/// The actual fetch → validate → write → record `lastUpdated` sequence,
-/// shared by the `update_subscription` command (user-triggered) and
-/// `spawn_auto_update_scheduler`'s background loop (due-triggered) — the
-/// two used to duplicate this in full.
-async fn refresh_subscription_by_id(
-    id: &str,
-) -> Result<Vec<crate::config::profiles::ProfileEntry>, CommandError> {
-    let (stem, url) = {
-        let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
-        let entry = entries.iter().find(|e| e.id == id).ok_or_else(|| {
-            CommandError::resource_not_found("profile", format!("No profile found for id '{id}'"))
-        })?;
-        let url = entry.url.clone().ok_or_else(|| {
-            CommandError::resource_not_found(
-                "subscription",
-                format!("No URL found for '{}'", entry.name),
-            )
-        })?;
-        (entry.name.clone(), url)
-    };
-
-    let client = subscription_client()?;
-
-    let response = client
-        .get(&url)
-        .send()
+#[specta::specta]
+pub async fn add_subscription(
+    store: State<'_, Store>,
+    url: String,
+) -> Result<ProfileOperationResult, CommandError> {
+    // 网络 I/O 在数据库锁之外完成 —— 抓取可能要 30 秒，不能让它把库锁住。
+    let content = fetch_subscription(&url).await?;
+    let name = display_name_from_url(&url);
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, Some(url), &content)?;
+            result_for(store, entry)
+        })
         .await
-        .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {}", e)))?;
-
-    if !response.status().is_success() {
-        return Err(CommandError::network(format!(
-            "HTTP error {}",
-            response.status()
-        )));
-    }
-
-    let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
-    crate::daemon::validate::check_config(&content).await?;
-
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let target_path = resolve_safe_path(&sub_dir, &format!("{}.json", stem))?;
-
-    let id_for_index = id.to_string();
-    let now = chrono::Utc::now().to_rfc3339();
-    crate::config::profiles::with_index(move |index| {
-        crate::config::io::atomic_write(&target_path, content.as_bytes())?;
-        index.set_last_updated_by_id(&id_for_index, now);
-        Ok(index.entries())
-    })
-    .await
 }
 
-/// Enable/disable auto-update for a subscription, and set its interval
-/// (`None` = use the default — see `config::profiles::interval_or_default`).
-/// Meaningless for a locally imported file (no `url`), but not rejected as
-/// an error for one — the scheduler simply never finds it due, since
-/// `is_due` requires a `url`.
 #[tauri::command]
-pub async fn set_subscription_auto_update(
+#[specta::specta]
+pub async fn update_subscription(
+    store: State<'_, Store>,
+    id: String,
+) -> Result<ProfileOperationResult, CommandError> {
+    refresh_subscription(store.inner(), &id).await?;
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::find(store, &id)?;
+            result_for(store, entry)
+        })
+        .await
+}
+
+/// 抓取 → 校验 → 写入 → 刷新 `last_updated`。用户点的「更新」和后台调度器
+/// 共用这一条，两边不再各写一份。
+async fn refresh_subscription(store: &Store, id: &str) -> Result<(), CommandError> {
+    // 三段：查库 → 抓网络 → 写库。两头是同步 I/O，走阻塞线程池；中间那段
+    // 本来就得在锁外（抓取可能要 30 秒）。
+    let lookup_id = id.to_string();
+    let profile = store
+        .run_blocking(move |store| profiles::find(store, &lookup_id))
+        .await?;
+    let url = profile.url.ok_or_else(|| {
+        CommandError::resource_not_found("subscription", format!("'{}' has no URL", profile.name))
+    })?;
+    let content = fetch_subscription(&url).await?;
+
+    let id = id.to_string();
+    store
+        .run_blocking(move |store| profiles::replace_content(store, &id, &content))
+        .await
+}
+
+// ── 改 / 删 / 打开 ──────────────────────────────────────────────────────────
+
+#[tauri::command]
+#[specta::specta]
+pub fn edit_subscription_url(
+    store: State<'_, Store>,
+    id: String,
+    url: String,
+) -> Result<Vec<profiles::Profile>, CommandError> {
+    let trimmed = url.trim();
+    if trimmed.is_empty() {
+        return Err(CommandError::validation("Subscription URL cannot be empty"));
+    }
+    profiles::set_url(store.inner(), &id, trimmed)?;
+    profiles::list(store.inner())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn set_subscription_auto_update(
+    store: State<'_, Store>,
     id: String,
     enabled: bool,
     interval_minutes: Option<u32>,
-) -> Result<Vec<ProfileEntryView>, CommandError> {
-    let id_for_index = id.clone();
-    let entries = crate::config::profiles::with_index(move |index| {
-        if index.find_by_id(&id_for_index).is_none() {
-            return Err(CommandError::resource_not_found(
-                "profile",
-                format!("No profile found for id '{id_for_index}'"),
-            ));
-        }
-        index.set_auto_update_by_id(&id_for_index, enabled, interval_minutes);
-        Ok(index.entries())
-    })
-    .await?;
-
-    to_views(&entries)
+) -> Result<Vec<profiles::Profile>, CommandError> {
+    profiles::set_auto_update(store.inner(), &id, enabled, interval_minutes)?;
+    profiles::list(store.inner())
 }
 
-/// How often the background loop checks for due subscriptions — much
-/// finer-grained than any individual subscription's own update interval
-/// (which is never shorter than `MINIMUM_UPDATE_INTERVAL_MINUTES`); this
-/// just needs to be short enough that a subscription becoming due doesn't
-/// sit unnoticed for long.
+#[tauri::command]
+#[specta::specta]
+pub fn rename_profile(
+    store: State<'_, Store>,
+    id: String,
+    new_name: String,
+) -> Result<Vec<profiles::Profile>, CommandError> {
+    let trimmed = new_name.trim();
+    validate_profile_name(trimmed)?;
+    // 重名由数据库的 UNIQUE 约束挡下并转成一句人话 —— 不需要先查一遍再改，
+    // 那中间还有竞态窗口。
+    profiles::rename(store.inner(), &id, trimmed)?;
+    profiles::list(store.inner())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn delete_profile(
+    store: State<'_, Store>,
+    id: String,
+) -> Result<Vec<profiles::Profile>, CommandError> {
+    profiles::delete(store.inner(), &id)?;
+    // 删掉的正好是当前选中的，就把选中清空，免得留一个悬空 id。
+    if settings::selected_profile(store.inner())?.as_deref() == Some(id.as_str()) {
+        settings::set_selected_profile(store.inner(), None)?;
+    }
+    profiles::list(store.inner())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub fn open_config_file(store: State<'_, Store>, id: String) -> Result<(), CommandError> {
+    // 存在性通过 `read_content` 确认（它会区分「没这个档案」和「内容文件丢了」）。
+    profiles::read_content(store.inner(), &id)?;
+    open_with_system(&profiles::content_path(&id)?.to_string_lossy())
+}
+
+// ── 自动更新调度 ────────────────────────────────────────────────────────────
+
+/// 扫描间隔。远比任何单个订阅自己的更新周期短（后者最小 15 分钟），只要够
+/// 密到「到期后不会干等太久」即可。
 const AUTO_UPDATE_CHECK_INTERVAL: std::time::Duration = std::time::Duration::from_secs(60);
 
-/// Start the background auto-update loop. Call once, at app startup (see
-/// `main.rs`'s `setup()`) — runs for the process's lifetime, periodically
-/// refreshing whichever subscriptions are both `auto_update`-enabled and
-/// past their interval since `last_updated`. Mirrors the official desktop
-/// client's `reconfigureAutoUpdate`/`runDueProfileUpdates` (`main/profiles.ts`),
-/// simplified to a periodic sweep rather than a per-profile timer — with
-/// at most a handful of profiles this is negligible overhead and avoids
-/// having to reschedule a timer every time a profile's settings change.
+/// 启动后台自动更新循环。应用启动时调一次，跑满进程生命周期。
 ///
-/// A single subscription failing to refresh (network error, the fetched
-/// content failing `check_config`, ...) is logged and skipped — it does
-/// not stop the rest of the sweep, and is simply retried on the next due
-/// check.
+/// 单个订阅刷新失败（网络错误、拉回来的内容没过 `check_config`……）只记日志
+/// 并跳过，不影响这一轮的其他订阅，下一轮到期再试。
 pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
     tauri::async_runtime::spawn(async move {
         loop {
             tokio::time::sleep(AUTO_UPDATE_CHECK_INTERVAL).await;
 
-            let entries =
-                match crate::config::profiles::with_index(|index| Ok(index.entries())).await {
-                    Ok(entries) => entries,
-                    Err(e) => {
-                        tracing::warn!(error = ?e, "auto-update: failed to read profile index");
-                        continue;
-                    }
-                };
+            let Some(store) = app.try_state::<Store>() else {
+                continue;
+            };
+            let Ok(all) = profiles::list(store.inner()) else {
+                continue;
+            };
 
             let now = chrono::Utc::now();
-            let due: Vec<String> = entries
+            let due: Vec<String> = all
                 .iter()
-                .filter(|e| crate::config::profiles::is_due(e, now))
-                .map(|e| e.id.clone())
+                .filter(|profile| profiles::is_due(profile, now))
+                .map(|profile| profile.id.clone())
                 .collect();
             if due.is_empty() {
                 continue;
@@ -603,8 +487,8 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
 
             let mut any_succeeded = false;
             for id in due {
-                match refresh_subscription_by_id(&id).await {
-                    Ok(_) => any_succeeded = true,
+                match refresh_subscription(store.inner(), &id).await {
+                    Ok(()) => any_succeeded = true,
                     Err(e) => {
                         tracing::warn!(error = ?e, %id, "auto-update: failed to refresh subscription")
                     }
@@ -619,153 +503,45 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
     });
 }
 
-/// Update a subscription's URL (without re-fetching it) — used when the
-/// user edits the URL directly rather than through re-adding it.
-#[tauri::command]
-pub async fn edit_subscription_url(
-    id: String,
-    url: String,
-) -> Result<Vec<ProfileEntryView>, CommandError> {
-    let trimmed = url.trim().to_string();
-    if trimmed.is_empty() {
-        return Err(CommandError::validation("Subscription URL cannot be empty"));
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn display_name_comes_from_the_url_tail() {
+        assert_eq!(
+            display_name_from_url("https://a.example/x/my-sub.json"),
+            "my-sub"
+        );
+        assert_eq!(
+            display_name_from_url("https://a.example/sub?token=1"),
+            "sub"
+        );
+        assert_eq!(display_name_from_url("https://a.example/"), "subscription");
     }
 
-    let id_for_index = id.clone();
-    let entries = crate::config::profiles::with_index(move |index| {
-        if index.find_by_id(&id_for_index).is_none() {
-            return Err(CommandError::resource_not_found(
-                "profile",
-                format!("No profile found for id '{id_for_index}'"),
-            ));
-        }
-        index.set_url_by_id(&id_for_index, trimmed);
-        Ok(index.entries())
-    })
-    .await?;
-
-    to_views(&entries)
-}
-
-// ── Rename / delete / open ──────────────────────────────────────────────
-
-#[tauri::command]
-pub async fn rename_profile(
-    id: String,
-    new_name: String,
-) -> Result<Vec<ProfileEntryView>, CommandError> {
-    let trimmed = new_name.trim().to_string();
-    if trimmed.is_empty() {
-        return Err(CommandError::validation("New name cannot be empty"));
-    }
-    validate_profile_name(&trimmed)?;
-
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let new_full_path = resolve_safe_path(&sub_dir, &format!("{trimmed}.json"))?;
-
-    let id_for_index = id.clone();
-    let entries = crate::config::profiles::with_index(move |index| {
-        let Some(current) = index.find_by_id(&id_for_index).cloned() else {
-            return Err(CommandError::resource_not_found(
-                "profile",
-                format!("No profile found for id '{id_for_index}'"),
-            ));
-        };
-        if current.name == trimmed {
-            return Ok(index.entries());
-        }
-        if index.name_taken(&trimmed, &id_for_index) {
-            return Err(CommandError::invalid_state(
-                "rename profile",
-                format!(
-                    "a config file already exists at {}",
-                    new_full_path.display()
-                ),
-            ));
-        }
-
-        let old_full_path = sub_dir.join(format!("{}.json", current.name));
-        if !old_full_path.exists() {
-            return Err(CommandError::resource_not_found(
-                "source config file",
-                old_full_path.display(),
-            ));
-        }
-        if new_full_path.exists() {
-            return Err(CommandError::invalid_state(
-                "rename profile",
-                format!(
-                    "a config file already exists at {}",
-                    new_full_path.display()
-                ),
-            ));
-        }
-
-        fs::rename(&old_full_path, &new_full_path)
-            .map_err(|e| CommandError::resource_not_found("renamed config file", e))?;
-        index.rename_by_id(&id_for_index, trimmed.clone());
-        Ok(index.entries())
-    })
-    .await?;
-
-    to_views(&entries)
-}
-
-#[tauri::command]
-pub async fn delete_profile(id: String) -> Result<Vec<ProfileEntryView>, CommandError> {
-    let id_for_index = id.clone();
-    let entries = crate::config::profiles::with_index(move |index| {
-        let Some(entry) = index.remove_by_id(&id_for_index) else {
-            return Err(CommandError::resource_not_found(
-                "profile",
-                format!("No profile found for id '{id_for_index}'"),
-            ));
-        };
-        let sub_dir = crate::config::paths::get_sub_dir()?;
-        let full_path = sub_dir.join(format!("{}.json", entry.name));
-        if full_path.exists() {
-            fs::remove_file(&full_path)
-                .map_err(|e| CommandError::resource_not_found("config file", e))?;
-        }
-        Ok(index.entries())
-    })
-    .await?;
-
-    to_views(&entries)
-}
-
-#[tauri::command]
-pub async fn open_config_file(id: String) -> Result<(), CommandError> {
-    let entries = crate::config::profiles::with_index(|index| Ok(index.entries())).await?;
-    let entry = entries.iter().find(|e| e.id == id).ok_or_else(|| {
-        CommandError::resource_not_found("profile", format!("No profile found for id '{id}'"))
-    })?;
-
-    let sub_dir = crate::config::paths::get_sub_dir()?;
-    let full_path = sub_dir.join(format!("{}.json", entry.name));
-    if !full_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "config file",
-            full_path.display(),
-        ));
+    #[test]
+    fn two_urls_with_the_same_tail_yield_the_same_display_name() {
+        // 以前这意味着后加的订阅会**静默覆盖**先加的（文件名就是这个字符串）。
+        // 现在它只是个显示名，`store::profiles::unique_name` 会给第二个加后缀，
+        // 两个订阅各有各的 id 和内容文件。
+        assert_eq!(
+            display_name_from_url("https://a.example/sub"),
+            display_name_from_url("https://b.example/sub")
+        );
     }
 
-    open_with_system(&full_path.to_string_lossy())
-}
+    #[test]
+    fn a_hostile_url_tail_is_just_a_string_now() {
+        // 不再需要清洗：这个值不会变成文件名。
+        let name = display_name_from_url("https://a.example/..%2F..%2Fevil");
+        assert!(!name.is_empty());
+    }
 
-/// Derive a filename for a subscription from its URL, purely for display /
-/// on-disk naming — never trusted as a path. Splits on both `/` and `\`
-/// (a URL's *string form* can carry a literal backslash even though the
-/// WHATWG URL parser normalizes it away before the request is ever sent —
-/// see `resolve_safe_path`'s callers, which don't rely on this function
-/// alone) and sanitizes the remaining component so it can never contain a
-/// path separator or `..`.
-fn extract_file_name_from_url(url: &str) -> String {
-    let path_part = url.split(['?', '#']).next().unwrap_or(url);
-    let raw_name = path_part
-        .split(['/', '\\'])
-        .next_back()
-        .unwrap_or("subscription");
-    let stem = raw_name.strip_suffix(".json").unwrap_or(raw_name);
-    format!("{}.json", sanitize_filename_component(stem))
+    #[test]
+    fn rejects_an_empty_or_overlong_name() {
+        assert!(validate_profile_name("   ").is_err());
+        assert!(validate_profile_name(&"x".repeat(200)).is_err());
+        assert!(validate_profile_name("ok").is_ok());
+    }
 }

@@ -7,6 +7,10 @@ use std::process::Command;
 
 /// Marks that `harden_directory_acl` has already run for this directory —
 /// see `get_app_data_root`.
+///
+/// `cfg(not(test))`：单测走 `test_app_data_root()`，那条路径不加固 ACL
+/// （目标是临时目录，而 icacls 是个真实副作用）。
+#[cfg(not(test))]
 const ACL_MARKER_FILE: &str = ".access-control";
 
 /// `CREATE_NO_WINDOW` — same reasoning as `daemon::install`: spawning a
@@ -38,7 +42,14 @@ fn is_reparse_point(path: &Path) -> bool {
 /// directly — same tradeoff `daemon::install` makes for elevation:
 /// less code, and boxdd/Windows itself already knows how to do this
 /// correctly.
+#[cfg(not(test))]
 fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
+    set_directory_acl(dir, "(OI)(CI)F")
+}
+
+/// `harden_directory_acl` 的通用版：当前用户拿到 `user_rights`，SYSTEM 与
+/// Administrators 永远是完全控制。
+fn set_directory_acl(dir: &Path, user_rights: &str) -> Result<(), CommandError> {
     let username = std::env::var("USERNAME").unwrap_or_default();
     if username.is_empty() {
         // Can't determine the current account to grant access to — skip
@@ -51,11 +62,14 @@ fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
         _ => username,
     };
 
-    let output = Command::new("icacls")
+    // 绝对路径，不走 PATH 查找（审计项 L-14）—— 这个进程可能是从任意工作目录
+    // 启动的，而 `icacls` 这一步是**放宽/收紧 ACL** 本身，被顶替掉的后果比
+    // 其他外部调用都大。
+    let output = Command::new(crate::daemon::install::system32("icacls.exe"))
         .arg(dir)
         .arg("/inheritance:r")
         .arg("/grant:r")
-        .arg(format!("{account}:(OI)(CI)F"))
+        .arg(format!("{account}:{user_rights}"))
         // SYSTEM — needed for the sing-box-daemon Windows service (which
         // runs as SYSTEM) and any OS-level maintenance.
         .arg("SYSTEM:(OI)(CI)F")
@@ -69,7 +83,7 @@ fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
 
     if !output.status.success() {
         return Err(CommandError::invalid_state(
-            "harden_directory_acl",
+            "set_directory_acl",
             format!(
                 "icacls exited with {}: {}",
                 output.status,
@@ -98,7 +112,35 @@ pub fn get_exe_dir() -> Result<PathBuf, CommandError> {
 /// unelevated, so it can't write there. `%LOCALAPPDATA%` is always
 /// writable by the current user and is the standard place for a Windows
 /// app's own per-user data.
+/// 单测里的应用数据目录 —— 临时目录，整个测试二进制共用一个。
+///
+/// 没有这个的话，凡是碰到 `profiles_dir()` 的测试（档案内容、配置合成）都会
+/// 写进用户真实的 `%LOCALAPPDATA%resh-box`，还会顺带触发一次 icacls。
+/// 这是唯一一处 `#[cfg(test)]` 的行为差异，就为了让下面那些函数可测。
+#[cfg(test)]
+fn test_app_data_root() -> PathBuf {
+    static OVERRIDE: std::sync::OnceLock<PathBuf> = std::sync::OnceLock::new();
+    OVERRIDE
+        .get_or_init(|| {
+            let dir = std::env::temp_dir().join(format!("fresh-box-tests-{}", std::process::id()));
+            fs::create_dir_all(&dir).expect("create the test app data directory");
+            dir
+        })
+        .clone()
+}
+
 pub fn get_app_data_root() -> Result<PathBuf, CommandError> {
+    #[cfg(test)]
+    return Ok(test_app_data_root());
+
+    #[cfg(not(test))]
+    {
+        get_app_data_root_inner()
+    }
+}
+
+#[cfg(not(test))]
+fn get_app_data_root_inner() -> Result<PathBuf, CommandError> {
     let local_app_data = std::env::var_os("LOCALAPPDATA").ok_or_else(|| {
         CommandError::resource_not_found("LOCALAPPDATA", "environment variable is not set")
     })?;
@@ -141,29 +183,47 @@ pub fn get_app_data_root() -> Result<PathBuf, CommandError> {
     Ok(dir)
 }
 
-pub fn get_sub_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_app_data_root()?.join("sub");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("sub directory", e))?;
-    }
-    Ok(dir)
-}
-
-pub fn get_config_dir() -> Result<PathBuf, CommandError> {
-    let dir = get_app_data_root()?.join("config");
-    if !dir.exists() {
-        fs::create_dir_all(&dir)
-            .map_err(|e| CommandError::resource_not_found("config directory", e))?;
-    }
-    Ok(dir)
-}
-
 pub fn get_log_dir() -> Result<PathBuf, CommandError> {
     let dir = get_app_data_root()?.join("log");
     if !dir.exists() {
         fs::create_dir_all(&dir)
             .map_err(|e| CommandError::resource_not_found("log directory", e))?;
+    }
+    Ok(dir)
+}
+
+/// 提权动作的输出目录 —— **当前用户只有读权限，写入只有管理员和 SYSTEM**。
+///
+/// 这不是洁癖（审计项 L-15）。日志是被提权到管理员的 PowerShell 用 `*>` 写出
+/// 来的，而路径是我们这个**未提权**进程挑的。路径若落在同用户可写的目录里
+/// （原先是 `%TEMP%`），另一个同用户进程可以抢在写入前把它做成指向别处的
+/// 符号链接 —— 那次管理员写入就落到了它选的位置。这是一条完整的
+/// 用户 → 管理员 提权链，而且和文件名猜不猜得中无关：攻击者只要盯着目录等
+/// 文件出现之前那一瞬。把目录收成用户不可写，就没有抢跑的余地。
+///
+/// 代价是我们（未提权）删不掉自己读完的日志，所以清理交给下一次提权动作
+/// 本身 —— 见 `daemon::install::run_elevated`。
+pub fn get_elevated_log_dir() -> Result<PathBuf, CommandError> {
+    let dir = get_app_data_root()?.join("elevated");
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("elevated log directory", e))?;
+    }
+    if is_reparse_point(&dir) {
+        return Err(CommandError::invalid_state(
+            "elevated log directory",
+            format!("{} is a symlink or junction", dir.display()),
+        ));
+    }
+
+    // 标记文件放在**父目录**（那里我们写得进去）—— 目录本身收紧之后，我们
+    // 就没法在里面留任何东西了。
+    let marker = get_app_data_root()?.join(".elevated-access-control");
+    if !marker.exists() {
+        // 这里和 `get_app_data_root` 的 best-effort 不同：ACL 上不去就等于
+        // 上面那条提权链还开着，所以直接失败，由调用方决定退回「不写日志」。
+        set_directory_acl(&dir, "(OI)(CI)RX")?;
+        let _ = fs::write(&marker, b"");
     }
     Ok(dir)
 }

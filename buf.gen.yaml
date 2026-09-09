@@ -1,0 +1,16 @@
+# 从 src-tauri/proto 生成前端用的 protobuf 类型。
+#
+# 关键在于「同一份 .proto」：build.rs 用它生成 Rust 的 prost 类型和 bridge 的
+# 方法表，这里用它生成 TypeScript。两侧再也不会漂移 —— 以前 types/app.ts 里
+# 那 577 行手写类型，和 check-commands.mjs 那套只校验命令名的兜底，都是在补
+# 这个缺口。
+#
+# 生成物 (src/gen/) 不入库：跑 `pnpm gen:proto` 现生成，和 build.rs 的产物
+# 一样是构建中间物。
+version: v2
+inputs:
+  - directory: src-tauri/proto
+plugins:
+  - local: protoc-gen-es
+    out: src/gen
+    opt: target=ts

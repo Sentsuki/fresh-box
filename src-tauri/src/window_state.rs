@@ -5,11 +5,9 @@
 // `windowState.ts` + `index.ts`'s `registerMainWindowStatePersistence`.
 
 use serde::{Deserialize, Serialize};
-use tauri::{PhysicalPosition, PhysicalSize, WebviewWindow, Window};
+use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window};
 
-use crate::config;
-
-const WINDOW_STATE_FILE: &str = "window_state.json";
+const WINDOW_STATE_KEY: &str = "windowState";
 
 /// Smallest size `restore()` will ever apply — keep in sync with
 /// `tauri.conf.json`'s `app.windows[0].minWidth`/`minHeight`, which stops
@@ -29,18 +27,29 @@ struct WindowState {
     maximized: bool,
 }
 
-fn load() -> Option<WindowState> {
-    let path = config::io::get_named_config_path(WINDOW_STATE_FILE).ok()?;
-    if !path.exists() {
-        return None;
-    }
-    config::io::read_json_file(&path).ok()
+// 窗口位置/大小也存在 `settings` 表里（阶段 4 之前是 `window_state.json`）。
+// 需要 `AppHandle` 才能拿到 Store，所以这两个函数比原来多一个参数。
+fn load(app: &tauri::AppHandle) -> Option<WindowState> {
+    let store = app.try_state::<crate::store::Store>()?;
+    let value: Option<WindowState> = crate::store::settings::get_or_default(
+        store.inner(),
+        crate::store::settings::SCOPE_APP,
+        WINDOW_STATE_KEY,
+    )
+    .ok()?;
+    value
 }
 
-fn save(state: &WindowState) {
-    if let Ok(path) = config::io::get_named_config_path(WINDOW_STATE_FILE) {
-        let _ = config::io::write_json_file(&path, state);
-    }
+fn save(app: &tauri::AppHandle, state: &WindowState) {
+    let Some(store) = app.try_state::<crate::store::Store>() else {
+        return;
+    };
+    let _ = crate::store::settings::set(
+        store.inner(),
+        crate::store::settings::SCOPE_APP,
+        WINDOW_STATE_KEY,
+        &Some(state),
+    );
 }
 
 /// Area (in px²) where rect `a` and rect `b` overlap, each given as
@@ -119,7 +128,9 @@ fn clamp_tolerant(value: i32, min: i32, max: i32) -> i32 {
 /// to fix it. Mirrors the official Electron client's
 /// `restoredMainWindowBounds` (`windowState.ts`).
 pub fn restore(window: &WebviewWindow) {
-    let Some(state) = load() else { return };
+    let Some(state) = load(window.app_handle()) else {
+        return;
+    };
 
     let monitors = window.available_monitors().unwrap_or_default();
     let target = (state.width > 0 && state.height > 0)
@@ -165,7 +176,7 @@ pub fn restore(window: &WebviewWindow) {
 /// current, so a maximized window comes back maximized.
 pub fn persist(window: &Window) {
     let maximized = window.is_maximized().unwrap_or(false);
-    let mut state = load().unwrap_or(WindowState {
+    let mut state = load(window.app_handle()).unwrap_or(WindowState {
         x: 0,
         y: 0,
         width: 0,
@@ -183,5 +194,73 @@ pub fn persist(window: &Window) {
             state.height = size.height;
         }
     }
-    save(&state);
+    save(window.app_handle(), &state);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `restore`/`persist` 要真窗口，`best_monitor_for` 要 `tauri::Monitor`
+    // （构造不出来），所以这里测的是它们下面那两个纯几何函数 —— 恰好也是
+    // 「窗口恢复到看不见的地方」这类 bug 真正的所在。
+
+    #[test]
+    fn overlapping_rects_report_their_shared_area() {
+        assert_eq!(
+            intersection_area((0, 0, 100, 100), (50, 50, 100, 100)),
+            2500
+        );
+        assert_eq!(
+            intersection_area((0, 0, 100, 100), (0, 0, 100, 100)),
+            10_000
+        );
+    }
+
+    #[test]
+    fn a_contained_rect_reports_its_own_area() {
+        assert_eq!(
+            intersection_area((0, 0, 1920, 1080), (100, 100, 800, 600)),
+            480_000
+        );
+    }
+
+    #[test]
+    fn disjoint_rects_report_zero() {
+        assert_eq!(intersection_area((0, 0, 100, 100), (200, 200, 100, 100)), 0);
+        // 只是贴边不算重叠 —— 窗口挪到显示器边界上时不该被算成「在这块屏上」。
+        assert_eq!(intersection_area((0, 0, 100, 100), (100, 0, 100, 100)), 0);
+    }
+
+    #[test]
+    fn negative_coordinates_work() {
+        // 左侧/上方的第二显示器坐标是负的，这是最常见的多屏布局。
+        assert_eq!(
+            intersection_area((-100, -100, 100, 100), (-50, -50, 100, 100)),
+            2500
+        );
+    }
+
+    #[test]
+    fn a_large_rect_does_not_overflow() {
+        // i32 相乘会溢出，所以返回的是 i64 —— 4K 双屏的面积轻松超过 i32。
+        let area = intersection_area((0, 0, 7680, 4320), (0, 0, 7680, 4320));
+        assert_eq!(area, 7680i64 * 4320);
+    }
+
+    #[test]
+    fn clamping_keeps_a_value_inside_the_range() {
+        assert_eq!(clamp_tolerant(50, 0, 100), 50);
+        assert_eq!(clamp_tolerant(-10, 0, 100), 0);
+        assert_eq!(clamp_tolerant(999, 0, 100), 100);
+    }
+
+    #[test]
+    fn an_inverted_range_returns_the_minimum_instead_of_panicking() {
+        // `i32::clamp` 在 min > max 时会 panic。这里会走到那种情况：显示器
+        // 工作区比最小窗口尺寸还小时，「最右合法位置」就落到了工作区原点
+        // 左边。宁可把窗口摆在原点，也不要在恢复窗口时直接崩掉。
+        assert_eq!(clamp_tolerant(50, 100, 0), 100);
+        assert_eq!(clamp_tolerant(-999, 100, 0), 100);
+    }
 }

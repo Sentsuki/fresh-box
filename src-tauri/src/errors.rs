@@ -1,10 +1,8 @@
 use thiserror::Error;
 
-#[derive(Debug, Error, serde::Serialize)]
+#[derive(Debug, Error, serde::Serialize, specta::Type)]
 #[serde(tag = "kind", content = "message", rename_all = "snake_case")]
 pub enum CommandError {
-    #[error("Process is already running")]
-    ProcessAlreadyRunning,
     #[error("Process is not running")]
     ProcessNotRunning,
     #[error("{0}")]

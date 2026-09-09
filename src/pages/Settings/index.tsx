@@ -1,8 +1,5 @@
 import {
   ArrowDownloadRegular,
-  BoxRegular,
-  DismissRegular,
-  DocumentTextRegular,
   FolderOpenRegular,
   InfoRegular,
   LinkRegular,
@@ -18,11 +15,6 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Select } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
-import {
-  LOG_LEVELS,
-  STACK_OPTIONS,
-  usePriorityConfig,
-} from "../../hooks/usePriorityConfig";
 import {
   disableAutostart,
   enableAutostart,
@@ -41,10 +33,6 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const closeBehavior = useSettingsStore(
-    (s) => s.settings.settings.close_behavior,
-  );
-  const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
   const autoCloseConnections = useSettingsStore(
     (s) => s.settings.settings.auto_close_connections,
   );
@@ -173,30 +161,11 @@ export default function Settings() {
     }
   };
 
-  // Priority Config (TUN & Core Logs)
-  const {
-    isLoading: isPriorityLoading,
-    hasStackField,
-    hasLogField,
-    selectedStack,
-    logDisabled,
-    setLogDisabled,
-    selectedLogLevel,
-    setSelectedLogLevel,
-    loadConfiguration,
-    setStackOption,
-    updateLogConfiguration,
-  } = usePriorityConfig();
-
-  useEffect(() => {
-    void loadConfiguration();
-  }, [loadConfiguration]);
-
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
       <PageHeader
         title="Settings"
-        description="Configure application preferences and sing-box core parameters."
+        description="Configure application preferences."
       />
 
       <div className="flex flex-col gap-8">
@@ -219,74 +188,6 @@ export default function Settings() {
           />
         </SettingGroup>
 
-        {/* Core Settings */}
-        <SettingGroup title="sing-box Core">
-          {!isPriorityLoading && hasStackField && (
-            <SettingCard
-              icon={<BoxRegular />}
-              title="TUN Stack"
-              description="Select the network stack for the TUN interface (applied on restart)"
-              control={
-                <Select
-                  value={selectedStack}
-                  onChange={(e) =>
-                    void setStackOption(
-                      e.target.value as (typeof STACK_OPTIONS)[number],
-                    )
-                  }
-                >
-                  {STACK_OPTIONS.map((opt) => (
-                    <option key={opt} value={opt}>
-                      {opt}
-                    </option>
-                  ))}
-                </Select>
-              }
-            />
-          )}
-
-          {!isPriorityLoading && hasLogField && (
-            <SettingCard
-              icon={<DocumentTextRegular />}
-              title="Core Log Level"
-              description="Log output detail from the sing-box core"
-              control={
-                <div className="flex items-center gap-3">
-                  <Select
-                    value={selectedLogLevel}
-                    onChange={(e) => {
-                      const level = e.target
-                        .value as (typeof LOG_LEVELS)[number];
-                      setSelectedLogLevel(level);
-                      void updateLogConfiguration(logDisabled, level);
-                    }}
-                    disabled={logDisabled}
-                  >
-                    {LOG_LEVELS.map((l) => (
-                      <option key={l} value={l}>
-                        {l}
-                      </option>
-                    ))}
-                  </Select>
-                  <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
-                  <div className="flex items-center gap-2.5">
-                    <span className="text-sm text-(--wb-text-secondary)">
-                      Disable
-                    </span>
-                    <Switch
-                      checked={logDisabled}
-                      onCheckedChange={(checked) => {
-                        setLogDisabled(checked);
-                        void updateLogConfiguration(checked, selectedLogLevel);
-                      }}
-                    />
-                  </div>
-                </div>
-              }
-            />
-          )}
-        </SettingGroup>
-
         {/* Application */}
         <SettingGroup title="Application">
           <SettingCard
@@ -303,23 +204,6 @@ export default function Settings() {
               </Button>
             }
           />
-          <SettingCard
-            icon={<DismissRegular />}
-            title="Close Button Behavior"
-            description="Choose what happens when the window close button is clicked"
-            control={
-              <Select
-                value={closeBehavior}
-                onChange={(e) =>
-                  void setCloseBehavior(e.target.value as "hide" | "destroy")
-                }
-              >
-                <option value="hide">Hide to tray</option>
-                <option value="destroy">Destroy window</option>
-              </Select>
-            }
-          />
-
           <SettingCard
             icon={<LinkRegular />}
             title="Auto Close Connections on Switch"

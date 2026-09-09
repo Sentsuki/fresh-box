@@ -17,17 +17,11 @@ export async function initializeApp() {
   const profiles = await listProfiles();
   config.setProfiles(profiles);
 
-  const savedDisplay =
-    useSettingsStore.getState().settings.profiles.selected_config_display;
-  const savedPath =
-    useSettingsStore.getState().settings.profiles.selected_config_path;
-  const target =
-    (savedDisplay && profiles.find((p) => p.name === savedDisplay)) ||
-    (savedPath && profiles.find((p) => p.path === savedPath)) ||
-    profiles[0] ||
-    null;
-
-  await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
+  // 选中的是档案 **id**：内容文件按 UUID 命名，路径已经不是身份了。
+  const savedId =
+    useSettingsStore.getState().settings.profiles.selected_profile_id;
+  const target = profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
+  await settings.setSelectedProfile(target?.id ?? null);
 
   const savedPage = useSettingsStore.getState().settings.app.current_page;
   app.setInitialPage(savedPage);

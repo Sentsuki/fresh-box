@@ -1,8 +1,10 @@
 import { useCallback } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   addSubscription as addSubscriptionCmd,
-  copyConfigToBin,
+  importProfileFile,
+  importProfileData,
+  exportProfile,
   deleteProfile as deleteProfileCmd,
   editSubscriptionUrl,
   listProfiles,
@@ -10,7 +12,6 @@ import {
   renameProfile as renameProfileCmd,
   setSubscriptionAutoUpdate,
   updateSubscription as updateSubscriptionCmd,
-  type ProfileOperationResult,
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
 import { useConfigStore } from "../stores/configStore";
@@ -18,7 +19,7 @@ import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
 import { useToast } from "./useToast";
 import { useSingbox } from "./useSingbox";
-import type { ProfileEntry } from "../types/app";
+import type { ProfileEntry, ProfileOperationResult } from "../types/app";
 
 /** Subscription content fetched over plain HTTP isn't encrypted or
  * authenticated in transit, so it can be tampered with in flight (and, per
@@ -39,26 +40,26 @@ function isInsecureSubscriptionUrl(url: string): boolean {
  */
 async function applyProfiles(
   profiles: ProfileEntry[],
-  preferredName?: string | null,
+  preferredId?: string | null,
 ) {
   useConfigStore.getState().setProfiles(profiles);
 
   const settings = useSettingsStore.getState();
-  const currentPath = settings.settings.profiles.selected_config_path;
-  if (currentPath && profiles.find((p) => p.path === currentPath)) {
+  const currentId = settings.settings.profiles.selected_profile_id;
+  if (currentId && profiles.some((p) => p.id === currentId)) {
     return;
   }
 
   const target =
-    (preferredName && profiles.find((p) => p.name === preferredName)) ||
+    (preferredId && profiles.find((p) => p.id === preferredId)) ||
     profiles[0] ||
     null;
 
-  await settings.setSelectedConfig(target?.path ?? null, target?.name ?? null);
+  await settings.setSelectedProfile(target?.id ?? null);
 }
 
 async function applyProfileResult(result: ProfileOperationResult) {
-  await applyProfiles(result.profiles, result.entry.name);
+  await applyProfiles(result.profiles, result.entry.id);
 }
 
 export function useConfigs() {
@@ -68,7 +69,7 @@ export function useConfigs() {
     info: toastInfo,
     warning: toastWarning,
   } = useToast();
-  const { startService, stopService } = useSingbox();
+  const { startService } = useSingbox();
 
   const initializeConfigs = useCallback(async () => {
     const config = useConfigStore.getState();
@@ -78,18 +79,10 @@ export function useConfigs() {
       config.setProfiles(profiles);
 
       const settings = useSettingsStore.getState();
-      const savedDisplay = settings.settings.profiles.selected_config_display;
-      const savedPath = settings.settings.profiles.selected_config_path;
+      const savedId = settings.settings.profiles.selected_profile_id;
       const target =
-        (savedDisplay && profiles.find((p) => p.name === savedDisplay)) ||
-        (savedPath && profiles.find((p) => p.path === savedPath)) ||
-        profiles[0] ||
-        null;
-
-      await settings.setSelectedConfig(
-        target?.path ?? null,
-        target?.name ?? null,
-      );
+        profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
+      await settings.setSelectedProfile(target?.id ?? null);
     } finally {
       config.setPending(false);
     }
@@ -100,17 +93,19 @@ export function useConfigs() {
       const settings = useSettingsStore.getState();
       const singbox = useSingboxStore.getState();
 
-      await settings.setSelectedConfig(cfg.path, cfg.name);
+      await settings.setSelectedProfile(cfg.id);
 
       if (singbox.isRunning) {
-        toastInfo("Config changed. Restarting service...");
-        await stopService();
-        await startService();
+        // 直接再 start 一次 —— daemon 的 `StartService` 就是
+        // `StartOrReloadService`，在同一把锁下原子换配置。以前这里要
+        // stop→start 两次 RPC，中间隧道完全断开（审计项 H-02）。
+        toastInfo("Applying the new config…");
+        await startService({ reload: true });
       } else {
         toastSuccess(`Selected config: ${cfg.name}`);
       }
     },
-    [toastInfo, toastSuccess, stopService, startService],
+    [toastInfo, toastSuccess, startService],
   );
 
   const selectConfigFile = useCallback(async () => {
@@ -124,7 +119,7 @@ export function useConfigs() {
 
       config.setPending(true);
       try {
-        const result = await copyConfigToBin(file as string);
+        const result = await importProfileFile(file as string);
         await applyProfileResult(result);
         toastSuccess("Added config file successfully");
       } finally {
@@ -134,6 +129,52 @@ export function useConfigs() {
       toastError(`Error selecting config file: ${getErrorMessage(err)}`);
     }
   }, [toastError, toastSuccess]);
+
+  /**
+   * 导入别人分享的 `.bpf` —— sing-box 各端之间互传配置用的那个打包格式。
+   *
+   * 解包和校验都在 daemon 那边（`ApplicationService.DecodeProfile` +
+   * `CheckConfig`），走的是 worker 自己的管道，所以服务没装也能导入。
+   */
+  const selectProfileFile = useCallback(async () => {
+    const config = useConfigStore.getState();
+    try {
+      const file = await open({
+        filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
+        multiple: false,
+      });
+      if (!file) return;
+
+      config.setPending(true);
+      try {
+        const result = await importProfileData(file as string);
+        await applyProfileResult(result);
+        toastSuccess("Imported shared profile");
+      } finally {
+        config.setPending(false);
+      }
+    } catch (err) {
+      toastError(`Error importing profile: ${getErrorMessage(err)}`);
+    }
+  }, [toastError, toastSuccess]);
+
+  /** 反过来：把一份配置打包成可以发给别人的文件。 */
+  const exportProfileFile = useCallback(
+    async (id: string, name: string) => {
+      try {
+        const destination = await save({
+          defaultPath: `${name.replace(/[^a-zA-Z0-9._-]/g, "-")}.bpf`,
+          filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
+        });
+        if (!destination) return;
+        const written = await exportProfile(id, destination);
+        toastSuccess("Profile exported", written);
+      } catch (err) {
+        toastError(`Error exporting profile: ${getErrorMessage(err)}`);
+      }
+    },
+    [toastError, toastSuccess],
+  );
 
   const addSubscription = useCallback(
     async (url: string) => {
@@ -172,7 +213,16 @@ export function useConfigs() {
       try {
         const result = await updateSubscriptionCmd(id);
         await applyProfileResult(result);
-        toastSuccess(`Updated subscription: ${result.entry.name}`);
+        // 刷新的正是当前跑着的那份配置，就顺手重载让它生效 —— 以前新内容写进
+        // 磁盘、跑着的还是旧的，界面上却提示「更新成功」（审计项 H-02）。
+        const selectedId =
+          useSettingsStore.getState().settings.profiles.selected_profile_id;
+        if (selectedId === id && useSingboxStore.getState().isRunning) {
+          await startService({ reload: true });
+          toastSuccess(`Updated and reloaded: ${result.entry.name}`);
+        } else {
+          toastSuccess(`Updated subscription: ${result.entry.name}`);
+        }
         return true;
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
@@ -181,7 +231,7 @@ export function useConfigs() {
         config.setPending(false);
       }
     },
-    [toastError, toastSuccess],
+    [toastError, toastSuccess, startService],
   );
 
   const editSubscription = useCallback(
@@ -215,7 +265,7 @@ export function useConfigs() {
         const profiles = await setSubscriptionAutoUpdate(
           id,
           enabled,
-          intervalMinutes,
+          intervalMinutes ?? null,
         );
         useConfigStore.getState().setProfiles(profiles);
       } catch (err) {
@@ -244,7 +294,7 @@ export function useConfigs() {
       config.setPending(true);
       try {
         const profiles = await renameProfileCmd(id, newName);
-        await applyProfiles(profiles, newName);
+        await applyProfiles(profiles, id);
         toastSuccess(`Renamed ${current?.name ?? id} to ${newName}`);
       } catch (err) {
         toastError(`Error renaming config: ${getErrorMessage(err)}`);
@@ -263,7 +313,7 @@ export function useConfigs() {
       const cfg = config.profiles.find((p) => p.id === id);
       const settings = useSettingsStore.getState();
       if (
-        cfg?.path === settings.settings.profiles.selected_config_path &&
+        cfg?.id === settings.settings.profiles.selected_profile_id &&
         useSingboxStore.getState().isRunning
       ) {
         toastError(
@@ -301,6 +351,8 @@ export function useConfigs() {
     initializeConfigs,
     selectConfig,
     selectConfigFile,
+    selectProfileFile,
+    exportProfileFile,
     addSubscription,
     updateSubscription,
     editSubscription,

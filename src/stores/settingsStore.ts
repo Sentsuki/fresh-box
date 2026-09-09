@@ -20,10 +20,7 @@ interface SettingsActions {
   hydrate: () => Promise<void>;
   updateSettings: (updater: (s: AppSettings) => void) => Promise<void>;
   setCurrentPage: (page: AppPage) => Promise<void>;
-  setSelectedConfig: (
-    path: string | null,
-    displayName: string | null,
-  ) => Promise<void>;
+  setSelectedProfile: (id: string | null) => Promise<void>;
   setProxyGroupCollapsed: (group: string, collapsed: boolean) => Promise<void>;
   setConnectionsTab: (tab: ConnectionPageTab) => Promise<void>;
   setConnectionsVisibleColumns: (
@@ -41,7 +38,6 @@ interface SettingsActions {
   setConnectionExpandedGroups: (groups: Record<string, boolean>) => void;
   setLogTypeFilter: (filter: string) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
-  setCloseBehavior: (behavior: "hide" | "destroy") => Promise<void>;
   setAutoCloseConnections: (enabled: boolean) => Promise<void>;
   setCheckUpdateEnabled: (enabled: boolean) => Promise<void>;
   setUpdateCheckPrompted: () => Promise<void>;
@@ -78,10 +74,9 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
       });
     },
 
-    setSelectedConfig: async (path, displayName) => {
+    setSelectedProfile: async (id) => {
       await get().updateSettings((s) => {
-        s.profiles.selected_config_path = path;
-        s.profiles.selected_config_display = displayName;
+        s.profiles.selected_profile_id = id;
       });
     },
 
@@ -146,12 +141,6 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setThemeMode: async (mode) => {
       await get().updateSettings((s) => {
         s.settings.theme_mode = mode;
-      });
-    },
-
-    setCloseBehavior: async (behavior) => {
-      await get().updateSettings((s) => {
-        s.settings.close_behavior = behavior;
       });
     },
 

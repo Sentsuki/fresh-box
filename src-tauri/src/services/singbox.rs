@@ -27,14 +27,15 @@ use std::sync::Arc;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
-use tauri::{AppHandle, Emitter, State};
+use tauri::{AppHandle, Emitter, Manager, State};
 use tokio::sync::{Mutex, Notify, watch};
 
 use crate::daemon::daemon_api::ServiceStatus;
 use crate::daemon::daemon_api::service_status::Type as ServiceStatusType;
-use crate::daemon::desktop_api::DaemonOwnership;
+use crate::daemon::desktop_api::{DaemonOwnership, StartOptions};
 use crate::daemon::{DaemonClient, DaemonConnection};
 use crate::errors::CommandError;
+use crate::store::Store;
 
 /// The Tauri event name every `ConnectionPhase` change is published under.
 pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
@@ -42,7 +43,7 @@ pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
 /// sing-box's own run state, once we're actually connected — mirrors
 /// `daemon_api::service_status::Type` in a form that serializes cleanly for
 /// the frontend (the generated prost enum doesn't derive `Serialize`).
-#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Copy, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "snake_case")]
 pub enum SingboxRunState {
     Idle,
@@ -52,7 +53,7 @@ pub enum SingboxRunState {
     Fatal,
 }
 
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
 pub struct SingboxStatus {
     pub state: SingboxRunState,
@@ -83,7 +84,7 @@ fn to_singbox_status(status: &ServiceStatus) -> SingboxStatus {
 /// already claimed by a different Windows user session
 /// (`OwnedByOtherUser`) — both used to just surface as an opaque
 /// `CommandError` with no dedicated UI.
-#[derive(Clone, Debug, PartialEq, serde::Serialize)]
+#[derive(Clone, Debug, PartialEq, serde::Serialize, specta::Type)]
 #[serde(tag = "phase", rename_all = "kebab-case")]
 pub enum ConnectionPhase {
     /// Establishing (or re-establishing) the connection — also the phase
@@ -92,9 +93,14 @@ pub enum ConnectionPhase {
     /// Connected and owning (or nobody yet owns) the daemon's working
     /// directory. `status` is the actual sing-box instance state.
     Connected { status: SingboxStatus },
-    /// `sing-box-daemon` isn't registered as a Windows service at all —
-    /// see `daemon::install`.
+    /// `sing-box-daemon` 根本没注册成 Windows 服务 —— 见 `daemon::install`。
     NotInstalled,
+    /// 服务装了但没在跑（被管理员或优化软件停掉、崩了没起来……）。
+    ///
+    /// 这是最常见的一类故障，以前会落进 `Unavailable` 里变成一句看不懂的
+    /// 原始 IO 错误（审计项 H-04）。它有对症的修法：`repair_daemon_service`
+    /// 就是一次提权的 `service start`。
+    NotRunning,
     /// The running service reports a different version than the daemon exe
     /// bundled with this install (stale service after an app update).
     #[serde(rename_all = "camelCase")]
@@ -160,11 +166,11 @@ impl Default for SingboxState {
 }
 
 /// Get a handle to the live gRPC connection, if one exists. Used by the
-/// other daemon-backed services (`daemon_control`, `streams`) that need to
-/// issue their own calls/subscriptions without going through this module,
-/// and by `start_singbox`/`stop_singbox` below. The reconciliation loop is
-/// solely responsible for populating this — nothing here connects on
-/// demand any more.
+/// bridge commands (`commands::bridge`), the crash/OOM report commands, the
+/// resident tray subscriptions, and `start_singbox`/`stop_singbox` below —
+/// everything that needs to issue its own calls without going through this
+/// module. The reconciliation loop is solely responsible for populating
+/// this — nothing here connects on demand any more.
 pub async fn get_connection(state: &SingboxState) -> Result<DaemonConnection, CommandError> {
     let guard = state.client.lock().await;
     guard
@@ -229,25 +235,48 @@ enum AttemptOutcome {
     /// Couldn't get connected this time; the corresponding phase has
     /// already been published. Back off before retrying.
     Failed,
-    /// Not installed at all — checked before ever trying to connect.
-    /// Backed off on a fixed, longer interval since this won't change on
-    /// its own; `retry_connection` (called right after an install) is what
-    /// actually recovers this promptly in the common case.
-    NotInstalled,
+    /// 服务不可用（没装 / 没跑）—— 连都没尝试就返回了。用固定的较长间隔重试，
+    /// 因为它不会自己好；真正让它及时恢复的是 `retry_connection`
+    /// （安装或修复之后会调）。
+    ServiceUnavailable,
 }
 
 /// One full connect → claim → subscribe attempt. Runs until either it
 /// fails outright or the status stream it subscribed to ends.
 async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> AttemptOutcome {
-    if !crate::daemon::install::is_service_installed() {
-        publish(app, state, ConnectionPhase::NotInstalled);
-        return AttemptOutcome::NotInstalled;
+    // Both checks below describe the *packaged* layout — a registered
+    // Windows service, and a bundled daemon exe at a fixed relative path. A
+    // debug build pointed at a development daemon over TCP (see
+    // `daemon::dev_daemon_address`) satisfies neither by construction, and
+    // needs neither: nothing spawns a worker on that path.
+    let dev_address = crate::daemon::dev_daemon_address();
+
+    if dev_address.is_none() {
+        // 探测是同步的进程调用，放到阻塞线程池上，别占着 async 工作线程
+        // （审计项 M-05）。
+        let status = tokio::task::spawn_blocking(crate::daemon::install::probe_service)
+            .await
+            .unwrap_or(crate::daemon::install::ServiceStatus::Unknown);
+        match status {
+            crate::daemon::install::ServiceStatus::NotInstalled => {
+                publish(app, state, ConnectionPhase::NotInstalled);
+                return AttemptOutcome::ServiceUnavailable;
+            }
+            crate::daemon::install::ServiceStatus::NotRunning => {
+                publish(app, state, ConnectionPhase::NotRunning);
+                return AttemptOutcome::ServiceUnavailable;
+            }
+            // `Unknown` 不当成「不可用」：探测本身可能只是一时失败，让它照常
+            // 往下走去连一次，连不上自然会落到 `Unavailable` 并带上真实错误。
+            crate::daemon::install::ServiceStatus::Running
+            | crate::daemon::install::ServiceStatus::Unknown => {}
+        }
     }
 
     publish(app, state, ConnectionPhase::Connecting);
 
     let daemon_path = match crate::daemon::install::daemon_executable_path() {
-        Ok(path) if path.exists() => path,
+        Ok(path) if path.exists() || dev_address.is_some() => path,
         _ => {
             publish(
                 app,
@@ -274,13 +303,65 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
         }
     };
 
-    // Always fetch daemon info: it's how we learn ownership (needed every
-    // attempt, not just when we can also check the version below), mirroring
-    // the official client's `getDaemonInfo` call at the top of every
-    // `loopConnection` iteration.
-    let info = match client.connection.daemon_info().await {
-        Ok(info) => info,
-        Err(e) => {
+    // `daemon_info` / `claim_service` 都在 `DesktopService` 上，而
+    // `DesktopService` 的每个方法都要求一个 peer identity（upstream
+    // `desktop_service.go` 里 10 处 `peerIdentityFromContext`）。开发直连模式
+    // 走 TCP，boxdd 只是关掉了传输层凭据、并没有伪造出 peer identity，所以
+    // 这几步在开发模式下必然失败 —— 跳过它们，直接去订阅
+    // `StartedService.SubscribeServiceStatus`（`started_service.go` 里 0 处
+    // 需要 peer identity，整个 StartedService 在开发模式下都可用）。
+    //
+    // 跳过的是所有权与版本一致性检查，它们保护的是产品部署下的真实风险
+    // （另一个用户会话占着 daemon、app 升级后服务没重装）。开发模式本来就
+    // 只连一个自己起的、无访问控制的实例，这些检查没有意义。
+    if dev_address.is_none() {
+        // Always fetch daemon info: it's how we learn ownership (needed every
+        // attempt, not just when we can also check the version below), mirroring
+        // the official client's `getDaemonInfo` call at the top of every
+        // `loopConnection` iteration.
+        let info = match client.connection.daemon_info().await {
+            Ok(info) => info,
+            Err(e) => {
+                publish(
+                    app,
+                    state,
+                    ConnectionPhase::Unavailable {
+                        error_message: e.to_string(),
+                    },
+                );
+                return AttemptOutcome::Failed;
+            }
+        };
+
+        // Best-effort version-consistency check, mirroring the official
+        // client's `state.ts`: if the *running* privileged service reports a
+        // different version than the exe currently bundled with this install
+        // (e.g. the app was updated but the Windows service wasn't
+        // reinstalled), refuse to claim/start against it rather than talking
+        // an unknown protocol to a stale daemon. Skipped (not failed) if we
+        // can't determine the bundled version at all — this is a UX/integrity
+        // guard, not the actual security boundary (that's boxdd's own
+        // signature/ACL checks in `security_windows.go`).
+        if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
+            && info.version != bundled_version
+        {
+            publish(
+                app,
+                state,
+                ConnectionPhase::VersionMismatch {
+                    daemon_version: info.version,
+                    bundled_version,
+                },
+            );
+            return AttemptOutcome::Failed;
+        }
+
+        if info.ownership() == DaemonOwnership::Other {
+            publish(app, state, ConnectionPhase::OwnedByOtherUser);
+            return AttemptOutcome::Failed;
+        }
+
+        if let Err(e) = client.connection.claim_service().await {
             publish(
                 app,
                 state,
@@ -290,49 +371,32 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
             );
             return AttemptOutcome::Failed;
         }
-    };
-
-    // Best-effort version-consistency check, mirroring the official
-    // client's `state.ts`: if the *running* privileged service reports a
-    // different version than the exe currently bundled with this install
-    // (e.g. the app was updated but the Windows service wasn't
-    // reinstalled), refuse to claim/start against it rather than talking
-    // an unknown protocol to a stale daemon. Skipped (not failed) if we
-    // can't determine the bundled version at all — this is a UX/integrity
-    // guard, not the actual security boundary (that's boxdd's own
-    // signature/ACL checks in `security_windows.go`).
-    if let Ok(bundled_version) = crate::daemon::install::bundled_daemon_version()
-        && info.version != bundled_version
-    {
-        publish(
-            app,
-            state,
-            ConnectionPhase::VersionMismatch {
-                daemon_version: info.version,
-                bundled_version,
-            },
-        );
-        return AttemptOutcome::Failed;
-    }
-
-    if info.ownership() == DaemonOwnership::Other {
-        publish(app, state, ConnectionPhase::OwnedByOtherUser);
-        return AttemptOutcome::Failed;
-    }
-
-    if let Err(e) = client.connection.claim_service().await {
-        publish(
-            app,
-            state,
-            ConnectionPhase::Unavailable {
-                error_message: e.to_string(),
-            },
-        );
-        return AttemptOutcome::Failed;
     }
 
     let connection = client.connection.clone();
     *state.client.lock().await = Some(client);
+
+    // 这次会话期间的常驻订阅（代理组、Clash 模式），供托盘使用 —— 它们和
+    // 前端各订各的，中间不经过任何翻译，见 `services::resident` 的模块注释。
+    // `_session` 一旦离开作用域就会取消订阅并清空常驻状态，所以下面每一条
+    // 提前 return 的路径都不需要自己收尾。
+    let _session = app
+        .try_state::<std::sync::Arc<crate::services::resident::ResidentState>>()
+        .map(|resident| {
+            let app_for_mode = app.clone();
+            crate::services::resident::spawn_session(
+                resident.inner().clone(),
+                connection.clone(),
+                std::sync::Arc::new(move |mode: &str| {
+                    if let Some(store) = app_for_mode.try_state::<Store>()
+                        && let Err(e) =
+                            crate::store::settings::set_last_clash_mode(store.inner(), mode)
+                    {
+                        tracing::warn!(error = ?e, "failed to remember the clash mode");
+                    }
+                }),
+            )
+        });
 
     let mut stream = match connection.subscribe_service_status().await {
         Ok(stream) => stream,
@@ -386,7 +450,7 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
                     attempt = 0;
                     wait_or_retry(&state, SESSION_RESTART_DELAY).await;
                 }
-                AttemptOutcome::NotInstalled => {
+                AttemptOutcome::ServiceUnavailable => {
                     wait_or_retry(&state, Duration::from_secs(3)).await;
                 }
                 AttemptOutcome::Failed => {
@@ -399,9 +463,8 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
     });
 }
 
-/// Builds the actual config content handed to `StartService`: the selected
-/// profile's own JSON, with the user's config override (if enabled) merged
-/// in, then fresh-box's own priority config applied on top of *that*.
+/// 合成真正交给 `StartService` 的配置内容：档案自身的 JSON，先叠用户的
+/// override（若启用），再把 fresh-box 自己的 priority config 盖在最上层。
 ///
 /// The order — override before priority config, never the reverse — is
 /// deliberate and load-bearing, not an accident of write order: priority
@@ -412,21 +475,21 @@ pub fn spawn_reconciliation_loop(app: AppHandle, state: SingboxState) {
 /// otherwise ignored rather than failing the start outright — see
 /// `apply_priority_config`'s own doc comment for why each of its fields is
 /// independent best-effort in the same way.
-async fn build_config_content(config_path: &str) -> Result<String, CommandError> {
-    if !std::path::Path::new(config_path).exists() {
-        return Err(CommandError::resource_not_found("config file", config_path));
-    }
+fn build_config_content(store: &Store, profile_id: &str) -> Result<String, CommandError> {
+    let content = crate::store::profiles::read_content(store, profile_id)?;
+    let mut base_config: serde_json::Value = serde_json::from_str(&content)?;
 
-    let config_content = std::fs::read_to_string(config_path)?;
-    let mut base_config: serde_json::Value = serde_json::from_str(&config_content)?;
-
-    if let Some(override_config) = crate::config::get_override_config_if_enabled().await? {
+    if let Some(override_config) = crate::config::get_override_config_if_enabled(store)? {
         crate::config::apply_config_override(&mut base_config, &override_config);
     }
 
-    let priority_config: crate::config::PriorityConfig =
-        crate::config::load_named_config_or_default(crate::config::priority::PRIORITY_CONFIG_FILE)?;
-    if let Err(e) = crate::config::apply_priority_config(&mut base_config, &priority_config) {
+    let priority_config = crate::config::priority::load_priority_config_inner(store)?;
+    let last_mode = crate::store::settings::last_clash_mode(store);
+    if let Err(e) = crate::config::apply_priority_config(
+        &mut base_config,
+        &priority_config,
+        last_mode.as_deref(),
+    ) {
         tracing::warn!(error = ?e, "failed to apply priority configuration");
     }
 
@@ -469,30 +532,80 @@ async fn with_lifecycle_timeout<T>(
     }
 }
 
-pub async fn start_singbox(
-    _app_handle: tauri::AppHandle,
-    state: State<'_, SingboxState>,
-    config_path: String,
-) -> Result<(), CommandError> {
-    let state = state.inner().clone();
-
-    if state.phase_rx.borrow().running() {
-        return Err(CommandError::ProcessAlreadyRunning);
+/// Builds the `StartOptions` sent alongside every `StartService` call from
+/// the user's saved diagnostics settings (see
+/// `config::app_settings::DiagnosticsSettings`) — OOM killer/power report
+/// are both off unless explicitly enabled there, matching what
+/// `StartOptions::default()` used to always send.
+fn build_start_options(store: &Store) -> StartOptions {
+    let diagnostics = crate::config::app_settings::load_diagnostics(store);
+    StartOptions {
+        oom_killer_enabled: diagnostics.oom_killer_enabled,
+        oom_killer_disabled: false,
+        oom_memory_limit: i64::from(diagnostics.oom_memory_limit_mb).saturating_mul(1024 * 1024),
+        power_report_enabled: diagnostics.power_report_enabled,
     }
+}
 
-    let config_content = build_config_content(&config_path).await?;
-    let connection = get_connection(&state).await?;
+/// 合成配置并交给 daemon 启动 —— 命令（前端）与托盘（无窗口时）共用这一条
+/// 路径，所以它不依赖 `State<'_>`。
+/// 合成配置并交给 daemon —— **实例已经在跑时这就是一次原子重载**。
+///
+/// 上游的 `StartService` 实际调的是 `StartOrReloadService`（`server.go`
+/// → `started_service.go:250`）：在同一把 `lifecycleAccess` 锁下先关旧实例再起
+/// 新实例。以前这里有一道 `if running { return ProcessAlreadyRunning }` 的自设
+/// 拦截，把这条路堵死了（审计项 H-02），于是切换配置只能由前端编排
+/// stop→start：两次 RPC、中间隧道完全断开，而且刷新订阅后压根不重载 —— 新配置
+/// 写进了磁盘，跑着的还是旧的，界面上毫无提示。
+///
+/// 现在切配置、刷订阅、改设置、托盘启动全走这一个入口。
+pub async fn start_with_profile(
+    state: &SingboxState,
+    store: &Store,
+    profile_id: &str,
+) -> Result<(), CommandError> {
+    // 合成配置要读 SQLite 和配置内容文件，都是同步 I/O —— 挪到阻塞线程池上，
+    // 别按住 tokio 的工作线程（审计项 L-19）。
+    let profile_id = profile_id.to_string();
+    let (config_content, options) = store
+        .run_blocking(move |store| {
+            let content = build_config_content(store, &profile_id)?;
+            Ok((content, build_start_options(store)))
+        })
+        .await?;
+
+    // 校验的是**合并之后**的内容，不是订阅原文（审计项 L-16）。原文在下载时
+    // 已经过一遍 `check_config`，但真正交给 `StartService` 的是「原文 + 用户
+    // override + priority config」三层合并的产物 —— 覆盖层写坏了配置，以前要
+    // 等到点启动、daemon 那边解析失败才知道，而那条错误还得穿过 lifecycle 锁
+    // 和 20 秒超时才回得来。这里用的是同一个 sing-box 解析器
+    // （`ApplicationService.CheckConfig`），所以它放行的 daemon 一定也放行，
+    // 不会平白多拦下能跑的配置。
+    crate::daemon::validate::check_config(&config_content).await?;
+
+    let connection = get_connection(state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
-        connection.start_service(config_content),
+        connection.start_service(config_content, options),
     )
     .await
 }
 
-pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
-    let state = state.inner().clone();
-    let connection = get_connection(&state).await?;
+pub async fn stop(state: &SingboxState) -> Result<(), CommandError> {
+    let connection = get_connection(state).await?;
     with_lifecycle_timeout("stop sing-box service", connection.stop_service()).await
+}
+
+pub async fn start_singbox(
+    state: State<'_, SingboxState>,
+    store: State<'_, Store>,
+    profile_id: String,
+) -> Result<(), CommandError> {
+    start_with_profile(state.inner(), store.inner(), &profile_id).await
+}
+
+pub async fn stop_singbox(state: State<'_, SingboxState>) -> Result<(), CommandError> {
+    stop(state.inner()).await
 }
 
 /// Current connection phase, for a component's first render — the
@@ -532,5 +645,163 @@ pub async fn cleanup_process(state: &SingboxState) {
     .await
     {
         tracing::warn!(error = ?e, "failed to stop sing-box service during cleanup");
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `start_with_profile` 那一半要真 daemon。这里测的是它之前的那一步：
+    // 三层合并出最终交给 `StartService` 的内容。单独的合并函数各自有测试
+    // （`config::config_override` / `config::priority`），这里钉的是**顺序**
+    // 和**取值来源** —— 写反了不会有编译错误，只会在运行时悄悄用错配置。
+
+    fn store_with_profile(content: &str) -> (Store, String) {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let profile =
+            crate::store::profiles::create(&store, "test", None, content).expect("create profile");
+        (store, profile.id)
+    }
+
+    const BASE: &str = r#"{
+        "log": { "level": "trace" },
+        "inbounds": [{ "type": "tun", "stack": "system" }],
+        "outbounds": [{ "type": "direct", "tag": "direct" }]
+    }"#;
+
+    #[test]
+    fn the_profile_content_is_the_base() {
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["outbounds"][0]["tag"], "direct");
+    }
+
+    #[test]
+    fn clash_api_is_injected_even_when_the_profile_has_no_experimental_block() {
+        // 没有它 daemon 就不会构造 `ClashServer`，代理页、模式切换、测速、
+        // 连接全是空的 —— 这是技术必需，不是可选项。
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(
+            value["experimental"]["clash_api"]["external_controller"],
+            ""
+        );
+    }
+
+    #[test]
+    fn a_disabled_override_changes_nothing() {
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "outbounds": [{ "type": "block", "tag": "block" }] }),
+        )
+        .expect("save override");
+        // 存了但没启用 —— 不该生效。
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["outbounds"][0]["tag"], "direct");
+    }
+
+    #[test]
+    fn an_enabled_override_is_merged_in() {
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "dns": { "servers": [{ "address": "1.1.1.1" }] } }),
+        )
+        .expect("save override");
+        crate::config::config_override::enable_config_override_inner(&store).expect("enable");
+
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["dns"]["servers"][0]["address"], "1.1.1.1");
+        assert_eq!(value["outbounds"][0]["tag"], "direct", "base survives");
+    }
+
+    #[test]
+    fn priority_config_gets_the_last_word_over_the_override() {
+        // 顺序是载荷 → 用户覆盖 → priority。priority 存在的意义就是保证
+        // fresh-box 自己的运行前提成立，所以它必须压在覆盖层之上。
+        let (store, id) = store_with_profile(BASE);
+        crate::config::config_override::save_config_override_inner(
+            &store,
+            serde_json::json!({ "log": { "level": "debug", "disabled": false } }),
+        )
+        .expect("save override");
+        crate::config::config_override::enable_config_override_inner(&store).expect("enable");
+        crate::config::priority::save_priority_config_inner(
+            &store,
+            crate::config::priority::PriorityConfig {
+                inbounds: vec![crate::config::priority::PriorityInbound {
+                    stack: "gvisor".into(),
+                }],
+                log: crate::config::priority::LogConfig {
+                    disabled: false,
+                    level: "warn".into(),
+                },
+            },
+        )
+        .expect("save priority");
+
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["log"]["level"], "warn", "priority wins over override");
+        assert_eq!(value["inbounds"][0]["stack"], "gvisor");
+    }
+
+    #[test]
+    fn the_remembered_clash_mode_is_written_back() {
+        // 审计项 M-09：记得住上次选的模式才不会每次启动都被打回 Rule；
+        // 没记住过就干脆不写这个字段。
+        let (store, id) = store_with_profile(BASE);
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert!(
+            value["experimental"]["clash_api"]
+                .get("default_mode")
+                .is_none()
+        );
+
+        crate::store::settings::set_last_clash_mode(&store, "global").expect("remember mode");
+        let composed = build_config_content(&store, &id).expect("compose");
+        let value: serde_json::Value = serde_json::from_str(&composed).expect("valid json");
+        assert_eq!(value["experimental"]["clash_api"]["default_mode"], "global");
+    }
+
+    #[test]
+    fn a_missing_profile_is_an_error_not_an_empty_config() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        assert!(build_config_content(&store, "no-such-id").is_err());
+    }
+
+    #[test]
+    fn start_options_come_from_the_diagnostics_section() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let mut settings = crate::config::app_settings::AppSettings::default();
+        settings.diagnostics.oom_killer_enabled = true;
+        settings.diagnostics.oom_memory_limit_mb = 2048;
+        settings.diagnostics.power_report_enabled = true;
+        crate::config::app_settings::save_app_settings(&store, &settings).expect("save");
+
+        let options = build_start_options(&store);
+        assert!(options.oom_killer_enabled);
+        assert!(!options.oom_killer_disabled);
+        assert!(options.power_report_enabled);
+        // MB → 字节，daemon 那边要的是字节。
+        assert_eq!(options.oom_memory_limit, 2048 * 1024 * 1024);
+    }
+
+    #[test]
+    fn a_huge_memory_limit_saturates_instead_of_overflowing() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        let mut settings = crate::config::app_settings::AppSettings::default();
+        settings.diagnostics.oom_memory_limit_mb = u32::MAX;
+        crate::config::app_settings::save_app_settings(&store, &settings).expect("save");
+
+        let options = build_start_options(&store);
+        assert!(options.oom_memory_limit > 0, "must not wrap around");
     }
 }

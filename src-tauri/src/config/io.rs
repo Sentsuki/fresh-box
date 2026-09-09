@@ -1,37 +1,16 @@
+// 只剩原子写：其余的 JSON 读写辅助随 `app_settings.json` / `profile_index.json`
+// 等文件一起作废了（阶段 4 换成 SQLite）。配置内容文件仍然走这里 —— 崩溃或
+// 断电时读者只会看到完整的旧内容或完整的新内容，不会看到半截。
+
 use crate::errors::CommandError;
-use serde::{Serialize, de::DeserializeOwned};
 use std::fs;
-use std::path::{Path, PathBuf};
+use std::path::Path;
 
-pub fn read_json_file<T>(path: &Path) -> Result<T, CommandError>
-where
-    T: DeserializeOwned,
-{
-    let content = fs::read_to_string(path).map_err(|error| {
-        CommandError::io(
-            format!("failed to read JSON file {}", path.display()),
-            error,
-        )
-    })?;
-
-    serde_json::from_str(&content)
-        .map_err(|error| CommandError::json(format!("failed to parse {}", path.display()), error))
-}
-
-/// Write `content` to `path` atomically: write to a temporary file in the
-/// same directory first, then rename it over the target. A rename within
-/// the same filesystem is a single atomic operation — a reader (or a crash
-/// / power loss) only ever sees either the fully old or the fully new
-/// content, never a partially-written file. Mirrors the official desktop
-/// client's `atomicWriteFile` (`src/main/profiles.ts`), which every one of
-/// its own profile/subscription writes goes through for the same reason.
+/// 原子写：先在同目录写临时文件，再 rename 覆盖目标。
 ///
-/// Before this existed, every write in this module (and every direct
-/// `fs::write` of a subscription/config file elsewhere) wrote straight to
-/// the target path — a crash or power loss mid-write left a truncated or
-/// corrupt file behind, and `load_subscriptions_json`'s
-/// `unwrap_or(Value::Object(...))` would then silently treat that as "no
-/// data" rather than surfacing the corruption.
+/// 同一文件系统内的 rename 是单个原子操作 —— 读者（以及崩溃 / 断电）只会看到
+/// 完整的旧内容或完整的新内容，不会看到写了一半的文件。对齐官方客户端的
+/// `atomicWriteFile`（`src/main/profiles.ts`），它每一次档案写入也都走这里。
 pub fn atomic_write(path: &Path, content: &[u8]) -> Result<(), CommandError> {
     let dir = path.parent().ok_or_else(|| {
         CommandError::invalid_state(
@@ -69,43 +48,4 @@ pub fn atomic_write(path: &Path, content: &[u8]) -> Result<(), CommandError> {
     }
 
     Ok(())
-}
-
-pub fn write_json_file<T>(path: &Path, value: &T) -> Result<(), CommandError>
-where
-    T: Serialize,
-{
-    let content = serde_json::to_string_pretty(value).map_err(|error| {
-        CommandError::json(format!("failed to serialize {}", path.display()), error)
-    })?;
-
-    atomic_write(path, content.as_bytes())
-}
-
-pub(crate) fn load_json_or_default<T>(path: &Path) -> Result<T, CommandError>
-where
-    T: DeserializeOwned + Default,
-{
-    if !path.exists() {
-        return Ok(T::default());
-    }
-    read_json_file(path)
-}
-
-pub fn get_named_config_path(file_name: &str) -> Result<PathBuf, CommandError> {
-    Ok(super::paths::get_config_dir()?.join(file_name))
-}
-
-pub fn load_named_config_or_default<T>(file_name: &str) -> Result<T, CommandError>
-where
-    T: DeserializeOwned + Default,
-{
-    load_json_or_default(&get_named_config_path(file_name)?)
-}
-
-pub fn save_named_config<T>(file_name: &str, value: &T) -> Result<(), CommandError>
-where
-    T: Serialize,
-{
-    write_json_file(&get_named_config_path(file_name)?, value)
 }

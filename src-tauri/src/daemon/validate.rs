@@ -24,30 +24,14 @@ use crate::errors::CommandError;
 
 use super::desktop_api::ConfigContent;
 use super::desktop_api::application_service_client::ApplicationServiceClient;
-use super::{pipe, worker};
+use super::worker;
 
 /// Validate `content` as a sing-box configuration. On invalid input, the
 /// returned error carries sing-box's own parser message (e.g. `"decode
 /// config at index 0: outbound[0]: type is required"`) unmodified, so the
 /// UI can show the user exactly what's wrong instead of a generic failure.
 pub async fn check_config(content: &str) -> Result<(), CommandError> {
-    let daemon_path = super::install::daemon_executable_path()?;
-    if !daemon_path.exists() {
-        return Err(CommandError::resource_not_found(
-            "sing-box-daemon executable",
-            daemon_path.display(),
-        ));
-    }
-
-    let worker = worker::shared_worker().get(&daemon_path).await?;
-
-    let channel = pipe::connect(worker.socket_path.clone())
-        .await
-        .map_err(|e| {
-            CommandError::network(format!("connect to worker application service: {e}"))
-        })?;
-
-    ApplicationServiceClient::new(channel)
+    ApplicationServiceClient::new(worker::application_channel().await?)
         .check_config(ConfigContent {
             content: content.to_string(),
         })

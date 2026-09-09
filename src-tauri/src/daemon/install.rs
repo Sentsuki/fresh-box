@@ -15,13 +15,20 @@ use base64::Engine as _;
 use crate::errors::CommandError;
 
 /// `CREATE_NO_WINDOW` — without this, spawning any console-subsystem
-/// binary (`powershell`, `sc`, ...) from our GUI-subsystem process makes
+/// binary (`powershell`, daemon 自己的 `service status`……) from our GUI-subsystem process makes
 /// Windows allocate it a brand new console window, which flashes on
 /// screen for as long as the child runs.
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
-/// Must match `serviceName` in `experimental/boxdd/main.go` upstream.
-const SERVICE_NAME: &str = "sing-box-daemon";
+/// 系统程序一律用绝对路径启动，不走 PATH 查找 —— 见 `run_elevated` 里的说明。
+pub(crate) fn system32(relative: &str) -> std::path::PathBuf {
+    let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
+    std::path::Path::new(&root).join("System32").join(relative)
+}
+
+fn powershell_path() -> std::path::PathBuf {
+    system32(r"WindowsPowerShell\v1.0\powershell.exe")
+}
 
 /// `<InstallDir>\resources\daemon\sing-box-daemon.exe` — the fixed relative
 /// layout `installedApplicationPath` requires.
@@ -42,6 +49,17 @@ pub fn daemon_executable_path() -> Result<PathBuf, CommandError> {
 /// `experimental/boxdd/main.go` upstream always prints exactly
 /// `sing-box-daemon version <version>`.
 pub fn bundled_daemon_version() -> Result<String, CommandError> {
+    // 缓存：这个值由磁盘上的 exe 决定，进程生命周期内不会变，而 reconciliation
+    // loop 每次重连都要用它 —— 以前每次都 spawn 一个进程去读（审计项 M-05）。
+    // 对齐官方客户端的 `cachedBundledVersion`（`repair.ts`）。
+    static CACHED: std::sync::OnceLock<Option<String>> = std::sync::OnceLock::new();
+    if let Some(cached) = CACHED.get_or_init(|| read_bundled_daemon_version().ok()) {
+        return Ok(cached.clone());
+    }
+    read_bundled_daemon_version()
+}
+
+fn read_bundled_daemon_version() -> Result<String, CommandError> {
     let daemon_path = daemon_executable_path()?;
     let output = Command::new(&daemon_path)
         .arg("version")
@@ -97,26 +115,46 @@ fn run_elevated(
     // daemon exe directly with redirection parameters, we elevate a
     // `powershell.exe` wrapper that does its own file redirection
     // internally with `*>`, which has no such restriction.
-    let log_path = std::env::temp_dir().join(format!(
-        "fresh-box-elevated-{}-{}.log",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or_default()
-    ));
+    //
+    // 日志目录当前用户不可写（`get_elevated_log_dir` 的文档解释了为什么必须
+    // 这样，审计项 L-15）。收紧不成功就干脆不落日志 —— 少一份诊断信息，好过
+    // 给一个管理员进程递一条用户可控的写入路径。
+    let log_path = match crate::config::get_elevated_log_dir() {
+        Ok(dir) => Some(dir.join(format!(
+            "elevated-{}-{}.log",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or_default()
+        ))),
+        Err(e) => {
+            tracing::warn!(
+                error = ?e,
+                "no admins-only log directory — running the elevated command without capturing its output"
+            );
+            None
+        }
+    };
 
     let quoted_args = args
         .iter()
         .map(|a| powershell_quote(a))
         .collect::<Vec<_>>()
         .join(" ");
-    let inner_script = format!(
-        "& {} {} *> {}\nexit $LASTEXITCODE",
-        powershell_quote(&executable.display().to_string()),
-        quoted_args,
-        powershell_quote(&log_path.display().to_string()),
-    );
+    let quoted_executable = powershell_quote(&executable.display().to_string());
+    let inner_script = match &log_path {
+        // 顺手清掉上一次留下的日志：我们这边没有写权限，删不掉自己读完的那
+        // 份，所以清理由下一次提权动作（它是管理员）来做。
+        Some(path) => format!(
+            "Remove-Item {} -Force -ErrorAction SilentlyContinue\n& {} {} *> {}\nexit $LASTEXITCODE",
+            powershell_quote(&path.with_file_name("*.log").display().to_string()),
+            quoted_executable,
+            quoted_args,
+            powershell_quote(&path.display().to_string()),
+        ),
+        None => format!("& {quoted_executable} {quoted_args}\nexit $LASTEXITCODE"),
+    };
     let encoded_inner = base64::engine::general_purpose::STANDARD.encode(
         inner_script
             .encode_utf16()
@@ -131,9 +169,12 @@ fn run_elevated(
     // that would just surface as PowerShell's generic exit code 1, no
     // different from any other failure. Mirrors the official client's
     // `runElevatedWindows` (`repair.ts`), which checks for the same code.
+    // 内外两层都用绝对路径 —— 外层这次调用紧接着就是 `-Verb RunAs` 提权，
+    // 不该让 PATH 决定它到底跑起了什么（审计项 L-14）。
+    let powershell = powershell_quote(&powershell_path().display().to_string());
     let outer_script = format!(
         "try {{ \
-           $p = Start-Process -FilePath 'powershell' -ArgumentList \
+           $p = Start-Process -FilePath {powershell} -ArgumentList \
            @('-NoProfile','-NonInteractive','-EncodedCommand','{encoded_inner}') \
            -Verb RunAs -Wait -PassThru; exit $p.ExitCode \
          }} catch {{ \
@@ -145,14 +186,17 @@ fn run_elevated(
          }}"
     );
 
-    let status = Command::new("powershell")
+    let status = Command::new(powershell_path())
         .args(["-NoProfile", "-NonInteractive", "-Command", &outer_script])
         .creation_flags(CREATE_NO_WINDOW)
         .status()
         .map_err(|e| CommandError::io("launch elevated daemon service command", e))?;
 
-    let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-    let _ = std::fs::remove_file(&log_path);
+    // 读得到就读，删不掉不管 —— 删除权限我们没有，下一次提权动作会清掉它。
+    let log = log_path
+        .as_deref()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .unwrap_or_default();
 
     Ok(ElevatedOutput {
         code: status.code().unwrap_or(-1),
@@ -228,13 +272,132 @@ fn daemon_service_working_directory() -> PathBuf {
     PathBuf::from(r"C:\ProgramData\sing-box-daemon")
 }
 
-/// `true` once `sing-box-daemon` shows up in the Windows service database,
-/// regardless of its current run state.
-pub fn is_service_installed() -> bool {
-    Command::new("sc")
-        .args(["query", SERVICE_NAME])
+/// Windows 服务的三态。
+///
+/// 以前只有「装没装」一个布尔（`sc query` 成功与否），于是「装了但没在跑」——
+/// 最常见的一类故障，服务被管理员或优化软件停掉 —— 会一路落到
+/// `Unavailable { 原始 IO 错误 }`：用户看到一句看不懂的话，也没有对症的按钮
+/// （审计项 H-04）。
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum ServiceStatus {
+    Running,
+    /// 已注册但当前没运行 —— `start_service()` 就能修好。
+    NotRunning,
+    NotInstalled,
+    /// 探测本身失败了（exe 找不到、退出码不认识……），说不准是哪种。
+    Unknown,
+}
+
+/// 探测服务状态。
+///
+/// 用 daemon 自己的 `service status` 而不是 `sc query`：它按退出码精确区分三态
+/// （`cmd_service_windows.go` 的 `serviceStatus`：0=running、2=stopped、
+/// 3=not installed），`sc query` 只能告诉你服务在不在服务数据库里。对齐官方
+/// 客户端的 `probeService()`（`repair.ts`），连退出码都一样。
+///
+/// 这是同步的进程调用 —— 调用方必须放进 `spawn_blocking`，别直接在 async 路径
+/// 上跑（审计项 M-05）。
+pub fn probe_service() -> ServiceStatus {
+    let Ok(daemon_path) = daemon_executable_path() else {
+        return ServiceStatus::Unknown;
+    };
+    if !daemon_path.exists() {
+        return ServiceStatus::Unknown;
+    }
+    match Command::new(&daemon_path)
+        .args(["service", "status"])
         .creation_flags(CREATE_NO_WINDOW)
         .output()
-        .map(|out| out.status.success())
-        .unwrap_or(false)
+        .map(|output| output.status.code())
+    {
+        Ok(Some(0)) => ServiceStatus::Running,
+        Ok(Some(2)) => ServiceStatus::NotRunning,
+        Ok(Some(3)) => ServiceStatus::NotInstalled,
+        _ => ServiceStatus::Unknown,
+    }
+}
+
+/// 状态 → 「装没装」。
+///
+/// 单独抽出来只为可测：`is_service_installed` 自己要跑一次真实探测，而这里
+/// 想钉住的是四个状态各自该映射成什么 —— 尤其是 `NotRunning` 算「装了」，
+/// 那正是 H-04 的核心区分。
+fn installed_from_status(status: ServiceStatus) -> bool {
+    !matches!(status, ServiceStatus::NotInstalled | ServiceStatus::Unknown)
+}
+
+/// 服务是否已注册（不论在不在跑）—— 设置页据此显示「安装」还是「卸载」。
+pub fn is_service_installed() -> bool {
+    installed_from_status(probe_service())
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn quoting_wraps_in_single_quotes() {
+        assert_eq!(
+            powershell_quote(r"C:\Program Files\fresh-box"),
+            r"'C:\Program Files\fresh-box'"
+        );
+    }
+
+    #[test]
+    fn an_embedded_quote_is_doubled_not_escaped() {
+        // PowerShell 单引号串里转义 `'` 的方式是把它写两遍；用反斜杠转义在这
+        // 里是**无效**的，会把参数截断 —— 而这些参数最后交给的是一个提权进程。
+        assert_eq!(powershell_quote("it's"), "'it''s'");
+        assert_eq!(powershell_quote("''"), "''''''");
+    }
+
+    #[test]
+    fn characters_powershell_would_otherwise_interpret_are_inert() {
+        // 单引号串里 `$`、反引号、`;`、`|`、`&` 都不展开也不断句 —— 这正是
+        // 选它而不是双引号的理由。
+        for hostile in ["$(whoami)", "a; whoami", "`whoami`", "a|b", "a&b"] {
+            let quoted = powershell_quote(hostile);
+            let inner = quoted
+                .strip_prefix('\'')
+                .and_then(|q| q.strip_suffix('\''))
+                .unwrap_or_else(|| panic!("{quoted} must be single-quoted"));
+            assert_eq!(inner, hostile, "nothing but the quotes should be added");
+        }
+    }
+
+    #[test]
+    fn system_paths_are_absolute_and_under_system32() {
+        let path = system32("icacls.exe");
+        assert!(path.is_absolute(), "{} must be absolute", path.display());
+        assert!(path.ends_with("System32\\icacls.exe"), "{}", path.display());
+    }
+
+    #[test]
+    fn powershell_comes_from_system32_not_the_path() {
+        // 审计项 L-14：这个进程可能从任意工作目录启动，而下一步就是提权。
+        let path = powershell_path();
+        assert!(path.is_absolute());
+        assert!(
+            path.ends_with("WindowsPowerShell\\v1.0\\powershell.exe"),
+            "{}",
+            path.display()
+        );
+    }
+
+    #[test]
+    fn service_status_maps_to_installed_the_same_way_everywhere() {
+        // `is_service_installed` 是 `probe_service` 的一个视图，不该有独立的
+        // 判断逻辑 —— `service_probe_e2e.rs` 验的是它们对真实机器状态一致，
+        // 这里验的是四个状态各自的映射。
+        assert!(matches!(ServiceStatus::Running, ServiceStatus::Running));
+        for status in [ServiceStatus::Running, ServiceStatus::NotRunning] {
+            assert!(installed_from_status(status), "{status:?} means installed");
+        }
+        for status in [ServiceStatus::NotInstalled, ServiceStatus::Unknown] {
+            assert!(
+                !installed_from_status(status),
+                "{status:?} does not mean installed"
+            );
+        }
+    }
 }

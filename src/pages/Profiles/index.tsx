@@ -10,6 +10,7 @@ import {
   LinkRegular,
   OpenRegular,
   SaveRegular,
+  ShareRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
@@ -26,8 +27,8 @@ import { DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES } from "../../types/app";
 
 export default function Profiles() {
   const profiles = useConfigStore((s) => s.profiles);
-  const selectedDisplay = useSettingsStore(
-    (s) => s.settings.profiles.selected_config_display,
+  const selectedProfileId = useSettingsStore(
+    (s) => s.settings.profiles.selected_profile_id,
   );
   const pendingOperation = useConfigStore((s) => s.pendingOperation);
 
@@ -39,6 +40,8 @@ export default function Profiles() {
     initializeConfigs,
     selectConfig,
     selectConfigFile,
+    selectProfileFile,
+    exportProfileFile,
     addSubscription,
     updateSubscription,
     deleteConfig,
@@ -83,6 +86,14 @@ export default function Profiles() {
           onClick={() => void selectConfigFile()}
         >
           Import Local
+        </Button>
+        <Button
+          icon={<ShareRegular />}
+          variant="subtle"
+          onClick={() => void selectProfileFile()}
+          title="Import a .bpf profile shared from another sing-box client"
+        >
+          Import Shared
         </Button>
         <Button
           icon={<CloudArrowDownRegular />}
@@ -162,14 +173,17 @@ export default function Profiles() {
                   key={file.id}
                   name={file.name}
                   url={file.url ?? ""}
-                  lastUpdated={file.lastUpdated}
+                  lastUpdated={file.lastUpdated ?? undefined}
                   autoUpdate={file.autoUpdate}
-                  updateIntervalMinutes={file.updateIntervalMinutes}
-                  selected={selectedDisplay === file.name}
+                  updateIntervalMinutes={
+                    file.updateIntervalMinutes ?? undefined
+                  }
+                  selected={selectedProfileId === file.id}
                   onSelect={() => void selectConfig(file)}
                   onUpdate={() => updateSubscription(file.id)}
                   onOpen={() => void openConfigFile(file.id)}
                   onDelete={() => void deleteConfig(file.id)}
+                  onExport={() => void exportProfileFile(file.id, file.name)}
                   onToggleAutoUpdate={(enabled, minutes) =>
                     void setAutoUpdate(file.id, enabled, minutes)
                   }
@@ -197,16 +211,16 @@ export default function Profiles() {
           ) : (
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               {localFiles.map((file) => {
-                const isSelected = selectedDisplay === file.name;
+                const isSelected = selectedProfileId === file.id;
                 return (
                   <LocalFileCard
                     key={file.id}
                     name={file.name}
-                    path={file.path}
                     selected={isSelected}
                     onSelect={() => void selectConfig(file)}
                     onOpen={() => void openConfigFile(file.id)}
                     onDelete={() => void deleteConfig(file.id)}
+                    onExport={() => void exportProfileFile(file.id, file.name)}
                     onRename={(newName) => void renameConfig(file.id, newName)}
                   />
                 );
@@ -233,19 +247,19 @@ async function renameAndEditSub(
 
 function LocalFileCard({
   name,
-  path,
   selected,
   onSelect,
   onOpen,
   onDelete,
+  onExport,
   onRename,
 }: {
   name: string;
-  path: string;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
   onDelete: () => void;
+  onExport: () => void;
   onRename: (newName: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -336,14 +350,11 @@ function LocalFileCard({
           <DocumentRegular className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
+          {/* 阶段 4 起内容文件按 UUID 命名，路径对用户没有信息量了
+              （`...\profiles3f2....json`），所以不再显示 —— 要看内容点
+              「打开配置文件」。 */}
           <p className="text-sm font-semibold truncate text-(--wb-text-primary)">
             {name}
-          </p>
-          <p
-            className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
-            title={path}
-          >
-            {path}
           </p>
         </div>
       </div>
@@ -366,6 +377,16 @@ function LocalFileCard({
             icon={<EditRegular />}
             onClick={startEdit}
             title="Rename"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ShareRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+            }}
+            title="Export as a shareable .bpf file"
           />
           <Button
             size="sm"
@@ -394,6 +415,7 @@ function SubscriptionCard({
   onUpdate,
   onOpen,
   onDelete,
+  onExport,
   onToggleAutoUpdate,
   onRename,
 }: {
@@ -407,6 +429,7 @@ function SubscriptionCard({
   onUpdate: () => Promise<boolean | void>;
   onOpen: () => void;
   onDelete: () => void;
+  onExport: () => void;
   onToggleAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
   onRename: (newName: string, newUrl: string) => void;
 }) {
@@ -564,14 +587,14 @@ function SubscriptionCard({
           <Button
             size="sm"
             variant="ghost"
-            className="group active:scale-90 transition-transform"
+            className="active:scale-90 transition-transform"
             icon={
               updateStatus === "updating" ? (
                 <ArrowClockwiseRegular className="animate-spin" />
               ) : updateStatus === "success" ? (
                 <CheckmarkRegular className="text-(--wb-accent) animate-pop-in" />
               ) : (
-                <ArrowClockwiseRegular className="transition-transform duration-500 group-hover:rotate-180" />
+                <ArrowClockwiseRegular />
               )
             }
             onClick={async (e) => {
@@ -605,6 +628,16 @@ function SubscriptionCard({
             icon={<EditRegular />}
             onClick={startEdit}
             title="Edit"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ShareRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+            }}
+            title="Export as a shareable .bpf file"
           />
           <Button
             size="sm"

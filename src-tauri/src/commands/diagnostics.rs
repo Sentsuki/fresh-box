@@ -1,23 +1,18 @@
-// Crash/error reporting commands — the frontend's read/write access to
-// `crash_reports`. Covers both directions: listing what's already been
-// recorded (native panics, via `logger.rs`), and letting the renderer
-// record its own errors (React errors caught by `ErrorBoundary`, which
-// previously only ever reached `console.error` and were gone the moment
-// the user closed the app — see `crash_reports`'s module doc comment).
+// Crash/error reporting commands — lets the renderer record its own errors
+// into `crash_reports`. Listing/reading/deleting recorded reports (native
+// panics from here and from sing-box core alike) lives in
+// `commands::reports` instead, merged with the daemon's own crash reports —
+// see that module's doc comment.
 
-use crate::crash_reports::{self, CrashReport};
+use crate::crash_reports;
 use crate::errors::CommandError;
-
-#[tauri::command]
-pub async fn list_crash_reports() -> Result<Vec<CrashReport>, CommandError> {
-    Ok(crash_reports::list())
-}
 
 /// Record a renderer-side error `ErrorBoundary` caught. `stack` is React's
 /// component stack (`ErrorInfo.componentStack`) appended after the JS
 /// error's own stack, when available — both are useful for tracing which
 /// page/component actually broke.
 #[tauri::command]
+#[specta::specta]
 pub async fn record_frontend_error(
     name: String,
     message: String,

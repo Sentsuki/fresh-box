@@ -16,11 +16,14 @@
 //                       each RPC call below builds a fresh typed client
 //                       wrapper around that shared channel rather than
 //                       fighting other callers over a `&mut` client.
-//                       `services/singbox.rs`, `services/daemon_control.rs`
-//                       and `services/streams.rs` each hold their own
-//                       cloned `DaemonConnection` and can issue calls
-//                       (including concurrent streaming subscriptions)
-//                       independently.
+//                       `services/singbox.rs` 和 `services/resident.rs` 各持
+//                       一份克隆，可以独立发起调用（包括并发的流式订阅）。
+//
+// 这里的类型化封装只剩 **Rust 自己要用的那些**：reconciliation loop 的连接握手、
+// 常驻订阅（托盘用的代理组 / Clash 模式）、以及托盘的切换动作。前端要的 RPC
+// 一个都不在这里 —— 它通过 `daemon::bridge` 字节透传直接调用，Rust 不认识那些
+// 方法。阶段 2/3 每迁走一块，这个文件就短一截：这正是「翻译层被移除」在代码
+// 量上的样子。
 
 use tonic::Streaming;
 use tonic::transport::Channel;
@@ -30,12 +33,15 @@ use crate::errors::CommandError;
 use super::daemon_api::managed_service_client::ManagedServiceClient;
 use super::daemon_api::started_service_client::StartedServiceClient;
 use super::daemon_api::{
-    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups, Log,
-    SelectOutboundRequest, ServiceStatus, Status, SubscribeConnectionsRequest,
-    SubscribeStatusRequest, UrlTestRequest,
+    ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups,
+    SelectOutboundRequest, ServiceStatus, SubscribeConnectionsRequest,
 };
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
-use super::desktop_api::{DaemonInfo, StartOptions, StartServiceRequest};
+use super::desktop_api::{
+    CrashReportArchive, CrashReportEntry, CrashReportExportRequest, CrashReportFile,
+    CrashReportRequest, DaemonInfo, OomReportEntry, OomReportExportRequest, OomReportFile,
+    OomReportRequest, StartOptions, StartServiceRequest,
+};
 use super::worker;
 
 fn map_status(context: &str, status: tonic::Status) -> CommandError {
@@ -46,13 +52,16 @@ fn map_status(context: &str, status: tonic::Status) -> CommandError {
     ))
 }
 
-/// `SubscribeStatusRequest.interval` / `SubscribeConnectionsRequest.interval`
-/// are fed straight into Go's `time.Duration(request.Interval)` on the
-/// daemon side (`StartedService.SubscribeStatus`/`SubscribeConnections` in
-/// `daemon/started_service.go` upstream) — `time.Duration` counts
-/// *nanoseconds*, not milliseconds. `subscribe_status`/`subscribe_connections`
-/// below take milliseconds (matching every caller's `_MS` constants), so
-/// convert here rather than at each call site.
+/// `SubscribeConnectionsRequest.interval` is fed straight into Go's
+/// `time.Duration(request.Interval)` on the daemon side
+/// (`StartedService.SubscribeConnections` in `daemon/started_service.go`
+/// upstream) — `time.Duration` counts *nanoseconds*, not milliseconds.
+/// `subscribe_connections` below takes milliseconds (matching its caller's
+/// `_MS` constant), so convert here rather than at the call site.
+///
+/// The frontend does this conversion itself now for the streams it
+/// subscribes to directly through the bridge — see
+/// `STATUS_INTERVAL_NANOS` in `src/daemon/statusStream.ts`.
 ///
 /// A non-positive value is passed through unchanged: the daemon's own
 /// `if interval <= 0 { interval = time.Second }` already does the right
@@ -70,6 +79,19 @@ pub struct DaemonClient {
     pub connection: DaemonConnection,
 }
 
+#[cfg(debug_assertions)]
+async fn connect_dev_tcp(address: &str) -> Result<Channel, CommandError> {
+    tracing::warn!(
+        %address,
+        "connecting to sing-box-daemon over TCP — development only, peer authentication is disabled"
+    );
+    tonic::transport::Endpoint::try_from(format!("http://{address}"))
+        .map_err(|e| CommandError::validation(format!("invalid FRESH_BOX_DAEMON_ADDR: {e}")))?
+        .connect()
+        .await
+        .map_err(|e| CommandError::network(format!("connect to daemon at {address}: {e}")))
+}
+
 impl DaemonClient {
     /// Connect through the process-wide shared worker (see
     /// `worker::shared_worker`), spawning one first if none is currently
@@ -78,6 +100,16 @@ impl DaemonClient {
     /// that no longer means respawning the worker itself, just redialing
     /// its relay pipe.
     pub async fn connect(daemon_executable: &std::path::Path) -> Result<Self, CommandError> {
+        // See `daemon::dev_daemon_address` — debug builds only.
+        #[cfg(debug_assertions)]
+        if let Some(address) = super::dev_daemon_address() {
+            return Ok(Self {
+                connection: DaemonConnection {
+                    channel: connect_dev_tcp(&address).await?,
+                },
+            });
+        }
+
         let worker = worker::shared_worker().get(daemon_executable).await?;
         // Dial the *relay* pipe, not the worker's own `--socket` pipe —
         // see the doc comment on `WorkerProcess::relay_socket_path`.
@@ -97,6 +129,17 @@ pub struct DaemonConnection {
 }
 
 impl DaemonConnection {
+    /// The underlying gRPC channel, for `daemon::bridge`'s byte-passthrough
+    /// proxy — it dials methods by `PathAndQuery` with its own codec rather
+    /// than through any of the typed wrappers below, so it needs the raw
+    /// channel. Cloning is just an Arc bump (see this type's doc comment).
+    ///
+    /// `pub` rather than `pub(crate)` only so `tests/bridge_e2e.rs` can hand
+    /// the bridge a channel the same way `commands::bridge` does.
+    pub fn raw_channel(&self) -> Channel {
+        self.channel.clone()
+    }
+
     fn desktop(&self) -> DesktopServiceClient<Channel> {
         DesktopServiceClient::new(self.channel.clone())
     }
@@ -136,10 +179,27 @@ impl DaemonConnection {
             .map_err(|e| map_status("claim daemon service", e))
     }
 
-    pub async fn start_service(&self, config_content: String) -> Result<(), CommandError> {
+    /// 从另一个 Windows 用户会话手里接管 daemon。
+    ///
+    /// `OwnedByOtherUser` 以前是个死胡同：相位建模了，但没有任何出口，用户只能
+    /// 去把对方的会话注销掉。boxdd 本来就提供了这个 RPC（上游
+    /// `desktop_service.go` 的 `TakeOverService`），只是之前没 vendor 进来。
+    pub async fn take_over_service(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .take_over_service(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("take over daemon service", e))
+    }
+
+    pub async fn start_service(
+        &self,
+        config_content: String,
+        options: StartOptions,
+    ) -> Result<(), CommandError> {
         let request = StartServiceRequest {
             config_content,
-            options: Some(StartOptions::default()),
+            options: Some(options),
         };
         self.desktop()
             .start_service(request)
@@ -168,19 +228,6 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to service status", e))
     }
 
-    pub async fn subscribe_status(
-        &self,
-        interval_ms: i64,
-    ) -> Result<Streaming<Status>, CommandError> {
-        self.started()
-            .subscribe_status(SubscribeStatusRequest {
-                interval: to_interval_nanos(interval_ms),
-            })
-            .await
-            .map(|r| r.into_inner())
-            .map_err(|e| map_status("subscribe to traffic/memory status", e))
-    }
-
     pub async fn subscribe_groups(&self) -> Result<Streaming<Groups>, CommandError> {
         self.started()
             .subscribe_groups(())
@@ -202,12 +249,20 @@ impl DaemonConnection {
             .map_err(|e| map_status("subscribe to connections", e))
     }
 
-    pub async fn subscribe_log(&self) -> Result<Streaming<Log>, CommandError> {
+    /// The current Clash mode, pushed on every change — what `services::resident`
+    /// keeps the tray's mode submenu checkmark in sync with.
+    ///
+    /// Carries only the mode string, not the list of available modes; pair it
+    /// with one `clash_mode_status()` call for that. Blocks on the daemon's
+    /// `waitForStarted` until a sing-box instance is actually running
+    /// (`started_service.go`), so a caller can subscribe eagerly at connect
+    /// time and let it come alive on its own once the instance starts.
+    pub async fn subscribe_clash_mode(&self) -> Result<Streaming<ClashMode>, CommandError> {
         self.started()
-            .subscribe_log(())
+            .subscribe_clash_mode(())
             .await
             .map(|r| r.into_inner())
-            .map_err(|e| map_status("subscribe to logs", e))
+            .map_err(|e| map_status("subscribe to clash mode", e))
     }
 
     pub async fn clash_mode_status(&self) -> Result<ClashModeStatus, CommandError> {
@@ -224,14 +279,6 @@ impl DaemonConnection {
             .await
             .map(|_| ())
             .map_err(|e| map_status("set clash mode", e))
-    }
-
-    pub async fn url_test(&self, outbound_tag: String) -> Result<(), CommandError> {
-        self.started()
-            .url_test(UrlTestRequest { outbound_tag })
-            .await
-            .map(|_| ())
-            .map_err(|e| map_status("test proxy delay", e))
     }
 
     pub async fn select_outbound(
@@ -257,11 +304,192 @@ impl DaemonConnection {
             .map_err(|e| map_status("close connection", e))
     }
 
-    pub async fn close_all_connections(&self) -> Result<(), CommandError> {
-        self.started()
-            .close_all_connections(())
+    // ── DesktopService: crash/OOM/power reports ─────────────────────────
+
+    pub async fn list_crash_reports(&self) -> Result<Vec<CrashReportEntry>, CommandError> {
+        self.desktop()
+            .list_crash_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list crash reports", e))
+    }
+
+    pub async fn read_crash_report(
+        &self,
+        name: String,
+    ) -> Result<Vec<CrashReportFile>, CommandError> {
+        self.desktop()
+            .read_crash_report(CrashReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read crash report", e))
+    }
+
+    /// 打包一份崩溃报告，拿回 zip 的字节。
+    ///
+    /// 上游还有一个 `ArchiveReport`，由 daemon 自己决定写到哪个路径；这里用
+    /// 的是把字节交回来的这个，落盘位置由用户在保存对话框里选。
+    ///
+    /// `encrypt` 没有暴露出去：加密用的是上游内置的公钥，只有 sing-box 作者
+    /// 能解 —— 那是给「提 issue 但不想公开配置」用的，需要时再加。
+    pub async fn export_crash_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_crash_report(CrashReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export crash report", e))
+    }
+
+    pub async fn export_oom_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_oom_report(OomReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export OOM report", e))
+    }
+
+    pub async fn export_power_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_power_report(OomReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export power report", e))
+    }
+
+    pub async fn mark_crash_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_crash_report_read(CrashReportRequest { name })
             .await
             .map(|_| ())
-            .map_err(|e| map_status("close all connections", e))
+            .map_err(|e| map_status("mark crash report read", e))
+    }
+
+    pub async fn delete_crash_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_crash_report(CrashReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete crash report", e))
+    }
+
+    pub async fn delete_all_crash_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_crash_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all crash reports", e))
+    }
+
+    pub async fn list_oom_reports(&self) -> Result<Vec<OomReportEntry>, CommandError> {
+        self.desktop()
+            .list_oom_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list OOM reports", e))
+    }
+
+    pub async fn read_oom_report(&self, name: String) -> Result<Vec<OomReportFile>, CommandError> {
+        self.desktop()
+            .read_oom_report(OomReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read OOM report", e))
+    }
+
+    pub async fn mark_oom_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_oom_report_read(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("mark OOM report read", e))
+    }
+
+    pub async fn delete_oom_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_oom_report(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete OOM report", e))
+    }
+
+    pub async fn delete_all_oom_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_oom_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all OOM reports", e))
+    }
+
+    pub async fn list_power_reports(&self) -> Result<Vec<OomReportEntry>, CommandError> {
+        self.desktop()
+            .list_power_reports(())
+            .await
+            .map(|r| r.into_inner().reports)
+            .map_err(|e| map_status("list power reports", e))
+    }
+
+    pub async fn read_power_report(
+        &self,
+        name: String,
+    ) -> Result<Vec<OomReportFile>, CommandError> {
+        self.desktop()
+            .read_power_report(OomReportRequest { name })
+            .await
+            .map(|r| r.into_inner().files)
+            .map_err(|e| map_status("read power report", e))
+    }
+
+    pub async fn mark_power_report_read(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .mark_power_report_read(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("mark power report read", e))
+    }
+
+    pub async fn delete_power_report(&self, name: String) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_power_report(OomReportRequest { name })
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete power report", e))
+    }
+
+    pub async fn delete_all_power_reports(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .delete_all_power_reports(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("delete all power reports", e))
     }
 }

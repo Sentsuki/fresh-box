@@ -25,6 +25,11 @@ const MAX_REPORTS: usize = 50;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct CrashReport {
+    /// The report's file stem (`safe_timestamp_filename` output) —
+    /// stable identity for `read`/`delete`, independent of `time`'s own
+    /// (differently-formatted) RFC3339 string.
+    #[serde(default)]
+    pub id: String,
     /// `"panic"` (native Rust panic, from `logger.rs`) or `"renderer"` (a
     /// React error caught by `ErrorBoundary`).
     pub source: String,
@@ -59,13 +64,15 @@ pub fn write(source: &str, summary: &str, details: &str) -> Option<PathBuf> {
     std::fs::create_dir_all(&dir).ok()?;
 
     let now = chrono::Utc::now();
+    let id = safe_timestamp_filename(now);
     let report = CrashReport {
+        id: id.clone(),
         source: source.to_string(),
         time: now.to_rfc3339(),
         summary: summary.to_string(),
         details: details.to_string(),
     };
-    let path = dir.join(format!("{}.json", safe_timestamp_filename(now)));
+    let path = dir.join(format!("{id}.json"));
     let content = serde_json::to_string_pretty(&report).ok()?;
     std::fs::write(&path, content).ok()?;
 
@@ -109,4 +116,88 @@ pub fn list() -> Vec<CrashReport> {
         .collect();
     reports.sort_by(|a, b| b.time.cmp(&a.time));
     reports
+}
+
+/// 报告 id 只允许 `safe_timestamp_filename` 会产出的那些字符。
+///
+/// 这两个函数的 `id` 来自前端，会被直接拼进文件名（`{id}.json`）。同一个代码
+/// 库对 profile 路径有严格护栏，这里却什么都没有 —— 一个带 `..` 的 id 就能读到
+/// 或删掉别处的 `.json`（审计项 M-12）。前端确实可信，但这是纵深防御上的不一
+/// 致，补上成本几乎为零。
+fn is_valid_report_id(id: &str) -> bool {
+    // 首字符必须是字母数字：这样 `..`、`.foo` 这类以点开头的都被挡在外面，
+    // 而 `safe_timestamp_filename` 产出的 id 一律以年份数字开头。
+    id.len() <= 64
+        && id.starts_with(|c: char| c.is_ascii_alphanumeric())
+        && !id.contains("..")
+        && id
+            .chars()
+            .all(|c| c.is_ascii_alphanumeric() || matches!(c, '-' | '.'))
+}
+
+/// Read a single report by its `id` (see `list`), for the Advanced page's
+/// crash report detail view.
+pub fn read(id: &str) -> Option<CrashReport> {
+    if !is_valid_report_id(id) {
+        return None;
+    }
+    let dir = reports_dir()?;
+    let content = std::fs::read_to_string(dir.join(format!("{id}.json"))).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Delete one report by `id`. Best-effort like `write` — `true` if a file
+/// was actually removed.
+pub fn delete(id: &str) -> bool {
+    if !is_valid_report_id(id) {
+        return false;
+    }
+    let Some(dir) = reports_dir() else {
+        return false;
+    };
+    std::fs::remove_file(dir.join(format!("{id}.json"))).is_ok()
+}
+
+/// Delete every stored report.
+pub fn delete_all() {
+    let Some(dir) = reports_dir() else {
+        return;
+    };
+    let Ok(entries) = std::fs::read_dir(&dir) else {
+        return;
+    };
+    for entry in entries.filter_map(|e| e.ok()) {
+        if entry.path().extension().and_then(|s| s.to_str()) == Some("json") {
+            let _ = std::fs::remove_file(entry.path());
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    #[test]
+    fn accepts_ids_this_module_actually_produces() {
+        let id = safe_timestamp_filename(chrono::Utc::now());
+        assert!(
+            is_valid_report_id(&id),
+            "generated id must be accepted: {id}"
+        );
+    }
+
+    #[test]
+    fn rejects_path_traversal_and_separators() {
+        let hostile = ["..", "../x", r"..\..\configpp_settings", "a/b", r"a", ""];
+        for id in hostile {
+            assert!(!is_valid_report_id(id), "must reject {id:?}");
+        }
+    }
+
+    #[test]
+    fn reading_or_deleting_a_hostile_id_is_refused_outright() {
+        let hostile = r"..\..\configpp_settings";
+        assert!(read(hostile).is_none());
+        assert!(!delete(hostile));
+    }
 }
