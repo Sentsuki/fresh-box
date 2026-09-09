@@ -15,7 +15,6 @@ mod window_state;
 mod window_utils;
 
 use services::singbox::{SingboxState, retry_connection, spawn_reconciliation_loop};
-use std::time::Duration;
 use tauri::{Emitter, Manager};
 use tauri_plugin_autostart::MacosLauncher;
 
@@ -145,29 +144,23 @@ fn main() {
                 // solely on those two events to have already caught it.
                 window_state::persist(window);
 
-                let close_behavior = window
-                    .app_handle()
-                    .state::<config::app_settings::BackendPrefsState>()
-                    .get()
-                    .close_behavior;
-
                 // 通知前端窗口即将不可见，触发流暂停与缓存清理
                 let _ = window.emit("window-visibility-changed", false);
 
-                let window_clone = window.clone();
-                if close_behavior == "destroy" {
-                    // 通知运行时：窗口将销毁，保持进程存活
-                    window_utils::set_keep_alive(true);
-                    // 直接销毁窗口（不会再次触发 CloseRequested）
-                    if let Err(e) = window_clone.destroy() {
-                        tracing::error!(error = %e, "failed to destroy window");
-                        window_utils::set_keep_alive(false);
-                    }
-                } else {
-                    // hide 模式：隐藏窗口，保持后台运行
-                    window_utils::run_after_delay(Duration::from_millis(10), move || {
-                        let _ = window_clone.hide();
-                    });
+                // 关窗一律**销毁** webview，没有「隐藏到托盘」那个选项了。
+                //
+                // 以前两种行为并存，是因为托盘和通知都依赖前端还活着：窗口一
+                // 销毁，托盘菜单就再也不更新、sing-box 崩了也不会有通知，于是
+                // 只能让用户在「省内存」和「托盘可用」之间自己选一个。
+                //
+                // 现在这两件事都在 Rust 常驻（`services::resident` 订阅代理组
+                // 与 Clash 模式，`spawn_notifier` 发通知），窗口在不在都一样，
+                // 那个取舍就不存在了 —— 隐藏模式只剩「白留着一个 WebView2
+                // 进程」这一个效果，所以直接去掉。
+                window_utils::set_keep_alive(true);
+                if let Err(e) = window.destroy() {
+                    tracing::error!(error = %e, "failed to destroy window");
+                    window_utils::set_keep_alive(false);
                 }
             }
             tauri::WindowEvent::Focused(true) => {

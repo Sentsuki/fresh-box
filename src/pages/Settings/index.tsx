@@ -1,7 +1,6 @@
 import {
   ArrowDownloadRegular,
   BoxRegular,
-  DismissRegular,
   DocumentTextRegular,
   FolderOpenRegular,
   InfoRegular,
@@ -41,10 +40,6 @@ import type { ThemeMode } from "../../types/app";
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
-  const closeBehavior = useSettingsStore(
-    (s) => s.settings.settings.close_behavior,
-  );
-  const setCloseBehavior = useSettingsStore((s) => s.setCloseBehavior);
   const autoCloseConnections = useSettingsStore(
     (s) => s.settings.settings.auto_close_connections,
   );
@@ -303,23 +298,6 @@ export default function Settings() {
               </Button>
             }
           />
-          <SettingCard
-            icon={<DismissRegular />}
-            title="Close Button Behavior"
-            description="Choose what happens when the window close button is clicked"
-            control={
-              <Select
-                value={closeBehavior}
-                onChange={(e) =>
-                  void setCloseBehavior(e.target.value as "hide" | "destroy")
-                }
-              >
-                <option value="hide">Hide to tray</option>
-                <option value="destroy">Destroy window</option>
-              </Select>
-            }
-          />
-
           <SettingCard
             icon={<LinkRegular />}
             title="Auto Close Connections on Switch"

@@ -174,7 +174,6 @@ export function createDefaultAppSettings(): AppSettings {
     },
     settings: {
       theme_mode: "system",
-      close_behavior: "hide",
       auto_close_connections: true,
     },
     updates: {
@@ -355,8 +354,6 @@ export function normalizeAppSettings(
         settings.settings?.theme_mode === "system"
           ? settings.settings.theme_mode
           : "system",
-      close_behavior:
-        settings.settings?.close_behavior === "destroy" ? "destroy" : "hide",
       auto_close_connections: settings.settings?.auto_close_connections ?? true,
     },
     updates: {

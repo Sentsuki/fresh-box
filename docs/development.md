@@ -162,7 +162,8 @@ Get-CimInstance Win32_Process -Filter "Name='sing-box-daemon.exe'" |
 
 ## 验证流是否泄漏
 
-销毁模式（关窗 = 销毁 webview）下每次开关窗口都会新建一批订阅，漏收就会在
+关窗就是销毁 webview（没有「隐藏到托盘」这个选项了 —— 托盘和通知都在 Rust
+常驻，窗口在不在都一样），所以每次开关窗口都会新建一批订阅，漏收就会在
 daemon 那边越攒越多。回收有两道保险（`WindowEvent::Destroyed` + `Channel::send`
 失败自取消，见 `daemon::bridge::registry`），机制部分由
 `cargo test daemon::bridge::registry` 覆盖。

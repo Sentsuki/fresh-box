@@ -49,13 +49,12 @@ describe("normalizeAppSettings", () => {
     const settings = normalizeAppSettings(
       stored({
         app: { current_page: "logs" },
-        settings: { theme_mode: "dark", close_behavior: "destroy" },
+        settings: { theme_mode: "dark" },
         logs: { type_filter: "error" },
       }),
     );
     expect(settings.app.current_page).toBe("logs");
     expect(settings.settings.theme_mode).toBe("dark");
-    expect(settings.settings.close_behavior).toBe("destroy");
     expect(settings.logs.type_filter).toBe("error");
   });
 

@@ -42,7 +42,6 @@ pub struct ProfilesSettings {
 #[serde(default)]
 pub struct AppDisplaySettings {
     pub theme_mode: String,
-    pub close_behavior: String,
     pub auto_close_connections: bool,
 }
 
@@ -80,7 +79,7 @@ pub struct LogsPageSettings {
 /// (`check_update_enabled`, `update_check_prompted`,
 /// `last_shown_update_version` in `updates.ts`). None of this belongs in
 /// `AppDisplaySettings`/`BackendPrefsState` — the backend never reads any
-/// of it, unlike `close_behavior`/`auto_close_connections`.
+/// of it, unlike `auto_close_connections`.
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
 #[serde(default)]
 pub struct UpdateSettings {
@@ -145,7 +144,6 @@ impl Default for AppDisplaySettings {
     fn default() -> Self {
         Self {
             theme_mode: "system".to_string(),
-            close_behavior: "hide".to_string(),
             auto_close_connections: true,
         }
     }

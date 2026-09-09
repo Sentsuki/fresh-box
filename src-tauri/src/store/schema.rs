@@ -73,7 +73,7 @@ pub fn migrate(connection: &Connection) -> Result<(), CommandError> {
             --
             -- 这结构性地解决了 `backend_prefs.json` 当初拆出来要解决的问题：
             -- 那时是因为 `app_settings.json` 里任何一处解析失败，都会把后端
-            -- 依赖的 close_behavior / auto_close_connections 一起打回默认值。
+            -- 依赖的 auto_close_connections 一起打回默认值。
             -- 现在一个区坏了碰不到别的区，后端也只读它要的那一区。
             CREATE TABLE IF NOT EXISTS settings (
                 scope TEXT NOT NULL,

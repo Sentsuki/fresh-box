@@ -4,8 +4,8 @@
 // `config_override.json` 四个文件。
 //
 // 分区不是为了好看：`backend_prefs.json` 当初从 `app_settings.json` 里拆出来，
-// 是因为后者任何一处解析失败都会把后端依赖的 `close_behavior` /
-// `auto_close_connections` 一起打回默认值（哪怕坏的是表格列宽这种无关字段）。
+// 是因为后者任何一处解析失败都会把后端依赖的 `auto_close_connections` 一起
+// 打回默认值（哪怕坏的是表格列宽这种无关字段）。
 // 一区一行之后，这个问题变成 schema 的自然性质，不需要再靠「拆一个文件出来」
 // 这种手工隔离。
 
@@ -119,7 +119,7 @@ mod tests {
 
     #[derive(Debug, Default, PartialEq, serde::Serialize, serde::Deserialize)]
     struct Behavior {
-        close_behavior: String,
+        theme_mode: String,
         auto_close_connections: bool,
     }
 
@@ -127,7 +127,7 @@ mod tests {
     fn round_trips_a_section() {
         let store = Store::open_in_memory().expect("store");
         let value = Behavior {
-            close_behavior: "destroy".into(),
+            theme_mode: "dark".into(),
             auto_close_connections: true,
         };
         set(&store, SCOPE_APP, KEY_BEHAVIOR, &value).expect("write");
@@ -149,7 +149,7 @@ mod tests {
         // 默认值。现在坏的那一区自己回默认，别的区毫发无损。
         let store = Store::open_in_memory().expect("store");
         let good = Behavior {
-            close_behavior: "destroy".into(),
+            theme_mode: "dark".into(),
             auto_close_connections: true,
         };
         set(&store, SCOPE_APP, KEY_BEHAVIOR, &good).expect("write good section");

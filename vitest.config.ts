@@ -10,5 +10,17 @@ export default defineConfig({
   test: {
     environment: "node",
     include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
+    coverage: {
+      // 生成产物和组件不算进分母：前者不是我们写的，后者这套测试本来就不
+      // 渲染（要测得起 jsdom + testing-library，另一笔投入）。剩下的就是
+      // 「有逻辑、可以测」的那部分，数字才有参考意义。
+      include: [
+        "src/daemon/**/*.ts",
+        "src/hooks/*.ts",
+        "src/types/app.ts",
+        "src/services/*.ts",
+      ],
+      exclude: ["src/**/*.test.ts", "src/gen/**"],
+    },
   },
 });
