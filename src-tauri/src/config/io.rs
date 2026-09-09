@@ -6,7 +6,6 @@ use crate::errors::CommandError;
 use std::fs;
 use std::path::Path;
 
-
 /// 原子写：先在同目录写临时文件，再 rename 覆盖目标。
 ///
 /// 同一文件系统内的 rename 是单个原子操作 —— 读者（以及崩溃 / 断电）只会看到
@@ -14,10 +13,16 @@ use std::path::Path;
 /// `atomicWriteFile`（`src/main/profiles.ts`），它每一次档案写入也都走这里。
 pub fn atomic_write(path: &Path, content: &[u8]) -> Result<(), CommandError> {
     let dir = path.parent().ok_or_else(|| {
-        CommandError::invalid_state("atomic_write", format!("{} has no parent directory", path.display()))
+        CommandError::invalid_state(
+            "atomic_write",
+            format!("{} has no parent directory", path.display()),
+        )
     })?;
     let file_name = path.file_name().and_then(|n| n.to_str()).ok_or_else(|| {
-        CommandError::invalid_state("atomic_write", format!("{} has no valid file name", path.display()))
+        CommandError::invalid_state(
+            "atomic_write",
+            format!("{} has no valid file name", path.display()),
+        )
     })?;
 
     let nanos = std::time::SystemTime::now()

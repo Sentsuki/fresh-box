@@ -57,8 +57,9 @@ async fn read_limited_response(
     let mut stream = response.bytes_stream();
     let mut buf: Vec<u8> = Vec::new();
     while let Some(chunk) = stream.next().await {
-        let chunk = chunk
-            .map_err(|e| CommandError::network(format!("Failed to read subscription content: {e}")))?;
+        let chunk = chunk.map_err(|e| {
+            CommandError::network(format!("Failed to read subscription content: {e}"))
+        })?;
         buf.extend_from_slice(&chunk);
         if buf.len() > max_bytes {
             return Err(CommandError::validation(format!(
@@ -67,8 +68,9 @@ async fn read_limited_response(
         }
     }
 
-    String::from_utf8(buf)
-        .map_err(|e| CommandError::validation(format!("Subscription response is not valid UTF-8: {e}")))
+    String::from_utf8(buf).map_err(|e| {
+        CommandError::validation(format!("Subscription response is not valid UTF-8: {e}"))
+    })
 }
 
 /// 从订阅 URL 派生一个**显示名**。
@@ -120,7 +122,10 @@ fn open_with_system(path: &str) -> Result<(), CommandError> {
     } else {
         Err(CommandError::resource_not_found(
             "path",
-            format!("failed to open '{path}' (ShellExecuteW error code {})", result.0 as isize),
+            format!(
+                "failed to open '{path}' (ShellExecuteW error code {})",
+                result.0 as isize
+            ),
         ))
     }
 }
@@ -168,7 +173,10 @@ pub struct ProfileOperationResult {
     pub profiles: Vec<profiles::Profile>,
 }
 
-fn result_for(store: &Store, entry: profiles::Profile) -> Result<ProfileOperationResult, CommandError> {
+fn result_for(
+    store: &Store,
+    entry: profiles::Profile,
+) -> Result<ProfileOperationResult, CommandError> {
     Ok(ProfileOperationResult {
         entry,
         profiles: profiles::list(store)?,
@@ -229,7 +237,10 @@ async fn fetch_subscription(url: &str) -> Result<String, CommandError> {
         .map_err(|e| CommandError::network(format!("Failed to fetch subscription: {e}")))?;
 
     if !response.status().is_success() {
-        return Err(CommandError::network(format!("HTTP error {}", response.status())));
+        return Err(CommandError::network(format!(
+            "HTTP error {}",
+            response.status()
+        )));
     }
 
     let content = read_limited_response(response, MAX_SUBSCRIPTION_BYTES).await?;
@@ -412,8 +423,14 @@ mod tests {
 
     #[test]
     fn display_name_comes_from_the_url_tail() {
-        assert_eq!(display_name_from_url("https://a.example/x/my-sub.json"), "my-sub");
-        assert_eq!(display_name_from_url("https://a.example/sub?token=1"), "sub");
+        assert_eq!(
+            display_name_from_url("https://a.example/x/my-sub.json"),
+            "my-sub"
+        );
+        assert_eq!(
+            display_name_from_url("https://a.example/sub?token=1"),
+            "sub"
+        );
         assert_eq!(display_name_from_url("https://a.example/"), "subscription");
     }
 

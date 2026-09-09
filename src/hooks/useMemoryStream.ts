@@ -1,8 +1,5 @@
 import { create } from "zustand";
-import {
-  startStatusStream,
-  stopStatusStream,
-} from "../daemon/statusStream";
+import { startStatusStream, stopStatusStream } from "../daemon/statusStream";
 
 interface MemoryState {
   inuse: number;

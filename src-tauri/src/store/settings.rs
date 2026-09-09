@@ -83,8 +83,8 @@ pub fn set<T: Serialize>(
     key: &str,
     value: &T,
 ) -> Result<(), CommandError> {
-    let encoded = serde_json::to_string(value)
-        .map_err(|e| CommandError::json("serialize setting", e))?;
+    let encoded =
+        serde_json::to_string(value).map_err(|e| CommandError::json("serialize setting", e))?;
     store.with(|connection| {
         connection
             .execute(
@@ -168,7 +168,10 @@ mod tests {
         let broken: Behavior = get_or_default(&store, SCOPE_APP, "broken").expect("read");
         assert_eq!(broken, Behavior::default());
         let intact: Behavior = get_or_default(&store, SCOPE_APP, KEY_BEHAVIOR).expect("read");
-        assert_eq!(intact, good, "a corrupt neighbour must not affect this section");
+        assert_eq!(
+            intact, good,
+            "a corrupt neighbour must not affect this section"
+        );
     }
 
     /// 选中的档案 id 必须和前端读的是同一个键 —— 曾经不是（后端另开了一个

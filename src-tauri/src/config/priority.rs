@@ -55,7 +55,6 @@ pub(crate) fn load_priority_config_inner(store: &Store) -> Result<PriorityConfig
     settings::get_or_default(store, settings::SCOPE_APP, KEY_PRIORITY)
 }
 
-
 #[derive(serde::Serialize, serde::Deserialize, specta::Type)]
 pub struct ConfigFieldsCheck {
     pub has_stack_field: bool,
@@ -288,7 +287,10 @@ pub fn apply_clash_api_config(
     // 表，启动时回填 —— daemon 仍是运行期唯一真相源，我们只是把它上次说的话
     // 记住了。
     let mut clash_api = serde_json::Map::new();
-    clash_api.insert("external_controller".to_string(), Value::String(String::new()));
+    clash_api.insert(
+        "external_controller".to_string(),
+        Value::String(String::new()),
+    );
     if let Some(mode) = default_mode.filter(|m| !m.is_empty()) {
         clash_api.insert("default_mode".to_string(), Value::String(mode.to_string()));
     }
@@ -325,7 +327,10 @@ mod tests {
         // （`experimental/clashapi/server.go`）。
         let mut config = json!({});
         apply_clash_api_config(&mut config, None).unwrap();
-        assert_eq!(config["experimental"]["clash_api"]["external_controller"], "");
+        assert_eq!(
+            config["experimental"]["clash_api"]["external_controller"],
+            ""
+        );
     }
 
     #[test]
@@ -335,7 +340,9 @@ mod tests {
         let mut config = json!({});
         apply_clash_api_config(&mut config, None).unwrap();
         assert!(
-            config["experimental"]["clash_api"].get("default_mode").is_none(),
+            config["experimental"]["clash_api"]
+                .get("default_mode")
+                .is_none(),
             "must not invent a default_mode"
         );
     }
@@ -344,14 +351,21 @@ mod tests {
     fn default_mode_is_written_back_when_known() {
         let mut config = json!({});
         apply_clash_api_config(&mut config, Some("global")).unwrap();
-        assert_eq!(config["experimental"]["clash_api"]["default_mode"], "global");
+        assert_eq!(
+            config["experimental"]["clash_api"]["default_mode"],
+            "global"
+        );
     }
 
     #[test]
     fn an_empty_remembered_mode_counts_as_unknown() {
         let mut config = json!({});
         apply_clash_api_config(&mut config, Some("")).unwrap();
-        assert!(config["experimental"]["clash_api"].get("default_mode").is_none());
+        assert!(
+            config["experimental"]["clash_api"]
+                .get("default_mode")
+                .is_none()
+        );
     }
 
     #[test]
@@ -366,8 +380,16 @@ mod tests {
 
     #[test]
     fn log_settings_overwrite_whatever_the_profile_said() {
-        let mut config = json!({ "log": { "disabled": false, "level": "trace", "output": "x.log" } });
-        apply_log_config(&mut config, &LogConfig { disabled: true, level: "warn".into() }).unwrap();
+        let mut config =
+            json!({ "log": { "disabled": false, "level": "trace", "output": "x.log" } });
+        apply_log_config(
+            &mut config,
+            &LogConfig {
+                disabled: true,
+                level: "warn".into(),
+            },
+        )
+        .unwrap();
         assert_eq!(config["log"]["disabled"], true);
         assert_eq!(config["log"]["level"], "warn");
         // 只覆盖这两个键，别的保留。
@@ -377,7 +399,14 @@ mod tests {
     #[test]
     fn log_block_is_created_when_absent() {
         let mut config = json!({});
-        apply_log_config(&mut config, &LogConfig { disabled: false, level: "info".into() }).unwrap();
+        apply_log_config(
+            &mut config,
+            &LogConfig {
+                disabled: false,
+                level: "info".into(),
+            },
+        )
+        .unwrap();
         assert_eq!(config["log"]["level"], "info");
     }
 
@@ -413,7 +442,12 @@ mod tests {
         // 没有 TUN 入站 → stack 那步失败，但 log 和 clash_api 仍必须生效，
         // 否则 sing-box 起来之后代理页整个是空的。
         let mut config = json!({ "inbounds": [{ "type": "mixed" }] });
-        apply_priority_config(&mut config, &priority("gvisor", true, "error"), Some("rule")).unwrap();
+        apply_priority_config(
+            &mut config,
+            &priority("gvisor", true, "error"),
+            Some("rule"),
+        )
+        .unwrap();
         assert_eq!(config["log"]["disabled"], true);
         assert_eq!(config["log"]["level"], "error");
         assert_eq!(config["experimental"]["clash_api"]["default_mode"], "rule");

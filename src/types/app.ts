@@ -42,7 +42,9 @@ import type * as Host from "../gen/host";
  * `normalizeAppSettings` 在 IPC 边界上补齐一次。
  */
 export type AppSettings = {
-  app: Omit<Required<Host.AppConfig>, "current_page"> & { current_page: AppPage };
+  app: Omit<Required<Host.AppConfig>, "current_page"> & {
+    current_page: AppPage;
+  };
   proxies: Required<Host.ProxyPageSettings>;
   // Rust 侧这些是 `String`/`Vec<String>`（存储层不该知道有哪些列、有哪些标签
   // 页）。前端知道得更具体，所以在这里收窄 —— 这不是重抄类型，是给同一个
@@ -116,8 +118,6 @@ export type LogLevel =
 export const MINIMUM_AUTO_UPDATE_INTERVAL_MINUTES = 15;
 /** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
 export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
-
-
 
 export const DEFAULT_CONNECTION_COLUMN_ORDER: ConnectionColumnKey[] = [
   "host",
@@ -523,4 +523,3 @@ export interface StunTestOptions {
   server: string;
   outboundTag: string;
 }
-

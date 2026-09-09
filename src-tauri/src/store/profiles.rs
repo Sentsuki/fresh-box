@@ -270,7 +270,10 @@ pub fn delete(store: &Store, id: &str) -> Result<(), CommandError> {
 pub fn set_url(store: &Store, id: &str, url: &str) -> Result<(), CommandError> {
     store.with(|connection| {
         let affected = connection
-            .execute("UPDATE profiles SET url = ?2 WHERE id = ?1", params![id, url])
+            .execute(
+                "UPDATE profiles SET url = ?2 WHERE id = ?1",
+                params![id, url],
+            )
             .map_err(|e| CommandError::io("update subscription url", e))?;
         if affected == 0 {
             return Err(CommandError::resource_not_found(
@@ -310,7 +313,9 @@ mod tests {
     use super::*;
 
     fn utc(s: &str) -> chrono::DateTime<chrono::Utc> {
-        chrono::DateTime::parse_from_rfc3339(s).unwrap().with_timezone(&chrono::Utc)
+        chrono::DateTime::parse_from_rfc3339(s)
+            .unwrap()
+            .with_timezone(&chrono::Utc)
     }
 
     fn profile(auto_update: bool, last_updated: Option<&str>, interval: Option<u32>) -> Profile {
@@ -327,13 +332,19 @@ mod tests {
     #[test]
     fn interval_never_goes_below_the_floor() {
         assert_eq!(interval_or_default(None), DEFAULT_UPDATE_INTERVAL_MINUTES);
-        assert_eq!(interval_or_default(Some(1)), MINIMUM_UPDATE_INTERVAL_MINUTES);
+        assert_eq!(
+            interval_or_default(Some(1)),
+            MINIMUM_UPDATE_INTERVAL_MINUTES
+        );
         assert_eq!(interval_or_default(Some(120)), 120);
     }
 
     #[test]
     fn a_never_fetched_subscription_is_due_immediately() {
-        assert!(is_due(&profile(true, None, None), utc("2026-01-01T00:00:00Z")));
+        assert!(is_due(
+            &profile(true, None, None),
+            utc("2026-01-01T00:00:00Z")
+        ));
     }
 
     #[test]

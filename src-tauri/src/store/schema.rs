@@ -127,7 +127,9 @@ mod tests {
 
         let insert = "INSERT INTO profiles (id, name, url, created_at, sort_order)
                       VALUES (?1, ?2, NULL, '2026-01-01T00:00:00Z', 0)";
-        connection.execute(insert, ["id-a", "sub"]).expect("first insert");
+        connection
+            .execute(insert, ["id-a", "sub"])
+            .expect("first insert");
         let error = connection
             .execute(insert, ["id-b", "sub"])
             .expect_err("a second profile with the same display name must be rejected");
@@ -143,7 +145,9 @@ mod tests {
         migrate(&connection).expect("migration");
         let insert = "INSERT INTO profiles (id, name, url, created_at, sort_order)
                       VALUES (?1, ?2, NULL, '2026-01-01T00:00:00Z', 0)";
-        connection.execute(insert, ["id-a", "sub"]).expect("first insert");
+        connection
+            .execute(insert, ["id-a", "sub"])
+            .expect("first insert");
         connection
             .execute("UPDATE profiles SET name = 'sub (1)' WHERE id = 'id-a'", [])
             .expect("rename");

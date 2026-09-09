@@ -84,8 +84,8 @@ async fn bridge_round_trips_a_real_protobuf_message() {
 
     // Rust 侧全程没有解析过这些字节 —— 这里解一次只是为了断言它们确实是一条
     // 结构正确的消息，也就是前端会拿到的同一串字节。
-    let started = StartedAt::decode(response.as_slice())
-        .expect("bridge response decodes as a StartedAt");
+    let started =
+        StartedAt::decode(response.as_slice()).expect("bridge response decodes as a StartedAt");
 
     eprintln!(
         "bridge round-trip ok: startedAt={} ({} bytes over the wire)",
@@ -236,7 +236,10 @@ async fn server_streaming_rejects_a_unary_method() {
     )
     .await
     .expect_err("GetStartedAt is unary, not server-streaming");
-    assert!(matches!(error, fresh_box_lib::CommandError::ValidationError(_)));
+    assert!(matches!(
+        error,
+        fresh_box_lib::CommandError::ValidationError(_)
+    ));
 }
 
 /// 丢掉 `Streaming` 会让 tonic 关掉这条 gRPC 流 —— 这是 `StreamRegistry` 用

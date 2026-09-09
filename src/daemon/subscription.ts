@@ -16,7 +16,8 @@ import { useSingboxStore } from "../stores/singboxStore";
  *
  * 注意「sing-box 停了导致流结束」不算 error —— 那是正常停止，回到 connecting。
  */
-export type StreamStatus = "disconnected" | "connecting" | "connected" | "error";
+export type StreamStatus =
+  "disconnected" | "connecting" | "connected" | "error";
 
 /** 流自身出错后重订阅前的等待，避免出错即重连的紧循环。 */
 const RETRY_DELAY_MS = 1500;

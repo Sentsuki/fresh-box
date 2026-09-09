@@ -61,7 +61,9 @@ export function awaitNodeDelay(tag: string): Promise<number> {
     const timer = setTimeout(
       () =>
         finish(() =>
-          reject(new Error(`Timed out waiting for a delay result for '${tag}'.`)),
+          reject(
+            new Error(`Timed out waiting for a delay result for '${tag}'.`),
+          ),
         ),
       DELAY_TEST_TIMEOUT_MS,
     );

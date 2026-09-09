@@ -78,7 +78,8 @@ export function useConfigs() {
 
       const settings = useSettingsStore.getState();
       const savedId = settings.settings.profiles.selected_profile_id;
-      const target = profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
+      const target =
+        profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
       await settings.setSelectedProfile(target?.id ?? null);
     } finally {
       config.setPending(false);

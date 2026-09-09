@@ -6,8 +6,8 @@ mod config;
 mod crash_reports;
 mod daemon;
 mod errors;
-mod logger;
 mod ipc;
+mod logger;
 mod services;
 mod store;
 mod tray;
@@ -37,7 +37,9 @@ fn main() {
     //     pnpm gen:host      # package.json 里包好了
     let mut args = std::env::args().skip(1);
     if args.next().as_deref() == Some("--export-bindings") {
-        let path = args.next().unwrap_or_else(|| "../src/gen/host.ts".to_string());
+        let path = args
+            .next()
+            .unwrap_or_else(|| "../src/gen/host.ts".to_string());
         match ipc::export_bindings(&path) {
             Ok(()) => {
                 println!("exported host bindings to {path}");
@@ -124,11 +126,7 @@ fn main() {
                 .inner()
                 .clone();
             services::resident::spawn_notifier(app.handle().clone(), state.inner().clone());
-            tray::spawn_tray_sync(
-                app.handle().clone(),
-                state.inner().clone(),
-                resident,
-            );
+            tray::spawn_tray_sync(app.handle().clone(), state.inner().clone(), resident);
 
             Ok(())
         })
@@ -186,8 +184,9 @@ fn main() {
                 // 销毁模式下每次关闭窗口都会走到这里，所以这是流回收的主路径
                 // 而不是边角情况：漏收一次，daemon 那边就多留一条永远没人读的
                 // 订阅。见 `daemon::bridge::registry` 的模块注释。
-                if let Some(registry) =
-                    window.app_handle().try_state::<daemon::bridge::registry::StreamRegistry>()
+                if let Some(registry) = window
+                    .app_handle()
+                    .try_state::<daemon::bridge::registry::StreamRegistry>()
                 {
                     let cancelled = registry.cancel_window(window.label());
                     if cancelled > 0 {

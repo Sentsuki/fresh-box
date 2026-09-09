@@ -142,12 +142,13 @@ pub fn spawn_session(
 ) -> SessionGuard {
     let (tx, rx) = watch::channel(false);
 
-    tauri::async_runtime::spawn(run_groups(
+    tauri::async_runtime::spawn(run_groups(resident.clone(), connection.clone(), rx.clone()));
+    tauri::async_runtime::spawn(run_clash_mode(
         resident.clone(),
-        connection.clone(),
-        rx.clone(),
+        connection,
+        rx,
+        remember_mode,
     ));
-    tauri::async_runtime::spawn(run_clash_mode(resident.clone(), connection, rx, remember_mode));
 
     SessionGuard { tx, resident }
 }

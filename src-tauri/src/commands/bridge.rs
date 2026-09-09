@@ -73,7 +73,10 @@ pub async fn daemon_stream(
                     // send 失败 = webview 已经没了。这是第二道保险：
                     // `WindowEvent::Destroyed` 是第一道，但那条事件万一没触发，
                     // 这里还能兜住。
-                    if on_event.send(InvokeResponseBody::Raw(frame::message(&payload))).is_err() {
+                    if on_event
+                        .send(InvokeResponseBody::Raw(frame::message(&payload)))
+                        .is_err()
+                    {
                         break;
                     }
                 }

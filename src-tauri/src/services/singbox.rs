@@ -542,8 +542,7 @@ fn build_start_options(store: &Store) -> StartOptions {
     StartOptions {
         oom_killer_enabled: diagnostics.oom_killer_enabled,
         oom_killer_disabled: false,
-        oom_memory_limit: i64::from(diagnostics.oom_memory_limit_mb)
-            .saturating_mul(1024 * 1024),
+        oom_memory_limit: i64::from(diagnostics.oom_memory_limit_mb).saturating_mul(1024 * 1024),
         power_report_enabled: diagnostics.power_report_enabled,
     }
 }

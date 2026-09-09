@@ -7,7 +7,6 @@
 use serde::{Deserialize, Serialize};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window};
 
-
 const WINDOW_STATE_KEY: &str = "windowState";
 
 /// Smallest size `restore()` will ever apply — keep in sync with
@@ -129,7 +128,9 @@ fn clamp_tolerant(value: i32, min: i32, max: i32) -> i32 {
 /// to fix it. Mirrors the official Electron client's
 /// `restoredMainWindowBounds` (`windowState.ts`).
 pub fn restore(window: &WebviewWindow) {
-    let Some(state) = load(window.app_handle()) else { return };
+    let Some(state) = load(window.app_handle()) else {
+        return;
+    };
 
     let monitors = window.available_monitors().unwrap_or_default();
     let target = (state.width > 0 && state.height > 0)

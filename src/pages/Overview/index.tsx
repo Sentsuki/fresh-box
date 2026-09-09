@@ -107,7 +107,9 @@ export default function Overview() {
             <div className="w-full sm:w-auto shrink-0 mt-2 sm:mt-0">
               <button
                 disabled={isPending || !selectedProfileId}
-                onClick={() => void (isRunning ? stopService() : startService())}
+                onClick={() =>
+                  void (isRunning ? stopService() : startService())
+                }
                 className={`
                   flex items-center justify-center gap-2 w-full sm:w-auto px-8 py-3 rounded-xl text-sm font-semibold transition-all duration-200
                   ${isPending || !selectedProfileId ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}

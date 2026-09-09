@@ -1,6 +1,6 @@
-use tauri::State;
-use crate::store::Store;
 use crate::errors::CommandError;
+use crate::store::Store;
+use tauri::State;
 
 #[tauri::command]
 #[specta::specta]
@@ -29,8 +29,9 @@ pub fn save_config_override(store: State<'_, Store>, config: String) -> Result<(
     let parsed: serde_json::Value = if config.trim().is_empty() {
         serde_json::json!({})
     } else {
-        serde_json::from_str(&config)
-            .map_err(|e| CommandError::validation(format!("Config override is not valid JSON: {e}")))?
+        serde_json::from_str(&config).map_err(|e| {
+            CommandError::validation(format!("Config override is not valid JSON: {e}"))
+        })?
     };
     crate::config::config_override::save_config_override_inner(store.inner(), parsed)
 }
@@ -46,7 +47,8 @@ pub fn clear_config_override(store: State<'_, Store>) -> Result<(), CommandError
 /// 返回覆盖层的 JSON 文本（见 `save_config_override` 里为什么是文本）。
 pub fn load_config_override(store: State<'_, Store>) -> Result<String, CommandError> {
     let value = crate::config::config_override::load_config_override_inner(store.inner())?;
-    serde_json::to_string_pretty(&value).map_err(|e| CommandError::json("serialize config override", e))
+    serde_json::to_string_pretty(&value)
+        .map_err(|e| CommandError::json("serialize config override", e))
 }
 
 #[tauri::command]

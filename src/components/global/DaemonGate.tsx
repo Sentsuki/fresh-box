@@ -10,7 +10,10 @@ import { useSingboxStore } from "../../stores/singboxStore";
 import { useToast } from "../../hooks/useToast";
 import { Button } from "../ui/Button";
 import { Spinner } from "../ui/Spinner";
-import type { DaemonConnectionPhase, DaemonPhaseName } from "../../types/daemon";
+import type {
+  DaemonConnectionPhase,
+  DaemonPhaseName,
+} from "../../types/daemon";
 
 /**
  * daemon 连接相位的唯一闸门。

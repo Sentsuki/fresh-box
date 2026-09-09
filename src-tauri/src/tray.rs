@@ -16,7 +16,7 @@ use std::sync::{Arc, Mutex};
 use tauri::{
     AppHandle, Emitter, Manager,
     menu::{CheckMenuItem, Menu, MenuItem, PredefinedMenuItem, Submenu},
-    tray::{MouseButton, MouseButtonState, TrayIconEvent, TrayIconBuilder},
+    tray::{MouseButton, MouseButtonState, TrayIconBuilder, TrayIconEvent},
 };
 
 const TRAY_ID: &str = "main-tray";
@@ -167,9 +167,7 @@ fn current_model(app: &AppHandle) -> TrayModel {
     let running = phase.as_ref().map(|p| p.running()).unwrap_or(false);
 
     let resident = app.try_state::<Arc<ResidentState>>();
-    let (groups, mode) = resident
-        .map(|r| (r.groups(), r.mode()))
-        .unwrap_or_default();
+    let (groups, mode) = resident.map(|r| (r.groups(), r.mode())).unwrap_or_default();
 
     TrayModel {
         running,
@@ -212,7 +210,9 @@ fn apply(app: &AppHandle) {
 /// （阶段 4 起）。
 fn selected_profile(app: &AppHandle) -> Option<String> {
     let store = app.try_state::<crate::store::Store>()?;
-    crate::store::settings::selected_profile(store.inner()).ok().flatten()
+    crate::store::settings::selected_profile(store.inner())
+        .ok()
+        .flatten()
 }
 
 /// 相位、代理组、模式任何一个变了就重建菜单。
@@ -253,12 +253,9 @@ fn handle_start(app: &AppHandle) {
         ) else {
             return;
         };
-        if let Err(e) = crate::services::singbox::start_with_profile(
-            state.inner(),
-            store.inner(),
-            &profile_id,
-        )
-        .await
+        if let Err(e) =
+            crate::services::singbox::start_with_profile(state.inner(), store.inner(), &profile_id)
+                .await
         {
             tracing::warn!(error = %e, "tray: failed to start sing-box");
         }
@@ -315,7 +312,10 @@ fn handle_select_proxy(app: &AppHandle, group: String, node: String) {
             }
         };
 
-        if let Err(e) = connection.select_outbound(group.clone(), node.clone()).await {
+        if let Err(e) = connection
+            .select_outbound(group.clone(), node.clone())
+            .await
+        {
             tracing::warn!(error = %e, "tray: failed to switch proxy");
             return;
         }

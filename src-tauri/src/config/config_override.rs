@@ -125,7 +125,10 @@ mod tests {
             json!({ "log": { "disabled": false, "level": "info" } }),
             json!({ "log": { "level": "debug" } }),
         );
-        assert_eq!(result, json!({ "log": { "disabled": false, "level": "debug" } }));
+        assert_eq!(
+            result,
+            json!({ "log": { "disabled": false, "level": "debug" } })
+        );
     }
 
     #[test]
@@ -141,8 +144,14 @@ mod tests {
 
     #[test]
     fn a_scalar_can_replace_an_object_and_vice_versa() {
-        assert_eq!(merged(json!({ "x": { "y": 1 } }), json!({ "x": 5 })), json!({ "x": 5 }));
-        assert_eq!(merged(json!({ "x": 5 }), json!({ "x": { "y": 1 } })), json!({ "x": { "y": 1 } }));
+        assert_eq!(
+            merged(json!({ "x": { "y": 1 } }), json!({ "x": 5 })),
+            json!({ "x": 5 })
+        );
+        assert_eq!(
+            merged(json!({ "x": 5 }), json!({ "x": { "y": 1 } })),
+            json!({ "x": { "y": 1 } })
+        );
     }
 
     #[test]

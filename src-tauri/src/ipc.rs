@@ -119,7 +119,9 @@ pub fn invoke_handler() -> impl Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Sen
     // 名副其实，不是为了绕编译器硬造的全局。
     static BUILDER: std::sync::OnceLock<tauri_specta::Builder<tauri::Wry>> =
         std::sync::OnceLock::new();
-    let specta_handler = BUILDER.get_or_init(specta_builder::<tauri::Wry>).invoke_handler();
+    let specta_handler = BUILDER
+        .get_or_init(specta_builder::<tauri::Wry>)
+        .invoke_handler();
     #[allow(clippy::type_complexity)]
     let bridge_handler: Box<dyn Fn(tauri::ipc::Invoke<tauri::Wry>) -> bool + Send + Sync> =
         Box::new(tauri::generate_handler![

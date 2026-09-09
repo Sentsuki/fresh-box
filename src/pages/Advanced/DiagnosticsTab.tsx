@@ -17,8 +17,7 @@ import {
   natMappingLabel,
   natBehaviorVariant,
 } from "../../services/format";
-import {
-} from "../../services/api";
+import {} from "../../services/api";
 import { NETWORK_QUALITY_PHASE } from "../../types/app";
 import type { NetworkQualityProgress, StunTestProgress } from "../../types/app";
 
@@ -338,7 +337,11 @@ export function StunTestCard() {
     const controller = new AbortController();
     abortRef.current = controller;
     try {
-      await runStunTest({ server, outboundTag }, setProgress, controller.signal);
+      await runStunTest(
+        { server, outboundTag },
+        setProgress,
+        controller.signal,
+      );
       setRunning(false);
     } catch (err) {
       if (controller.signal.aborted) return;

@@ -20,9 +20,9 @@ pub mod allowlist;
 pub mod codec;
 pub mod registry;
 
+use tonic::Streaming;
 use tonic::client::Grpc;
 use tonic::codegen::Bytes;
-use tonic::{Streaming};
 
 use crate::daemon::DaemonConnection;
 use crate::errors::CommandError;
@@ -43,9 +43,9 @@ pub async fn unary(
     let path = allowlist::resolve(service, method, MethodKind::Unary)?;
 
     let mut grpc = Grpc::new(connection.raw_channel());
-    grpc.ready().await.map_err(|e| {
-        CommandError::network(format!("daemon bridge channel not ready: {e}"))
-    })?;
+    grpc.ready()
+        .await
+        .map_err(|e| CommandError::network(format!("daemon bridge channel not ready: {e}")))?;
 
     let response = grpc
         .unary(

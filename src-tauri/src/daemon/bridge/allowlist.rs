@@ -49,7 +49,11 @@ impl MethodKind {
 /// 服务不存在 → 名字拼错了或 proto 没 vendor；方法不存在 → 同上；
 /// 形态不符 → 该用 `daemon_stream` 而不是 `daemon_unary`（或反之）；
 /// 故意不暴露 → 别绕，去用 host 域的命令。
-pub fn resolve(service: &str, method: &str, kind: MethodKind) -> Result<PathAndQuery, CommandError> {
+pub fn resolve(
+    service: &str,
+    method: &str,
+    kind: MethodKind,
+) -> Result<PathAndQuery, CommandError> {
     let Some(entry) = METHODS
         .iter()
         .find(|e| e.service == service && e.method == method)
@@ -58,9 +62,7 @@ pub fn resolve(service: &str, method: &str, kind: MethodKind) -> Result<PathAndQ
         return Err(CommandError::validation(if known_service {
             format!("unknown daemon method '{service}/{method}'")
         } else {
-            format!(
-                "unknown daemon service '{service}' (not vendored in proto/, or misspelled)"
-            )
+            format!("unknown daemon service '{service}' (not vendored in proto/, or misspelled)")
         }));
     };
 
@@ -125,8 +127,12 @@ mod tests {
 
     #[test]
     fn rejects_a_kind_mismatch() {
-        let error = resolve("daemon.StartedService", "SubscribeGroups", MethodKind::Unary)
-            .expect_err("subscribing method must not resolve as unary");
+        let error = resolve(
+            "daemon.StartedService",
+            "SubscribeGroups",
+            MethodKind::Unary,
+        )
+        .expect_err("subscribing method must not resolve as unary");
         assert!(matches!(error, CommandError::ValidationError(_)));
     }
 

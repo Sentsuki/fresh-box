@@ -110,7 +110,9 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
         groupTag: proxyGroup,
         outboundTag: proxyName,
       });
-      if (useSettingsStore.getState().settings.settings.auto_close_connections) {
+      if (
+        useSettingsStore.getState().settings.settings.auto_close_connections
+      ) {
         await closeConnectionsByGroup(proxyGroup);
       }
       // 勾选同样由 `SubscribeGroups` 推回来。

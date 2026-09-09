@@ -11,8 +11,8 @@
 // 触发」，第二道漏在「流上再也没有新消息、send 也就没机会失败」。
 
 use std::collections::HashMap;
-use std::sync::{Arc, Mutex};
 use std::sync::atomic::{AtomicU32, Ordering};
+use std::sync::{Arc, Mutex};
 
 use tokio::task::AbortHandle;
 
@@ -46,7 +46,10 @@ impl StreamRegistry {
         let Ok(mut windows) = self.inner.windows.lock() else {
             return;
         };
-        windows.entry(window.to_string()).or_default().insert(id, handle);
+        windows
+            .entry(window.to_string())
+            .or_default()
+            .insert(id, handle);
     }
 
     /// 注销但不取消 —— 任务自己跑完时调用，此时再 abort 自己没有意义。

@@ -34,7 +34,11 @@ fn an_empty_database_opens_clean_and_is_in_wal_mode() {
     let mode: String = connection
         .query_row("PRAGMA journal_mode", [], |row| row.get(0))
         .expect("read journal_mode");
-    assert_eq!(mode.to_lowercase(), "wal", "WAL must be on for crash safety");
+    assert_eq!(
+        mode.to_lowercase(),
+        "wal",
+        "WAL must be on for crash safety"
+    );
 
     let profiles: i64 = connection
         .query_row("SELECT COUNT(*) FROM profiles", [], |row| row.get(0))
@@ -55,11 +59,17 @@ fn two_subscriptions_with_the_same_url_tail_coexist() {
     let insert = "INSERT INTO profiles (id, name, url, created_at, sort_order)
                   VALUES (?1, ?2, ?3, '2026-01-01T00:00:00Z', ?4)";
     connection
-        .execute(insert, rusqlite::params!["id-a", "sub", "https://a.example/sub", 0])
+        .execute(
+            insert,
+            rusqlite::params!["id-a", "sub", "https://a.example/sub", 0],
+        )
         .expect("first subscription");
     // 第二个用去重后的显示名 —— `store::profiles::unique_name` 干的事。
     connection
-        .execute(insert, rusqlite::params!["id-b", "sub (1)", "https://b.example/sub", 1])
+        .execute(
+            insert,
+            rusqlite::params!["id-b", "sub (1)", "https://b.example/sub", 1],
+        )
         .expect("second subscription with the same URL tail");
 
     let count: i64 = connection
@@ -71,7 +81,9 @@ fn two_subscriptions_with_the_same_url_tail_coexist() {
         let mut statement = connection
             .prepare("SELECT url FROM profiles ORDER BY sort_order")
             .unwrap();
-        let rows = statement.query_map([], |row| row.get::<_, String>(0)).unwrap();
+        let rows = statement
+            .query_map([], |row| row.get::<_, String>(0))
+            .unwrap();
         rows.map(|r| r.unwrap()).collect()
     };
     assert_eq!(

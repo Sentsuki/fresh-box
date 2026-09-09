@@ -180,7 +180,10 @@ mod tests {
     #[test]
     fn accepts_ids_this_module_actually_produces() {
         let id = safe_timestamp_filename(chrono::Utc::now());
-        assert!(is_valid_report_id(&id), "generated id must be accepted: {id}");
+        assert!(
+            is_valid_report_id(&id),
+            "generated id must be accepted: {id}"
+        );
     }
 
     #[test]

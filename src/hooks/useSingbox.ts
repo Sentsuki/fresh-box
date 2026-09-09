@@ -24,25 +24,28 @@ export function useSingbox() {
    * 本身就是 `StartOrReloadService`，所以这两件事是同一个调用，不需要先停
    * （审计项 H-02）。区别只在于要不要跳过「已经在跑就别重复点」的防抖。
    */
-  const startService = useCallback(async (options?: { reload?: boolean }) => {
-    const singbox = useSingboxStore.getState();
-    const settings = useSettingsStore.getState();
-    const profileId = settings.settings.profiles.selected_profile_id;
-    const reload = options?.reload ?? false;
+  const startService = useCallback(
+    async (options?: { reload?: boolean }) => {
+      const singbox = useSingboxStore.getState();
+      const settings = useSettingsStore.getState();
+      const profileId = settings.settings.profiles.selected_profile_id;
+      const reload = options?.reload ?? false;
 
-    if (singbox.pendingOperation || !profileId) return;
-    if (singbox.isRunning && !reload) return;
+      if (singbox.pendingOperation || !profileId) return;
+      if (singbox.isRunning && !reload) return;
 
-    singbox.setPending(true);
-    try {
-      toastInfo(reload ? "Reloading sing-box…" : "Starting sing-box...");
-      await startSingbox(profileId);
-    } catch (err) {
-      toastError(`Error starting sing-box: ${getErrorMessage(err)}`);
-    } finally {
-      singbox.setPending(false);
-    }
-  }, [toastError, toastInfo]);
+      singbox.setPending(true);
+      try {
+        toastInfo(reload ? "Reloading sing-box…" : "Starting sing-box...");
+        await startSingbox(profileId);
+      } catch (err) {
+        toastError(`Error starting sing-box: ${getErrorMessage(err)}`);
+      } finally {
+        singbox.setPending(false);
+      }
+    },
+    [toastError, toastInfo],
+  );
 
   const stopService = useCallback(async () => {
     const singbox = useSingboxStore.getState();

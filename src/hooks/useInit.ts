@@ -18,7 +18,8 @@ export async function initializeApp() {
   config.setProfiles(profiles);
 
   // 选中的是档案 **id**：内容文件按 UUID 命名，路径已经不是身份了。
-  const savedId = useSettingsStore.getState().settings.profiles.selected_profile_id;
+  const savedId =
+    useSettingsStore.getState().settings.profiles.selected_profile_id;
   const target = profiles.find((p) => p.id === savedId) ?? profiles[0] ?? null;
   await settings.setSelectedProfile(target?.id ?? null);
 

@@ -164,7 +164,9 @@ export default function Profiles() {
                   url={file.url ?? ""}
                   lastUpdated={file.lastUpdated ?? undefined}
                   autoUpdate={file.autoUpdate}
-                  updateIntervalMinutes={file.updateIntervalMinutes ?? undefined}
+                  updateIntervalMinutes={
+                    file.updateIntervalMinutes ?? undefined
+                  }
                   selected={selectedProfileId === file.id}
                   onSelect={() => void selectConfig(file)}
                   onUpdate={() => updateSubscription(file.id)}

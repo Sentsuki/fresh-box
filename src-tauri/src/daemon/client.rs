@@ -36,11 +36,11 @@ use super::daemon_api::{
     ClashMode, ClashModeStatus, CloseConnectionRequest, ConnectionEvents, Groups,
     SelectOutboundRequest, ServiceStatus, SubscribeConnectionsRequest,
 };
+use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{
     CrashReportEntry, CrashReportFile, CrashReportRequest, DaemonInfo, OomReportEntry,
     OomReportFile, OomReportRequest, StartOptions, StartServiceRequest,
 };
-use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::worker;
 
 fn map_status(context: &str, status: tonic::Status) -> CommandError {

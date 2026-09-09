@@ -209,8 +209,7 @@ const columnDefinitions: Record<
     sortable: true,
     groupable: true,
     defaultDirection: "asc",
-    getValue: (c) =>
-      c.metadata.inboundUser || c.metadata.inboundName || "-",
+    getValue: (c) => c.metadata.inboundUser || c.metadata.inboundName || "-",
   },
 };
 
@@ -344,9 +343,7 @@ export function formatConnectionValue(
     case "remoteAddress":
       return entry.metadata.remoteDestination || "-";
     case "inboundUser":
-      return (
-        entry.metadata.inboundUser || entry.metadata.inboundName || "-"
-      );
+      return entry.metadata.inboundUser || entry.metadata.inboundName || "-";
   }
 }
 

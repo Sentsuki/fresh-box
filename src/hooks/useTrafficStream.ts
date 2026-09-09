@@ -1,8 +1,5 @@
 import { create } from "zustand";
-import {
-  startStatusStream,
-  stopStatusStream,
-} from "../daemon/statusStream";
+import { startStatusStream, stopStatusStream } from "../daemon/statusStream";
 
 export interface DataPoint {
   dl: number;
@@ -64,7 +61,8 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
             : nextHistory,
       };
     }),
-  setTotals: (downloadTotal, uploadTotal) => set({ downloadTotal, uploadTotal }),
+  setTotals: (downloadTotal, uploadTotal) =>
+    set({ downloadTotal, uploadTotal }),
   setStreamStatus: (streamStatus) => set({ streamStatus }),
   clear: () =>
     set({

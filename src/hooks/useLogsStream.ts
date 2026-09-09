@@ -128,7 +128,9 @@ export async function startLogsStream() {
 }
 
 export async function stopLogsStream(clear = false) {
-  controller.stop(clear ? () => useLogsStore.getState().clearLogs() : undefined);
+  controller.stop(
+    clear ? () => useLogsStore.getState().clearLogs() : undefined,
+  );
   if (useLogsStore.getState().streamStatus !== "disabled") {
     useLogsStore.getState().setStreamStatus("disconnected");
   }

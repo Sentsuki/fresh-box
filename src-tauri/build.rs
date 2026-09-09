@@ -101,8 +101,9 @@ fn generate_method_table() {
     }
     out.push_str("];\n");
 
-    let dest = Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR is always set for build scripts"))
-        .join("daemon_methods.rs");
+    let dest =
+        Path::new(&std::env::var("OUT_DIR").expect("OUT_DIR is always set for build scripts"))
+            .join("daemon_methods.rs");
     std::fs::write(&dest, out).expect("failed to write generated daemon method table");
 }
 
