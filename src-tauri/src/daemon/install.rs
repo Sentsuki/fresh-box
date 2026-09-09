@@ -21,7 +21,7 @@ use crate::errors::CommandError;
 const CREATE_NO_WINDOW: u32 = 0x08000000;
 
 /// 系统程序一律用绝对路径启动，不走 PATH 查找 —— 见 `run_elevated` 里的说明。
-fn system32(relative: &str) -> std::path::PathBuf {
+pub(crate) fn system32(relative: &str) -> std::path::PathBuf {
     let root = std::env::var("SystemRoot").unwrap_or_else(|_| r"C:\Windows".to_string());
     std::path::Path::new(&root).join("System32").join(relative)
 }
@@ -115,26 +115,46 @@ fn run_elevated(
     // daemon exe directly with redirection parameters, we elevate a
     // `powershell.exe` wrapper that does its own file redirection
     // internally with `*>`, which has no such restriction.
-    let log_path = std::env::temp_dir().join(format!(
-        "fresh-box-elevated-{}-{}.log",
-        std::process::id(),
-        std::time::SystemTime::now()
-            .duration_since(std::time::UNIX_EPOCH)
-            .map(|d| d.as_nanos())
-            .unwrap_or_default()
-    ));
+    //
+    // 日志目录当前用户不可写（`get_elevated_log_dir` 的文档解释了为什么必须
+    // 这样，审计项 L-15）。收紧不成功就干脆不落日志 —— 少一份诊断信息，好过
+    // 给一个管理员进程递一条用户可控的写入路径。
+    let log_path = match crate::config::get_elevated_log_dir() {
+        Ok(dir) => Some(dir.join(format!(
+            "elevated-{}-{}.log",
+            std::process::id(),
+            std::time::SystemTime::now()
+                .duration_since(std::time::UNIX_EPOCH)
+                .map(|d| d.as_nanos())
+                .unwrap_or_default()
+        ))),
+        Err(e) => {
+            tracing::warn!(
+                error = ?e,
+                "no admins-only log directory — running the elevated command without capturing its output"
+            );
+            None
+        }
+    };
 
     let quoted_args = args
         .iter()
         .map(|a| powershell_quote(a))
         .collect::<Vec<_>>()
         .join(" ");
-    let inner_script = format!(
-        "& {} {} *> {}\nexit $LASTEXITCODE",
-        powershell_quote(&executable.display().to_string()),
-        quoted_args,
-        powershell_quote(&log_path.display().to_string()),
-    );
+    let quoted_executable = powershell_quote(&executable.display().to_string());
+    let inner_script = match &log_path {
+        // 顺手清掉上一次留下的日志：我们这边没有写权限，删不掉自己读完的那
+        // 份，所以清理由下一次提权动作（它是管理员）来做。
+        Some(path) => format!(
+            "Remove-Item {} -Force -ErrorAction SilentlyContinue\n& {} {} *> {}\nexit $LASTEXITCODE",
+            powershell_quote(&path.with_file_name("*.log").display().to_string()),
+            quoted_executable,
+            quoted_args,
+            powershell_quote(&path.display().to_string()),
+        ),
+        None => format!("& {quoted_executable} {quoted_args}\nexit $LASTEXITCODE"),
+    };
     let encoded_inner = base64::engine::general_purpose::STANDARD.encode(
         inner_script
             .encode_utf16()
@@ -172,8 +192,11 @@ fn run_elevated(
         .status()
         .map_err(|e| CommandError::io("launch elevated daemon service command", e))?;
 
-    let log = std::fs::read_to_string(&log_path).unwrap_or_default();
-    let _ = std::fs::remove_file(&log_path);
+    // 读得到就读，删不掉不管 —— 删除权限我们没有，下一次提权动作会清掉它。
+    let log = log_path
+        .as_deref()
+        .and_then(|path| std::fs::read_to_string(path).ok())
+        .unwrap_or_default();
 
     Ok(ElevatedOutput {
         code: status.code().unwrap_or(-1),

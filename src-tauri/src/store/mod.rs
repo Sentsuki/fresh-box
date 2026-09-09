@@ -10,6 +10,8 @@
 //     fresh-box.db          SQLite（WAL）：profiles / settings / meta
 //     profiles\<uuid>.json  配置内容，文件名与显示名彻底解耦
 //     log\  crash_reports\  不变
+//     elevated\             提权动作的输出，**当前用户只读**
+//                           （见 `config::get_elevated_log_dir`）
 //
 // 换来的：
 //   * 同名订阅覆盖在**结构上**不可能（`profiles.name` 的 UNIQUE 约束，H-03）
@@ -25,7 +27,7 @@ pub mod schema;
 pub mod settings;
 
 use std::path::PathBuf;
-use std::sync::Mutex;
+use std::sync::{Arc, Mutex};
 
 use rusqlite::Connection;
 
@@ -38,8 +40,14 @@ const DATABASE_FILE: &str = "fresh-box.db";
 /// 用 `Mutex<Connection>` 而不是连接池：这个库只有个位数张表、写入是用户操作
 /// 级别的频率，锁竞争不存在。**但持锁期间绝不能做网络 I/O** —— 订阅抓取先在
 /// 锁外完成，拿到内容再进事务（见 `commands::config`）。
+///
+/// `Arc` 包一层是为了能 `clone()` 进 `spawn_blocking`：rusqlite 与文件读写都
+/// 是同步的，在 `async fn` 里直接调就把 tokio 的工作线程按住了（审计项
+/// L-19）。同步的 `#[tauri::command] fn` 不受影响 —— Tauri 本来就把它们派到
+/// 单独的线程上跑。克隆的是句柄，不是连接。
+#[derive(Clone)]
 pub struct Store {
-    connection: Mutex<Connection>,
+    connection: Arc<Mutex<Connection>>,
 }
 
 impl Store {
@@ -50,7 +58,7 @@ impl Store {
             Connection::open(&path).map_err(|e| CommandError::io("open fresh-box.db", e))?;
         schema::migrate(&connection)?;
         Ok(Self {
-            connection: Mutex::new(connection),
+            connection: Arc::new(Mutex::new(connection)),
         })
     }
 
@@ -60,7 +68,7 @@ impl Store {
             .map_err(|e| CommandError::io("open in-memory database", e))?;
         schema::migrate(&connection)?;
         Ok(Self {
-            connection: Mutex::new(connection),
+            connection: Arc::new(Mutex::new(connection)),
         })
     }
 
@@ -77,6 +85,23 @@ impl Store {
             .lock()
             .map_err(|_| CommandError::invalid_state("store", "database lock is poisoned"))?;
         f(&guard)
+    }
+
+    /// 在阻塞线程池上跑一段 store 操作，供 `async fn` 调用。
+    ///
+    /// rusqlite 和配置内容文件的读写都是同步的：在 async 上下文里直接调就把
+    /// tokio 的一个工作线程按住了，库一忙（WAL checkpoint、大配置落盘）整个
+    /// 运行时都跟着卡 —— 连正在推的日志流一起（审计项 L-19）。同步的
+    /// `#[tauri::command] fn` 不需要这个，Tauri 本来就把它们派到别的线程。
+    pub async fn run_blocking<T, F>(&self, f: F) -> Result<T, CommandError>
+    where
+        F: FnOnce(&Store) -> Result<T, CommandError> + Send + 'static,
+        T: Send + 'static,
+    {
+        let store = self.clone();
+        tokio::task::spawn_blocking(move || f(&store))
+            .await
+            .map_err(|e| CommandError::invalid_state("store task", e.to_string()))?
     }
 }
 

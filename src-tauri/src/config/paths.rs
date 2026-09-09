@@ -39,6 +39,12 @@ fn is_reparse_point(path: &Path) -> bool {
 /// less code, and boxdd/Windows itself already knows how to do this
 /// correctly.
 fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
+    set_directory_acl(dir, "(OI)(CI)F")
+}
+
+/// `harden_directory_acl` 的通用版：当前用户拿到 `user_rights`，SYSTEM 与
+/// Administrators 永远是完全控制。
+fn set_directory_acl(dir: &Path, user_rights: &str) -> Result<(), CommandError> {
     let username = std::env::var("USERNAME").unwrap_or_default();
     if username.is_empty() {
         // Can't determine the current account to grant access to — skip
@@ -51,11 +57,14 @@ fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
         _ => username,
     };
 
-    let output = Command::new("icacls")
+    // 绝对路径，不走 PATH 查找（审计项 L-14）—— 这个进程可能是从任意工作目录
+    // 启动的，而 `icacls` 这一步是**放宽/收紧 ACL** 本身，被顶替掉的后果比
+    // 其他外部调用都大。
+    let output = Command::new(crate::daemon::install::system32("icacls.exe"))
         .arg(dir)
         .arg("/inheritance:r")
         .arg("/grant:r")
-        .arg(format!("{account}:(OI)(CI)F"))
+        .arg(format!("{account}:{user_rights}"))
         // SYSTEM — needed for the sing-box-daemon Windows service (which
         // runs as SYSTEM) and any OS-level maintenance.
         .arg("SYSTEM:(OI)(CI)F")
@@ -69,7 +78,7 @@ fn harden_directory_acl(dir: &Path) -> Result<(), CommandError> {
 
     if !output.status.success() {
         return Err(CommandError::invalid_state(
-            "harden_directory_acl",
+            "set_directory_acl",
             format!(
                 "icacls exited with {}: {}",
                 output.status,
@@ -146,6 +155,42 @@ pub fn get_log_dir() -> Result<PathBuf, CommandError> {
     if !dir.exists() {
         fs::create_dir_all(&dir)
             .map_err(|e| CommandError::resource_not_found("log directory", e))?;
+    }
+    Ok(dir)
+}
+
+/// 提权动作的输出目录 —— **当前用户只有读权限，写入只有管理员和 SYSTEM**。
+///
+/// 这不是洁癖（审计项 L-15）。日志是被提权到管理员的 PowerShell 用 `*>` 写出
+/// 来的，而路径是我们这个**未提权**进程挑的。路径若落在同用户可写的目录里
+/// （原先是 `%TEMP%`），另一个同用户进程可以抢在写入前把它做成指向别处的
+/// 符号链接 —— 那次管理员写入就落到了它选的位置。这是一条完整的
+/// 用户 → 管理员 提权链，而且和文件名猜不猜得中无关：攻击者只要盯着目录等
+/// 文件出现之前那一瞬。把目录收成用户不可写，就没有抢跑的余地。
+///
+/// 代价是我们（未提权）删不掉自己读完的日志，所以清理交给下一次提权动作
+/// 本身 —— 见 `daemon::install::run_elevated`。
+pub fn get_elevated_log_dir() -> Result<PathBuf, CommandError> {
+    let dir = get_app_data_root()?.join("elevated");
+    if !dir.exists() {
+        fs::create_dir_all(&dir)
+            .map_err(|e| CommandError::resource_not_found("elevated log directory", e))?;
+    }
+    if is_reparse_point(&dir) {
+        return Err(CommandError::invalid_state(
+            "elevated log directory",
+            format!("{} is a symlink or junction", dir.display()),
+        ));
+    }
+
+    // 标记文件放在**父目录**（那里我们写得进去）—— 目录本身收紧之后，我们
+    // 就没法在里面留任何东西了。
+    let marker = get_app_data_root()?.join(".elevated-access-control");
+    if !marker.exists() {
+        // 这里和 `get_app_data_root` 的 best-effort 不同：ACL 上不去就等于
+        // 上面那条提权链还开着，所以直接失败，由调用方决定退回「不写日志」。
+        set_directory_acl(&dir, "(OI)(CI)RX")?;
+        let _ = fs::write(&marker, b"");
     }
     Ok(dir)
 }

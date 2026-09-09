@@ -267,13 +267,14 @@ jobs:
         shell: pwsh
         run: pnpm gen
 
-      # Unit tests. vitest runs on node — no jsdom, no WebView2, no Tauri.
-      # The Rust `*_e2e` tests skip themselves when no development daemon is
-      # listening, which is the case on a runner.
+      # A release must not ship code that fails its own tests, so these run
+      # here too and not only in ci.yml — a tag can be pushed from any
+      # commit, including one ci.yml never saw. Same commands, so the Rust
+      # cache is already warm from the compile above.
       - name: Checks
         shell: pwsh
         run: |
-          pnpm lint:check
+          pnpm lint:check --max-warnings=0
           pnpm test
           cargo test --manifest-path src-tauri/Cargo.toml
 

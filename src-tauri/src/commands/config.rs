@@ -184,8 +184,17 @@ pub async fn import_profile_file(
     source_path: String,
 ) -> Result<ProfileOperationResult, CommandError> {
     let source = std::path::Path::new(&source_path);
-    let content = std::fs::read_to_string(source)
-        .map_err(|e| CommandError::resource_not_found("source config file", e))?;
+    // 用户挑的文件可能在网络盘上，读它是同步 I/O —— 和后面写库一样进阻塞
+    // 线程池（审计项 L-19）。
+    let content = {
+        let source = source.to_path_buf();
+        tokio::task::spawn_blocking(move || {
+            std::fs::read_to_string(&source)
+                .map_err(|e| CommandError::resource_not_found("source config file", e))
+        })
+        .await
+        .map_err(|e| CommandError::invalid_state("read config file", e.to_string()))??
+    };
 
     // 本地导入的文件以前是不校验的 —— 无效配置会一直躺在列表里，直到用户点
     // 启动才报错。现在和订阅走同一条校验路径。
@@ -195,10 +204,15 @@ pub async fn import_profile_file(
         .file_stem()
         .and_then(|s| s.to_str())
         .filter(|s| !s.trim().is_empty())
-        .unwrap_or("imported");
+        .unwrap_or("imported")
+        .to_string();
 
-    let entry = profiles::create(store.inner(), name, None, &content)?;
-    result_for(store.inner(), entry)
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, None, &content)?;
+            result_for(store, entry)
+        })
+        .await
 }
 
 async fn fetch_subscription(url: &str) -> Result<String, CommandError> {
@@ -232,13 +246,13 @@ pub async fn add_subscription(
 ) -> Result<ProfileOperationResult, CommandError> {
     // 网络 I/O 在数据库锁之外完成 —— 抓取可能要 30 秒，不能让它把库锁住。
     let content = fetch_subscription(&url).await?;
-    let entry = profiles::create(
-        store.inner(),
-        &display_name_from_url(&url),
-        Some(url),
-        &content,
-    )?;
-    result_for(store.inner(), entry)
+    let name = display_name_from_url(&url);
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, Some(url), &content)?;
+            result_for(store, entry)
+        })
+        .await
 }
 
 #[tauri::command]
@@ -248,18 +262,32 @@ pub async fn update_subscription(
     id: String,
 ) -> Result<ProfileOperationResult, CommandError> {
     refresh_subscription(store.inner(), &id).await?;
-    result_for(store.inner(), profiles::find(store.inner(), &id)?)
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::find(store, &id)?;
+            result_for(store, entry)
+        })
+        .await
 }
 
 /// 抓取 → 校验 → 写入 → 刷新 `last_updated`。用户点的「更新」和后台调度器
 /// 共用这一条，两边不再各写一份。
 async fn refresh_subscription(store: &Store, id: &str) -> Result<(), CommandError> {
-    let profile = profiles::find(store, id)?;
+    // 三段：查库 → 抓网络 → 写库。两头是同步 I/O，走阻塞线程池；中间那段
+    // 本来就得在锁外（抓取可能要 30 秒）。
+    let lookup_id = id.to_string();
+    let profile = store
+        .run_blocking(move |store| profiles::find(store, &lookup_id))
+        .await?;
     let url = profile.url.ok_or_else(|| {
         CommandError::resource_not_found("subscription", format!("'{}' has no URL", profile.name))
     })?;
     let content = fetch_subscription(&url).await?;
-    profiles::replace_content(store, id, &content)
+
+    let id = id.to_string();
+    store
+        .run_blocking(move |store| profiles::replace_content(store, &id, &content))
+        .await
 }
 
 // ── 改 / 删 / 打开 ──────────────────────────────────────────────────────────

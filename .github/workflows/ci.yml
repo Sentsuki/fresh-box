@@ -1,0 +1,112 @@
+# Pull-request checks — lint, type-check, unit tests, both sides.
+#
+# Deliberately does NOT build the installer or the daemon: main.yml owns
+# release builds, they take ~20 minutes, and nothing here needs a bundle.
+# What this job protects is the stuff that breaks silently otherwise —
+# a renamed Rust command that no frontend caller follows, a stale
+# hand-written type, a regression in the bridge's frame decoding.
+#
+# windows-latest, not ubuntu: fresh-box is Windows-only by construction
+# (named pipes, the `windows` crate, Authenticode peer auth), so the Rust
+# half doesn't compile anywhere else.
+name: CI
+
+on:
+  pull_request:
+  # Also on pushes to the long-lived branches, so a merge that breaks
+  # something is caught even if it never went through a PR.
+  push:
+    branches: [main, fix]
+  workflow_dispatch:
+
+# A new push to the same PR cancels the previous run — no point finishing
+# a check on a commit that's already been replaced.
+concurrency:
+  group: ci-${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  checks:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v7
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v6
+        with:
+          version: 'latest'
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v7
+        with:
+          node-version: 'lts/*'
+          check-latest: true
+          cache: 'pnpm'
+
+      - name: Setup Rust
+        uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: stable
+          components: clippy
+
+      - name: Rust cache
+        uses: swatinem/rust-cache@v2
+        with:
+          workspaces: src-tauri -> src-tauri/target
+
+      - name: Install dependencies
+        shell: pwsh
+        run: pnpm install
+
+      # src/gen/ is generated, not committed (see .gitignore), so every
+      # type-check here starts by producing it:
+      #   gen:proto  buf, from src-tauri/proto  -> src/gen/daemon, src/gen/boxdd
+      #   gen:host   tauri-specta, by running the app itself with
+      #              --export-bindings          -> src/gen/host.ts
+      # gen:host compiles fresh-box, which is why Rust is set up above.
+      - name: Generate IPC bindings
+        shell: pwsh
+        run: pnpm gen
+
+      # -D warnings: the codebase is clippy-clean today, so anything new is
+      # a regression, not background noise.
+      - name: Rust lint
+        shell: pwsh
+        run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
+
+      # The `*_e2e` suites skip themselves when no development daemon is
+      # listening on 127.0.0.1:19090 (which is the case on a runner), and
+      # the service-probe suite skips when there's no bundled daemon binary.
+      # They stay in the run anyway: skipping is cheap (~0.3s each) and the
+      # day someone breaks their compilation, this is where it shows up.
+      - name: Rust tests
+        shell: pwsh
+        run: cargo test --manifest-path src-tauri/Cargo.toml
+
+      # --max-warnings=0 for the same reason as clippy's -D warnings: `src`
+      # is warning-clean today (eslint exits 0 on warnings otherwise, which
+      # would make this step a no-op for everything short of a hard error).
+      - name: Frontend lint
+        shell: pwsh
+        run: pnpm lint:check --max-warnings=0
+
+      # No formatting gate (neither `cargo fmt --check` nor
+      # `pnpm format:check`): this repo has never been formatter-clean —
+      # 116 rustfmt diffs and 37 prettier ones as of writing — so turning
+      # either on today would fail every PR for reasons unrelated to the
+      # PR. Normalize in one dedicated commit first, then add the step.
+
+      # tsc via `pnpm build`'s prebuild + tsc step; also proves vite can
+      # actually bundle it, which plain `tsc --noEmit` doesn't.
+      - name: Frontend type-check and build
+        shell: pwsh
+        run: pnpm build
+
+      - name: Frontend tests
+        shell: pwsh
+        run: pnpm test

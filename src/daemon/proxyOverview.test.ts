@@ -1,9 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { create } from "@bufbuild/protobuf";
-import {
-  GroupSchema,
-  GroupItemSchema,
-} from "../gen/daemon/started_service_pb";
+import { GroupSchema, GroupItemSchema } from "../gen/daemon/started_service_pb";
 import { toOverview } from "./proxyOverview";
 
 function item(tag: string, delay = 0, type = "shadowsocks") {

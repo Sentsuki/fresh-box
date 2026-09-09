@@ -120,8 +120,9 @@ describe("normalizeAppSettings", () => {
       ).diagnostics.oom_memory_limit_mb,
     ).toBe(defaults.diagnostics.oom_memory_limit_mb);
     expect(
-      normalizeAppSettings(stored({ diagnostics: { oom_memory_limit_mb: 4096 } }))
-        .diagnostics.oom_memory_limit_mb,
+      normalizeAppSettings(
+        stored({ diagnostics: { oom_memory_limit_mb: 4096 } }),
+      ).diagnostics.oom_memory_limit_mb,
     ).toBe(4096);
   });
 

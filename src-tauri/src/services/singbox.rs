@@ -565,11 +565,29 @@ pub async fn start_with_profile(
     store: &Store,
     profile_id: &str,
 ) -> Result<(), CommandError> {
-    let config_content = build_config_content(store, profile_id)?;
+    // 合成配置要读 SQLite 和配置内容文件，都是同步 I/O —— 挪到阻塞线程池上，
+    // 别按住 tokio 的工作线程（审计项 L-19）。
+    let profile_id = profile_id.to_string();
+    let (config_content, options) = store
+        .run_blocking(move |store| {
+            let content = build_config_content(store, &profile_id)?;
+            Ok((content, build_start_options(store)))
+        })
+        .await?;
+
+    // 校验的是**合并之后**的内容，不是订阅原文（审计项 L-16）。原文在下载时
+    // 已经过一遍 `check_config`，但真正交给 `StartService` 的是「原文 + 用户
+    // override + priority config」三层合并的产物 —— 覆盖层写坏了配置，以前要
+    // 等到点启动、daemon 那边解析失败才知道，而那条错误还得穿过 lifecycle 锁
+    // 和 20 秒超时才回得来。这里用的是同一个 sing-box 解析器
+    // （`ApplicationService.CheckConfig`），所以它放行的 daemon 一定也放行，
+    // 不会平白多拦下能跑的配置。
+    crate::daemon::validate::check_config(&config_content).await?;
+
     let connection = get_connection(state).await?;
     with_lifecycle_timeout(
         "start sing-box service",
-        connection.start_service(config_content, build_start_options(store)),
+        connection.start_service(config_content, options),
     )
     .await
 }

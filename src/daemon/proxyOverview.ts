@@ -16,7 +16,11 @@ function nodeDelay(delay: number): number | null {
   return delay > 0 ? delay : null;
 }
 
-export function toOverview(groups: Group[], mode: ProxyOverview["current_mode"], modes: string[]): ProxyOverview {
+export function toOverview(
+  groups: Group[],
+  mode: ProxyOverview["current_mode"],
+  modes: string[],
+): ProxyOverview {
   return {
     current_mode: mode,
     available_modes: modes,
@@ -29,11 +33,10 @@ export function toOverview(groups: Group[], mode: ProxyOverview["current_mode"],
         name: group.tag,
         kind: group.type,
         current: group.selected,
-        current_delay:
-          nodeDelay(
-            group.items.find((item) => item.tag === group.selected)
-              ?.urlTestDelay ?? 0,
-          ),
+        current_delay: nodeDelay(
+          group.items.find((item) => item.tag === group.selected)
+            ?.urlTestDelay ?? 0,
+        ),
         options: group.items.map((item) => ({
           name: item.tag,
           kind: item.type,

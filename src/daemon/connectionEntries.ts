@@ -47,7 +47,9 @@ function formatTimestamp(millis: bigint): string {
 
 function toEntry(connection: Connection): ConnectionEntry {
   const [sourceIP, sourcePort] = splitHostPort(connection.source);
-  const [destinationIP, destinationPort] = splitHostPort(connection.destination);
+  const [destinationIP, destinationPort] = splitHostPort(
+    connection.destination,
+  );
   const path = connection.processInfo?.processPath ?? "";
 
   return {
