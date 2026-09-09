@@ -16,7 +16,7 @@ on:
   # Also on pushes to the long-lived branches, so a merge that breaks
   # something is caught even if it never went through a PR.
   push:
-    branches: [main, fix]
+    branches: [main]
   workflow_dispatch:
 
 # A new push to the same PR cancels the previous run — no point finishing
