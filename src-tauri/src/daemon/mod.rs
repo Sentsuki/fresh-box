@@ -24,6 +24,7 @@ pub mod bridge;
 pub mod client;
 pub mod install;
 pub mod pipe;
+pub mod profile;
 pub mod validate;
 pub mod worker;
 
@@ -35,6 +36,19 @@ pub use client::{DaemonClient, DaemonConnection};
 #[allow(clippy::all)]
 pub mod daemon_api {
     tonic::include_proto!("daemon");
+}
+
+/// `desktop` 包引用 `daemon` 包类型时的落点。
+///
+/// `ApplicationService.StartStandalone*` 流回的是 `StartedService` 那两个
+/// progress 消息，于是 prost 生成了跨包引用 `super::super::daemon::X`。那条
+/// 路径是从生成的 client 子模块（`desktop_api::application_service_client`）
+/// 里看的，算下来正好是 `crate::daemon::daemon::X` —— 而 daemon 包的类型实际
+/// 住在 `daemon_api`。这个别名模块就是把两者接上，**改名字生成的代码就找不到
+/// 了**。
+#[allow(clippy::module_inception)]
+pub mod daemon {
+    pub use super::daemon_api::*;
 }
 
 /// Generated from `proto/boxdd/desktop_service.proto`.

@@ -10,6 +10,7 @@ import {
   LinkRegular,
   OpenRegular,
   SaveRegular,
+  ShareRegular,
 } from "@fluentui/react-icons";
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
@@ -39,6 +40,8 @@ export default function Profiles() {
     initializeConfigs,
     selectConfig,
     selectConfigFile,
+    selectProfileFile,
+    exportProfileFile,
     addSubscription,
     updateSubscription,
     deleteConfig,
@@ -83,6 +86,14 @@ export default function Profiles() {
           onClick={() => void selectConfigFile()}
         >
           Import Local
+        </Button>
+        <Button
+          icon={<ShareRegular />}
+          variant="subtle"
+          onClick={() => void selectProfileFile()}
+          title="Import a .bpf profile shared from another sing-box client"
+        >
+          Import Shared
         </Button>
         <Button
           icon={<CloudArrowDownRegular />}
@@ -172,6 +183,7 @@ export default function Profiles() {
                   onUpdate={() => updateSubscription(file.id)}
                   onOpen={() => void openConfigFile(file.id)}
                   onDelete={() => void deleteConfig(file.id)}
+                  onExport={() => void exportProfileFile(file.id, file.name)}
                   onToggleAutoUpdate={(enabled, minutes) =>
                     void setAutoUpdate(file.id, enabled, minutes)
                   }
@@ -208,6 +220,7 @@ export default function Profiles() {
                     onSelect={() => void selectConfig(file)}
                     onOpen={() => void openConfigFile(file.id)}
                     onDelete={() => void deleteConfig(file.id)}
+                    onExport={() => void exportProfileFile(file.id, file.name)}
                     onRename={(newName) => void renameConfig(file.id, newName)}
                   />
                 );
@@ -238,6 +251,7 @@ function LocalFileCard({
   onSelect,
   onOpen,
   onDelete,
+  onExport,
   onRename,
 }: {
   name: string;
@@ -245,6 +259,7 @@ function LocalFileCard({
   onSelect: () => void;
   onOpen: () => void;
   onDelete: () => void;
+  onExport: () => void;
   onRename: (newName: string) => void;
 }) {
   const [editing, setEditing] = useState(false);
@@ -366,6 +381,16 @@ function LocalFileCard({
           <Button
             size="sm"
             variant="ghost"
+            icon={<ShareRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+            }}
+            title="Export as a shareable .bpf file"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
             icon={<DeleteRegular />}
             onClick={(e) => {
               e.stopPropagation();
@@ -390,6 +415,7 @@ function SubscriptionCard({
   onUpdate,
   onOpen,
   onDelete,
+  onExport,
   onToggleAutoUpdate,
   onRename,
 }: {
@@ -403,6 +429,7 @@ function SubscriptionCard({
   onUpdate: () => Promise<boolean | void>;
   onOpen: () => void;
   onDelete: () => void;
+  onExport: () => void;
   onToggleAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
   onRename: (newName: string, newUrl: string) => void;
 }) {
@@ -601,6 +628,16 @@ function SubscriptionCard({
             icon={<EditRegular />}
             onClick={startEdit}
             title="Edit"
+          />
+          <Button
+            size="sm"
+            variant="ghost"
+            icon={<ShareRegular />}
+            onClick={(e) => {
+              e.stopPropagation();
+              onExport();
+            }}
+            title="Export as a shareable .bpf file"
           />
           <Button
             size="sm"

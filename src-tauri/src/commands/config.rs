@@ -223,6 +223,92 @@ pub async fn import_profile_file(
         .await
 }
 
+/// 把一份配置导出成可分享的 `.bpf` 文件。
+///
+/// 编解码是 daemon 的事（`daemon::profile`），读库、读内容文件、落盘是这边的
+/// 事 —— webview 碰不到文件系统，所以路径由前端在保存对话框里选好传进来。
+#[tauri::command]
+#[specta::specta]
+pub async fn export_profile(
+    store: State<'_, Store>,
+    id: String,
+    destination: String,
+) -> Result<String, CommandError> {
+    let lookup = id.clone();
+    let (profile, content) = store
+        .run_blocking(move |store| {
+            let profile = profiles::find(store, &lookup)?;
+            let content = profiles::read_content(store, &lookup)?;
+            Ok((profile, content))
+        })
+        .await?;
+
+    // 订阅带上 URL 和自动更新设置，本地文件就只有内容 —— 对方导入后能不能
+    // 继续自动更新，取决于这份配置本来是不是订阅。
+    let remote = profile.url.clone().unwrap_or_default();
+    let encoded = crate::daemon::profile::encode(crate::daemon::desktop_api::ProfileContent {
+        r#type: if remote.is_empty() {
+            crate::daemon::profile::TYPE_LOCAL
+        } else {
+            crate::daemon::profile::TYPE_REMOTE
+        },
+        name: profile.name,
+        config: content,
+        remote_path: remote,
+        auto_update: profile.auto_update,
+        auto_update_interval: profile
+            .update_interval_minutes
+            .map(|m| m as i32)
+            .unwrap_or_default(),
+        last_updated: 0,
+    })
+    .await?;
+
+    let path = std::path::PathBuf::from(&destination);
+    let written = path.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::write(&written, &encoded).map_err(|e| CommandError::io("write profile file", e))
+    })
+    .await
+    .map_err(|e| CommandError::invalid_state("write profile file", e.to_string()))??;
+    Ok(path.display().to_string())
+}
+
+/// 导入别人分享过来的 `.bpf`。
+///
+/// 和 `import_profile_file` 的区别只在最外层那一层封装：那个吃的是裸 JSON
+/// 配置，这个吃的是 libbox 打包过的形式，解开之后同样过一遍 `check_config`
+/// 再入库 —— 分享来的东西更不该被当成可信输入。
+#[tauri::command]
+#[specta::specta]
+pub async fn import_profile_data(
+    store: State<'_, Store>,
+    source_path: String,
+) -> Result<ProfileOperationResult, CommandError> {
+    let source = std::path::PathBuf::from(&source_path);
+    let data = tokio::task::spawn_blocking(move || {
+        std::fs::read(&source).map_err(|e| CommandError::resource_not_found("profile file", e))
+    })
+    .await
+    .map_err(|e| CommandError::invalid_state("read profile file", e.to_string()))??;
+
+    let decoded = crate::daemon::profile::decode(data).await?;
+    crate::daemon::validate::check_config(&decoded.config).await?;
+
+    let name = if decoded.name.trim().is_empty() {
+        "imported".to_string()
+    } else {
+        decoded.name
+    };
+    let url = Some(decoded.remote_path).filter(|path| !path.trim().is_empty());
+    store
+        .run_blocking(move |store| {
+            let entry = profiles::create(store, &name, url, &decoded.config)?;
+            result_for(store, entry)
+        })
+        .await
+}
+
 async fn fetch_subscription(url: &str) -> Result<String, CommandError> {
     if !url.starts_with("http://") && !url.starts_with("https://") {
         return Err(CommandError::validation(

@@ -24,6 +24,12 @@ pub struct ReportSummary {
     /// RFC3339.
     pub time: String,
     pub is_read: bool,
+    /// 能不能打包导出。只有 daemon 记录的报告可以 —— fresh-box 自己的那几条
+    /// （渲染层错误、Tauri panic）没有对应的 daemon 归档。
+    ///
+    /// 用一个字段而不是让前端去嗅 `app:` 前缀：那个前缀是 id 的传输形式，
+    /// 不该变成 UI 的判断依据。
+    pub exportable: bool,
 }
 
 #[derive(Debug, Clone, serde::Serialize, specta::Type)]
@@ -46,6 +52,7 @@ fn crash_entry_summary(entry: CrashReportEntry) -> ReportSummary {
         id: format!("{DAEMON_PREFIX}{}", entry.name),
         time: millis_to_rfc3339(entry.crashed_at),
         is_read: entry.is_read,
+        exportable: true,
     }
 }
 
@@ -54,6 +61,7 @@ fn oom_entry_summary(entry: OomReportEntry) -> ReportSummary {
         id: entry.name,
         time: millis_to_rfc3339(entry.recorded_at),
         is_read: entry.is_read,
+        exportable: true,
     }
 }
 
@@ -96,6 +104,8 @@ pub async fn list_crash_reports_all(
             // always reporting them read just means they never contribute
             // to an unread badge.
             is_read: true,
+            // daemon 那边没有这条报告，自然也打包不出来。
+            exportable: false,
         })
         .collect();
 
@@ -166,6 +176,83 @@ pub async fn delete_all_crash_reports(
         let _ = connection.delete_all_crash_reports().await;
     }
     Ok(())
+}
+
+/// 把一份 daemon 记录的报告打包写到 `destination`。
+///
+/// 路径由前端在系统保存对话框里拿到（那是 UI 的事），实际的 RPC 与落盘在这里
+/// （webview 碰不到文件系统）。`with_configuration` / `with_log` 直接透传给
+/// daemon —— 报告里要不要带上当时的配置和日志，是提 issue 时才需要权衡的事，
+/// 所以交给调用方决定而不是在这里替它定。
+async fn write_archive(
+    archive: crate::daemon::desktop_api::CrashReportArchive,
+    destination: &str,
+) -> Result<String, CommandError> {
+    let path = std::path::PathBuf::from(destination);
+    let data = archive.data;
+    let written = path.clone();
+    tokio::task::spawn_blocking(move || {
+        std::fs::write(&written, &data).map_err(|e| CommandError::io("write report archive", e))
+    })
+    .await
+    .map_err(|e| CommandError::invalid_state("write report archive", e.to_string()))??;
+    Ok(path.display().to_string())
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_crash_report(
+    singbox: State<'_, SingboxState>,
+    id: String,
+    destination: String,
+    with_configuration: bool,
+    with_log: bool,
+) -> Result<String, CommandError> {
+    if id.starts_with(APP_PREFIX) {
+        // `exportable: false` 的报告不该走到这里；真走到了就说明前端在自己
+        // 拼 id，明确报错而不是写出一个空档案。
+        return Err(CommandError::validation(
+            "This crash report was recorded by fresh-box itself and has no daemon archive",
+        ));
+    }
+    let name = id.strip_prefix(DAEMON_PREFIX).unwrap_or(&id).to_string();
+    let connection = get_connection(singbox.inner()).await?;
+    let archive = connection
+        .export_crash_report(name, with_configuration, with_log)
+        .await?;
+    write_archive(archive, &destination).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_oom_report(
+    singbox: State<'_, SingboxState>,
+    name: String,
+    destination: String,
+    with_configuration: bool,
+    with_log: bool,
+) -> Result<String, CommandError> {
+    let connection = get_connection(singbox.inner()).await?;
+    let archive = connection
+        .export_oom_report(name, with_configuration, with_log)
+        .await?;
+    write_archive(archive, &destination).await
+}
+
+#[tauri::command]
+#[specta::specta]
+pub async fn export_power_report(
+    singbox: State<'_, SingboxState>,
+    name: String,
+    destination: String,
+    with_configuration: bool,
+    with_log: bool,
+) -> Result<String, CommandError> {
+    let connection = get_connection(singbox.inner()).await?;
+    let archive = connection
+        .export_power_report(name, with_configuration, with_log)
+        .await?;
+    write_archive(archive, &destination).await
 }
 
 // ── OOM reports ──────────────────────────────────────────────────────────

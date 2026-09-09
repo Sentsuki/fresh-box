@@ -74,7 +74,7 @@ async fn bridge_round_trips_a_real_protobuf_message() {
     // 一个跑着的 sing-box 实例 —— 而启动实例又要走 DesktopService，在开发
     // 模式下正好是不通的那一半。
     let response = bridge::unary(
-        &client.connection,
+        client.connection.raw_channel(),
         "daemon.StartedService",
         "GetStartedAt",
         Vec::new(),
@@ -114,7 +114,7 @@ async fn desktop_service_is_unreachable_in_dev_mode() {
         .expect("connect to the development daemon over TCP");
 
     let error = bridge::unary(
-        &client.connection,
+        client.connection.raw_channel(),
         "desktop.DesktopService",
         "GetDaemonInfo",
         Vec::new(),
@@ -151,7 +151,7 @@ async fn bridge_refuses_a_method_that_is_not_exposed() {
     // 配置内容的 RPC。allowlist 必须在字节碰到网络之前就拦下它 —— 这里连的
     // daemon 是真的，所以拦不住就真的会启动一个实例。
     let error = bridge::unary(
-        &client.connection,
+        client.connection.raw_channel(),
         "desktop.DesktopService",
         "StartService",
         Vec::new(),
@@ -187,7 +187,7 @@ async fn server_streaming_delivers_a_real_frame() {
         .expect("connect to the development daemon over TCP");
 
     let mut stream = bridge::server_streaming(
-        &client.connection,
+        client.connection.raw_channel(),
         "daemon.StartedService",
         "SubscribeServiceStatus",
         Vec::new(),
@@ -229,7 +229,7 @@ async fn server_streaming_rejects_a_unary_method() {
         .expect("connect to the development daemon over TCP");
 
     let error = bridge::server_streaming(
-        &client.connection,
+        client.connection.raw_channel(),
         "daemon.StartedService",
         "GetStartedAt",
         Vec::new(),
@@ -264,7 +264,7 @@ async fn dropping_a_stream_releases_it() {
 
     for round in 0..20 {
         let mut stream = bridge::server_streaming(
-            &client.connection,
+            client.connection.raw_channel(),
             "daemon.StartedService",
             "SubscribeServiceStatus",
             Vec::new(),

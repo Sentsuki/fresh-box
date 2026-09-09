@@ -67,6 +67,8 @@ pub fn specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::app::disable_autostart::<tauri::Wry>,
             commands::config::list_profiles,
             commands::config::import_profile_file,
+            commands::config::import_profile_data,
+            commands::config::export_profile,
             commands::config::delete_profile,
             commands::config::rename_profile,
             commands::config::edit_subscription_url,
@@ -92,14 +94,17 @@ pub fn specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::reports::read_crash_report,
             commands::reports::delete_crash_report,
             commands::reports::delete_all_crash_reports,
+            commands::reports::export_crash_report,
             commands::reports::list_oom_reports,
             commands::reports::read_oom_report,
             commands::reports::delete_oom_report,
             commands::reports::delete_all_oom_reports,
+            commands::reports::export_oom_report,
             commands::reports::list_power_reports,
             commands::reports::read_power_report,
             commands::reports::delete_power_report,
             commands::reports::delete_all_power_reports,
+            commands::reports::export_power_report,
         ])
         // 相位类型不出现在任何命令签名里（它通过事件推送给前端），得单独导出。
         .typ::<crate::services::singbox::ConnectionPhase>()

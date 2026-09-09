@@ -52,7 +52,7 @@ jobs:
         uses: dtolnay/rust-toolchain@stable
         with:
           toolchain: stable
-          components: clippy
+          components: clippy, rustfmt
 
       - name: Rust cache
         uses: swatinem/rust-cache@v2
@@ -79,6 +79,10 @@ jobs:
         shell: pwsh
         run: cargo clippy --manifest-path src-tauri/Cargo.toml --all-targets -- -D warnings
 
+      - name: Rust format
+        shell: pwsh
+        run: cargo fmt --manifest-path src-tauri/Cargo.toml --check
+
       # The `*_e2e` suites skip themselves when no development daemon is
       # listening on 127.0.0.1:19090 (which is the case on a runner), and
       # the service-probe suite skips when there's no bundled daemon binary.
@@ -95,11 +99,9 @@ jobs:
         shell: pwsh
         run: pnpm lint:check --max-warnings=0
 
-      # No formatting gate (neither `cargo fmt --check` nor
-      # `pnpm format:check`): this repo has never been formatter-clean —
-      # 116 rustfmt diffs and 37 prettier ones as of writing — so turning
-      # either on today would fail every PR for reasons unrelated to the
-      # PR. Normalize in one dedicated commit first, then add the step.
+      - name: Frontend format
+        shell: pwsh
+        run: pnpm format:check
 
       # tsc via `pnpm build`'s prebuild + tsc step; also proves vite can
       # actually bundle it, which plain `tsc --noEmit` doesn't.

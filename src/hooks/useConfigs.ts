@@ -1,8 +1,10 @@
 import { useCallback } from "react";
-import { open } from "@tauri-apps/plugin-dialog";
+import { open, save } from "@tauri-apps/plugin-dialog";
 import {
   addSubscription as addSubscriptionCmd,
   importProfileFile,
+  importProfileData,
+  exportProfile,
   deleteProfile as deleteProfileCmd,
   editSubscriptionUrl,
   listProfiles,
@@ -127,6 +129,52 @@ export function useConfigs() {
       toastError(`Error selecting config file: ${getErrorMessage(err)}`);
     }
   }, [toastError, toastSuccess]);
+
+  /**
+   * 导入别人分享的 `.bpf` —— sing-box 各端之间互传配置用的那个打包格式。
+   *
+   * 解包和校验都在 daemon 那边（`ApplicationService.DecodeProfile` +
+   * `CheckConfig`），走的是 worker 自己的管道，所以服务没装也能导入。
+   */
+  const selectProfileFile = useCallback(async () => {
+    const config = useConfigStore.getState();
+    try {
+      const file = await open({
+        filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
+        multiple: false,
+      });
+      if (!file) return;
+
+      config.setPending(true);
+      try {
+        const result = await importProfileData(file as string);
+        await applyProfileResult(result);
+        toastSuccess("Imported shared profile");
+      } finally {
+        config.setPending(false);
+      }
+    } catch (err) {
+      toastError(`Error importing profile: ${getErrorMessage(err)}`);
+    }
+  }, [toastError, toastSuccess]);
+
+  /** 反过来：把一份配置打包成可以发给别人的文件。 */
+  const exportProfileFile = useCallback(
+    async (id: string, name: string) => {
+      try {
+        const destination = await save({
+          defaultPath: `${name.replace(/[^a-zA-Z0-9._-]/g, "-")}.bpf`,
+          filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
+        });
+        if (!destination) return;
+        const written = await exportProfile(id, destination);
+        toastSuccess("Profile exported", written);
+      } catch (err) {
+        toastError(`Error exporting profile: ${getErrorMessage(err)}`);
+      }
+    },
+    [toastError, toastSuccess],
+  );
 
   const addSubscription = useCallback(
     async (url: string) => {
@@ -303,6 +351,8 @@ export function useConfigs() {
     initializeConfigs,
     selectConfig,
     selectConfigFile,
+    selectProfileFile,
+    exportProfileFile,
     addSubscription,
     updateSubscription,
     editSubscription,

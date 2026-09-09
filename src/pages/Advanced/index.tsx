@@ -15,14 +15,17 @@ import {
   listCrashReports,
   readCrashReport,
   deleteCrashReport,
+  exportCrashReport,
   deleteAllCrashReports,
   listOomReports,
   readOomReport,
   deleteOomReport,
+  exportOomReport,
   deleteAllOomReports,
   listPowerReports,
   readPowerReport,
   deletePowerReport,
+  exportPowerReport,
   deleteAllPowerReports,
 } from "../../services/api";
 import DiagnosticsTab from "./DiagnosticsTab";
@@ -182,6 +185,7 @@ export default function Advanced() {
                 read: readCrashReport,
                 remove: deleteCrashReport,
                 removeAll: deleteAllCrashReports,
+                export: exportCrashReport,
               }}
             />
           </TabContent>
@@ -195,6 +199,7 @@ export default function Advanced() {
                 read: readOomReport,
                 remove: deleteOomReport,
                 removeAll: deleteAllOomReports,
+                export: exportOomReport,
               }}
               settingsPanel={<OomSettingsPanel />}
             />
@@ -209,6 +214,7 @@ export default function Advanced() {
                 read: readPowerReport,
                 remove: deletePowerReport,
                 removeAll: deleteAllPowerReports,
+                export: exportPowerReport,
               }}
               settingsPanel={<PowerSettingsPanel />}
             />

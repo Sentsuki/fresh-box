@@ -1,4 +1,9 @@
-import { DeleteRegular, DocumentRegular } from "@fluentui/react-icons";
+import {
+  ArrowDownloadRegular,
+  DeleteRegular,
+  DocumentRegular,
+} from "@fluentui/react-icons";
+import { save } from "@tauri-apps/plugin-dialog";
 import { useCallback, useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
@@ -15,6 +20,14 @@ export interface ReportsApi {
   // 这里只关心它完成。
   remove: (id: string) => Promise<unknown>;
   removeAll: () => Promise<unknown>;
+  /** 打包成 zip 写到 `destination`，返回落盘路径。只有 daemon 记的报告有
+   * （见 `ReportSummary.exportable`）。 */
+  export: (
+    id: string,
+    destination: string,
+    withConfiguration: boolean,
+    withLog: boolean,
+  ) => Promise<string>;
 }
 
 interface ReportsPanelProps {
@@ -82,6 +95,31 @@ export function ReportsPanel({
     } catch (err) {
       toast.error(
         `Failed to delete report: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  };
+
+  /**
+   * 打包一份报告交给用户。
+   *
+   * 保存位置由系统对话框决定（UI 的事），RPC 和落盘在 Rust（webview 碰不到
+   * 文件系统）。配置和日志都带上 —— 这个按钮的用途就是「提 issue 时附上」，
+   * 少带一样往往就要再来一轮。
+   */
+  const exportReport = async (report: ReportSummary) => {
+    const suggested = `${report.id.replace(/[^a-zA-Z0-9._-]/g, "-")}.zip`;
+    const destination = await save({
+      defaultPath: suggested,
+      filters: [{ name: "Zip archive", extensions: ["zip"] }],
+    });
+    // 用户取消了对话框。
+    if (!destination) return;
+    try {
+      const written = await api.export(report.id, destination, true, true);
+      toast.success("Report exported.", written);
+    } catch (err) {
+      toast.error(
+        `Failed to export report: ${err instanceof Error ? err.message : String(err)}`,
       );
     }
   };
@@ -163,6 +201,15 @@ export function ReportsPanel({
               >
                 Delete
               </Button>
+              {selected.exportable && (
+                <Button
+                  variant="subtle"
+                  icon={<ArrowDownloadRegular />}
+                  onClick={() => void exportReport(selected)}
+                >
+                  Export
+                </Button>
+              )}
               <Button variant="accent" onClick={() => setSelected(null)}>
                 Close
               </Button>

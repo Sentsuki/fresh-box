@@ -10,6 +10,35 @@ use crate::daemon::bridge::{self, frame, registry::StreamRegistry};
 use crate::errors::CommandError;
 use crate::services::singbox::SingboxState;
 
+/// 住在 worker 自己管道上的服务 —— 见 `channel_for`。
+const APPLICATION_SERVICE: &str = "desktop.ApplicationService";
+
+/// 这次调用该走哪条管道。
+///
+/// `ApplicationService` 在 **worker 自己的 `--socket` 管道**上，和特权 daemon
+/// 服务装没装、跑没跑无关（`cmd_worker.go` 无条件注册它）。配置校验/格式化、
+/// profile 编解码、离线连通性测试因此在「服务没装、实例没跑」时照样可用 ——
+/// 那正是这些能力存在的意义，所以这里**不能**走 `get_connection`：那会在没
+/// 连上 daemon 时直接返回 `ProcessNotRunning`。
+///
+/// 其余服务（DesktopService / ManagedService / StartedService）走 relay，
+/// 复用 reconciliation loop 已经建好的那条连接。
+async fn channel_for(
+    state: &SingboxState,
+    service: &str,
+) -> Result<tonic::transport::Channel, CommandError> {
+    if service == APPLICATION_SERVICE {
+        return crate::daemon::worker::application_channel().await;
+    }
+    // 复用 reconciliation loop 已经建立好的连接，不自己另开一条 —— bridge
+    // 是那条连接上的又一个使用者，和托盘、和 `DaemonSession` 自己平级。
+    // 没连上时这里返回 `ProcessNotRunning`，前端据此走相位分支，而不是把它
+    // 当成这次调用本身的失败。
+    Ok(crate::services::singbox::get_connection(state)
+        .await?
+        .raw_channel())
+}
+
 /// 转发一次一元 gRPC 调用到 sing-box-daemon，返回响应的原始 protobuf 字节。
 ///
 /// `request` 目前以 JSON 数字数组过界（Tauri 命令参数默认走 JSON）。一元
@@ -26,12 +55,8 @@ pub async fn daemon_unary(
     method: String,
     request: Vec<u8>,
 ) -> Result<tauri::ipc::Response, CommandError> {
-    // 复用 reconciliation loop 已经建立好的连接，不自己另开一条 —— bridge
-    // 是那条连接上的又一个使用者，和托盘、和 `DaemonSession` 自己平级。
-    // 没连上时这里返回 `ProcessNotRunning`，前端据此走相位分支，而不是把它
-    // 当成这次调用本身的失败。
-    let connection = crate::services::singbox::get_connection(state.inner()).await?;
-    let bytes = bridge::unary(&connection, &service, &method, request).await?;
+    let channel = channel_for(state.inner(), &service).await?;
+    let bytes = bridge::unary(channel, &service, &method, request).await?;
     Ok(tauri::ipc::Response::new(bytes))
 }
 
@@ -53,10 +78,10 @@ pub async fn daemon_stream(
     request: Vec<u8>,
     on_event: Channel<InvokeResponseBody>,
 ) -> Result<u32, CommandError> {
-    let connection = crate::services::singbox::get_connection(state.inner()).await?;
+    let channel = channel_for(state.inner(), &service).await?;
     // 建流失败直接作为命令的错误返回，不用绕 `on_event` —— 前端的
     // `transport.stream()` 在这里 await，能直接拿到一个 rejected promise。
-    let mut stream = bridge::server_streaming(&connection, &service, &method, request).await?;
+    let mut stream = bridge::server_streaming(channel, &service, &method, request).await?;
 
     let id = registry.next_id();
     let label = window.label().to_string();

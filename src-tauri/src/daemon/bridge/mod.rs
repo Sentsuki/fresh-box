@@ -24,7 +24,8 @@ use tonic::Streaming;
 use tonic::client::Grpc;
 use tonic::codegen::Bytes;
 
-use crate::daemon::DaemonConnection;
+use tonic::transport::Channel;
+
 use crate::errors::CommandError;
 
 use allowlist::MethodKind;
@@ -34,15 +35,18 @@ use allowlist::MethodKind;
 /// `request` 是前端已经用 protobuf-es 编码好的字节，这里不解析、不校验、
 /// 不改写 —— 唯一的检查是 `allowlist::resolve`：这条 service/method 是否
 /// 存在、是否确实是一元的、是否允许暴露给 webview。
+///
+/// 通道由调用方选（见 `commands::bridge::channel_for`）：daemon relay 还是
+/// worker 自己的管道，取决于这条 RPC 住在哪个服务上。
 pub async fn unary(
-    connection: &DaemonConnection,
+    channel: Channel,
     service: &str,
     method: &str,
     request: Vec<u8>,
 ) -> Result<Vec<u8>, CommandError> {
     let path = allowlist::resolve(service, method, MethodKind::Unary)?;
 
-    let mut grpc = Grpc::new(connection.raw_channel());
+    let mut grpc = Grpc::new(channel);
     grpc.ready()
         .await
         .map_err(|e| CommandError::network(format!("daemon bridge channel not ready: {e}")))?;
@@ -108,14 +112,14 @@ pub mod frame {
 ///
 /// 和 `unary` 一样：请求字节由前端编码好，响应字节原样交回，Rust 不解析。
 pub async fn server_streaming(
-    connection: &DaemonConnection,
+    channel: Channel,
     service: &str,
     method: &str,
     request: Vec<u8>,
 ) -> Result<Streaming<Bytes>, CommandError> {
     let path = allowlist::resolve(service, method, MethodKind::ServerStreaming)?;
 
-    let mut grpc = Grpc::new(connection.raw_channel());
+    let mut grpc = Grpc::new(channel);
     grpc.ready()
         .await
         .map_err(|e| CommandError::network(format!("daemon bridge channel not ready: {e}")))?;

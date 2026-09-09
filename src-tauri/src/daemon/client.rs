@@ -38,8 +38,9 @@ use super::daemon_api::{
 };
 use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{
-    CrashReportEntry, CrashReportFile, CrashReportRequest, DaemonInfo, OomReportEntry,
-    OomReportFile, OomReportRequest, StartOptions, StartServiceRequest,
+    CrashReportArchive, CrashReportEntry, CrashReportExportRequest, CrashReportFile,
+    CrashReportRequest, DaemonInfo, OomReportEntry, OomReportExportRequest, OomReportFile,
+    OomReportRequest, StartOptions, StartServiceRequest,
 };
 use super::worker;
 
@@ -132,7 +133,10 @@ impl DaemonConnection {
     /// proxy — it dials methods by `PathAndQuery` with its own codec rather
     /// than through any of the typed wrappers below, so it needs the raw
     /// channel. Cloning is just an Arc bump (see this type's doc comment).
-    pub(crate) fn raw_channel(&self) -> Channel {
+    ///
+    /// `pub` rather than `pub(crate)` only so `tests/bridge_e2e.rs` can hand
+    /// the bridge a channel the same way `commands::bridge` does.
+    pub fn raw_channel(&self) -> Channel {
         self.channel.clone()
     }
 
@@ -319,6 +323,67 @@ impl DaemonConnection {
             .await
             .map(|r| r.into_inner().files)
             .map_err(|e| map_status("read crash report", e))
+    }
+
+    /// 打包一份崩溃报告，拿回 zip 的字节。
+    ///
+    /// 上游还有一个 `ArchiveReport`，由 daemon 自己决定写到哪个路径；这里用
+    /// 的是把字节交回来的这个，落盘位置由用户在保存对话框里选。
+    ///
+    /// `encrypt` 没有暴露出去：加密用的是上游内置的公钥，只有 sing-box 作者
+    /// 能解 —— 那是给「提 issue 但不想公开配置」用的，需要时再加。
+    pub async fn export_crash_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_crash_report(CrashReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export crash report", e))
+    }
+
+    pub async fn export_oom_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_oom_report(OomReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export OOM report", e))
+    }
+
+    pub async fn export_power_report(
+        &self,
+        name: String,
+        with_configuration: bool,
+        with_log: bool,
+    ) -> Result<CrashReportArchive, CommandError> {
+        self.desktop()
+            .export_power_report(OomReportExportRequest {
+                name,
+                with_configuration,
+                with_log,
+                encrypt: false,
+            })
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("export power report", e))
     }
 
     pub async fn mark_crash_report_read(&self, name: String) -> Result<(), CommandError> {

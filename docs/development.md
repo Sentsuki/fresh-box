@@ -42,7 +42,8 @@ release 构建里没有任何读这个环境变量的代码，而不只是运行
 | | 开发直连 (TCP) | 产品安装 |
 |---|---|---|
 | `StartedService`（代理组、连接、日志、流量、模式、测速） | ✅ 全部可用 | ✅ |
-| `DesktopService`（`GetDaemonInfo`、`ClaimService`、`StartService`、崩溃/OOM/电源报告） | ❌ 全部不可用 | ✅ |
+| `DesktopService`（`GetDaemonInfo`、`ClaimService`、`StartService`、崩溃/OOM/电源报告及其导出） | ❌ 全部不可用 | ✅ |
+| `ApplicationService`（配置校验/格式化、profile 编解码、离线连通性测试） | ✅ 全部可用 | ✅ |
 
 原因：`DesktopService` 的每个方法开头都调 `peerIdentityFromContext`
 （`desktop_service.go` 里 10 处），而 `--listen` 只是不装传输层凭据，并没有
@@ -56,6 +57,21 @@ release 构建里没有任何读这个环境变量的代码，而不只是运行
 因为启动实例本身要走 `DesktopService.StartService`，开发模式下没有跑着的
 sing-box 实例，所以那些带 `waitForStarted` 的方法（如 `SubscribeGroups`）也
 会失败。`GetStartedAt` 与 `SubscribeServiceStatus` 没有这个前置条件。
+
+`ApplicationService` 是个例外，它**不在 daemon 上**：worker 进程在自己的
+`--socket` 管道上无条件注册它（`cmd_worker.go`），和特权服务装没装、实例跑没
+跑都无关。所以配置校验、格式化、profile 编解码、离线的网络质量/STUN 测试在
+「什么都没启动」时照样能用 —— 那正是它们存在的意义。
+
+bridge 因此有两条出口，按 service 名分（`commands::bridge::channel_for`）：
+
+```
+desktop.ApplicationService  →  worker 的 --socket 管道（现连，不需要 daemon）
+其余                        →  reconciliation loop 已经建好的 relay 连接
+```
+
+前端不需要知道这件事：`src/daemon/clients.ts` 里四个 stub 用的是同一个
+transport，路由完全发生在 Rust 侧。
 
 ## 相关命令
 

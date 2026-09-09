@@ -126,6 +126,41 @@ mod tests {
     }
 
     #[test]
+    fn application_service_methods_are_reachable() {
+        // 这几条住在 **worker 自己的管道**上（见 `commands::bridge::channel_for`），
+        // 不需要 daemon 服务在跑。表里有它们，等于 bridge 允许前端调 ——
+        // 路由到哪条管道是另一回事，由服务名决定。
+        for method in [
+            "CheckConfig",
+            "FormatConfig",
+            "EncodeProfile",
+            "DecodeProfile",
+        ] {
+            resolve("desktop.ApplicationService", method, MethodKind::Unary)
+                .unwrap_or_else(|e| panic!("{method} must resolve as unary: {e:?}"));
+        }
+        for method in [
+            "StartStandaloneNetworkQualityTest",
+            "StartStandaloneSTUNTest",
+        ] {
+            resolve(
+                "desktop.ApplicationService",
+                method,
+                MethodKind::ServerStreaming,
+            )
+            .unwrap_or_else(|e| panic!("{method} must resolve as server-streaming: {e:?}"));
+        }
+    }
+
+    #[test]
+    fn report_export_methods_are_reachable() {
+        for method in ["ExportCrashReport", "ExportOOMReport", "ExportPowerReport"] {
+            resolve("desktop.DesktopService", method, MethodKind::Unary)
+                .unwrap_or_else(|e| panic!("{method} must resolve as unary: {e:?}"));
+        }
+    }
+
+    #[test]
     fn rejects_a_kind_mismatch() {
         let error = resolve(
             "daemon.StartedService",

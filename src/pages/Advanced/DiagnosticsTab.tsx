@@ -157,10 +157,12 @@ export function NetworkQualityCard() {
             />
           </Field>
           <Field label="Outbound">
+            {/* 没有跑着的实例时走 `StartStandalone*Test`，那条 RPC 压根没有
+                出站参数 —— 禁用比留着一个不起作用的输入框诚实。 */}
             <OutboundPicker
               value={outboundTag}
               onChange={setOutboundTag}
-              disabled={running}
+              disabled={running || !isRunning}
             />
           </Field>
           <Field label="Max runtime">
@@ -206,14 +208,14 @@ export function NetworkQualityCard() {
               variant="accent"
               icon={<PlayRegular />}
               onClick={() => void start()}
-              disabled={!isRunning}
             >
               Start test
             </Button>
           )}
           {!isRunning && (
             <span className="ml-3 text-xs text-(--wb-text-tertiary)">
-              sing-box must be running to test through an outbound.
+              sing-box isn&apos;t running — this measures the direct connection,
+              not an outbound.
             </span>
           )}
         </div>
@@ -381,10 +383,12 @@ export function StunTestCard() {
             />
           </Field>
           <Field label="Outbound">
+            {/* 没有跑着的实例时走 `StartStandalone*Test`，那条 RPC 压根没有
+                出站参数 —— 禁用比留着一个不起作用的输入框诚实。 */}
             <OutboundPicker
               value={outboundTag}
               onChange={setOutboundTag}
-              disabled={running}
+              disabled={running || !isRunning}
             />
           </Field>
         </div>
@@ -403,14 +407,14 @@ export function StunTestCard() {
               variant="accent"
               icon={<PlayRegular />}
               onClick={() => void start()}
-              disabled={!isRunning}
             >
               Start test
             </Button>
           )}
           {!isRunning && (
             <span className="ml-3 text-xs text-(--wb-text-tertiary)">
-              sing-box must be running to test through an outbound.
+              sing-box isn&apos;t running — this measures the direct connection,
+              not an outbound.
             </span>
           )}
         </div>
