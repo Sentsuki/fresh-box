@@ -193,16 +193,21 @@ pub fn load_app_settings(store: &Store) -> Result<AppSettings, CommandError> {
     })
 }
 
+/// 八个区一次事务写完，不是八条独立语句 —— 见 `settings::set_all`（审计项
+/// M-4）。编码全部发生在进事务之前，所以事务里只有八次 INSERT。
 pub fn save_app_settings(store: &Store, value: &AppSettings) -> Result<(), CommandError> {
-    use settings::{SCOPE_APP, set};
-    set(store, SCOPE_APP, KEY_APP, &value.app)?;
-    set(store, SCOPE_APP, KEY_PROXIES, &value.proxies)?;
-    set(store, SCOPE_APP, KEY_CONNECTIONS, &value.connections)?;
-    set(store, SCOPE_APP, KEY_LOGS, &value.logs)?;
-    set(store, SCOPE_APP, settings::KEY_PROFILES, &value.profiles)?;
-    set(store, SCOPE_APP, settings::KEY_BEHAVIOR, &value.settings)?;
-    set(store, SCOPE_APP, KEY_UPDATES, &value.updates)?;
-    set(store, SCOPE_APP, KEY_DIAGNOSTICS, &value.diagnostics)
+    use settings::{SCOPE_APP, encode};
+    let entries = [
+        (KEY_APP, encode(&value.app)?),
+        (KEY_PROXIES, encode(&value.proxies)?),
+        (KEY_CONNECTIONS, encode(&value.connections)?),
+        (KEY_LOGS, encode(&value.logs)?),
+        (settings::KEY_PROFILES, encode(&value.profiles)?),
+        (settings::KEY_BEHAVIOR, encode(&value.settings)?),
+        (KEY_UPDATES, encode(&value.updates)?),
+        (KEY_DIAGNOSTICS, encode(&value.diagnostics)?),
+    ];
+    settings::set_all(store, SCOPE_APP, &entries)
 }
 
 /// 后端自己要用的那一区（诊断选项），单独读，不必解析整份设置。
@@ -232,20 +237,26 @@ impl BackendPrefsState {
         self.0.read().map(|guard| guard.clone()).unwrap_or_default()
     }
 
-    /// Updates the in-memory cache immediately (so every in-process reader
-    /// — even one racing this call — sees the new value as soon as this
-    /// returns) and persists it to `BACKEND_PREFS_FILE`. The in-memory
-    /// update happens first and unconditionally: a transient disk-write
-    /// failure shouldn't leave this process's own decisions running on a
-    /// stale value it already knows is wrong, even though it's right to
-    /// still report that failure to the caller (`save_app_settings`, which
-    /// folds it into the same error it'd return for the main settings file
-    /// failing to save).
-    pub fn set(&self, store: &Store, value: AppDisplaySettings) -> Result<(), CommandError> {
+    /// Updates the in-memory cache — and *only* the cache, no I/O at all.
+    ///
+    /// Persistence isn't this type's job: `save_app_settings` already writes
+    /// the `behavior` row as one of its eight sections, so a `set` that also
+    /// wrote it just wrote the same row twice. Splitting the two apart is
+    /// what lets `save_app_settings` be an `async` command whose entire
+    /// database half runs on the blocking pool (审计项 H-3) while this half
+    /// — a single `RwLock` write, microseconds, no disk — still happens
+    /// synchronously and *first*, before the command awaits anything.
+    ///
+    /// That ordering is the point: as soon as the command returns (in fact,
+    /// as soon as this line runs) `CloseRequested` and the tray's
+    /// switch-node handler may read `get()`, and they must not see the old
+    /// value. Doing it unconditionally also means a later disk-write failure
+    /// can't leave this process making decisions on a value it already knows
+    /// is stale — the caller still reports that failure.
+    pub fn cache(&self, value: AppDisplaySettings) {
         if let Ok(mut guard) = self.0.write() {
-            *guard = value.clone();
+            *guard = value;
         }
-        settings::set(store, settings::SCOPE_APP, settings::KEY_BEHAVIOR, &value)
     }
 }
 
@@ -345,22 +356,28 @@ mod tests {
 
     #[test]
     fn backend_prefs_serve_from_memory_and_persist() {
+        // 钉的是 `save_app_settings` 那条命令的两半合起来的效果：`cache` 只
+        // 动内存（同步、无 I/O，所以它留在主线程上），落盘由
+        // `save_app_settings` 自己写 behavior 那一行完成 —— 两者写的必须是
+        // 同一个值、同一行，否则「关窗行为」这类后端判断会和设置页显示的
+        // 对不上。
         let store = store();
         let prefs = BackendPrefsState::load(&store);
         assert!(prefs.get().auto_close_connections, "default");
 
-        prefs
-            .set(
-                &store,
-                AppDisplaySettings {
-                    theme_mode: "dark".into(),
-                    auto_close_connections: false,
-                },
-            )
-            .expect("set");
+        let value = AppSettings {
+            settings: AppDisplaySettings {
+                theme_mode: "dark".into(),
+                auto_close_connections: false,
+            },
+            ..Default::default()
+        };
 
-        // 内存缓存立刻可见……
+        prefs.cache(value.settings.clone());
+        // 内存缓存立刻可见，不等落盘。
         assert!(!prefs.get().auto_close_connections);
+
+        save_app_settings(&store, &value).expect("save");
         // ……而且确实落到了同一行上，下次启动读得回来。
         assert!(!BackendPrefsState::load(&store).get().auto_close_connections);
         assert_eq!(

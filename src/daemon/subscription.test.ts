@@ -182,6 +182,59 @@ describe("createStreamController", () => {
     expect(statuses[statuses.length - 1]).toBe("disconnected");
   });
 
+  it("消息在取消之后才到达，收尾仍然落到 disconnected", async () => {
+    // 审计项 L-3：这条路径以前是 `return` 而不是 `break`，直接跳过了函数末尾
+    // 那句 `disconnected`；而另一条退出路径（流自己结束）会发。于是「取消一条
+    // 流要不要通知订阅者」取决于取消发生在哪一刻 —— 而 `groupsStream` 恰好
+    // 就是靠 `disconnected` 清空代理页数据的。
+    const messages: number[] = [];
+    let stop: () => void = () => {};
+    const controller = createStreamController<number>({
+      subscribe: async function* () {
+        yield 1;
+        stop(); // 取消发生在两条消息之间
+        yield 2; // 这条在 aborted 之后才到
+      },
+      onMessage: (message) => messages.push(message),
+      onStatus: (status) => statuses.push(status),
+    });
+    stop = () => controller.stop();
+
+    setRunning(true);
+    controller.start();
+    await settle();
+
+    // 取消之后到达的那条不再投递。
+    expect(messages).toEqual([1]);
+    expect(statuses[statuses.length - 1]).toBe("disconnected");
+  });
+
+  it("上一轮迟到的收尾不会盖掉新一轮的状态", async () => {
+    // `abort()` 只让上一轮的 await 尽快返回，并不同步终止它 —— 它那句
+    // `disconnected` 会在稍后的微任务里发出。紧接着 start() 的话，那句话就会
+    // 盖在新一轮的 `connected` 上面，页面显示成「已断开」而流其实是好的。
+    const stream = fakeStream<number>();
+    const subscribe = vi.fn((signal: AbortSignal) => stream.iterate(signal));
+    const controller = createStreamController({
+      subscribe,
+      onMessage: () => {},
+      onStatus: (status) => statuses.push(status),
+    });
+
+    setRunning(true);
+    controller.start();
+    await settle();
+
+    statuses.length = 0;
+    controller.stop();
+    controller.start(); // 同一个 tick 里重开
+    await settle();
+
+    expect(statuses).not.toContain("disconnected");
+    expect(statuses[statuses.length - 1]).toBe("connected");
+    controller.stop();
+  });
+
   it("stop 会把清理回调也执行掉", () => {
     const stream = fakeStream<number>();
     const { controller } = build(stream);

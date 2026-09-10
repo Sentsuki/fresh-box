@@ -215,6 +215,40 @@ pub fn stop_reconciliation_loop(state: &SingboxState) {
 /// into a tight connect/disconnect cycle with no rate limit at all.
 const SESSION_RESTART_DELAY: Duration = Duration::from_millis(1000);
 
+/// 握手三步（`GetDaemonInfo` / `ClaimService` / `SubscribeServiceStatus`）各自
+/// 的上限 —— 对齐官方客户端的 `HANDSHAKE_TIMEOUT`（`state.ts`，同样是 3 秒，
+/// 同样逐个调用施加）。
+///
+/// 没有它，一个「管道连上了但不应答」的 daemon —— 典型情况是它被一次卡住的
+/// `StartService` 攥着 `lifecycleAccess`（见 `LIFECYCLE_RPC_TIMEOUT` 的说明）
+/// —— 会让相位永远停在 `Connecting`：`DaemonGate` 那一格没有任何按钮，而
+/// `retry_connection` 的通知只在 `wait_or_retry` 里被消费，救不了一个正卡在
+/// await 上的 future。超时之后这次尝试按 `Failed` 收场，退避、重来，相位也会
+/// 落到带着真实原因的 `Unavailable`。
+const HANDSHAKE_TIMEOUT: Duration = Duration::from_secs(3);
+
+/// 建立连接的上限。比 `HANDSHAKE_TIMEOUT` 宽得多，因为它可能包含一次完整的
+/// worker 进程启动（`worker::READY_TIMEOUT` 自己就是 10 秒），外加
+/// `pipe::connect` 对 `ERROR_PIPE_BUSY` 的轮询 —— 那个循环本身没有上限，这里
+/// 就是它的上限。
+const CONNECT_TIMEOUT: Duration = Duration::from_secs(15);
+
+/// 给一次 daemon 调用套上时限。超时归 `NetworkError`：对调用方而言「对端没在
+/// 约定时间内回话」和「连接断了」是同一类事情，都该退避重连而不是当成业务失败。
+async fn with_timeout<T>(
+    action: &str,
+    limit: Duration,
+    fut: impl std::future::Future<Output = Result<T, CommandError>>,
+) -> Result<T, CommandError> {
+    match tokio::time::timeout(limit, fut).await {
+        Ok(result) => result,
+        Err(_) => Err(CommandError::network(format!(
+            "{action} did not respond within {}s",
+            limit.as_secs()
+        ))),
+    }
+}
+
 async fn wait_or_retry(state: &SingboxState, duration: Duration) {
     tokio::select! {
         _ = tokio::time::sleep(duration) => {}
@@ -289,7 +323,13 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
         }
     };
 
-    let client = match DaemonClient::connect(&daemon_path).await {
+    let client = match with_timeout(
+        "connect to sing-box-daemon",
+        CONNECT_TIMEOUT,
+        DaemonClient::connect(&daemon_path),
+    )
+    .await
+    {
         Ok(client) => client,
         Err(e) => {
             publish(
@@ -319,7 +359,13 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
         // attempt, not just when we can also check the version below), mirroring
         // the official client's `getDaemonInfo` call at the top of every
         // `loopConnection` iteration.
-        let info = match client.connection.daemon_info().await {
+        let info = match with_timeout(
+            "GetDaemonInfo",
+            HANDSHAKE_TIMEOUT,
+            client.connection.daemon_info(),
+        )
+        .await
+        {
             Ok(info) => info,
             Err(e) => {
                 publish(
@@ -361,7 +407,13 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
             return AttemptOutcome::Failed;
         }
 
-        if let Err(e) = client.connection.claim_service().await {
+        if let Err(e) = with_timeout(
+            "ClaimService",
+            HANDSHAKE_TIMEOUT,
+            client.connection.claim_service(),
+        )
+        .await
+        {
             publish(
                 app,
                 state,
@@ -398,7 +450,15 @@ async fn run_reconciliation_attempt(app: &AppHandle, state: &SingboxState) -> At
             )
         });
 
-    let mut stream = match connection.subscribe_service_status().await {
+    // 只给**建流**这一步设时限，不给流本身 —— 订阅建立之后长时间没有新消息
+    // 是完全正常的（实例状态没变就没有推送）。
+    let mut stream = match with_timeout(
+        "SubscribeServiceStatus",
+        HANDSHAKE_TIMEOUT,
+        connection.subscribe_service_status(),
+    )
+    .await
+    {
         Ok(stream) => stream,
         Err(e) => {
             state.client.lock().await.take();

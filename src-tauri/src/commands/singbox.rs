@@ -36,10 +36,16 @@ pub fn retry_daemon_connection(state: State<'_, SingboxState>) {
 
 /// `true` once `sing-box-daemon` is registered as a Windows service —
 /// drives whether Settings shows "install" or "uninstall".
+///
+/// `spawn_blocking`，因为探测是一次真正的子进程调用（`sing-box-daemon service
+/// status`）：作为同步命令它会在主消息循环线程上等那个进程退出，而 Settings
+/// 页一挂载就调它 —— 打开设置页时的那一下卡顿就是这么来的（审计项 H-3）。
 #[tauri::command]
 #[specta::specta]
-pub fn is_daemon_service_installed() -> bool {
-    crate::daemon::install::is_service_installed()
+pub async fn is_daemon_service_installed() -> Result<bool, CommandError> {
+    tokio::task::spawn_blocking(crate::daemon::install::is_service_installed)
+        .await
+        .map_err(|e| CommandError::io("probe the daemon service", e))
 }
 
 /// Registers `sing-box-daemon.exe` as a Windows service. Blocks on a UAC

@@ -1,12 +1,15 @@
 // bridge 的能力边界 —— 前端能调到哪些 daemon RPC，全在这张表里。
 //
 // 表由 `build.rs` 从 `proto/` 下的 `.proto` 扫描生成（见那里的
-// `generate_method_table`），所以它永远和 vendored proto 一致，不存在手工
-// 维护漂移的问题：加一个能力必须先改 `.proto`。
+// `generate_method_table`），所以「有哪些方法」永远和 vendored proto 一致；
+// 而「其中哪些开给前端」是一份显式白名单（`build.rs` 的 `EXPOSED`），默认
+// 不给。两者都在构建期核对：白名单里写了个不存在的方法，构建直接失败。
 //
-// 官方客户端的 `bridge.ts` 是「4 个服务上的任意方法都放行」；fresh-box 这里
-// 更紧一档 —— 除了服务/方法必须存在，`exposed: false` 的还会被单独挡掉
-// （目前只有 `DesktopService.StartService`，理由见 build.rs 的 `NOT_EXPOSED`）。
+// 官方客户端的 `bridge.ts` 是「4 个服务上的任意方法都放行」。fresh-box 紧
+// 两档：方法必须存在于 vendored proto，而且必须在 `EXPOSED` 里 —— 目前 15
+// 条，全部落在 `StartedService` 与 `ApplicationService` 上。整个
+// `DesktopService` 和 `ManagedService` 一条都不开，它们的能力由 host 域的
+// 命令提供（那里有守卫和人话错误）。
 
 use tonic::codegen::http::uri::PathAndQuery;
 
@@ -68,7 +71,9 @@ pub fn resolve(
 
     if !entry.exposed {
         return Err(CommandError::permission_denied(format!(
-            "'{service}/{method}' is deliberately not exposed over the daemon bridge"
+            "'{service}/{method}' is not exposed over the daemon bridge — if the frontend is \
+             meant to call it, add it to EXPOSED in build.rs (and read that list's doc comment \
+             first: some of these deliberately go through a host command instead)"
         )));
     }
 
@@ -109,9 +114,13 @@ mod tests {
 
     #[test]
     fn resolves_a_known_unary_method() {
-        let path = resolve("desktop.DesktopService", "GetDaemonInfo", MethodKind::Unary)
-            .expect("GetDaemonInfo is a unary method on DesktopService");
-        assert_eq!(path.path(), "/desktop.DesktopService/GetDaemonInfo");
+        let path = resolve(
+            "daemon.StartedService",
+            "GetClashModeStatus",
+            MethodKind::Unary,
+        )
+        .expect("GetClashModeStatus is a unary method on StartedService");
+        assert_eq!(path.path(), "/daemon.StartedService/GetClashModeStatus");
     }
 
     #[test]
@@ -126,19 +135,10 @@ mod tests {
     }
 
     #[test]
-    fn application_service_methods_are_reachable() {
-        // 这几条住在 **worker 自己的管道**上（见 `commands::bridge::channel_for`），
-        // 不需要 daemon 服务在跑。表里有它们，等于 bridge 允许前端调 ——
-        // 路由到哪条管道是另一回事，由服务名决定。
-        for method in [
-            "CheckConfig",
-            "FormatConfig",
-            "EncodeProfile",
-            "DecodeProfile",
-        ] {
-            resolve("desktop.ApplicationService", method, MethodKind::Unary)
-                .unwrap_or_else(|e| panic!("{method} must resolve as unary: {e:?}"));
-        }
+    fn the_offline_connectivity_tests_are_reachable() {
+        // 这两条住在 **worker 自己的管道**上（见 `commands::bridge::channel_for`），
+        // 不需要 daemon 服务在跑 —— 那正是它们存在的意义，所以它们是
+        // `ApplicationService` 上仅有的两条对前端开放的方法。
         for method in [
             "StartStandaloneNetworkQualityTest",
             "StartStandaloneSTUNTest",
@@ -153,10 +153,58 @@ mod tests {
     }
 
     #[test]
-    fn report_export_methods_are_reachable() {
-        for method in ["ExportCrashReport", "ExportOOMReport", "ExportPowerReport"] {
-            resolve("desktop.DesktopService", method, MethodKind::Unary)
-                .unwrap_or_else(|e| panic!("{method} must resolve as unary: {e:?}"));
+    fn rusts_own_application_service_methods_are_not_reachable() {
+        // 配置校验和 `.bpf` 编解码是 Rust 自己的事（`daemon::validate` /
+        // `daemon::profile`），走类型化 client，不该从 webview 直接发起 ——
+        // 校验尤其如此：`start_with_profile` 校验的是**三层合并之后**的内容，
+        // 前端自己校验一份原文没有意义。
+        for method in [
+            "CheckConfig",
+            "FormatConfig",
+            "EncodeProfile",
+            "DecodeProfile",
+        ] {
+            let error = resolve("desktop.ApplicationService", method, MethodKind::Unary)
+                .expect_err("{method} must not be reachable from the webview");
+            assert!(matches!(error, CommandError::PermissionDenied(_)));
+        }
+    }
+
+    #[test]
+    fn the_whole_desktop_and_managed_services_are_off_limits() {
+        // 这条守的是一条边界，不是某个实现细节：`DesktopService` 的能力
+        // （销毁工作目录、接管 daemon、导出/删除报告）和 `ManagedService`
+        // 的停止实例，在 host 域各有一个带守卫、带人话错误的入口，前端走
+        // 那条。`StartService` 更是唯一能让调用方任意指定**配置内容**的
+        // RPC —— 开给 webview 等于交出任意出站/TUN/流量拦截。
+        //
+        // 它变红说明有人（或某次 proto 更新加上一次疏忽的 `EXPOSED` 编辑）
+        // 把这两个 service 的门重新打开了。
+        for entry in METHODS {
+            if entry.service == "desktop.DesktopService" || entry.service == "daemon.ManagedService"
+            {
+                assert!(
+                    !entry.exposed,
+                    "{}/{} must not be exposed over the bridge",
+                    entry.service, entry.method
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn the_exposed_surface_is_small_and_lives_where_it_should() {
+        // 白名单是显式的，所以「它有多大」本身就是一个值得钉住的事实：
+        // 数字变了，就该有人在 review 里解释为什么。
+        let exposed: Vec<_> = METHODS.iter().filter(|e| e.exposed).collect();
+        assert_eq!(exposed.len(), 15, "exposed surface changed — intentional?");
+        for entry in exposed {
+            assert!(
+                entry.service == "daemon.StartedService"
+                    || entry.service == "desktop.ApplicationService",
+                "unexpected service on the exposed surface: {}",
+                entry.service
+            );
         }
     }
 
@@ -173,9 +221,10 @@ mod tests {
 
     #[test]
     fn rejects_start_service_as_deliberately_hidden() {
-        // 这条测试守的是一条安全线，不是一个实现细节 —— 见 build.rs 的
-        // `NOT_EXPOSED`。它变红说明有人（或某次 proto 更新）把配置内容的
-        // 入口重新开给了 webview。
+        // 上一条按 service 整体守边界，这一条单独点名 `StartService`：它是
+        // 那批里唯一一条**安全**性质的（任意配置内容 = 任意出站/TUN/拦截），
+        // 其余更多是「有更好的入口」。名字留在测试列表里，为的是出问题时
+        // 一眼看得见它是什么。
         let error = resolve("desktop.DesktopService", "StartService", MethodKind::Unary)
             .expect_err("StartService must never be reachable from the webview");
         assert!(matches!(error, CommandError::PermissionDenied(_)));

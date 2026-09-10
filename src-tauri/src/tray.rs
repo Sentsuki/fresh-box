@@ -62,7 +62,11 @@ fn build_menu(
 
     let menu = Menu::new(app)?;
 
-    // ── 启停 ──────────────────────────────────────────────────────────
+    // ── 第一组：启停 + 模式 ───────────────────────────────────────────
+    //
+    // 这两件事都是「当前这条链路整体怎么走」—— 开不开、以什么模式走，改哪个
+    // 都影响全局；节点切换只在选定模式内部起作用。所以这里按「作用范围」分
+    // 组，而不是按「哪个是开关、哪个是列表」分。
     if model.running {
         menu.append(&MenuItem::with_id(
             app,
@@ -81,7 +85,6 @@ fn build_menu(
         )?)?;
     }
 
-    // ── 模式 ──────────────────────────────────────────────────────────
     // 模式与节点都要求实例在跑（daemon 的 `SetClashMode`/`SelectOutbound` 在
     // 未启动时直接返回 invalid），所以停止状态下整段不画，而不是画出来点了
     // 报错。
@@ -103,7 +106,14 @@ fn build_menu(
         menu.append(&submenu)?;
     }
 
-    // ── 节点 ──────────────────────────────────────────────────────────
+    // ── 第二组：节点切换 ─────────────────────────────────────────────
+    //
+    // 分隔线只在这一组真有内容时才画 —— 停止状态下 `groups` 是空的（同上，
+    // 未启动时选节点必然失败），无条件画就会在菜单里留下一条下面什么都没有
+    // 的横线。
+    if !model.groups.is_empty() {
+        menu.append(&PredefinedMenuItem::separator(app)?)?;
+    }
     for (group_index, group) in model.groups.iter().enumerate() {
         let submenu = Submenu::new(app, &group.tag, true)?;
         for (node_index, node) in group.items.iter().enumerate() {
@@ -122,6 +132,8 @@ fn build_menu(
         menu.append(&submenu)?;
     }
 
+    // ── 第三组：窗口 ─────────────────────────────────────────────────
+    // 这两项和代理状态无关，任何状态下都在，所以这条分隔线是无条件的。
     menu.append(&PredefinedMenuItem::separator(app)?)?;
     menu.append(&MenuItem::with_id(
         app,

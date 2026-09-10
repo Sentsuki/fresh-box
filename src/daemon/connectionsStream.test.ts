@@ -28,7 +28,9 @@ vi.mock("./subscription", () => ({
   }) => {
     hooks.emit = (frame) => options.onMessage(frame);
     hooks.emitStatus = (s) => options.onStatus(s);
-    return { start: () => {}, stop: () => {} };
+    // `stop` 必须真的调 `onStopped` —— 真的控制器就是这么做的，而
+    // `stopConnectionsStream(true)` 的清理全在那个回调里。
+    return { start: () => {}, stop: (onStopped?: () => void) => onStopped?.() };
   },
 }));
 vi.mock("./clients", () => ({
@@ -70,7 +72,7 @@ vi.mock("../hooks/useConnectionsStream", () => ({
   },
 }));
 
-import "./connectionsStream";
+import { stopConnectionsStream } from "./connectionsStream";
 
 function newEvent(id: string) {
   return create(ConnectionEventSchema, {
@@ -108,8 +110,9 @@ function frame(
 }
 
 beforeEach(() => {
-  store.active = [];
-  store.closed = [];
+  // 走产品代码自己的清理路径，而不是只把替身 store 抹平：累加表常驻在
+  // `connectionsStream` 模块里，只清 store 的话上一条测试的连接会漏到下一条。
+  stopConnectionsStream(true);
   store.isPaused = false;
   store.totalDownloadSpeed = 0;
   store.totalUploadSpeed = 0;
@@ -165,6 +168,33 @@ describe("每一帧", () => {
     expect(store.closed).toHaveLength(1000);
     // 留下的是最近的。
     expect(store.closed[0].id).toBe("c1099");
+  });
+
+  it("清空之后旧连接不会被下一帧带回来", () => {
+    // 累加表常驻在模块里（避免每帧从数组重建一次 Map），所以「清空」必须同时
+    // 清它和 store —— 只清 store 的话，下一帧算出来的整表里还带着停止之前
+    // 那批连接。
+    hooks.emit(frame([newEvent("a"), newEvent("b")]));
+    expect(store.active).toHaveLength(2);
+
+    stopConnectionsStream(true);
+    expect(store.active).toHaveLength(0);
+
+    hooks.emit(frame([newEvent("c")]));
+    expect(store.active.map((c) => c.id)).toEqual(["c"]);
+  });
+
+  it("推给 store 的已关闭列表是快照，不是还会变的那份", () => {
+    // 就地截断/`unshift` 的是模块里那份；直接把它递给 store 等于让 React
+    // 拿到一个背着它变的数组。
+    hooks.emit(frame([newEvent("a"), closedEvent("a")]));
+    const first = store.closed;
+    expect(first).toHaveLength(1);
+
+    hooks.emit(frame([newEvent("b"), closedEvent("b")]));
+    expect(first).toHaveLength(1);
+    expect(store.closed).toHaveLength(2);
+    expect(store.closed).not.toBe(first);
   });
 
   it("流状态透传给 store", () => {

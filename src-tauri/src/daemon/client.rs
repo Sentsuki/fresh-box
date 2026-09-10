@@ -40,7 +40,7 @@ use super::desktop_api::desktop_service_client::DesktopServiceClient;
 use super::desktop_api::{
     CrashReportArchive, CrashReportEntry, CrashReportExportRequest, CrashReportFile,
     CrashReportRequest, DaemonInfo, OomReportEntry, OomReportExportRequest, OomReportFile,
-    OomReportRequest, StartOptions, StartServiceRequest,
+    OomReportRequest, StartOptions, StartServiceRequest, WorkingDirectoryInfo,
 };
 use super::worker;
 
@@ -302,6 +302,36 @@ impl DaemonConnection {
             .await
             .map(|_| ())
             .map_err(|e| map_status("close connection", e))
+    }
+
+    // ── DesktopService: working directory ───────────────────────────────
+
+    /// Path and total size of the daemon's per-user working directory (its
+    /// cache DB, downloaded rule-sets, etc.).
+    ///
+    /// The size is a recursive walk on the daemon side, not a `stat`, so
+    /// this can take a moment on a large directory — callers should treat
+    /// it as a slow read rather than something to poll.
+    pub async fn working_directory(&self) -> Result<WorkingDirectoryInfo, CommandError> {
+        self.desktop()
+            .get_working_directory(())
+            .await
+            .map(|r| r.into_inner())
+            .map_err(|e| map_status("get working directory", e))
+    }
+
+    /// Delete the daemon's per-user working directory.
+    ///
+    /// The daemon refuses this with `FailedPrecondition` while an instance
+    /// is running (upstream `desktop_service.go`), so the caller has to stop
+    /// sing-box first — `commands::core::destroy_working_directory` is the
+    /// one that owns that sequencing.
+    pub async fn destroy_working_directory(&self) -> Result<(), CommandError> {
+        self.desktop()
+            .destroy_working_directory(())
+            .await
+            .map(|_| ())
+            .map_err(|e| map_status("destroy working directory", e))
     }
 
     // ── DesktopService: crash/OOM/power reports ─────────────────────────

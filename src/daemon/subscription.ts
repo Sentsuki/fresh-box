@@ -66,19 +66,36 @@ export function createStreamController<T>(options: {
   onStatus: (status: StreamStatus) => void;
 }): StreamController {
   let controller: AbortController | null = null;
+  /**
+   * 第几轮 `run`。`abort()` 只是让那一轮的 await 尽快返回，并不同步终止它 ——
+   * 它的收尾代码会在稍后的微任务里跑，而那时 `start()` 可能已经开了新的一轮。
+   * 这个计数器让过期的那一轮闭嘴，否则它最后那句 `disconnected` 会盖在新一轮
+   * 的 `connected` 上面。
+   */
+  let generation = 0;
 
-  async function run(signal: AbortSignal) {
+  async function run(signal: AbortSignal, runId: number) {
+    const emit = (status: StreamStatus) => {
+      if (runId !== generation) return;
+      options.onStatus(status);
+    };
+
     while (!signal.aborted) {
       if (!useSingboxStore.getState().isRunning) {
-        options.onStatus("connecting");
+        emit("connecting");
         await waitForRunningChange(signal);
         continue;
       }
 
-      options.onStatus("connected");
+      emit("connected");
       try {
         for await (const message of options.subscribe(signal)) {
-          if (signal.aborted) return;
+          // `break` 而不是 `return`：两条退出路径必须落到同一个收尾上。
+          // 以前这里是 `return`，直接跳过了函数末尾那句 `disconnected` ——
+          // 而另一条路径（下面的 `break`）会发。于是「流被取消」有没有通知
+          // 订阅者，取决于取消发生在哪一刻；`groupsStream` 恰好就是靠
+          // `disconnected` 清空代理页数据的。
+          if (signal.aborted) break;
           options.onMessage(message);
         }
       } catch {
@@ -90,21 +107,24 @@ export function createStreamController<T>(options: {
       // sing-box 停了 → 流跟着结束是正常的，回去等它再起来，不报错。
       if (!useSingboxStore.getState().isRunning) continue;
 
-      options.onStatus("error");
+      emit("error");
       await sleep(RETRY_DELAY_MS, signal);
     }
-    options.onStatus("disconnected");
+    emit("disconnected");
   }
 
   return {
     start() {
       if (controller) return;
       controller = new AbortController();
-      void run(controller.signal);
+      generation += 1;
+      void run(controller.signal, generation);
     },
     stop(onStopped) {
       controller?.abort();
       controller = null;
+      // 这里**不**动 `generation`：上一轮还欠一句 `disconnected`，那正是
+      // 「停了」这件事的通知。只有下一次 `start()` 才让它作废。
       onStopped?.();
     },
   };

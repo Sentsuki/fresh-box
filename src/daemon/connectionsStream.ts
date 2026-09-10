@@ -1,3 +1,4 @@
+import type { ConnectionEntry } from "../types/app";
 import { useConnectionsStore } from "../hooks/useConnectionsStream";
 import { applyEvent } from "./connectionEntries";
 import { startedService } from "./clients";
@@ -23,6 +24,19 @@ const CONNECTIONS_INTERVAL_NANOS = 1_000n * 1_000_000n;
 
 const MAX_CLOSED = 1000;
 
+/**
+ * 累加表本身，常驻在模块里 —— **不是** store 里那份的副本。
+ *
+ * 以前每一帧都从 `store.active` 这个数组重建一次 `Map`、再把 `Map` 摊回数组：
+ * 两趟 O(n) 的往返，只为了拿到一个上一帧结束时就已经在手里的结构。连接多的
+ * 时候（几千条）这是每秒都在做的无用功。
+ *
+ * 现在 store 只存**派生结果**（渲染用的数组），真相在这里。两者的更新仍然是
+ * 一次 `setFrame`，所以每帧还是只触发一次渲染。
+ */
+let active = new Map<string, ConnectionEntry>();
+let closed: ConnectionEntry[] = [];
+
 const controller = createStreamController({
   subscribe: (signal) =>
     startedService.subscribeConnections(
@@ -33,23 +47,33 @@ const controller = createStreamController({
     const store = useConnectionsStore.getState();
     if (store.isPaused) return;
 
-    // 累加表就是 store 里那份 —— 直接改再整体 set，避免每条事件触发一次渲染。
-    const active = new Map(store.active.map((entry) => [entry.id, entry]));
-    const closed = store.closed.slice();
-
     if (frame.reset) {
       active.clear();
     }
     for (const event of frame.events) {
       applyEvent(active, closed, event);
     }
+    if (closed.length > MAX_CLOSED) {
+      // 就地截断，别每帧都 slice 出一份新数组 —— `applyEvent` 往头部
+      // `unshift`，所以砍掉的是最旧的那些。
+      closed.length = MAX_CLOSED;
+    }
 
     const entries = [...active.values()];
+    let totalDownloadSpeed = 0;
+    let totalUploadSpeed = 0;
+    for (const entry of entries) {
+      totalDownloadSpeed += entry.downloadSpeed;
+      totalUploadSpeed += entry.uploadSpeed;
+    }
+
     store.setFrame({
       connections: entries,
-      closed: closed.slice(0, MAX_CLOSED),
-      totalDownloadSpeed: entries.reduce((sum, c) => sum + c.downloadSpeed, 0),
-      totalUploadSpeed: entries.reduce((sum, c) => sum + c.uploadSpeed, 0),
+      // store 拿到的必须是一份快照：下一帧会继续原地改 `closed`，直接把它
+      // 递过去等于让 React 拿到一个会背着它变的数组。
+      closed: [...closed],
+      totalDownloadSpeed,
+      totalUploadSpeed,
     });
   },
   onStatus: (status) => {
@@ -63,6 +87,14 @@ export function startConnectionsStream() {
 
 export function stopConnectionsStream(clear = false) {
   controller.stop(
-    clear ? () => useConnectionsStore.getState().clear() : undefined,
+    clear
+      ? () => {
+          // 累加表和 store 一起清 —— 真相在这里，只清 store 的话下一帧会把
+          // 停止之前那批连接原样推回去。
+          active = new Map();
+          closed = [];
+          useConnectionsStore.getState().clear();
+        }
+      : undefined,
   );
 }

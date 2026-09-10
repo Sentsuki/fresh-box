@@ -20,7 +20,7 @@
 
 use std::path::PathBuf;
 
-use fresh_box_lib::daemon::daemon_api::StartedAt;
+use fresh_box_lib::daemon::daemon_api::Log;
 use fresh_box_lib::daemon::{DaemonClient, bridge};
 use prost::Message as _;
 
@@ -57,41 +57,35 @@ async fn bridge_round_trips_a_real_protobuf_message() {
         .await
         .expect("connect to the development daemon over TCP");
 
-    // 选 `GetClashModeStatus` 而不是 `GetDaemonInfo`，理由有二，都值得记下来：
+    // 挑 `CloseAllConnections`，三个理由：
     //
-    //  1. `DesktopService` 的每个方法开头都调 `peerIdentityFromContext`
-    //     （desktop_service.go 里 10 处），而 `--listen` 模式只关掉了传输层
-    //     凭据、没有伪造出 peer identity —— Windows 上会走
-    //     `platformFallbackPeerIdentity` 直接返回
-    //     "missing Windows peer authentication"。所以整个 DesktopService 在
-    //     开发直连模式下都调不通。
-    //  2. `StartedService` 一处都不需要 peer identity（started_service.go 里
-    //     0 处），所以它整个可以在开发模式下用 —— 而重构里工作量最大的部分
-    //     （代理组、连接、日志、流量、模式、测速）恰好全在 StartedService。
-    //
-    // 具体挑 `GetStartedAt`：它是 StartedService 里唯一一个完全没有前置条件的
-    // 方法（既不 `waitForStarted`，也不检查 `serviceStatus`），所以不需要先有
-    // 一个跑着的 sing-box 实例 —— 而启动实例又要走 DesktopService，在开发
-    // 模式下正好是不通的那一半。
+    //  1. 它在白名单里（`build.rs` 的 `EXPOSED`）。这条测试走的是产品代码
+    //     真正的那条路，包括 `allowlist::resolve` —— 拿一个只为测试方便而
+    //     开放的方法来测，等于测了一条用户走不到的路。
+    //  2. 它没有任何前置条件：`started_service.go` 里对 `instance` 和
+    //     `trafficManager` 都是 nil 检查，不 `waitForStarted`、不看
+    //     `serviceStatus`。而开发直连模式下永远不可能有跑着的实例 —— 启动
+    //     实例要走 `DesktopService`，那半边在这个模式下正好是不通的（见下面
+    //     那条测试）。既然没有实例，这次调用也就没有副作用可言。
+    //  3. 它的响应是 `Empty` —— **零字节**。这恰好是 `BytesCodec` 里唯一真正
+    //     危险的那条路径：`decode` 若把零长载荷当成 `None`，tonic 会理解成
+    //     「这一帧还没收全」而永久等待。`codec.rs` 有单元测试钉它，这里让它
+    //     真的过一趟 socket。
     let response = bridge::unary(
         client.connection.raw_channel(),
         "daemon.StartedService",
-        "GetStartedAt",
+        "CloseAllConnections",
         Vec::new(),
     )
     .await
-    .expect("GetStartedAt through the byte-passthrough bridge");
+    .expect("CloseAllConnections through the byte-passthrough bridge");
 
-    // Rust 侧全程没有解析过这些字节 —— 这里解一次只是为了断言它们确实是一条
-    // 结构正确的消息，也就是前端会拿到的同一串字节。
-    let started =
-        StartedAt::decode(response.as_slice()).expect("bridge response decodes as a StartedAt");
-
-    eprintln!(
-        "bridge round-trip ok: startedAt={} ({} bytes over the wire)",
-        started.started_at,
+    assert!(
+        response.is_empty(),
+        "an Empty response is zero bytes, and must survive as zero bytes — got {} byte(s)",
         response.len()
     );
+    eprintln!("bridge round-trip ok: empty response survived the codec");
 }
 
 /// `DesktopService` 在开发直连模式下用不了，是 boxdd 的设计使然而不是 bridge
@@ -113,17 +107,19 @@ async fn desktop_service_is_unreachable_in_dev_mode() {
         .await
         .expect("connect to the development daemon over TCP");
 
-    let error = bridge::unary(
-        client.connection.raw_channel(),
-        "desktop.DesktopService",
-        "GetDaemonInfo",
-        Vec::new(),
-    )
-    .await
-    .expect_err("DesktopService needs a peer identity that TCP mode cannot provide");
+    // 走**类型化 client**，不走 bridge —— 现在整个 `DesktopService` 都不在
+    // 白名单里（`build.rs` 的 `EXPOSED`），从 bridge 调它会在字节碰到网络
+    // 之前就被 `allowlist::resolve` 拦下，那样这条测试断言的就变成我们自己的
+    // 策略，而不是它想记录的那个 boxdd 事实了。Rust 自己的常驻逻辑用的正是
+    // 这条类型化路径，所以这也是这个限制真正会绊到人的地方。
+    let error = client
+        .connection
+        .daemon_info()
+        .await
+        .expect_err("DesktopService needs a peer identity that TCP mode cannot provide");
 
     // 这个错误本身就是一次成功的往返：请求过了网络、daemon 分发到了处理器、
-    // 处理器拒绝了、状态码原路回来被 BytesCodec 解出来。
+    // 处理器拒绝了、状态码原路回来。
     let message = format!("{error}");
     assert!(
         message.contains("peer authentication"),
@@ -167,9 +163,10 @@ async fn bridge_refuses_a_method_that_is_not_exposed() {
 
 // ── 阶段 2：服务端流 ────────────────────────────────────────────────────────
 
-/// `SubscribeServiceStatus` 是唯一一条既不需要 peer identity、也不需要实例已
-/// 启动的服务端流（`started_service.go`：订阅建立即刻 `Send` 当前状态），所以
-/// 它是开发模式下唯一能真正跑通的流式往返。
+/// `SubscribeLog` 是白名单里唯一一条既不需要 peer identity、也不需要实例已启动
+/// 的服务端流：`started_service.go` 在订阅建立时无条件 `Send` 一帧
+/// `Log{reset: true}`（哪怕一条日志都还没有），既不 `waitForStarted` 也不看
+/// `serviceStatus`。所以它是开发模式下唯一能真正跑通的流式往返。
 #[tokio::test]
 async fn server_streaming_delivers_a_real_frame() {
     if !daemon_is_listening() {
@@ -189,24 +186,27 @@ async fn server_streaming_delivers_a_real_frame() {
     let mut stream = bridge::server_streaming(
         client.connection.raw_channel(),
         "daemon.StartedService",
-        "SubscribeServiceStatus",
+        "SubscribeLog",
         Vec::new(),
     )
     .await
-    .expect("SubscribeServiceStatus through the byte-passthrough bridge");
+    .expect("SubscribeLog through the byte-passthrough bridge");
 
     let payload = tokio::time::timeout(std::time::Duration::from_secs(3), stream.message())
         .await
-        .expect("the daemon sends the current status immediately on subscribe")
+        .expect("the daemon sends the saved log lines immediately on subscribe")
         .expect("stream is healthy")
         .expect("first frame is present");
 
     // Rust 全程没解析过 —— 解一次只为断言这确实是前端会拿到的那串字节。
-    let status = fresh_box_lib::daemon::daemon_api::ServiceStatus::decode(payload.as_ref())
-        .expect("frame decodes as a ServiceStatus");
+    let log = Log::decode(payload.as_ref()).expect("frame decodes as a Log");
+    assert!(
+        log.reset,
+        "the first frame is the initial snapshot, so it carries reset=true"
+    );
     eprintln!(
-        "streaming round-trip ok: status={} ({} bytes)",
-        status.status,
+        "streaming round-trip ok: {} saved line(s) ({} bytes)",
+        log.messages.len(),
         payload.len()
     );
 }
@@ -231,11 +231,11 @@ async fn server_streaming_rejects_a_unary_method() {
     let error = bridge::server_streaming(
         client.connection.raw_channel(),
         "daemon.StartedService",
-        "GetStartedAt",
+        "CloseAllConnections",
         Vec::new(),
     )
     .await
-    .expect_err("GetStartedAt is unary, not server-streaming");
+    .expect_err("CloseAllConnections is unary, not server-streaming");
     assert!(matches!(
         error,
         fresh_box_lib::CommandError::ValidationError(_)
@@ -266,7 +266,7 @@ async fn dropping_a_stream_releases_it() {
         let mut stream = bridge::server_streaming(
             client.connection.raw_channel(),
             "daemon.StartedService",
-            "SubscribeServiceStatus",
+            "SubscribeLog",
             Vec::new(),
         )
         .await

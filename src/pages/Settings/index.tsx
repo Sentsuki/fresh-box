@@ -247,17 +247,24 @@ export default function Settings() {
                     Restart Service
                   </Button>
                 )}
+                {/* `serviceInstalled === null` 是「还在查」，不是「没装」——
+                    两处都得显式区分。漏掉任何一处，查询返回前这里就会先摆出
+                    一个强调色的 "Install"，等 IPC 回来再跳成
+                    "Restart Service"/"Uninstall"：每次切到本页闪一下，而且
+                    闪的那一下给的是错的答案。 */}
                 <Button
                   size="sm"
-                  variant={serviceInstalled ? "subtle" : "accent"}
+                  variant={serviceInstalled === false ? "accent" : "subtle"}
                   disabled={isServiceBusy || serviceInstalled === null}
                   onClick={() => void toggleDaemonService()}
                 >
                   {isServiceBusy
                     ? "Working..."
-                    : serviceInstalled
-                      ? "Uninstall"
-                      : "Install"}
+                    : serviceInstalled === null
+                      ? "Checking..."
+                      : serviceInstalled
+                        ? "Uninstall"
+                        : "Install"}
                 </Button>
               </div>
             }

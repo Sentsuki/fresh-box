@@ -96,7 +96,13 @@ fn main() {
             // the window is ever shown — it's created with `"visible":
             // false` in tauri.conf.json specifically so this can't be seen
             // jumping from the default bounds to the restored ones.
-            window_state::restore(&window);
+            //
+            // 建窗过程中产生的 Resized/Moved 事件带的是默认尺寸，挡住它们，
+            // 否则可能抢在 `restore` 前面把存储里的尺寸冲成默认值。
+            {
+                let _persist_guard = window_state::suspend_persist();
+                window_state::restore(&window);
+            }
 
             #[cfg(target_os = "windows")]
             {
@@ -116,6 +122,9 @@ fn main() {
             let state = app.state::<SingboxState>();
             spawn_reconciliation_loop(app.handle().clone(), state.inner().clone());
             commands::config::spawn_auto_update_scheduler(app.handle().clone());
+            // 窗口几何的周期性落盘 —— 事件路径只往内存里记，见
+            // `window_state` 里「捕获与落盘的分离」。
+            window_state::spawn_persist_flusher(app.handle().clone());
 
             // 关闭窗口会销毁 webview，所以这两件事必须由 Rust 拥有：状态变化
             // 的系统通知（原来在前端，销毁模式下等于不存在），以及托盘菜单的
@@ -131,7 +140,10 @@ fn main() {
         })
         .on_window_event(|window, event| match event {
             tauri::WindowEvent::Resized(_) | tauri::WindowEvent::Moved(_) => {
-                window_state::persist(window);
+                // 只记进内存，不落盘 —— 这两条事件在拖动时每秒来几十条，
+                // 而这个处理器跑在主消息循环线程上。见 `window_state` 里
+                // 「捕获与落盘的分离」那段。
+                window_state::capture(window);
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 // 始终阻止默认关闭行为，由我们决定后续动作
@@ -139,10 +151,13 @@ fn main() {
 
                 // Bounds/position may have changed since the last
                 // `Resized`/`Moved` event fired (or this could be the very
-                // first user interaction with the window at all) — persist
+                // first user interaction with the window at all) — capture
                 // once more right before it goes away instead of relying
-                // solely on those two events to have already caught it.
-                window_state::persist(window);
+                // solely on those two events to have already caught it,
+                // and flush immediately rather than waiting out the
+                // periodic tick: the window is about to be destroyed.
+                window_state::capture(window);
+                window_state::flush(window.app_handle());
 
                 // 通知前端窗口即将不可见，触发流暂停与缓存清理
                 let _ = window.emit("window-visibility-changed", false);

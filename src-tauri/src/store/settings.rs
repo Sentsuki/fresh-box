@@ -83,17 +83,52 @@ pub fn set<T: Serialize>(
     key: &str,
     value: &T,
 ) -> Result<(), CommandError> {
-    let encoded =
-        serde_json::to_string(value).map_err(|e| CommandError::json("serialize setting", e))?;
+    let encoded = encode(value)?;
+    store.with(|connection| write_one(connection, scope, key, &encoded))
+}
+
+/// 把一个值编码成存进 `settings.value` 的那串 JSON。
+///
+/// 单独抽出来是为了 `set_all`：那里要在**进事务之前**把所有区都编码好 ——
+/// 编码是纯 CPU 且可能失败的，让它发生在事务里只会平白拉长持锁时间，而且
+/// 一个区序列化失败就得回滚已经写进去的那几个。
+pub fn encode<T: Serialize>(value: &T) -> Result<String, CommandError> {
+    serde_json::to_string(value).map_err(|e| CommandError::json("serialize setting", e))
+}
+
+fn write_one(
+    connection: &rusqlite::Connection,
+    scope: &str,
+    key: &str,
+    encoded: &str,
+) -> Result<(), CommandError> {
+    connection
+        .execute(
+            "INSERT INTO settings (scope, key, value) VALUES (?1, ?2, ?3)
+             ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value",
+            params![scope, key, encoded],
+        )
+        .map_err(|e| CommandError::io("write setting", e))?;
+    Ok(())
+}
+
+/// 一次事务写完多个区。
+///
+/// `save_app_settings` 一次要写 8 个区，以前是 8 条独立语句 = 8 次 WAL 提交，
+/// 而且没有原子性：中途失败（或进程正好这时没了）会留下半份设置 —— 比如
+/// 「关窗行为」那一区已经改了、别的还是旧的。前端每动一个开关就整包保存一次，
+/// 所以这条路走得相当频繁（审计项 M-4）。
+pub fn set_all(store: &Store, scope: &str, entries: &[(&str, String)]) -> Result<(), CommandError> {
     store.with(|connection| {
-        connection
-            .execute(
-                "INSERT INTO settings (scope, key, value) VALUES (?1, ?2, ?3)
-                 ON CONFLICT(scope, key) DO UPDATE SET value = excluded.value",
-                params![scope, key, encoded],
-            )
-            .map_err(|e| CommandError::io("write setting", e))?;
-        Ok(())
+        let transaction = connection
+            .unchecked_transaction()
+            .map_err(|e| CommandError::io("begin settings transaction", e))?;
+        for (key, encoded) in entries {
+            write_one(&transaction, scope, key, encoded)?;
+        }
+        transaction
+            .commit()
+            .map_err(|e| CommandError::io("commit settings transaction", e))
     })
 }
 
@@ -171,6 +206,93 @@ mod tests {
         assert_eq!(
             intact, good,
             "a corrupt neighbour must not affect this section"
+        );
+    }
+
+    #[test]
+    fn set_all_writes_every_section_atomically() {
+        // 审计项 M-4：一次事务，不是 N 条独立语句。原子性这一半没法在单进程
+        // 里直接观测（没有可注入的中途失败点），能钉住的是「一次调用把每个
+        // 区都写对了」，以及它和逐个 `set` 的结果一致。
+        let store = Store::open_in_memory().expect("in-memory store");
+        let entries = [
+            (
+                "a",
+                encode(&Behavior {
+                    auto_close_connections: true,
+                    ..Default::default()
+                })
+                .expect("encode"),
+            ),
+            (
+                "b",
+                encode(&Behavior {
+                    auto_close_connections: false,
+                    ..Default::default()
+                })
+                .expect("encode"),
+            ),
+            (
+                "c",
+                encode(&Behavior {
+                    auto_close_connections: true,
+                    ..Default::default()
+                })
+                .expect("encode"),
+            ),
+        ];
+        set_all(&store, SCOPE_APP, &entries).expect("set_all");
+
+        assert!(
+            get_or_default::<Behavior>(&store, SCOPE_APP, "a")
+                .expect("read")
+                .auto_close_connections
+        );
+        assert!(
+            !get_or_default::<Behavior>(&store, SCOPE_APP, "b")
+                .expect("read")
+                .auto_close_connections
+        );
+        assert!(
+            get_or_default::<Behavior>(&store, SCOPE_APP, "c")
+                .expect("read")
+                .auto_close_connections
+        );
+    }
+
+    #[test]
+    fn set_all_overwrites_in_place_rather_than_accumulating_rows() {
+        // `ON CONFLICT ... DO UPDATE` 在事务里也要照常生效 —— 前端每动一个
+        // 开关就整包保存一次，写重复了就会变成一张只涨不消的表。
+        let store = Store::open_in_memory().expect("in-memory store");
+        for value in [true, false, true] {
+            let entries = [(
+                "a",
+                encode(&Behavior {
+                    auto_close_connections: value,
+                    ..Default::default()
+                })
+                .expect("encode"),
+            )];
+            set_all(&store, SCOPE_APP, &entries).expect("set_all");
+        }
+
+        let rows: i64 = store
+            .with(|connection| {
+                connection
+                    .query_row(
+                        "SELECT COUNT(*) FROM settings WHERE scope = ?1 AND key = 'a'",
+                        [SCOPE_APP],
+                        |row| row.get(0),
+                    )
+                    .map_err(|e| crate::errors::CommandError::io("count", e))
+            })
+            .expect("count");
+        assert_eq!(rows, 1);
+        assert!(
+            get_or_default::<Behavior>(&store, SCOPE_APP, "a")
+                .expect("read")
+                .auto_close_connections
         );
     }
 
