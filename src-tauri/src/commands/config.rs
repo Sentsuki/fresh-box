@@ -140,29 +140,37 @@ pub async fn open_app_directory() -> Result<(), CommandError> {
 
 #[tauri::command]
 #[specta::specta]
-pub fn load_app_settings(store: State<'_, Store>) -> Result<AppSettings, CommandError> {
-    crate::config::app_settings::load_app_settings(store.inner())
+pub async fn load_app_settings(store: State<'_, Store>) -> Result<AppSettings, CommandError> {
+    store
+        .run_blocking(crate::config::app_settings::load_app_settings)
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn save_app_settings(
+pub async fn save_app_settings(
     store: State<'_, Store>,
     backend_prefs: State<'_, crate::config::app_settings::BackendPrefsState>,
     settings: AppSettings,
 ) -> Result<(), CommandError> {
     // 先更新后端自己那份缓存再落盘：这次调用一返回，`CloseRequested` 或切换
-    // 节点的处理器就可能读它，不能让它们看到旧值。
-    backend_prefs.set(store.inner(), settings.settings.clone())?;
-    crate::config::app_settings::save_app_settings(store.inner(), &settings)
+    // 节点的处理器就可能读它，不能让它们看到旧值。这一步只动内存，不碰库
+    // （behavior 那一行由下面的 `save_app_settings` 一并写），所以留在这里
+    // 不会把主线程按住。
+    backend_prefs.cache(settings.settings.clone());
+    store
+        .run_blocking(move |store| crate::config::app_settings::save_app_settings(store, &settings))
+        .await
 }
 
 // ── 档案列表 ────────────────────────────────────────────────────────────────
 
 #[tauri::command]
 #[specta::specta]
-pub fn list_profiles(store: State<'_, Store>) -> Result<Vec<profiles::Profile>, CommandError> {
-    profiles::list(store.inner())
+pub async fn list_profiles(
+    store: State<'_, Store>,
+) -> Result<Vec<profiles::Profile>, CommandError> {
+    store.run_blocking(profiles::list).await
 }
 
 /// 增 / 导入 / 刷新单个档案的统一返回：`entry` 是这一个，`profiles` 是刷新后
@@ -354,11 +362,16 @@ pub async fn add_subscription(
 
 #[tauri::command]
 #[specta::specta]
+/// 收 `State<SingboxState>` 而不是 `AppHandle`：`tauri::AppHandle` 默认就是
+/// `AppHandle<Wry>`，一个命令带上它就会把 `collect_commands!` 整份推断成
+/// `Commands<Wry>`，而 `specta_builder` 是对 runtime 泛型的（见 `ipc.rs` 的
+/// 说明）。要的东西本来也只是这一个 state。
 pub async fn update_subscription(
     store: State<'_, Store>,
+    singbox: State<'_, crate::services::singbox::SingboxState>,
     id: String,
 ) -> Result<ProfileOperationResult, CommandError> {
-    refresh_subscription(store.inner(), &id).await?;
+    refresh_subscription(singbox.inner(), store.inner(), &id).await?;
     store
         .run_blocking(move |store| {
             let entry = profiles::find(store, &id)?;
@@ -367,9 +380,38 @@ pub async fn update_subscription(
         .await
 }
 
-/// 抓取 → 校验 → 写入 → 刷新 `last_updated`。用户点的「更新」和后台调度器
-/// 共用这一条，两边不再各写一份。
-async fn refresh_subscription(store: &Store, id: &str) -> Result<(), CommandError> {
+/// 同一个档案上的写操作互斥。
+///
+/// 抓订阅要走网络（最长 30 秒），期间用户完全可能对同一个档案再点一次「更新」，
+/// 而后台调度器也可能正好轮到它 —— 两条路径各自「抓完再写」，谁后写谁赢，
+/// `last_updated` 和实际内容还可能来自不同的两次响应。对齐官方客户端的
+/// `runProfileOperation`（`main/profiles.ts`），锁按**档案**分，不同档案之间
+/// 仍然可以并发刷新。
+///
+/// 表项不回收：键是档案 id，数量就是档案数量（个位数），而回收要处理「正等在
+/// 这把锁上的人」，不值当。
+fn profile_lock(id: &str) -> std::sync::Arc<tokio::sync::Mutex<()>> {
+    type Locks =
+        std::sync::Mutex<std::collections::HashMap<String, std::sync::Arc<tokio::sync::Mutex<()>>>>;
+    static LOCKS: OnceLock<Locks> = OnceLock::new();
+
+    let locks = LOCKS.get_or_init(Default::default);
+    let mut guard = locks.lock().unwrap_or_else(|e| e.into_inner());
+    guard.entry(id.to_string()).or_default().clone()
+}
+
+/// 抓取 → 校验 → 内容变了才写盘并重载 → 刷新 `last_updated`。用户点的「更新」
+/// 和后台调度器共用这一条，两边不再各写一份。
+///
+/// 返回内容是否真的变了 —— 调度器据此决定要不要通知前端刷新列表。
+async fn refresh_subscription(
+    singbox: &crate::services::singbox::SingboxState,
+    store: &Store,
+    id: &str,
+) -> Result<bool, CommandError> {
+    let lock = profile_lock(id);
+    let _guard = lock.lock().await;
+
     // 三段：查库 → 抓网络 → 写库。两头是同步 I/O，走阻塞线程池；中间那段
     // 本来就得在锁外（抓取可能要 30 秒）。
     let lookup_id = id.to_string();
@@ -382,74 +424,146 @@ async fn refresh_subscription(store: &Store, id: &str) -> Result<(), CommandErro
     let content = fetch_subscription(&url).await?;
 
     let id = id.to_string();
-    store
-        .run_blocking(move |store| profiles::replace_content(store, &id, &content))
-        .await
+    let write_id = id.clone();
+    // 内容和上次一模一样就不写盘、也不重载 —— 对齐官方的
+    // `if (oldContent !== remoteContent)`。订阅提供方大多每次返回相同内容，
+    // 无条件重载等于每个更新周期都把隧道断一次。
+    // 读不出旧内容（内容文件丢了）按「变了」处理，那本来就该重新落盘。
+    let changed = store
+        .run_blocking(move |store| {
+            let previous = profiles::read_content(store, &write_id).ok();
+            let changed = previous.as_deref() != Some(content.as_str());
+            if changed {
+                profiles::replace_content(store, &write_id, &content)?;
+            } else {
+                profiles::touch_last_updated(store, &write_id)?;
+            }
+            Ok(changed)
+        })
+        .await?;
+
+    if changed {
+        reload_if_selected_and_running(singbox, store, &id).await;
+    }
+    Ok(changed)
+}
+
+/// 内容变了、而且变的正好是当前选中并且正在跑的那份 —— 就地重载。
+///
+/// 这条策略必须住在后端：以前它只写在前端的 `useConfigs.updateSubscription`
+/// 里，于是后台自动更新命中正在跑的配置时，新内容进了磁盘、隧道里跑的还是旧
+/// 的，界面上连提示都没有；而窗口一关 webview 就销毁，连那半个策略也不存在了。
+/// 对齐官方客户端的 `reloadIfSelectedAndRunning`（`main/profiles.ts`），它同样
+/// 由每一条内容变更路径共用。
+///
+/// 失败只记日志：订阅本身已经更新成功了，重载不上是另一回事（daemon 正忙、
+/// 新配置在合并了 override 之后不合法……），不该让「更新订阅」整个报错。
+async fn reload_if_selected_and_running(
+    singbox: &crate::services::singbox::SingboxState,
+    store: &Store,
+    id: &str,
+) {
+    let selected = settings::selected_profile(store).ok().flatten();
+    if selected.as_deref() != Some(id) {
+        return;
+    }
+
+    if !crate::services::singbox::get_daemon_state(singbox).running() {
+        return;
+    }
+
+    // `StartService` 本身就是 `StartOrReloadService`，在 daemon 的同一把
+    // lifecycle 锁下原子换配置 —— 不需要先 stop。
+    match crate::services::singbox::start_with_profile(singbox, store, id).await {
+        Ok(()) => tracing::info!(%id, "reloaded the running config after a subscription update"),
+        Err(e) => tracing::warn!(error = %e, %id, "failed to reload the running config"),
+    }
 }
 
 // ── 改 / 删 / 打开 ──────────────────────────────────────────────────────────
 
 #[tauri::command]
 #[specta::specta]
-pub fn edit_subscription_url(
+pub async fn edit_subscription_url(
     store: State<'_, Store>,
     id: String,
     url: String,
 ) -> Result<Vec<profiles::Profile>, CommandError> {
-    let trimmed = url.trim();
+    let trimmed = url.trim().to_string();
     if trimmed.is_empty() {
         return Err(CommandError::validation("Subscription URL cannot be empty"));
     }
-    profiles::set_url(store.inner(), &id, trimmed)?;
-    profiles::list(store.inner())
+    store
+        .run_blocking(move |store| {
+            profiles::set_url(store, &id, &trimmed)?;
+            profiles::list(store)
+        })
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn set_subscription_auto_update(
+pub async fn set_subscription_auto_update(
     store: State<'_, Store>,
     id: String,
     enabled: bool,
     interval_minutes: Option<u32>,
 ) -> Result<Vec<profiles::Profile>, CommandError> {
-    profiles::set_auto_update(store.inner(), &id, enabled, interval_minutes)?;
-    profiles::list(store.inner())
+    store
+        .run_blocking(move |store| {
+            profiles::set_auto_update(store, &id, enabled, interval_minutes)?;
+            profiles::list(store)
+        })
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn rename_profile(
+pub async fn rename_profile(
     store: State<'_, Store>,
     id: String,
     new_name: String,
 ) -> Result<Vec<profiles::Profile>, CommandError> {
-    let trimmed = new_name.trim();
-    validate_profile_name(trimmed)?;
-    // 重名由数据库的 UNIQUE 约束挡下并转成一句人话 —— 不需要先查一遍再改，
-    // 那中间还有竞态窗口。
-    profiles::rename(store.inner(), &id, trimmed)?;
-    profiles::list(store.inner())
+    let trimmed = new_name.trim().to_string();
+    validate_profile_name(&trimmed)?;
+    store
+        .run_blocking(move |store| {
+            // 重名由数据库的 UNIQUE 约束挡下并转成一句人话 —— 不需要先查一遍
+            // 再改，那中间还有竞态窗口。
+            profiles::rename(store, &id, &trimmed)?;
+            profiles::list(store)
+        })
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn delete_profile(
+pub async fn delete_profile(
     store: State<'_, Store>,
     id: String,
 ) -> Result<Vec<profiles::Profile>, CommandError> {
-    profiles::delete(store.inner(), &id)?;
-    // 删掉的正好是当前选中的，就把选中清空，免得留一个悬空 id。
-    if settings::selected_profile(store.inner())?.as_deref() == Some(id.as_str()) {
-        settings::set_selected_profile(store.inner(), None)?;
-    }
-    profiles::list(store.inner())
+    store
+        .run_blocking(move |store| {
+            profiles::delete(store, &id)?;
+            // 删掉的正好是当前选中的，就把选中清空，免得留一个悬空 id。
+            if settings::selected_profile(store)?.as_deref() == Some(id.as_str()) {
+                settings::set_selected_profile(store, None)?;
+            }
+            profiles::list(store)
+        })
+        .await
 }
 
 #[tauri::command]
 #[specta::specta]
-pub fn open_config_file(store: State<'_, Store>, id: String) -> Result<(), CommandError> {
-    // 存在性通过 `read_content` 确认（它会区分「没这个档案」和「内容文件丢了」）。
-    profiles::read_content(store.inner(), &id)?;
+pub async fn open_config_file(store: State<'_, Store>, id: String) -> Result<(), CommandError> {
+    // 存在性通过 `read_content` 确认（它会区分「没这个档案」和「内容文件丢了」），
+    // 它要读一整份配置文件 —— 进阻塞线程池。`open_with_system` 留在外面，和
+    // `open_app_directory` 一致。
+    let lookup = id.clone();
+    store
+        .run_blocking(move |store| profiles::read_content(store, &lookup).map(|_| ()))
+        .await?;
     open_with_system(&profiles::content_path(&id)?.to_string_lossy())
 }
 
@@ -468,10 +582,16 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
         loop {
             tokio::time::sleep(AUTO_UPDATE_CHECK_INTERVAL).await;
 
-            let Some(store) = app.try_state::<Store>() else {
+            let (Some(store), Some(singbox)) = (
+                app.try_state::<Store>(),
+                app.try_state::<crate::services::singbox::SingboxState>(),
+            ) else {
                 continue;
             };
-            let Ok(all) = profiles::list(store.inner()) else {
+            // 查库是同步 I/O，和这个文件里其它地方一样进阻塞线程池。
+            let store = store.inner().clone();
+            let singbox = singbox.inner().clone();
+            let Ok(all) = store.run_blocking(profiles::list).await else {
                 continue;
             };
 
@@ -485,17 +605,20 @@ pub fn spawn_auto_update_scheduler(app: tauri::AppHandle) {
                 continue;
             }
 
-            let mut any_succeeded = false;
+            // 内容变没变都要通知前端：即使内容一样，`last_updated` 也动了，
+            // 而档案页显示的正是它。真正变了的那些，重载已经在
+            // `refresh_subscription` 里就地做完了 —— 前端不再需要参与。
+            let mut any_refreshed = false;
             for id in due {
-                match refresh_subscription(store.inner(), &id).await {
-                    Ok(()) => any_succeeded = true,
+                match refresh_subscription(&singbox, &store, &id).await {
+                    Ok(_) => any_refreshed = true,
                     Err(e) => {
                         tracing::warn!(error = ?e, %id, "auto-update: failed to refresh subscription")
                     }
                 }
             }
 
-            if any_succeeded {
+            if any_refreshed {
                 use tauri::Emitter;
                 let _ = app.emit("profiles-auto-updated", ());
             }

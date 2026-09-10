@@ -214,7 +214,14 @@ describe("订阅", () => {
     expect(spy).not.toHaveBeenCalled();
   });
 
-  it("刷新的是当前跑着的那份配置时顺手重载", async () => {
+  it("刷新订阅不再由前端编排重载", async () => {
+    // 审计项 H-1：重载策略整条搬到了后端的
+    // `reload_if_selected_and_running` —— 内容变了、而且变的正好是当前跑着
+    // 的那份时，它在 `update_subscription` 返回之前就已经重载完了。
+    //
+    // 前端再插一手就是重复重载（隧道白断一次）；更要紧的是，这条断言变红
+    // 意味着有人把策略搬回了前端 —— 那样后台自动更新那条路径上它又会等于
+    // 不存在，而那正是 H-1 本身。
     useConfigStore.setState({ profiles: [profile("sub", "https://x/y")] });
     selectProfile("sub");
     useSingboxStore.setState({ isRunning: true });
@@ -226,28 +233,23 @@ describe("订阅", () => {
       await hook.current.updateSubscription("sub");
     });
 
-    expect(startService).toHaveBeenCalledWith({ reload: true });
-    expect(toasts.success[0]).toContain("reloaded");
+    expect(startService).not.toHaveBeenCalled();
+    expect(toasts.success[0]).toContain("Updated subscription");
   });
 
-  it("刷新的不是当前那份就不重载", async () => {
-    // 两份都还在，所以选中项不会被重新解析 —— 这正是「别的订阅刷新了不该
-    // 打断当前连接」的场景。
-    const both = [
-      profile("sub", "https://a/b"),
-      profile("other", "https://x/y"),
-    ];
-    useConfigStore.setState({ profiles: both });
+  it("切换配置仍然由前端重载 —— 那条路径必然有窗口", async () => {
+    // 和上一条的区别在于触发者：选配置只能来自窗口里的点击，所以策略留在
+    // 前端不会有 H-1 那种「没有窗口时等于不存在」的缺口。
+    useConfigStore.setState({ profiles: [profile("sub", "https://x/y")] });
     selectProfile("sub");
     useSingboxStore.setState({ isRunning: true });
-    api.updateSubscription = async () => result(both, both[1]);
 
     const { result: hook } = renderHook(() => useConfigs());
     await act(async () => {
-      await hook.current.updateSubscription("other");
+      await hook.current.selectConfig(profile("sub", "https://x/y"));
     });
 
-    expect(startService).not.toHaveBeenCalled();
+    expect(startService).toHaveBeenCalledWith({ reload: true });
   });
 
   it("本地文件没有 URL，刷新直接拒绝", async () => {

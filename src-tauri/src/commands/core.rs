@@ -75,9 +75,7 @@ pub async fn get_working_directory(
 /// 提前查只是为了给出一句人话，而不是把 gRPC 的状态码摆到用户脸上。
 #[tauri::command]
 #[specta::specta]
-pub async fn destroy_working_directory(
-    state: State<'_, SingboxState>,
-) -> Result<(), CommandError> {
+pub async fn destroy_working_directory(state: State<'_, SingboxState>) -> Result<(), CommandError> {
     if crate::services::singbox::get_daemon_state(state.inner()).running() {
         return Err(CommandError::InvalidState(
             "sing-box is running — stop it before destroying the working directory".to_string(),

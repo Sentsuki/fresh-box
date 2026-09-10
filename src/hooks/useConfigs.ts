@@ -213,16 +213,11 @@ export function useConfigs() {
       try {
         const result = await updateSubscriptionCmd(id);
         await applyProfileResult(result);
-        // 刷新的正是当前跑着的那份配置，就顺手重载让它生效 —— 以前新内容写进
-        // 磁盘、跑着的还是旧的，界面上却提示「更新成功」（审计项 H-02）。
-        const selectedId =
-          useSettingsStore.getState().settings.profiles.selected_profile_id;
-        if (selectedId === id && useSingboxStore.getState().isRunning) {
-          await startService({ reload: true });
-          toastSuccess(`Updated and reloaded: ${result.entry.name}`);
-        } else {
-          toastSuccess(`Updated subscription: ${result.entry.name}`);
-        }
+        // 重载不在这里做：内容变了而且变的正好是当前跑着的那份时，后端的
+        // `reload_if_selected_and_running` 已经就地重载完了。以前这条策略只
+        // 写在前端，于是后台自动更新那条路径上它等于不存在 —— 新内容进了磁盘、
+        // 隧道里跑的还是旧的（审计项 H-1）。
+        toastSuccess(`Updated subscription: ${result.entry.name}`);
         return true;
       } catch (err) {
         toastError(`Error updating subscription: ${getErrorMessage(err)}`);
@@ -231,7 +226,7 @@ export function useConfigs() {
         config.setPending(false);
       }
     },
-    [toastError, toastSuccess, startService],
+    [toastError, toastSuccess],
   );
 
   const editSubscription = useCallback(

@@ -191,22 +191,36 @@ pub fn create(
 
 /// 覆盖一个已有档案的内容，并刷新 `last_updated`（重新拉取订阅时用）。
 pub fn replace_content(store: &Store, id: &str, content: &str) -> Result<(), CommandError> {
-    let now = chrono::Utc::now().to_rfc3339();
     store.with(|connection| {
-        let affected = connection
-            .execute(
-                "UPDATE profiles SET last_updated = ?2 WHERE id = ?1",
-                params![id, now],
-            )
-            .map_err(|e| CommandError::io("update profile timestamp", e))?;
-        if affected == 0 {
-            return Err(CommandError::resource_not_found(
-                "profile",
-                format!("no profile with id '{id}'"),
-            ));
-        }
+        stamp_last_updated(connection, id)?;
         crate::config::io::atomic_write(&content_path(id)?, content.as_bytes())
     })
+}
+
+/// 只更新「上次检查时间」，不动内容文件。
+///
+/// 抓回来的订阅和磁盘上的一模一样时走这条：这一轮确实检查过了，下一轮该按
+/// 完整周期重新计时（否则 `is_due` 会让它每分钟重抓一次），但内容既然没变就
+/// 不该重写文件、更不该重载正在跑的实例。
+pub fn touch_last_updated(store: &Store, id: &str) -> Result<(), CommandError> {
+    store.with(|connection| stamp_last_updated(connection, id))
+}
+
+fn stamp_last_updated(connection: &Connection, id: &str) -> Result<(), CommandError> {
+    let now = chrono::Utc::now().to_rfc3339();
+    let affected = connection
+        .execute(
+            "UPDATE profiles SET last_updated = ?2 WHERE id = ?1",
+            params![id, now],
+        )
+        .map_err(|e| CommandError::io("update profile timestamp", e))?;
+    if affected == 0 {
+        return Err(CommandError::resource_not_found(
+            "profile",
+            format!("no profile with id '{id}'"),
+        ));
+    }
+    Ok(())
 }
 
 pub fn read_content(store: &Store, id: &str) -> Result<String, CommandError> {
@@ -367,6 +381,33 @@ mod tests {
             &profile(false, None, None),
             utc("2026-01-01T00:00:00Z")
         ));
+    }
+
+    #[test]
+    fn touching_moves_the_timestamp_without_rewriting_the_content() {
+        // 审计项 H-1：订阅抓回来的内容和磁盘上一模一样时走这条 —— 这一轮确实
+        // 检查过了（`last_updated` 要动，否则 `is_due` 会让它每分钟重抓一次），
+        // 但内容既然没变就不该重写文件，更不该重载正在跑的实例。
+        let store = Store::open_in_memory().expect("in-memory store");
+        let created = create(&store, "sub", None, "{\"outbounds\":[]}").expect("create");
+        let before = find(&store, &created.id).expect("find").last_updated;
+
+        touch_last_updated(&store, &created.id).expect("touch");
+
+        let after = find(&store, &created.id).expect("find").last_updated;
+        assert!(after.is_some(), "the check itself is always recorded");
+        assert_ne!(after, before, "the timestamp moved");
+        assert_eq!(
+            read_content(&store, &created.id).expect("content"),
+            "{\"outbounds\":[]}",
+            "the content file was left alone"
+        );
+    }
+
+    #[test]
+    fn touching_a_missing_profile_is_an_error_not_a_silent_no_op() {
+        let store = Store::open_in_memory().expect("in-memory store");
+        assert!(touch_last_updated(&store, "no-such-id").is_err());
     }
 
     #[test]

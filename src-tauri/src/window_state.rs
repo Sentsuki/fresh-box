@@ -5,6 +5,7 @@
 // `windowState.ts` + `index.ts`'s `registerMainWindowStatePersistence`.
 
 use serde::{Deserialize, Serialize};
+use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use tauri::{Manager, PhysicalPosition, PhysicalSize, WebviewWindow, Window};
 
@@ -19,7 +20,7 @@ const WINDOW_STATE_KEY: &str = "windowState";
 const MIN_WINDOW_WIDTH: u32 = 900;
 const MIN_WINDOW_HEIGHT: u32 = 600;
 
-#[derive(Debug, Clone, Serialize, Deserialize)]
+#[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 struct WindowState {
     x: i32,
     y: i32,
@@ -166,6 +167,16 @@ pub fn restore(window: &WebviewWindow) {
         return;
     };
 
+    // 用磁盘上的值播种内存副本，`capture` 从这里往上叠。
+    //
+    // 不播种的话，关窗后重开（`show_or_create_main_window` 会再走一次
+    // `restore`）时 `capture` 会从全零起步：那之后第一条最大化状态下的
+    // `Resized` 会把 x/y/宽高原样写成 0，用户调好的尺寸就没了。落盘的值本身
+    // 不夹带 `DIRTY` —— 它就是磁盘上的那份，没什么可写回去的。
+    if let Ok(mut last) = LAST.lock() {
+        *last = Some(state.clone());
+    }
+
     let monitors = window.available_monitors().unwrap_or_default();
     let target = (state.width > 0 && state.height > 0)
         .then(|| best_monitor_for(&monitors, (state.x, state.y, state.width, state.height)))
@@ -200,8 +211,39 @@ pub fn restore(window: &WebviewWindow) {
     }
 }
 
-/// Save the window's current bounds. Call from the `Resized`/`Moved`
-/// window-event handlers in `main.rs`.
+// ─── 捕获与落盘的分离 ──────────────────────────────────────────────
+//
+// `Resized`/`Moved` 是 `WM_SIZE`/`WM_MOVE` 的逐条转发：拖一次窗口边框，它们
+// 每秒来几十条。以前每一条都直接 `load()` + `save()`，也就是每秒几十次
+// SQLite 事务 —— 而同步的窗口事件处理器跑在主消息循环线程上，等于用户拖窗口
+// 时 UI 自己在跟自己抢线程（审计项 H-4）。
+//
+// 这是从 Electron 移植过来时的语义错位，不是设计取舍：官方客户端挂的是
+// Electron 的 `moved`/`resized`，那两个事件**手势结束**才触发一次
+// （`index.ts` 的 `registerMainWindowStatePersistence`）；tao 没有对应物。
+//
+// 所以拆成两半：
+//   `capture`  事件路径调用。只读几个窗口属性、写进内存，不碰数据库。
+//   `flush`    真正落盘。由 `spawn_persist_flusher` 每 500 ms 看一眼脏标记，
+//              以及 `CloseRequested` 时立即调用一次。
+//
+// 顺带消掉了原来那次「为了保住最大化前的尺寸」而做的 `load()`：上一次的值现在
+// 就在 `LAST` 里。
+
+/// 最近一次捕获到的完整几何。由 `restore` 用磁盘上的值播种，之后只由
+/// `capture` 更新。
+static LAST: Mutex<Option<WindowState>> = Mutex::new(None);
+
+/// `LAST` 是否有还没落盘的改动。
+static DIRTY: AtomicBool = AtomicBool::new(false);
+
+/// 落盘节奏。窗口几何不是要紧数据，掉最后半秒的调整无所谓；真正要紧的那次
+/// （关窗）由 `CloseRequested` 直接 `flush`，不等这个周期。
+const FLUSH_INTERVAL: std::time::Duration = std::time::Duration::from_millis(500);
+
+/// Capture the window's current bounds into memory. Call from the
+/// `Resized`/`Moved` window-event handlers in `main.rs` — this is the hot
+/// path, so it must not touch the database (see the comment block above).
 ///
 /// Skips capturing geometry while maximized or fullscreen — Tauri has no
 /// equivalent of Electron's `getNormalBounds()` to read the un-maximized
@@ -216,9 +258,9 @@ pub fn restore(window: &WebviewWindow) {
 /// on Windows an undecorated window (`"decorations": false`) still carries
 /// an invisible resize border/shadow around its client area, so each round
 /// trip added that border to a size that already included it.
-pub fn persist(window: &Window) {
+pub fn capture(window: &Window) {
     // 建窗到 `restore` 之间的窗口几何是 tauri.conf.json 的默认值，不是用户
-    // 调出来的 —— 写进去就会把上一次的尺寸冲掉。见 `PERSIST_SUSPENDED`。
+    // 调出来的 —— 记下来就会把上一次的尺寸冲掉。见 `PERSIST_SUSPENDED`。
     if PERSIST_SUSPENDED.load(Ordering::SeqCst) {
         return;
     }
@@ -230,7 +272,10 @@ pub fn persist(window: &Window) {
     let minimized = window.is_minimized().unwrap_or(false);
     let fullscreen = window.is_fullscreen().unwrap_or(false);
 
-    let mut state = load(window.app_handle()).unwrap_or(WindowState {
+    let Ok(mut last) = LAST.lock() else {
+        return;
+    };
+    let mut state = last.clone().unwrap_or(WindowState {
         x: 0,
         y: 0,
         width: 0,
@@ -256,7 +301,35 @@ pub fn persist(window: &Window) {
             }
         }
     }
-    save(window.app_handle(), &state);
+
+    // 只有真的变了才置脏 —— 一次拖动里绝大多数事件带的是同一个几何
+    // （比如最大化状态下的 WM_SIZE 连发），它们一次写都不该产生。
+    if last.as_ref() != Some(&state) {
+        *last = Some(state);
+        DIRTY.store(true, Ordering::SeqCst);
+    }
+}
+
+/// 把内存里那份写进数据库，如果它确实变过。关窗时立即调用，平时由
+/// `spawn_persist_flusher` 按 `FLUSH_INTERVAL` 调用。
+pub fn flush(app: &tauri::AppHandle) {
+    if !DIRTY.swap(false, Ordering::SeqCst) {
+        return;
+    }
+    let state = LAST.lock().ok().and_then(|last| last.clone());
+    if let Some(state) = state {
+        save(app, &state);
+    }
+}
+
+/// 启动周期性落盘。`setup()` 里调一次，跑满进程生命周期。
+pub fn spawn_persist_flusher(app: tauri::AppHandle) {
+    tauri::async_runtime::spawn(async move {
+        loop {
+            tokio::time::sleep(FLUSH_INTERVAL).await;
+            flush(&app);
+        }
+    });
 }
 
 #[cfg(test)]
