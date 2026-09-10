@@ -36,7 +36,7 @@
   `SetTailscaleExitNode`、`TailscaleLogout`、`GetTailscaleCertificate`、
   `StartTailscaleSSHSession`、`SubscribeTaildropInbox`、`SendTaildropFiles`、
   `DownloadTaildropFile`、`DeleteTaildropFile`、`MarkTaildropInboxRead`、
-  `CancelTaildropReceiving`
+  `CancelTaildropReceiving`，**以及 `SubscribeNotifications`**
 - **USB/IP** —— `ProvideUSBDevices`、`SubscribeUSBIPServerStatus`
 - **OpenConnect / OpenVPN 的交互式认证** —— `SubscribeOpenConnectStatus`、
   `SubmitOpenConnectAuthResponse`、`CancelOpenConnectAuthChallenge`、
@@ -47,6 +47,23 @@
 不是「顺手接一下」的量级。其中 `SendTaildropFiles` / `StartTailscaleSSHSession`
 / `ProvideUSBDevices` 还是**客户端流**，而 bridge 只支持一元和服务端流
 （`build.rs` 的 `parse_proto` 对客户端流直接 panic）—— 要接得先扩 bridge。
+
+`SubscribeNotifications` 跟着 Tailscale 一起列在这里，值得单独说一句，因为
+光看名字会以为它是个通用能力。它推的是内核要求宿主弹的**系统通知**，带
+`(typeID, identifier)` 身份、可撤销（`NotificationCancel`）、可点击
+（`openURL`）—— 官方客户端的 `main/notifications.ts` 就是拿这三样做的：同键
+重发替换旧的、收到 cancel 关掉、点击打开 URL。
+
+但 1.14.0 里构造 `adapter.Notification{}` 的地方**只有两处**，都在 Tailscale
+里：`protocol/tailscale/endpoint.go`（需要重新登录，`openURL` 是认证页）和
+`protocol/tailscale/taildrop.go`（文件收发进展，`openURL` 是
+`sing-box:taildrop?...` 深链）。Windows 上 `UsePlatformNotification()` 无条件
+返回 `true`，管道是通的，但没有第三个生产者。所以对 fresh-box 而言这条流接上
+也永远不会推来任何东西 —— 它是那一整块功能的投递通道，不是一个独立缺口。
+真要接，得先有 Tailscale。
+
+（fresh-box 自己那套「起了 / 停了 / 挂了」的系统通知是另一回事，由
+`services::resident::spawn_notifier` 产生，和这条流没有重叠。）
 
 ### 有替代实现
 
@@ -86,15 +103,17 @@
 
 ### 没做，但不是不该做
 
-这两条是真的缺口，将来想补的话从这里开始：
+这一条是真的缺口，将来想补的话从这里开始：
 
-- `StartedService.SubscribeNotifications` —— sing-box 内核自己发出的通知
-  （官方客户端的 `main/notifications.ts` 就靠它，还支持 `cancel` 和点击打开
-  URL）。fresh-box 目前的系统通知只有自己产生的运行状态变化
-  （`services::resident::spawn_notifier`），内核发的一律收不到。
 - `StartedService.GetDeprecatedWarnings` —— 配置里用了已弃用字段时的告警。
-  现在用户只有在 sing-box 真的报错时才知道，而弃用往往是「还能跑，但下个
-  大版本会断」。
+  上游 `experimental/deprecated/constants.go` 里有十几条（`outbound-dns-rule-item`、
+  `missing-domain-resolver`、`legacy-domain-strategy-options`、
+  `legacy-rule-set-download-detour` …），每条都带 `DeprecatedVersion` /
+  `ScheduledVersion` / `MigrationLink`。它专门打中「订阅提供方按老版本
+  sing-box 写的配置」，而那正是 fresh-box 用户最常见的配置来源 —— 弃用往往是
+  「现在还能跑，但下个大版本会断」，现在用户只有等它真的断了才知道。
+  注意它要求实例已 `STARTED`（`started_service.go` 开头就查），所以它属于
+  「跑起来之后提示一次」，不是导入时的静态检查。
 
 ## 加回一条
 
