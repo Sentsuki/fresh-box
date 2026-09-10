@@ -111,6 +111,13 @@ pub fn show_or_create_main_window(app: &AppHandle) {
     // 窗口已被销毁，在独立后台线程中重建，避免阻塞调用线程（主消息循环）
     let app_clone = app.clone();
     std::thread::spawn(move || {
+        // 建窗和 `restore` 之间窗口是 tauri.conf.json 的默认尺寸，而建窗产生
+        // 的 Resized/Moved 事件在主线程投递 —— 不挡住的话它们会抢在下面的
+        // `restore` 读取存储之前把默认尺寸写回去，用户调好的尺寸就没了。这里
+        // 建窗在后台线程、事件在主线程，谁先谁后不定，所以那是个偶发竞态。
+        // 见 `window_state::suspend_persist`。
+        let _persist_guard = crate::window_state::suspend_persist();
+
         let result = (|| {
             let window_config = app_clone
                 .config()

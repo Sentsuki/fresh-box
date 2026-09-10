@@ -96,7 +96,13 @@ fn main() {
             // the window is ever shown — it's created with `"visible":
             // false` in tauri.conf.json specifically so this can't be seen
             // jumping from the default bounds to the restored ones.
-            window_state::restore(&window);
+            //
+            // 建窗过程中产生的 Resized/Moved 事件带的是默认尺寸，挡住它们，
+            // 否则可能抢在 `restore` 前面把存储里的尺寸冲成默认值。
+            {
+                let _persist_guard = window_state::suspend_persist();
+                window_state::restore(&window);
+            }
 
             #[cfg(target_os = "windows")]
             {
