@@ -51,9 +51,8 @@ export function CoreInfoGroup() {
   const isRunning = useSingboxStore((s) => s.isRunning);
 
   const [version, setVersion] = useState<Loaded<string>>(null);
-  const [directory, setDirectory] = useState<
-    Loaded<{ path: string; size: number }>
-  >(null);
+  const [directory, setDirectory] =
+    useState<Loaded<{ path: string; size: number }>>(null);
   const [confirming, setConfirming] = useState(false);
   const [destroying, setDestroying] = useState(false);
 
