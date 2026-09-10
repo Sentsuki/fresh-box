@@ -39,13 +39,18 @@ import {
   exportPowerReport,
   deleteAllPowerReports,
 } from "../../services/api";
+import { CoreInfoGroup } from "./CoreInfoGroup";
 import DiagnosticsTab from "./DiagnosticsTab";
 import { ReportsPanel } from "./ReportsPanel";
 import { OomSettingsPanel, PowerSettingsPanel } from "./ReportSettings";
 
 /** TUN Stack / Core Log Level — moved here from Settings: both tune the
  * running sing-box config the same way the JSON editor below does, so they
- * belong next to it rather than in the general app-preferences page. */
+ * belong next to it rather than in the general app-preferences page.
+ *
+ * 组名是 "Setup" 而不是原来的 "sing-box Core"：整个标签页现在就叫 sing-box
+ * Core，再嵌一个同名分组只会让人以为点错了地方。这一组是「怎么跑」的可调
+ * 项，Core 那一组是核心自身的状态。 */
 function CoreSettingsGroup() {
   const {
     isLoading,
@@ -68,7 +73,7 @@ function CoreSettingsGroup() {
   if (isLoading || (!hasStackField && !hasLogField)) return null;
 
   return (
-    <SettingGroup title="sing-box Core">
+    <SettingGroup title="Setup">
       {hasStackField && (
         <SettingCard
           icon={<BoxRegular />}
@@ -136,7 +141,7 @@ function CoreSettingsGroup() {
   );
 }
 
-function ConfigOverrideTab() {
+function CoreTab() {
   const toast = useToast();
 
   const [rawJson, setRawJson] = useState("");
@@ -208,6 +213,7 @@ function ConfigOverrideTab() {
   return (
     <div className="flex flex-col gap-6 h-full">
       <CoreSettingsGroup />
+      <CoreInfoGroup />
 
       <div className="flex flex-col gap-1 pt-2 border-t border-(--wb-border-subtle)">
         <h2 className="text-sm font-semibold text-(--wb-text-primary) px-1">
@@ -259,7 +265,9 @@ function ConfigOverrideTab() {
 }
 
 const ADVANCED_TABS = [
-  { value: "override", label: "Config Override" },
+  // 标签页叫 "sing-box Core"，但 value 仍是 "override"：那是持久化/默认标签
+  // 用的 key，改它没有任何好处，只会让老状态失效。
+  { value: "override", label: "sing-box Core" },
   { value: "diagnostics", label: "Diagnostics" },
   { value: "crash", label: "Crash Reports" },
   { value: "oom", label: "OOM Reports" },
@@ -281,7 +289,7 @@ export default function Advanced() {
       >
         <div className="flex-1 min-h-0 overflow-y-auto pr-2 custom-scrollbar">
           <TabContent value="override" className="h-full">
-            <ConfigOverrideTab />
+            <CoreTab />
           </TabContent>
           <TabContent value="diagnostics">
             <DiagnosticsTab />
