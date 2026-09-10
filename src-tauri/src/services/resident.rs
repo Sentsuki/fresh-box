@@ -88,9 +88,32 @@ impl ResidentState {
     /// 会话结束时调用 —— 托盘立刻回到「没有节点、没有模式」的样子，而不是
     /// 继续显示一份已经不对的快照。
     fn clear(&self) {
-        let _ = self.groups_tx.send(Vec::new());
-        let _ = self.mode_tx.send(ModeState::default());
+        publish_if_changed(&self.groups_tx, Vec::new());
+        publish_if_changed(&self.mode_tx, ModeState::default());
     }
+}
+
+/// 往 watch 通道里放一个新值，**但只在它和当前值不同时通知订阅者**。
+///
+/// `watch::Sender::send` 无条件唤醒订阅者，而这两个通道唯一的订阅者是
+/// `tray::spawn_tray_sync`，它一被唤醒就整个重建原生托盘菜单（N 组 × M 节点
+/// 个 `CheckMenuItem`）。上游的 `SubscribeGroups` 有 250 ms 的节流
+/// （`started_service.go` 的 `urlTestPushMinInterval`），也就是全量测速期间
+/// 每秒推 4 次 —— 而那些推送里变的只是 `urlTestDelay`，托盘根本不显示它。
+/// 于是每秒 4 次重建一个内容完全相同的菜单：纯浪费，而且菜单正被打开时
+/// 重建它在 Windows 上会把它收起来。
+///
+/// `TrayGroup`/`ModeState` 只保留托盘真正画出来的那几个字段（tag、selected、
+/// 节点名），所以「值没变」恰好等于「菜单不会变」—— 这正是这个比较有意义的
+/// 前提，别往这两个结构里加托盘不显示的字段。
+fn publish_if_changed<T: PartialEq>(tx: &watch::Sender<T>, next: T) {
+    tx.send_if_modified(|current| {
+        if *current == next {
+            return false;
+        }
+        *current = next;
+        true
+    });
 }
 
 impl Default for ResidentState {
@@ -175,7 +198,10 @@ async fn run_groups(
                     _ = cancel.changed() => return,
                     message = stream.message() => match message {
                         Ok(Some(groups)) => {
-                            let _ = resident.groups_tx.send(to_tray_groups(groups));
+                            // 只在托盘看得见的部分真的变了时才通知 —— 测速
+                            // 期间这条流每 250 ms 推一次，而变的多半只是延迟
+                            // 数字。见 `publish_if_changed`。
+                            publish_if_changed(&resident.groups_tx, to_tray_groups(groups));
                         }
                         // 流正常结束或出错都退到外层重订阅：实例停了、daemon
                         // 重启了，都属于「等一下再来」而不是「彻底放弃」。
@@ -238,10 +264,13 @@ async fn run_clash_mode(
                                 // 记住当前模式，下次启动实例时回填成
                                 // `clash_api.default_mode`（审计项 M-09）。
                                 remember_mode(&mode.mode);
-                                let _ = resident.mode_tx.send(ModeState {
-                                    available: available.clone(),
-                                    current: mode.mode,
-                                });
+                                publish_if_changed(
+                                    &resident.mode_tx,
+                                    ModeState {
+                                        available: available.clone(),
+                                        current: mode.mode,
+                                    },
+                                );
                             }
                             _ => break,
                         },
@@ -431,6 +460,53 @@ mod tests {
 
         assert_eq!(state.groups()[0].selected, "b");
         assert_eq!(state.mode().current, "global");
+    }
+
+    #[test]
+    fn an_unchanged_snapshot_does_not_wake_the_tray() {
+        // 审计项 M-1：全量测速期间 `SubscribeGroups` 每 250 ms 推一帧，而变的
+        // 只是 `urlTestDelay` —— 那个字段不在 `TrayGroup` 里，所以连续两帧
+        // 映射出来的值完全相同。这时候不该唤醒订阅者：托盘一被唤醒就整个重建
+        // 原生菜单，菜单正打开着的话还会被收起来。
+        let state = ResidentState::new();
+        let mut rx = state.subscribe_groups();
+        // 建立基线：`changed()` 只报「订阅之后」的通知。
+        assert!(!rx.has_changed().expect("channel open"));
+
+        let snapshot = || {
+            to_tray_groups(Groups {
+                group: vec![group("manual", true, "b", &["a", "b"])],
+            })
+        };
+
+        publish_if_changed(&state.groups_tx, snapshot());
+        assert!(
+            rx.has_changed().expect("channel open"),
+            "the first snapshot is a real change"
+        );
+        let _ = rx.borrow_and_update();
+
+        // 同一份内容再推 10 次 —— 一次唤醒都不该有。
+        for _ in 0..10 {
+            publish_if_changed(&state.groups_tx, snapshot());
+        }
+        assert!(
+            !rx.has_changed().expect("channel open"),
+            "an identical snapshot must not wake the tray"
+        );
+
+        // 真正变了（选中项换了）才唤醒。
+        publish_if_changed(
+            &state.groups_tx,
+            to_tray_groups(Groups {
+                group: vec![group("manual", true, "a", &["a", "b"])],
+            }),
+        );
+        assert!(
+            rx.has_changed().expect("channel open"),
+            "a different selection is a real change"
+        );
+        assert_eq!(state.groups()[0].selected, "a");
     }
 
     #[test]

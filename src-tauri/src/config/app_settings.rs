@@ -193,16 +193,21 @@ pub fn load_app_settings(store: &Store) -> Result<AppSettings, CommandError> {
     })
 }
 
+/// 八个区一次事务写完，不是八条独立语句 —— 见 `settings::set_all`（审计项
+/// M-4）。编码全部发生在进事务之前，所以事务里只有八次 INSERT。
 pub fn save_app_settings(store: &Store, value: &AppSettings) -> Result<(), CommandError> {
-    use settings::{SCOPE_APP, set};
-    set(store, SCOPE_APP, KEY_APP, &value.app)?;
-    set(store, SCOPE_APP, KEY_PROXIES, &value.proxies)?;
-    set(store, SCOPE_APP, KEY_CONNECTIONS, &value.connections)?;
-    set(store, SCOPE_APP, KEY_LOGS, &value.logs)?;
-    set(store, SCOPE_APP, settings::KEY_PROFILES, &value.profiles)?;
-    set(store, SCOPE_APP, settings::KEY_BEHAVIOR, &value.settings)?;
-    set(store, SCOPE_APP, KEY_UPDATES, &value.updates)?;
-    set(store, SCOPE_APP, KEY_DIAGNOSTICS, &value.diagnostics)
+    use settings::{SCOPE_APP, encode};
+    let entries = [
+        (KEY_APP, encode(&value.app)?),
+        (KEY_PROXIES, encode(&value.proxies)?),
+        (KEY_CONNECTIONS, encode(&value.connections)?),
+        (KEY_LOGS, encode(&value.logs)?),
+        (settings::KEY_PROFILES, encode(&value.profiles)?),
+        (settings::KEY_BEHAVIOR, encode(&value.settings)?),
+        (KEY_UPDATES, encode(&value.updates)?),
+        (KEY_DIAGNOSTICS, encode(&value.diagnostics)?),
+    ];
+    settings::set_all(store, SCOPE_APP, &entries)
 }
 
 /// 后端自己要用的那一区（诊断选项），单独读，不必解析整份设置。
