@@ -1,6 +1,6 @@
 [package]
 name = "fresh-box"
-version = "1.14.0"
+version = "1.14.1"
 description = "fresh-box"
 authors = ["sentsuki"]
 edition = "2024"
@@ -29,12 +29,9 @@ futures-util = "0.3"
 reqwest = { version = "0.13", default-features = false, features = ["json", "stream", "rustls"] }
 tokio = { version = "1", features = ["full"] }
 thiserror = "2"
-urlencoding = "2"
-zip = "8"
 window-vibrancy = "0.7"
 tauri-plugin-notification = "2"
 rand = "0.10"
-sha2 = "0.11"
 indexmap = { version = "2.14.0", features = ["serde"] }
 # gRPC client for sing-box-daemon.exe (boxdd). No server feature needed —
 # fresh-box only ever dials out to the daemon/worker pipe.

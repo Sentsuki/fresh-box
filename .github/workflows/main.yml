@@ -62,7 +62,7 @@ on:
   workflow_dispatch:
     inputs:
       version:
-        description: 'Version to build (must match a real SagerNet/sing-box release tag, e.g. 1.14.0)'
+        description: 'Version to build'
         required: true
 
 # Prevents two runs for the same tag/version from racing to build and

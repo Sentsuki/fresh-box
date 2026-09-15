@@ -38,3 +38,6 @@ daemon-bundle
 
 # buf 生成的 protobuf 类型（pnpm gen:proto）
 src/gen/
+
+# 本地构建用的签名配置覆盖（见 docs/local-build.md），含本机证书指纹，不入库
+src-tauri/sign.local.json

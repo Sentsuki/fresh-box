@@ -1,8 +1,9 @@
-import { ChevronDownRegular, TimerRegular } from "@fluentui/react-icons";
+import { TimerRegular } from "@fluentui/react-icons";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Flag from "react-flagpack";
 import "react-flagpack/dist/style.css";
 import { Button } from "../../components/ui/Button";
+import { CollapsibleCard } from "../../components/ui/CollapsibleCard";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
@@ -61,7 +62,7 @@ function NodeName({
         hasBorderRadius
         hasDropShadow
         gradient="real-linear"
-        className="inline-block mx-0.5 translate-y-[2px]"
+        className="inline-block mx-0.5 translate-y-0.5"
       />,
     );
     lastIndex = regex.lastIndex;
@@ -114,7 +115,7 @@ const NodeCard = memo(function NodeCard({
       }}
     >
       {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-10 bg-(--wb-accent) rounded-r-full z-10" />
+        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-0.75 h-10 bg-(--wb-accent) rounded-r-full z-10" />
       )}
       <div className="flex w-full justify-between items-start gap-2">
         <NodeName
@@ -202,67 +203,49 @@ const GroupCard = memo(function GroupCard({
   const setProxyGroupCollapsed = useSettingsStore(
     (s) => s.setProxyGroupCollapsed,
   );
-  const open = !collapsed;
 
   return (
-    <div className="rounded-xl border border-(--wb-border-subtle) bg-(--wb-surface-layer) overflow-hidden shadow-sm transition-all duration-300">
-      <div className="flex items-center">
-        <button
-          onClick={() => void setProxyGroupCollapsed(group.name, open)}
-          className={[
-            "flex flex-1 items-center justify-between px-4 py-3 min-w-0",
-            "bg-transparent hover:bg-(--wb-surface-hover)",
-            "transition-colors duration-150 text-left",
-          ].join(" ")}
-        >
-          <span className="flex-1 min-w-0">
-            <GroupTrigger group={group} />
+    <CollapsibleCard
+      open={!collapsed}
+      onOpenChange={(open) => void setProxyGroupCollapsed(group.name, !open)}
+      className="shadow-sm"
+      trigger={
+        <div className="flex items-center justify-between gap-3 min-w-0">
+          <GroupTrigger group={group} />
+          <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) border border-(--wb-border-subtle)">
+            {group.kind}
           </span>
-          <div className="flex items-center gap-3 ml-4 shrink-0">
-            <span className="px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) border border-(--wb-border-subtle)">
-              {group.kind}
-            </span>
-            <ChevronDownRegular
-              className={`text-xl text-(--wb-text-secondary) transition-transform duration-300 ${open ? "rotate-180" : ""}`}
-            />
-          </div>
-        </button>
-        <div className="shrink-0 px-3 bg-transparent border-l border-(--wb-border-subtle) h-full flex items-center">
-          <Button
-            variant="subtle"
-            icon={<TimerRegular />}
-            loading={isTesting}
-            onClick={(e) => {
-              e.stopPropagation();
-              onTestGroup();
-            }}
-            title="Test all latencies"
-          >
-            Test All
-          </Button>
         </div>
+      }
+      actions={
+        <Button
+          variant="subtle"
+          icon={<TimerRegular />}
+          loading={isTesting}
+          onClick={onTestGroup}
+          title="Test all latencies"
+        >
+          Test All
+        </Button>
+      }
+    >
+      <div
+        className="grid gap-2"
+        style={{
+          gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
+        }}
+      >
+        {group.options.map((node) => (
+          <NodeCard
+            key={node.name}
+            node={node}
+            selected={group.current === node.name}
+            onSelect={() => onSelectNode(node.name)}
+            onTest={() => onTestNode(node.name)}
+          />
+        ))}
       </div>
-      {open && (
-        <div className="p-4 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
-          <div
-            className="grid gap-2"
-            style={{
-              gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))",
-            }}
-          >
-            {group.options.map((node) => (
-              <NodeCard
-                key={node.name}
-                node={node}
-                selected={group.current === node.name}
-                onSelect={() => onSelectNode(node.name)}
-                onTest={() => onTestNode(node.name)}
-              />
-            ))}
-          </div>
-        </div>
-      )}
-    </div>
+    </CollapsibleCard>
   );
 });
 
