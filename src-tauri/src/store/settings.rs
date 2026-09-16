@@ -33,7 +33,7 @@ pub const KEY_PROFILES: &str = "profiles";
 /// 由 `services::resident` 的 `SubscribeClashMode` 订阅写入，启动合成配置时
 /// 回填成 `clash_api.default_mode` —— 用户选的模式因此能跨重启保留，而 daemon
 /// 仍是运行期唯一的真相源（审计项 M-09）。
-pub const KEY_CLASH_MODE: &str = "clashMode";
+const KEY_CLASH_MODE: &str = "clashMode";
 
 pub fn last_clash_mode(store: &Store) -> Option<String> {
     get_or_default::<Option<String>>(store, SCOPE_APP, KEY_CLASH_MODE)

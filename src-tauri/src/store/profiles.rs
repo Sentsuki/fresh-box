@@ -15,10 +15,10 @@ use super::Store;
 /// 自动更新的最短间隔 —— 对齐官方客户端的 `MINIMUM_UPDATE_INTERVAL_MINUTES`
 /// （`main/profiles.ts`），理由相同：没有下限的话，用户填个 1 分钟就会把订阅
 /// 提供方的服务器打爆。
-pub const MINIMUM_UPDATE_INTERVAL_MINUTES: u32 = 15;
+const MINIMUM_UPDATE_INTERVAL_MINUTES: u32 = 15;
 
 /// `interval_min` 为空时用的默认值。
-pub const DEFAULT_UPDATE_INTERVAL_MINUTES: u32 = 60;
+const DEFAULT_UPDATE_INTERVAL_MINUTES: u32 = 60;
 
 #[derive(Debug, Clone, Serialize, specta::Type)]
 #[serde(rename_all = "camelCase")]
@@ -46,11 +46,12 @@ fn row_to_profile(row: &rusqlite::Row<'_>) -> rusqlite::Result<Profile> {
 
 /// 把存下来的间隔解析成实际值，无论它来自默认还是用户填的（可能过小）都套上
 /// 下限。
-pub fn interval_or_default(minutes: Option<u32>) -> u32 {
+fn interval_or_default(minutes: Option<u32>) -> u32 {
     minutes
         .unwrap_or(DEFAULT_UPDATE_INTERVAL_MINUTES)
         .max(MINIMUM_UPDATE_INTERVAL_MINUTES)
 }
+
 
 /// `entry` 到 `now` 为止是否该自动更新了。
 ///

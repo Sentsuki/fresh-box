@@ -65,7 +65,7 @@ pub fn should_prevent_exit() -> bool {
 // ─── 窗口操作 ──────────────────────────────────────────────────────
 
 /// 显示并聚焦窗口。unminimize 确保最小化状态下也能正确显示。
-pub fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
+fn show_window(app: &AppHandle, window_label: &str) -> Result<(), String> {
     let window = app
         .get_webview_window(window_label)
         .ok_or_else(|| "Window not found".to_string())?;

@@ -1226,7 +1226,7 @@ dependencies = [
 
 [[package]]
 name = "fresh-box"
-version = "1.14.0"
+version = "1.14.1"
 dependencies = [
  "base64 0.23.1",
  "chrono",

@@ -38,7 +38,7 @@ use crate::errors::CommandError;
 use crate::store::Store;
 
 /// The Tauri event name every `ConnectionPhase` change is published under.
-pub const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
+const DAEMON_STATE_EVENT: &str = "daemon-state-changed";
 
 /// sing-box's own run state, once we're actually connected — mirrors
 /// `daemon_api::service_status::Type` in a form that serializes cleanly for
