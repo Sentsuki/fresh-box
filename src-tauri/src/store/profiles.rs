@@ -52,7 +52,6 @@ fn interval_or_default(minutes: Option<u32>) -> u32 {
         .max(MINIMUM_UPDATE_INTERVAL_MINUTES)
 }
 
-
 /// `entry` 到 `now` 为止是否该自动更新了。
 ///
 /// 从没拉取过的订阅一律算「到期」，这样刚打开自动更新的订阅会立刻刷一次，而

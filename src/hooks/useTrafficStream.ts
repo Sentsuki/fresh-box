@@ -73,4 +73,3 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
       history: generateInitialHistory(),
     }),
 }));
-

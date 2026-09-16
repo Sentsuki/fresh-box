@@ -11,4 +11,3 @@ import type { ConnectionPhase } from "../gen/host";
 
 /** 所有相位名 —— `DaemonGate` 的映射表按它做穷举校验。 */
 export type DaemonPhaseName = ConnectionPhase["phase"];
-

@@ -19,4 +19,3 @@ export const useMemoryStore = create<MemoryState & MemoryActions>((set) => ({
   setStreamStatus: (streamStatus) => set({ streamStatus }),
   clear: () => set({ inuse: 0, streamStatus: "disconnected" }),
 }));
-
