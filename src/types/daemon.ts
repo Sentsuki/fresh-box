@@ -5,17 +5,10 @@
  * 相位，`DaemonGate` 的映射表会直接编译报错（见那里的注释）。
  */
 
-export type {
-  ConnectionPhase as DaemonConnectionPhase,
-  SingboxRunState,
-  SingboxStatus,
-} from "../gen/host";
+export type { ConnectionPhase as DaemonConnectionPhase } from "../gen/host";
 
 import type { ConnectionPhase } from "../gen/host";
 
 /** 所有相位名 —— `DaemonGate` 的映射表按它做穷举校验。 */
 export type DaemonPhaseName = ConnectionPhase["phase"];
 
-export function isDaemonRunning(phase: ConnectionPhase): boolean {
-  return phase.phase === "connected" && phase.status.state === "started";
-}

@@ -82,7 +82,7 @@ function Field({
   );
 }
 
-export function NetworkQualityCard() {
+function NetworkQualityCard() {
   const isRunning = useSingboxStore((s) => s.isRunning);
   const [configURL, setConfigURL] = useState(NETWORK_QUALITY_DEFAULT_URL);
   const [outboundTag, setOutboundTag] = useState("");
@@ -322,7 +322,7 @@ export function NetworkQualityCard() {
   );
 }
 
-export function StunTestCard() {
+function StunTestCard() {
   const isRunning = useSingboxStore((s) => s.isRunning);
   const [server, setServer] = useState(STUN_DEFAULT_SERVER);
   const [outboundTag, setOutboundTag] = useState("");

@@ -8,22 +8,11 @@
 // 错误，运行时表现是那个字段恒为 `undefined`。
 
 export type {
-  AppConfig,
-  AppDisplaySettings,
-  CommandError,
   ConfigFieldsCheck,
-  ConnectionPageSettings,
-  DiagnosticsSettings,
-  LogConfig,
-  LogsPageSettings,
   PriorityConfig,
-  PriorityInbound,
   ProfileOperationResult,
-  ProfilesSettings,
-  ProxyPageSettings,
   ReportFileView,
   ReportSummary,
-  UpdateSettings,
 } from "../gen/host";
 
 /** Rust 侧叫 `Profile`；前端一直用 `ProfileEntry` 这个名字。 */
@@ -112,10 +101,6 @@ export type ConnectionColumnKey =
 export type LogLevel =
   "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
 
-/** Mirrors the backend's `config::profiles::MINIMUM_UPDATE_INTERVAL_MINUTES`
- * — kept here too so the UI can reject/clamp an obviously-too-small value
- * before round-tripping to the backend at all. */
-export const MINIMUM_AUTO_UPDATE_INTERVAL_MINUTES = 15;
 /** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
 export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
 
@@ -407,7 +392,7 @@ export interface ProxyOverview {
   proxy_groups: ProxyGroupOverview[];
 }
 
-export interface ConnectionMetadata {
+interface ConnectionMetadata {
   network: string;
   type: string;
   host: string;
@@ -423,7 +408,7 @@ export interface ConnectionMetadata {
   process?: string;
 }
 
-export interface CoreConnectionSnapshot {
+interface CoreConnectionSnapshot {
   id: string;
   metadata: ConnectionMetadata;
   upload: number;
@@ -455,7 +440,7 @@ export interface CoreConnectionsFrame {
   totalUploadSpeed: number;
 }
 
-export interface CoreLogMessage {
+interface CoreLogMessage {
   type: string;
   payload: string;
 }

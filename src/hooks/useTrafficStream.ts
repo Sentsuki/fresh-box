@@ -1,7 +1,6 @@
 import { create } from "zustand";
-import { startStatusStream, stopStatusStream } from "../daemon/statusStream";
 
-export interface DataPoint {
+interface DataPoint {
   dl: number;
   ul: number;
   tick: number;
@@ -75,23 +74,3 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
     }),
 }));
 
-// 流量与内存来自同一条 `SubscribeStatus`（见 `daemon/statusStream.ts`），
-// 所以这里的启停就是那一条流的启停 —— 两个 store 一起动。
-export const startTrafficStream = startStatusStream;
-export const stopTrafficStream = stopStatusStream;
-
-export function useTrafficStream() {
-  const downloadSpeed = useTrafficStore((s) => s.downloadSpeed);
-  const uploadSpeed = useTrafficStore((s) => s.uploadSpeed);
-  const streamStatus = useTrafficStore((s) => s.streamStatus);
-  const history = useTrafficStore((s) => s.history);
-
-  return {
-    downloadSpeed,
-    uploadSpeed,
-    streamStatus,
-    history,
-    startStream: startTrafficStream,
-    stopStream: stopTrafficStream,
-  };
-}

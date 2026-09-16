@@ -2,7 +2,7 @@ import { check, type Update } from "@tauri-apps/plugin-updater";
 import { create } from "zustand";
 import { getErrorMessage } from "../services/tauri";
 
-export type UpdateStatus =
+type UpdateStatus =
   | "idle"
   | "checking"
   | "up-to-date"

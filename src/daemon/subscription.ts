@@ -53,7 +53,7 @@ function waitForRunningChange(signal: AbortSignal): Promise<void> {
   });
 }
 
-export interface StreamController {
+interface StreamController {
   /** 幂等：已经在跑就什么都不做。 */
   start: () => void;
   /** 幂等。`onStopped` 通常用来清空 store。 */

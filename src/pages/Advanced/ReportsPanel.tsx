@@ -13,7 +13,7 @@ import { useToast } from "../../hooks/useToast";
 import { formatLastUpdated } from "../../services/utils";
 import type { ReportFileView, ReportSummary } from "../../types/app";
 
-export interface ReportsApi {
+interface ReportsApi {
   list: () => Promise<ReportSummary[]>;
   read: (id: string) => Promise<ReportFileView[]>;
   // `Promise<unknown>`：生成的命令对 Rust 的 `()` 返回 `Promise<null>`，
@@ -173,7 +173,7 @@ export function ReportsPanel({
               >
                 <span
                   className={[
-                    "w-1.5 h-1.5 rounded-full flex-shrink-0",
+                    "w-1.5 h-1.5 rounded-full shrink-0",
                     report.isRead ? "bg-transparent" : "bg-(--wb-accent)",
                   ].join(" ")}
                 />
