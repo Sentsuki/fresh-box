@@ -149,7 +149,7 @@ export function CoreInfoGroup() {
           }
           control={
             <Button
-              className="bg-(--wb-error) hover:bg-(--wb-error-hover) active:bg-(--wb-error-hover) border-none text-white"
+              variant="danger"
               onClick={() => setConfirming(true)}
               disabled={destroying || isRunning}
             >
@@ -177,7 +177,7 @@ export function CoreInfoGroup() {
               Cancel
             </Button>
             <Button
-              className="bg-(--wb-error) hover:bg-(--wb-error-hover) active:bg-(--wb-error-hover) border-none text-white"
+              variant="danger"
               onClick={() => void handleDestroy()}
               loading={destroying}
             >

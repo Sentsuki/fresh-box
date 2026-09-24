@@ -2,7 +2,7 @@ import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { Spinner } from "./Spinner";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
-  variant?: "default" | "accent" | "subtle" | "ghost";
+  variant?: "default" | "accent" | "subtle" | "ghost" | "danger";
   size?: "sm" | "md" | "lg";
   icon?: React.ReactNode;
   loading?: boolean;
@@ -17,6 +17,8 @@ const variantClasses = {
     "bg-(--wb-surface-hover) hover:bg-(--wb-surface-active) border border-transparent text-(--wb-text-primary)",
   ghost:
     "bg-transparent hover:bg-(--wb-surface-hover) border border-transparent text-(--wb-text-primary)",
+  danger:
+    "bg-(--wb-error) hover:bg-(--wb-error-hover) active:bg-(--wb-error-hover) text-white border border-transparent font-medium",
 };
 
 const sizeClasses = {
@@ -46,7 +48,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         className={[
           "inline-flex items-center justify-center font-normal",
           "transition-colors duration-100",
-          "focus-visible:outline focus-visible:outline-2 focus-visible:outline-(--wb-accent) focus-visible:outline-offset-1",
+          "focus-visible:outline focus-visible:outline-(--wb-accent) focus-visible:outline-offset-1",
           "disabled:opacity-40 disabled:cursor-not-allowed",
           variantClasses[variant],
           sizeClasses[size],
@@ -57,7 +59,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
         {loading ? (
           <Spinner size="sm" className="mr-0.5 border-t-current" />
         ) : (
-          icon && <span className="flex-shrink-0 text-[1.1em]">{icon}</span>
+          icon && <span className="shrink-0 text-[1.1em]">{icon}</span>
         )}
         {children}
       </button>

@@ -52,7 +52,7 @@ export function ConnectionDetailsModal({
               <h3 className="text-lg font-semibold text-(--wb-text-primary) leading-tight">
                 Connection Details
               </h3>
-              <p className="text-sm text-(--wb-text-secondary) truncate max-w-[300px] sm:max-w-md">
+              <p className="text-sm text-(--wb-text-secondary) truncate max-w-75 sm:max-w-md">
                 {metadata.host || metadata.destinationIP}
               </p>
             </div>
@@ -167,7 +167,7 @@ export function ConnectionDetailsModal({
             </div>
 
             {/* Right Section: Metadata JSON */}
-            <div className="flex flex-col min-h-[400px]">
+            <div className="flex flex-col min-h-100">
               <h4 className="flex items-center gap-2 mb-3 text-xs font-bold uppercase tracking-wider text-(--wb-text-tertiary)">
                 <DocumentRegular className="text-sm" />
                 Metadata (JSON)
@@ -191,12 +191,12 @@ export function ConnectionDetailsModal({
           </div>
           <div className="flex items-center gap-3">
             <Button
-              variant="accent"
+              variant="danger"
               onClick={() => {
                 onDisconnect(connection.id);
                 onClose();
               }}
-              className="min-w-24 bg-(--wb-error) hover:bg-(--wb-error-hover) active:bg-(--wb-error-hover) border-none text-white flex items-center gap-2"
+              className="min-w-24 flex items-center gap-2"
             >
               <DeleteRegular className="text-lg" />
               Disconnect

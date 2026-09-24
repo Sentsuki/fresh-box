@@ -115,7 +115,7 @@ export default function Overview() {
                   ${isPending || !selectedProfileId ? "opacity-50 cursor-not-allowed" : "hover:scale-[1.02] active:scale-[0.98]"}
                   ${
                     isRunning
-                      ? "bg-(--wb-error) text-white hover:bg-[#ff6666]"
+                      ? "bg-(--wb-error) text-white hover:bg-(--wb-error-hover)"
                       : "bg-(--wb-accent) text-white hover:bg-(--wb-accent-hover)"
                   }
                 `}
