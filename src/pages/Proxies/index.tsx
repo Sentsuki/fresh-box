@@ -1,4 +1,9 @@
-import { TimerRegular } from "@fluentui/react-icons";
+import {
+  DismissRegular,
+  PinFilled,
+  PinRegular,
+  TimerRegular,
+} from "@fluentui/react-icons";
 import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import Flag from "react-flagpack";
 import "react-flagpack/dist/style.css";
@@ -8,6 +13,8 @@ import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Spinner } from "../../components/ui/Spinner";
 import { useProxy } from "../../hooks/useProxy";
+import { useToast } from "../../hooks/useToast";
+import { useExitExpectStore } from "../../stores/exitExpectStore";
 import { useProxyStore } from "../../stores/proxyStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
@@ -80,15 +87,20 @@ function NodeName({
 interface NodeCardProps {
   node: ProxyNodeOverview;
   selected: boolean;
+  /** 这个节点是所在组的期望出口。 */
+  pinned: boolean;
   onSelect: () => void;
   onTest: () => void;
+  onTogglePin: () => void;
 }
 
 const NodeCard = memo(function NodeCard({
   node,
   selected,
+  pinned,
   onSelect,
   onTest,
+  onTogglePin,
 }: NodeCardProps) {
   const isTesting = useProxyStore(
     (s) =>
@@ -99,7 +111,7 @@ const NodeCard = memo(function NodeCard({
       onClick={onSelect}
       title={node.name}
       className={[
-        "relative flex flex-col items-start gap-1 px-3 py-2 rounded-(--wb-radius-md) overflow-hidden",
+        "group/node relative flex flex-col items-start gap-1 px-3 py-2 rounded-(--wb-radius-md) overflow-hidden",
         "text-left transition-all duration-200 cursor-pointer w-full min-w-0 border",
         selected
           ? "bg-(--wb-surface-base) border-(--wb-accent)"
@@ -122,6 +134,28 @@ const NodeCard = memo(function NodeCard({
           name={node.name}
           className="text-xs font-semibold leading-tight text-(--wb-text-primary)"
         />
+        {/* 期望出口的图钉：钉住的常显，其余只在悬停时出现。 */}
+        <button
+          onClick={(e) => {
+            e.stopPropagation();
+            onTogglePin();
+          }}
+          // 别让 Enter/Space 冒泡到卡片上，顺手把节点也切了。
+          onKeyDown={(e) => e.stopPropagation()}
+          title={
+            pinned ? "Unpin expected outbound" : "Pin as expected outbound"
+          }
+          aria-pressed={pinned}
+          className={[
+            "shrink-0 -mr-1 -mt-0.5 p-0.5 rounded text-sm leading-none transition-opacity",
+            "hover:bg-(--wb-surface-active)",
+            pinned
+              ? "text-(--wb-accent)"
+              : "text-(--wb-text-tertiary) opacity-0 group-hover/node:opacity-100 focus-visible:opacity-100",
+          ].join(" ")}
+        >
+          {pinned ? <PinFilled /> : <PinRegular />}
+        </button>
       </div>
       <div className="flex w-full items-center justify-between gap-1 mt-auto pt-1">
         <div className="flex items-center gap-1.5 min-w-0">
@@ -164,12 +198,84 @@ const NodeCard = memo(function NodeCard({
 interface GroupCardProps {
   group: ProxyGroupOverview;
   isTesting: boolean;
+  /** 这个组的期望出口（没设则为 `undefined`）。 */
+  expected: string | undefined;
   onSelectNode: (node: string) => void;
   onTestNode: (node: string) => void;
   onTestGroup: () => void;
+  onTogglePin: (node: string) => void;
+  onClearExpected: () => void;
 }
 
-function GroupTrigger({ group }: { group: ProxyGroupOverview }) {
+/**
+ * 组标题里「Expected」那一行：只在当前节点不是期望节点时出现。
+ *
+ * 期望节点已经不在组里（订阅更新后改了名）时显示成灰色、给个清除按钮 —— 后端
+ * 对这种情况也不提醒，切不回去的东西提醒了没用。
+ *
+ * 这一行在折叠触发器（一个 `<button>`）里面，所以清除按钮只能是
+ * `role="button"` 的 span：按钮套按钮是非法 HTML。
+ */
+function ExpectedLine({
+  group,
+  expected,
+  onClear,
+}: {
+  group: ProxyGroupOverview;
+  expected: string | undefined;
+  onClear: () => void;
+}) {
+  if (!expected || !group.current || expected === group.current) return null;
+
+  const missing = !group.options.some((node) => node.name === expected);
+  if (missing) {
+    return (
+      <div className="text-xs text-(--wb-text-disabled) mt-1 flex items-center gap-1 min-w-0">
+        <PinRegular className="shrink-0" />
+        <span className="shrink-0">Expected:</span>
+        <NodeName name={expected} />
+        <span className="shrink-0">· not in group</span>
+        <span
+          role="button"
+          tabIndex={0}
+          title="Clear expected outbound"
+          onClick={(e) => {
+            e.stopPropagation();
+            onClear();
+          }}
+          onKeyDown={(e) => {
+            if (e.key === "Enter" || e.key === " ") {
+              e.preventDefault();
+              e.stopPropagation();
+              onClear();
+            }
+          }}
+          className="shrink-0 p-0.5 rounded leading-none hover:bg-(--wb-surface-active) hover:text-(--wb-text-primary)"
+        >
+          <DismissRegular />
+        </span>
+      </div>
+    );
+  }
+
+  return (
+    <div className="text-xs font-medium text-(--wb-warning) mt-1 flex items-center gap-1 min-w-0">
+      <PinFilled className="shrink-0" />
+      <span className="shrink-0 font-normal">Expected:</span>
+      <NodeName name={expected} />
+    </div>
+  );
+}
+
+function GroupTrigger({
+  group,
+  expected,
+  onClearExpected,
+}: {
+  group: ProxyGroupOverview;
+  expected: string | undefined;
+  onClearExpected: () => void;
+}) {
   return (
     <div className="flex-1 min-w-0">
       <div className="flex items-center gap-2">
@@ -186,6 +292,11 @@ function GroupTrigger({ group }: { group: ProxyGroupOverview }) {
           <NodeName name={group.current} />
         </div>
       )}
+      <ExpectedLine
+        group={group}
+        expected={expected}
+        onClear={onClearExpected}
+      />
     </div>
   );
 }
@@ -193,9 +304,12 @@ function GroupTrigger({ group }: { group: ProxyGroupOverview }) {
 const GroupCard = memo(function GroupCard({
   group,
   isTesting,
+  expected,
   onSelectNode,
   onTestNode,
   onTestGroup,
+  onTogglePin,
+  onClearExpected,
 }: GroupCardProps) {
   const collapsed = useSettingsStore(
     (s) => s.settings.proxies.collapsed_groups[group.name] ?? false,
@@ -211,7 +325,11 @@ const GroupCard = memo(function GroupCard({
       className="shadow-sm"
       trigger={
         <div className="flex items-center justify-between gap-3 min-w-0">
-          <GroupTrigger group={group} />
+          <GroupTrigger
+            group={group}
+            expected={expected}
+            onClearExpected={onClearExpected}
+          />
           <span className="shrink-0 px-2 py-0.5 rounded text-[10px] font-bold uppercase tracking-wider bg-(--wb-surface-hover) text-(--wb-text-secondary) border border-(--wb-border-subtle)">
             {group.kind}
           </span>
@@ -240,8 +358,10 @@ const GroupCard = memo(function GroupCard({
             key={node.name}
             node={node}
             selected={group.current === node.name}
+            pinned={expected === node.name}
             onSelect={() => onSelectNode(node.name)}
             onTest={() => onTestNode(node.name)}
+            onTogglePin={() => onTogglePin(node.name)}
           />
         ))}
       </div>
@@ -265,6 +385,12 @@ export default function Proxies() {
     changeMode,
   } = useProxy();
 
+  const exitExpect = useExitExpectStore((s) => s.expect);
+  const selectedProfileId = useSettingsStore(
+    (s) => s.settings.profiles.selected_profile_id,
+  );
+  const { error: toastError } = useToast();
+
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
   const scrollContainerRef = useRef<HTMLDivElement>(null);
@@ -273,6 +399,11 @@ export default function Proxies() {
   useEffect(() => {
     void refreshOverview();
   }, [refreshOverview]);
+
+  // 期望出口按档案存，切档案就换一张表。
+  useEffect(() => {
+    void useExitExpectStore.getState().load(selectedProfileId);
+  }, [selectedProfileId]);
 
   useEffect(() => {
     setRenderCount(Math.min(groups.length, GROUP_BATCH_SIZE));
@@ -320,6 +451,24 @@ export default function Proxies() {
       await testDelay(nodeName);
     },
     [testDelay],
+  );
+
+  const handleTogglePin = useCallback(
+    async (groupName: string, nodeName: string) => {
+      await useExitExpectStore
+        .getState()
+        .toggle(groupName, nodeName, (msg) => toastError(msg));
+    },
+    [toastError],
+  );
+
+  const handleClearExpected = useCallback(
+    async (groupName: string) => {
+      await useExitExpectStore
+        .getState()
+        .clear(groupName, (msg) => toastError(msg));
+    },
+    [toastError],
   );
 
   const handleTestGroup = useCallback(
@@ -395,9 +544,12 @@ export default function Proxies() {
               key={group.name}
               group={group}
               isTesting={activeGroupDelay === group.name}
+              expected={exitExpect[group.name]}
               onSelectNode={(node) => void handleSelectNode(group.name, node)}
               onTestNode={(node) => void handleTestNode(node)}
               onTestGroup={() => void handleTestGroup(group.name)}
+              onTogglePin={(node) => void handleTogglePin(group.name, node)}
+              onClearExpected={() => void handleClearExpected(group.name)}
             />
           ))}
           {renderCount < groups.length && (

@@ -86,6 +86,8 @@ pub fn specta_builder<R: tauri::Runtime>() -> tauri_specta::Builder<R> {
             commands::priority::save_priority_config,
             commands::priority::load_priority_config,
             commands::priority::check_config_fields,
+            commands::exit_expect::load_exit_expect,
+            commands::exit_expect::set_exit_expect,
             commands::core::get_core_info,
             commands::core::get_working_directory,
             commands::core::destroy_working_directory,

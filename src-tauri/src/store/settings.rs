@@ -35,6 +35,10 @@ pub const KEY_PROFILES: &str = "profiles";
 /// 仍是运行期唯一的真相源（审计项 M-09）。
 const KEY_CLASH_MODE: &str = "clashMode";
 
+/// 各档案的期望出口（`config::exit_expect`）。`key` 是档案 id —— 组名和节点名
+/// 都只在那一份配置里有意义，删档案时这一行跟着删（`profiles::delete`）。
+pub const SCOPE_EXIT_EXPECT: &str = "exitExpect";
+
 pub fn last_clash_mode(store: &Store) -> Option<String> {
     get_or_default::<Option<String>>(store, SCOPE_APP, KEY_CLASH_MODE)
         .ok()

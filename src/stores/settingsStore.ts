@@ -39,6 +39,7 @@ interface SettingsActions {
   setLogTypeFilter: (filter: string) => Promise<void>;
   setThemeMode: (mode: ThemeMode) => Promise<void>;
   setAutoCloseConnections: (enabled: boolean) => Promise<void>;
+  setExitReminderMinutes: (minutes: number) => Promise<void>;
   setCheckUpdateEnabled: (enabled: boolean) => Promise<void>;
   setUpdateCheckPrompted: () => Promise<void>;
   setLastShownUpdateVersion: (version: string) => Promise<void>;
@@ -147,6 +148,12 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
     setAutoCloseConnections: async (enabled) => {
       await get().updateSettings((s) => {
         s.settings.auto_close_connections = enabled;
+      });
+    },
+
+    setExitReminderMinutes: async (minutes) => {
+      await get().updateSettings((s) => {
+        s.settings.exit_reminder_minutes = minutes;
       });
     },
 

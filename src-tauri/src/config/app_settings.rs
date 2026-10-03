@@ -43,6 +43,9 @@ pub struct ProfilesSettings {
 pub struct AppDisplaySettings {
     pub theme_mode: String,
     pub auto_close_connections: bool,
+    /// 组偏离期望出口多少分钟后提醒一次（之后每隔这么久再提醒）；`0` = 关闭。
+    /// 由 `services::exit_reminder` 读，所以放在后端缓存的这一区。
+    pub exit_reminder_minutes: u32,
 }
 
 #[derive(Debug, Clone, Default, Serialize, Deserialize, specta::Type)]
@@ -145,6 +148,7 @@ impl Default for AppDisplaySettings {
         Self {
             theme_mode: "system".to_string(),
             auto_close_connections: true,
+            exit_reminder_minutes: 30,
         }
     }
 }
@@ -369,6 +373,7 @@ mod tests {
             settings: AppDisplaySettings {
                 theme_mode: "dark".into(),
                 auto_close_connections: false,
+                exit_reminder_minutes: 0,
             },
             ..Default::default()
         };

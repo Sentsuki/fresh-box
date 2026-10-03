@@ -269,6 +269,13 @@ pub fn delete(store: &Store, id: &str) -> Result<(), CommandError> {
                 format!("no profile with id '{id}'"),
             ));
         }
+        // 档案自己的期望出口跟着走，不然这一行会一直留在表里没人认领。
+        connection
+            .execute(
+                "DELETE FROM settings WHERE scope = ?1 AND key = ?2",
+                params![super::settings::SCOPE_EXIT_EXPECT, id],
+            )
+            .map_err(|e| CommandError::io("delete exit expectations", e))?;
         // 内容文件删失败不回滚：数据库里已经没有这一行了，留一个没人引用的
         // 文件是无害的，而为它把删除操作整个失败掉才是坏体验。
         if let Ok(path) = content_path(id)

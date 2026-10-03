@@ -134,6 +134,8 @@ fn main() {
                 .inner()
                 .clone();
             services::resident::spawn_notifier(app.handle().clone(), state.inner().clone());
+            // 「忘了切回期望出口」的提醒 —— 同样得在窗口关掉之后继续跑。
+            services::exit_reminder::spawn_exit_reminder(app.handle().clone(), resident.clone());
             tray::spawn_tray_sync(app.handle().clone(), state.inner().clone(), resident);
 
             Ok(())

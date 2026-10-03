@@ -1,5 +1,6 @@
 pub mod app_settings;
 pub mod config_override;
+pub mod exit_expect;
 pub mod io;
 pub mod paths;
 pub mod priority;

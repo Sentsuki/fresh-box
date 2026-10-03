@@ -160,6 +160,7 @@ export function createDefaultAppSettings(): AppSettings {
     settings: {
       theme_mode: "system",
       auto_close_connections: true,
+      exit_reminder_minutes: 30,
     },
     updates: {
       check_update_enabled: false,
@@ -340,6 +341,7 @@ export function normalizeAppSettings(
           ? settings.settings.theme_mode
           : "system",
       auto_close_connections: settings.settings?.auto_close_connections ?? true,
+      exit_reminder_minutes: settings.settings?.exit_reminder_minutes ?? 30,
     },
     updates: {
       check_update_enabled: settings.updates?.check_update_enabled ?? false,

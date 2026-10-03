@@ -4,6 +4,7 @@ pub mod config;
 pub mod config_override;
 pub mod core;
 pub mod diagnostics;
+pub mod exit_expect;
 pub mod priority;
 pub mod reports;
 pub mod singbox;

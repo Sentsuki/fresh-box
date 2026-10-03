@@ -3,6 +3,7 @@ import {
   FolderOpenRegular,
   InfoRegular,
   LinkRegular,
+  PinRegular,
   RocketRegular,
   ShieldTaskRegular,
   WeatherMoonRegular,
@@ -30,6 +31,15 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
 
+/** 期望出口提醒的可选间隔（分钟）。`0` = 关闭。 */
+const EXIT_REMINDER_OPTIONS: { value: number; label: string }[] = [
+  { value: 0, label: "Off" },
+  { value: 15, label: "15 min" },
+  { value: 30, label: "30 min" },
+  { value: 60, label: "1 hour" },
+  { value: 120, label: "2 hours" },
+];
+
 export default function Settings() {
   const settings = useSettingsStore((s) => s.settings);
   const setThemeMode = useSettingsStore((s) => s.setThemeMode);
@@ -38,6 +48,12 @@ export default function Settings() {
   );
   const setAutoCloseConnections = useSettingsStore(
     (s) => s.setAutoCloseConnections,
+  );
+  const exitReminderMinutes = useSettingsStore(
+    (s) => s.settings.settings.exit_reminder_minutes,
+  );
+  const setExitReminderMinutes = useSettingsStore(
+    (s) => s.setExitReminderMinutes,
   );
 
   const currentThemeMode = settings.settings.theme_mode;
@@ -215,6 +231,25 @@ export default function Settings() {
                   void setAutoCloseConnections(checked)
                 }
               />
+            }
+          />
+          <SettingCard
+            icon={<PinRegular />}
+            title="Expected Outbound Reminder"
+            description="Notify when a group stays off its pinned node. Pin a node on the Routing page to set it."
+            control={
+              <Select
+                value={exitReminderMinutes}
+                onChange={(e) =>
+                  void setExitReminderMinutes(Number(e.target.value))
+                }
+              >
+                {EXIT_REMINDER_OPTIONS.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </Select>
             }
           />
 
