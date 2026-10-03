@@ -386,6 +386,8 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         .show_menu_on_left_click(false)
         .tooltip("fresh-box");
 
+    // 兜底图标：非 Windows 平台就用它；Windows 上建好后会被
+    // `app_icon::apply_to_tray` 换成合适尺寸的那一帧，资源加载失败时才留着它。
     let builder = if let Some(icon) = app.default_window_icon() {
         builder.icon(icon.clone())
     } else {
@@ -393,7 +395,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
         builder
     };
 
-    builder
+    let tray = builder
         .on_tray_icon_event(|tray, event| {
             if let TrayIconEvent::Click {
                 button: MouseButton::Left,
@@ -444,6 +446,7 @@ pub fn setup_system_tray(app: &tauri::App) -> Result<(), Box<dyn std::error::Err
             }
         })
         .build(app)?;
+    crate::app_icon::apply_to_tray(&tray);
 
     app.manage(TrayState { items });
 

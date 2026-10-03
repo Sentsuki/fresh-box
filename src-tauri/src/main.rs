@@ -1,6 +1,7 @@
 // Prevents additional console window on Windows in release, DO NOT REMOVE!!
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
+mod app_icon;
 mod commands;
 mod config;
 mod crash_reports;
@@ -109,6 +110,7 @@ fn main() {
                 use window_vibrancy::apply_mica;
                 let _ = apply_mica(&window, None);
             }
+            app_icon::apply_to_window(&window.as_ref().window());
 
             // A launch registered via `enable_autostart` (see
             // `commands::app`) passes `AUTOSTART_ARG` — start hidden in the
@@ -146,6 +148,10 @@ fn main() {
                 // 而这个处理器跑在主消息循环线程上。见 `window_state` 里
                 // 「捕获与落盘的分离」那段。
                 window_state::capture(window);
+            }
+            tauri::WindowEvent::ScaleFactorChanged { .. } => {
+                // 拖到另一个缩放比例的显示器上，换成该 DPI 对应尺寸的图标。
+                app_icon::apply_to_window(window);
             }
             tauri::WindowEvent::CloseRequested { api, .. } => {
                 // 始终阻止默认关闭行为，由我们决定后续动作

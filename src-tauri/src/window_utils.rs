@@ -142,6 +142,7 @@ pub fn show_or_create_main_window(app: &AppHandle) {
                 // default bounds — see `window_state::restore`'s doc
                 // comment for why this has to happen before `.show()`.
                 crate::window_state::restore(&window);
+                crate::app_icon::apply_to_window(&window.as_ref().window());
                 let _ = window.unminimize();
                 let _ = window.show();
                 let _ = window.set_focus();

@@ -1,5 +1,6 @@
 // lib.rs - 可选的库文件，用于导出所有公共模块和函数
 
+pub mod app_icon;
 pub mod commands;
 pub mod config;
 pub mod crash_reports;
