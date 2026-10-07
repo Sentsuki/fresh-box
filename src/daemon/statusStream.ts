@@ -27,15 +27,29 @@ import { useTrafficStore } from "../hooks/useTrafficStream";
  */
 const STATUS_INTERVAL_NANOS = 1_000n * 1_000_000n;
 
+/**
+ * daemon 每条订阅发的**第一帧**还没做差（`SubscribeStatus` 先 Send 一次初始
+ * 读数，之后才在每个 tick 里算 `Total - 上次Total`），`uplink/downlink` 恒为
+ * 0。把它当速度画进去，每次重订阅（托盘恢复、出错重连）图上都会凭空掉一个
+ * 到底的尖谷。所以首帧只取累计量和内存，不进速度和历史。
+ */
+let awaitingFirstFrame = false;
+
 const controller = createStreamController({
-  subscribe: (signal) =>
-    startedService.subscribeStatus(
+  subscribe: (signal) => {
+    awaitingFirstFrame = true;
+    return startedService.subscribeStatus(
       { interval: STATUS_INTERVAL_NANOS },
       { signal },
-    ),
+    );
+  },
   onMessage: (status) => {
     const traffic = useTrafficStore.getState();
-    traffic.setTraffic(Number(status.downlink), Number(status.uplink));
+    if (awaitingFirstFrame) {
+      awaitingFirstFrame = false;
+    } else {
+      traffic.setTraffic(Number(status.downlink), Number(status.uplink));
+    }
     // 会话累计 —— 连接页显示的「总量」用这个，不是对活跃连接求和。
     traffic.setTotals(Number(status.downlinkTotal), Number(status.uplinkTotal));
 

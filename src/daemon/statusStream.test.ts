@@ -11,17 +11,23 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 const hooks = vi.hoisted(() => ({
   emit: (_status: Record<string, unknown>) => {},
   emitStatus: (_status: string) => {},
+  /** 模拟控制器开新一轮订阅（它会调 `subscribe`）。 */
+  resubscribe: () => {},
   started: 0,
   stopped: 0,
 }));
 
 vi.mock("./subscription", () => ({
   createStreamController: (options: {
+    subscribe: (signal: AbortSignal) => unknown;
     onMessage: (m: unknown) => void;
     onStatus: (s: string) => void;
   }) => {
     hooks.emit = (status) => options.onMessage(status);
     hooks.emitStatus = (s) => options.onStatus(s);
+    hooks.resubscribe = () => {
+      options.subscribe(new AbortController().signal);
+    };
     return {
       start: () => {
         hooks.started += 1;
@@ -99,12 +105,46 @@ describe("一条流两个 store", () => {
 
   it("每一帧都进历史，并且不会无限长", () => {
     for (let i = 0; i < 80; i += 1) {
-      hooks.emit(status({ downlink: BigInt(i) }));
+      hooks.emit(status({ downlink: 1000n }));
     }
     const history = useTrafficStore.getState().history;
     expect(history.length).toBe(60);
-    // 保留的是最近的那一段。
-    expect(history[history.length - 1].dl).toBe(79);
+    // 持续稳定的流量，平滑后收敛到真实值。
+    expect(history[history.length - 1].dl).toBeCloseTo(1000, 0);
+  });
+
+  it("历史曲线是平滑过的，实时速度不是", () => {
+    for (let i = 0; i < 30; i += 1) {
+      hooks.emit(status({ downlink: 1000n }));
+    }
+    // 单独一秒的尖刺：数字照实显示，曲线只抬一部分。
+    hooks.emit(status({ downlink: 3000n }));
+    const traffic = useTrafficStore.getState();
+    expect(traffic.downloadSpeed).toBe(3000);
+    const last = traffic.history[traffic.history.length - 1].dl;
+    expect(last).toBeGreaterThan(1000);
+    expect(last).toBeLessThan(2000);
+  });
+
+  it("每轮订阅的首帧不进速度和历史，但累计量照收", () => {
+    hooks.emit(status({ downlink: 1024n }));
+    const before = useTrafficStore.getState().history;
+
+    // 重订阅后 daemon 的首帧还没做差，downlink 恒为 0。
+    hooks.resubscribe();
+    hooks.emit(
+      status({ downlink: 0n, downlinkTotal: 9_000n, memory: 30_000n }),
+    );
+
+    const traffic = useTrafficStore.getState();
+    expect(traffic.downloadSpeed).toBe(1024);
+    expect(traffic.history).toBe(before);
+    expect(traffic.downloadTotal).toBe(9_000);
+    expect(useMemoryStore.getState().inuse).toBe(30_000);
+
+    // 第二帧起恢复正常。
+    hooks.emit(status({ downlink: 0n }));
+    expect(useTrafficStore.getState().downloadSpeed).toBe(0);
   });
 
   it("流状态同时推给两个 store", () => {
