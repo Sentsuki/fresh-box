@@ -1,12 +1,24 @@
 import { create } from "zustand";
 
 interface DataPoint {
+  /** 平滑后的值，见 `SMOOTHING_ALPHA`。 */
   dl: number;
   ul: number;
   tick: number;
 }
 
 const MAX_POINTS = 60;
+
+/**
+ * 历史曲线的指数平均系数。daemon 给的是「这一秒过了多少字节」的原始差值，
+ * 相邻两秒差 10%～30% 很正常（TCP 锯齿、限速周期、视频分片拉流），原样画
+ * 出来流量一大就是一串小山包。只平滑画图用的 `history`，顶部的实时速度
+ * 仍然是原始值。0.3 大约是「最近 3 秒占三分之二权重」，跟手但不抖。
+ */
+const SMOOTHING_ALPHA = 0.3;
+
+const ema = (prev: number, next: number) =>
+  prev + SMOOTHING_ALPHA * (next - prev);
 
 interface TrafficState {
   downloadSpeed: number;
@@ -47,9 +59,14 @@ export const useTrafficStore = create<TrafficState & TrafficActions>((set) => ({
 
   setTraffic: (down, up) =>
     set((state) => {
+      const last = state.history[state.history.length - 1];
       const nextHistory = [
         ...state.history,
-        { dl: down, ul: up, tick: Date.now() },
+        {
+          dl: last ? ema(last.dl, down) : down,
+          ul: last ? ema(last.ul, up) : up,
+          tick: Date.now(),
+        },
       ];
       return {
         downloadSpeed: down,

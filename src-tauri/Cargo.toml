@@ -1,6 +1,6 @@
 [package]
 name = "fresh-box"
-version = "1.14.2"
+version = "1.14.3"
 description = "fresh-box"
 authors = ["sentsuki"]
 edition = "2024"
@@ -99,7 +99,7 @@ windows = { version = "0.61", features = [
 # `app_icon::apply_to_tray` 通过 `TrayIcon::with_inner_tray_icon` 拿到的就是
 # 这个 crate 的类型，版本必须和 tauri 内部用的一致（见 Cargo.lock）；tauri
 # 升级带动它变版本时这里会编译失败，跟着改版本号即可。
-tray-icon = { version = "0.24", default-features = false }
+tray-icon = { version = "0.25", default-features = false }
 
 [dev-dependencies]
 # `test` feature 提供 `MockRuntime` —— 见 tests/bindings.rs。

@@ -46,8 +46,10 @@ export default [
     },
     settings: {
       react: {
-        // 自动检测 React 版本，无需手动指定
-        version: 'detect',
+        // 不能用 'detect'：eslint-plugin-react 7.x 检测版本时调用了 ESLint 10 已移除的
+        // context.getFilename()，会直接崩溃。插件支持 ESLint 10 后可改回 'detect'。
+        // 升级 React 大版本时记得同步这里。
+        version: '19.3',
       },
     },
     rules: {
