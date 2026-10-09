@@ -182,6 +182,9 @@ pub fn restore(window: &WebviewWindow) {
         .then(|| best_monitor_for(&monitors, (state.x, state.y, state.width, state.height)))
         .flatten();
 
+    // 下面的 `set_size` 要靠「外框 − 客户区」推算阴影边框，先让客户区算对。
+    refresh_frame(window);
+
     if let Some(monitor) = target {
         let work = monitor.work_area();
         let max_width = work.size.width.max(MIN_WINDOW_WIDTH);
@@ -209,6 +212,45 @@ pub fn restore(window: &WebviewWindow) {
     if state.maximized {
         let _ = window.maximize();
     }
+}
+
+/// 强制窗口重算一次非客户区（`SWP_FRAMECHANGED`），不改位置和尺寸。
+///
+/// tao 0.37 在 `WM_NCCREATE` 里就应用窗口样式，那一刻它的窗口数据还没挂上
+/// `GWL_USERDATA`，引发的 `WM_NCCALCSIZE` 于是落进 `DefWindowProcW` —— 新建
+/// 的窗口在第一次改尺寸之前，客户区一直是按「带标题栏的标准窗口」算的。
+/// tao 的 `set_inner_size` 对无边框带阴影的窗口又是用「外框 − 客户区」推算
+/// 边框的，这时读到的是整条标题栏（144 DPI 下高 56px，而真实的阴影边框只有
+/// 13px），`restore` 设出去的窗口就高出这一截；`capture` 再把它存下来，于是
+/// 每次建窗（启动、托盘重开）都长高一次。
+///
+/// 这里补发一次 `SWP_FRAMECHANGED`，让 tao 自己的 `WM_NCCALCSIZE` 处理把
+/// 客户区修正过来，之后的 `set_size` 才拿得到正确的边框。
+fn refresh_frame(window: &WebviewWindow) {
+    #[cfg(target_os = "windows")]
+    {
+        use windows::Win32::Foundation::HWND;
+        use windows::Win32::UI::WindowsAndMessaging::{
+            SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, SetWindowPos,
+        };
+
+        let Ok(hwnd) = window.hwnd() else {
+            return;
+        };
+        unsafe {
+            let _ = SetWindowPos(
+                HWND(hwnd.0),
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_FRAMECHANGED | SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_NOACTIVATE,
+            );
+        }
+    }
+    #[cfg(not(target_os = "windows"))]
+    let _ = window;
 }
 
 // ─── 捕获与落盘的分离 ──────────────────────────────────────────────
