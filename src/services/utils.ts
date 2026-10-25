@@ -57,3 +57,8 @@ export function formatRelativeDuration(value?: string): string {
   if (minutes > 0) return `${minutes}m ${seconds}s`;
   return `${seconds}s`;
 }
+
+/** 把任意名字变成能直接当文件名的样子：字母、数字和 `._-` 以外的字符都换成 `-`。 */
+export function toSafeFileName(name: string): string {
+  return name.replace(/[^a-zA-Z0-9._-]/g, "-");
+}

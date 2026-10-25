@@ -1,3 +1,4 @@
+import { produce } from "immer";
 import { create } from "zustand";
 import { getErrorMessage } from "../services/tauri";
 import type { ProxyOverview } from "../types/app";
@@ -33,6 +34,28 @@ interface ProxyActions {
   switchProxy: (proxyGroup: string, proxyName: string) => Promise<void>;
   testDelay: (proxyName: string) => Promise<void>;
   testGroupDelay: (proxyGroup: string) => Promise<void>;
+}
+
+/**
+ * 把测速结果写到 overview 的节点上。`delayOf` 对不该改的节点返回
+ * `undefined`；单节点测速改的是所有组里的同名节点，整组测速只改那一组。
+ *
+ * 这只是推送到达前的即时反馈 —— 下一帧 `SubscribeGroups` 会带着同样的结果
+ * 把整份 overview 换掉。
+ */
+function withDelays(
+  overview: ProxyOverview | null,
+  delayOf: (group: string, node: string) => number | undefined,
+): ProxyOverview | null {
+  if (!overview) return null;
+  return produce(overview, (draft) => {
+    for (const group of draft.proxy_groups) {
+      for (const node of group.options) {
+        const delay = delayOf(group.name, node.name);
+        if (delay !== undefined) node.delay = delay;
+      }
+    }
+  });
 }
 
 export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
@@ -120,17 +143,9 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
     try {
       const delay = await awaitNodeDelay(proxyName);
       set((s) => ({
-        overview: s.overview
-          ? {
-              ...s.overview,
-              proxy_groups: s.overview.proxy_groups.map((group) => ({
-                ...group,
-                options: group.options.map((node) =>
-                  node.name === proxyName ? { ...node, delay } : node,
-                ),
-              })),
-            }
-          : null,
+        overview: withDelays(s.overview, (_, node) =>
+          node === proxyName ? delay : undefined,
+        ),
         errorMessage: null,
       }));
 
@@ -142,20 +157,11 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
       }
     } catch (error) {
       toast.error(`Failed to test node latency: ${getErrorMessage(error)}`);
-      set((s) => {
-        if (!s.overview) return {};
-        return {
-          overview: {
-            ...s.overview,
-            proxy_groups: s.overview.proxy_groups.map((group) => ({
-              ...group,
-              options: group.options.map((node) =>
-                node.name === proxyName ? { ...node, delay: -1 } : node,
-              ),
-            })),
-          },
-        };
-      });
+      set((s) => ({
+        overview: withDelays(s.overview, (_, node) =>
+          node === proxyName ? -1 : undefined,
+        ),
+      }));
     } finally {
       set((s) => {
         const next = new Set(s.activeDelayNodes);
@@ -191,27 +197,11 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
 
       const results = await awaitGroupDelays(proxyGroup, nodes);
 
+      // 没测出来的节点填 -1：留着旧延迟等于显示一个已经不成立的数字。
       set((s) => ({
-        overview: s.overview
-          ? {
-              ...s.overview,
-              proxy_groups: s.overview.proxy_groups.map((g) => {
-                if (g.name === proxyGroup) {
-                  return {
-                    ...g,
-                    options: g.options.map((node) => ({
-                      ...node,
-                      delay:
-                        results[node.name] !== undefined
-                          ? results[node.name]
-                          : -1,
-                    })),
-                  };
-                }
-                return g;
-              }),
-            }
-          : null,
+        overview: withDelays(s.overview, (group, node) =>
+          group === proxyGroup ? (results[node] ?? -1) : undefined,
+        ),
         errorMessage: null,
       }));
 

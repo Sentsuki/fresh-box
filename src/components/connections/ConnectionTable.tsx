@@ -91,26 +91,15 @@ export function ConnectionTable({
     (s) => s.setConnectionExpandedGroups,
   );
 
-  // Only sync from store on initial mount (columnSizes is stable unless
-  // an external actor changes it). We do NOT unconditionally reset on every
-  // reference change, because updateSettings deep-clones the whole settings
-  // object, creating a new column_sizes reference even when values are
-  // identical – which would cause a visible jump during a drag.
-  const initializedRef = useRef(false);
+  // 拖动时列宽先改本地、停手 200ms 后才存回设置。设置靠 immer 结构共享，
+  // `column_sizes` 只在被写入时才换引用 —— 所以引用一变，要么是自己刚存回去
+  // 的那一份（跳过，否则拖到一半会被拉回旧值），要么是外部改的（比如重置
+  // 设置），只有后者才同步到本地。
+  const lastSavedSizesRef = useRef(columnSizes);
   useEffect(() => {
-    if (!initializedRef.current) {
-      initializedRef.current = true;
-      return;
-    }
-    // External change (e.g. settings reset): sync only when values differ.
-    setLocalColumnSizes((prev) => {
-      if (Object.keys(columnSizes).length !== Object.keys(prev).length)
-        return columnSizes;
-      for (const k in columnSizes) {
-        if (columnSizes[k] !== prev[k]) return columnSizes;
-      }
-      return prev;
-    });
+    if (columnSizes === lastSavedSizesRef.current) return;
+    lastSavedSizesRef.current = columnSizes;
+    setLocalColumnSizes(columnSizes);
   }, [columnSizes]);
 
   // Collapse all groups when the grouping column changes.
@@ -133,6 +122,7 @@ export function ConnectionTable({
         const next = typeof updater === "function" ? updater(old) : updater;
         if (sizeTimeoutRef.current) clearTimeout(sizeTimeoutRef.current);
         sizeTimeoutRef.current = setTimeout(() => {
+          lastSavedSizesRef.current = next;
           saveSizesRef.current(next);
         }, 200);
         return next;

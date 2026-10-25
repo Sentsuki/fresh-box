@@ -3,7 +3,8 @@ import {
   DocumentTextRegular,
   SaveRegular,
 } from "@fluentui/react-icons";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Select } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
@@ -43,6 +44,7 @@ import { CoreInfoGroup } from "./CoreInfoGroup";
 import DiagnosticsTab from "./DiagnosticsTab";
 import { ReportsPanel } from "./ReportsPanel";
 import { OomSettingsPanel, PowerSettingsPanel } from "./ReportSettings";
+import { queryKeys } from "../../services/queryClient";
 import { getErrorMessage } from "../../services/tauri";
 
 /** TUN Stack / Core Log Level — moved here from Settings: both tune the
@@ -68,17 +70,10 @@ function CoreSettingsGroup() {
     hasLogField,
     selectedStack,
     logDisabled,
-    setLogDisabled,
     selectedLogLevel,
-    setSelectedLogLevel,
-    loadConfiguration,
     setStackOption,
-    updateLogConfiguration,
+    setLogConfiguration,
   } = usePriorityConfig();
-
-  useEffect(() => {
-    void loadConfiguration();
-  }, [loadConfiguration]);
 
   if (isLoading || (!hasStackField && !hasLogField)) return null;
 
@@ -92,7 +87,7 @@ function CoreSettingsGroup() {
           control={
             <Select
               value={selectedStack}
-              onValueChange={(stack) => void setStackOption(stack)}
+              onValueChange={setStackOption}
               options={STACK_SELECT_OPTIONS}
             />
           }
@@ -108,10 +103,9 @@ function CoreSettingsGroup() {
             <div className="flex items-center gap-3">
               <Select
                 value={selectedLogLevel}
-                onValueChange={(level) => {
-                  setSelectedLogLevel(level);
-                  void updateLogConfiguration(logDisabled, level);
-                }}
+                onValueChange={(level) =>
+                  setLogConfiguration(logDisabled, level)
+                }
                 options={LOG_LEVEL_SELECT_OPTIONS}
                 disabled={logDisabled}
               />
@@ -122,10 +116,9 @@ function CoreSettingsGroup() {
                 </span>
                 <Switch
                   checked={logDisabled}
-                  onCheckedChange={(checked) => {
-                    setLogDisabled(checked);
-                    void updateLogConfiguration(checked, selectedLogLevel);
-                  }}
+                  onCheckedChange={(checked) =>
+                    setLogConfiguration(checked, selectedLogLevel)
+                  }
                 />
               </div>
             </div>
@@ -136,68 +129,73 @@ function CoreSettingsGroup() {
   );
 }
 
+interface ConfigOverrideState {
+  raw: string;
+  enabled: boolean;
+}
+
 function CoreTab() {
   const toast = useToast();
+  const queryClient = useQueryClient();
 
-  const [rawJson, setRawJson] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [overrideEnabled, setOverrideEnabled] = useState(false);
-  const [togglingOverride, setTogglingOverride] = useState(false);
+  const override = useQuery({
+    queryKey: queryKeys.configOverride,
+    queryFn: async (): Promise<ConfigOverrideState> => {
+      // 覆盖层以 JSON 文本过界（见 `save_config_override` 的注释），前端本来
+      // 就是当文本编辑的，不用再 stringify 一次。
+      const [raw, enabled] = await Promise.all([
+        loadConfigOverride(),
+        isConfigOverrideEnabled(),
+      ]);
+      // `{}` 是「什么都没写」的占位，编辑框里显示成空。
+      return { raw: raw.trim() && raw.trim() !== "{}" ? raw : "", enabled };
+    },
+  });
 
-  useEffect(() => {
-    void Promise.all([
-      // 覆盖层现在以 JSON 文本过界（见 `save_config_override` 的注释），
-      // 前端本来就是当文本编辑的，不用再 stringify 一次。
-      loadConfigOverride().then((raw) => {
-        if (raw.trim() && raw.trim() !== "{}") {
-          setRawJson(raw);
-        }
-      }),
-      isConfigOverrideEnabled().then(setOverrideEnabled),
-    ]).catch(() => {});
-  }, []);
+  // 编辑中的文本；`null` = 没改过，显示读到的内容。单独存是为了读取慢的时候，
+  // 结果回来不会盖掉用户已经敲进去的东西。
+  const [draft, setDraft] = useState<string | null>(null);
+  const rawJson = draft ?? override.data?.raw ?? "";
+  const overrideEnabled = override.data?.enabled ?? false;
 
-  const toggleOverrideEnabled = async () => {
-    setTogglingOverride(true);
-    try {
-      if (overrideEnabled) {
-        await disableConfigOverride();
-        setOverrideEnabled(false);
-        toast.success("Config override disabled");
-      } else {
-        await enableConfigOverride();
-        setOverrideEnabled(true);
-        toast.success("Config override enabled");
-      }
-    } catch (err) {
-      toast.error(`Failed: ${getErrorMessage(err)}`);
-    } finally {
-      setTogglingOverride(false);
-    }
-  };
+  const patchOverride = (patch: Partial<ConfigOverrideState>) =>
+    queryClient.setQueryData<ConfigOverrideState>(
+      queryKeys.configOverride,
+      (old) => old && { ...old, ...patch },
+    );
 
-  const handleSave = async () => {
-    setSaving(true);
-    try {
-      // JSON 合法性由 Rust 侧判断，报错信息更贴合上下文。
-      await saveConfigOverride(rawJson);
+  const toggleEnabled = useMutation({
+    mutationFn: (enable: boolean) =>
+      enable ? enableConfigOverride() : disableConfigOverride(),
+    onSuccess: (_, enable) => {
+      patchOverride({ enabled: enable });
+      toast.success(
+        enable ? "Config override enabled" : "Config override disabled",
+      );
+    },
+    onError: (err) => toast.error(`Failed: ${getErrorMessage(err)}`),
+  });
+
+  const save = useMutation({
+    // JSON 合法性由 Rust 侧判断，报错信息更贴合上下文。
+    mutationFn: (raw: string) => saveConfigOverride(raw),
+    onSuccess: (_, raw) => {
+      patchOverride({ raw });
+      setDraft(null);
       toast.success("Config overrides saved");
-    } catch (err) {
-      toast.error(`Failed to save: ${getErrorMessage(err)}`);
-    } finally {
-      setSaving(false);
-    }
-  };
+    },
+    onError: (err) => toast.error(`Failed to save: ${getErrorMessage(err)}`),
+  });
 
-  const handleClearOverride = async () => {
-    try {
-      await clearConfigOverride();
-      setRawJson("");
+  const clear = useMutation({
+    mutationFn: clearConfigOverride,
+    onSuccess: () => {
+      patchOverride({ raw: "" });
+      setDraft(null);
       toast.success("Config override cleared");
-    } catch (err) {
-      toast.error(`Failed to clear: ${getErrorMessage(err)}`);
-    }
-  };
+    },
+    onError: (err) => toast.error(`Failed to clear: ${getErrorMessage(err)}`),
+  });
 
   return (
     <div className="flex flex-col gap-6 h-full">
@@ -216,26 +214,30 @@ function CoreTab() {
         <div className="flex items-center gap-2">
           <Switch
             checked={overrideEnabled}
-            onCheckedChange={() => void toggleOverrideEnabled()}
-            disabled={togglingOverride}
+            onCheckedChange={(checked) => toggleEnabled.mutate(checked)}
+            disabled={toggleEnabled.isPending}
             label="Inject Overrides"
           />
-          {togglingOverride && (
+          {toggleEnabled.isPending && (
             <span className="text-xs text-(--wb-text-secondary)">...</span>
           )}
         </div>
 
         <div className="flex items-center gap-2">
-          <Button variant="subtle" onClick={() => void handleClearOverride()}>
+          <Button
+            variant="subtle"
+            disabled={clear.isPending}
+            onClick={() => clear.mutate()}
+          >
             Clear
           </Button>
           <Button
             variant="accent"
             icon={<SaveRegular />}
-            disabled={saving}
-            onClick={() => void handleSave()}
+            disabled={save.isPending}
+            onClick={() => save.mutate(rawJson)}
           >
-            {saving ? "Saving..." : "Save Overrides"}
+            {save.isPending ? "Saving..." : "Save Overrides"}
           </Button>
         </div>
       </div>
@@ -243,7 +245,7 @@ function CoreTab() {
       <div className="bg-(--wb-surface-layer) rounded-(--wb-radius-lg) border border-(--wb-border-subtle) shadow-sm overflow-hidden flex-1 min-h-[400px]">
         <textarea
           value={rawJson}
-          onChange={(e) => setRawJson(e.target.value)}
+          onChange={(e) => setDraft(e.target.value)}
           className="w-full h-full min-h-[400px] font-mono text-sm p-4 bg-transparent text-(--wb-text-primary) resize-y outline-none"
           placeholder="{...}"
           spellCheck={false}
@@ -285,6 +287,7 @@ export default function Advanced() {
           </TabContent>
           <TabContent value="crash">
             <ReportsPanel
+              kind="crash"
               title="Crash Reports"
               description="Native sing-box and fresh-box crashes, and renderer errors caught in the app."
               emptyHint="No crash reports yet."
@@ -299,6 +302,7 @@ export default function Advanced() {
           </TabContent>
           <TabContent value="oom">
             <ReportsPanel
+              kind="oom"
               title="OOM Reports"
               description="Recorded when sing-box exceeds the memory limit below (or when triggered manually)."
               emptyHint="No OOM reports yet."
@@ -314,6 +318,7 @@ export default function Advanced() {
           </TabContent>
           <TabContent value="power">
             <ReportsPanel
+              kind="power"
               title="Power Reports"
               description="Recorded around unexpected sleep/resume or shutdown events while sing-box was running."
               emptyHint="No power reports yet."

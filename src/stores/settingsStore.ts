@@ -1,3 +1,4 @@
+import { produce } from "immer";
 import { create } from "zustand";
 import { loadAppSettings, saveAppSettings } from "../services/api";
 import type {
@@ -45,10 +46,6 @@ interface SettingsActions {
   setLastShownUpdateVersion: (version: string) => Promise<void>;
 }
 
-function cloneSettings(s: AppSettings): AppSettings {
-  return normalizeAppSettings(JSON.parse(JSON.stringify(s)) as AppSettings);
-}
-
 export const useSettingsStore = create<SettingsState & SettingsActions>(
   (set, get) => ({
     settings: createDefaultAppSettings(),
@@ -57,12 +54,15 @@ export const useSettingsStore = create<SettingsState & SettingsActions>(
 
     hydrate: async () => {
       const settings = await loadAppSettings();
-      set({ settings: cloneSettings(settings), hydrated: true });
+      set({ settings: normalizeAppSettings(settings), hydrated: true });
     },
 
     updateSettings: async (updater) => {
-      const next = cloneSettings(get().settings);
-      updater(next);
+      // 结构共享：没改到的分支保持原引用。以前是整份 JSON 深拷贝，改一个
+      // 开关所有字段的引用都变了，订阅了其他字段的组件也跟着收到「变化」
+      // （连接表的列宽就为此专门做过逐值比较）。规范化只在 hydrate 时做一次
+      // —— 之后的每次修改都是类型约束下的，不会引入不合规的值。
+      const next = produce(get().settings, updater);
       set({ settings: next });
       if (get().hydrated) {
         await saveAppSettings(next);

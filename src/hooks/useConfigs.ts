@@ -14,6 +14,7 @@ import {
   updateSubscription as updateSubscriptionCmd,
 } from "../services/api";
 import { getErrorMessage } from "../services/tauri";
+import { toSafeFileName } from "../services/utils";
 import { useConfigStore } from "../stores/configStore";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useSingboxStore } from "../stores/singboxStore";
@@ -71,6 +72,49 @@ export function useConfigs() {
   } = useToast();
   const { startService } = useSingbox();
 
+  /**
+   * 档案操作的共同骨架：失败统一弹「前缀: 原因」，返回是否成功。
+   *
+   * `exclusive` 的操作同一时间只允许一个 —— 由 `pendingOperation` 把守，它
+   * 也是「添加订阅」弹窗禁用按钮的依据。只读的或者互不干扰的操作（打开文件、
+   * 导出、改自动更新）不占这把锁。
+   */
+  const run = useCallback(
+    async (
+      errorPrefix: string,
+      action: () => Promise<void>,
+      { exclusive = true } = {},
+    ): Promise<boolean> => {
+      const config = useConfigStore.getState();
+      if (exclusive) {
+        if (config.pendingOperation) return false;
+        config.setPending(true);
+      }
+      try {
+        await action();
+        return true;
+      } catch (err) {
+        toastError(`${errorPrefix}: ${getErrorMessage(err)}`);
+        return false;
+      } finally {
+        if (exclusive) config.setPending(false);
+      }
+    },
+    [toastError],
+  );
+
+  const warnIfInsecure = useCallback(
+    (url: string) => {
+      if (isInsecureSubscriptionUrl(url)) {
+        toastWarning(
+          "This subscription uses plain HTTP",
+          "Its content isn't encrypted in transit and could be tampered with. Use an HTTPS URL if the provider offers one.",
+        );
+      }
+    },
+    [toastWarning],
+  );
+
   const initializeConfigs = useCallback(async () => {
     const config = useConfigStore.getState();
     config.setPending(true);
@@ -109,26 +153,16 @@ export function useConfigs() {
   );
 
   const selectConfigFile = useCallback(async () => {
-    const config = useConfigStore.getState();
-    try {
+    await run("Error selecting config file", async () => {
       const file = await open({
         filters: [{ name: "JSON Files", extensions: ["json"] }],
         multiple: false,
       });
       if (!file) return;
-
-      config.setPending(true);
-      try {
-        const result = await importProfileFile(file as string);
-        await applyProfileResult(result);
-        toastSuccess("Added config file successfully");
-      } finally {
-        config.setPending(false);
-      }
-    } catch (err) {
-      toastError(`Error selecting config file: ${getErrorMessage(err)}`);
-    }
-  }, [toastError, toastSuccess]);
+      await applyProfileResult(await importProfileFile(file as string));
+      toastSuccess("Added config file successfully");
+    });
+  }, [run, toastSuccess]);
 
   /**
    * 导入别人分享的 `.bpf` —— sing-box 各端之间互传配置用的那个打包格式。
@@ -137,80 +171,57 @@ export function useConfigs() {
    * `CheckConfig`），走的是 worker 自己的管道，所以服务没装也能导入。
    */
   const selectProfileFile = useCallback(async () => {
-    const config = useConfigStore.getState();
-    try {
+    await run("Error importing profile", async () => {
       const file = await open({
         filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
         multiple: false,
       });
       if (!file) return;
-
-      config.setPending(true);
-      try {
-        const result = await importProfileData(file as string);
-        await applyProfileResult(result);
-        toastSuccess("Imported shared profile");
-      } finally {
-        config.setPending(false);
-      }
-    } catch (err) {
-      toastError(`Error importing profile: ${getErrorMessage(err)}`);
-    }
-  }, [toastError, toastSuccess]);
+      await applyProfileResult(await importProfileData(file as string));
+      toastSuccess("Imported shared profile");
+    });
+  }, [run, toastSuccess]);
 
   /** 反过来：把一份配置打包成可以发给别人的文件。 */
   const exportProfileFile = useCallback(
     async (id: string, name: string) => {
-      try {
-        const destination = await save({
-          defaultPath: `${name.replace(/[^a-zA-Z0-9._-]/g, "-")}.bpf`,
-          filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
-        });
-        if (!destination) return;
-        const written = await exportProfile(id, destination);
-        toastSuccess("Profile exported", written);
-      } catch (err) {
-        toastError(`Error exporting profile: ${getErrorMessage(err)}`);
-      }
+      await run(
+        "Error exporting profile",
+        async () => {
+          const destination = await save({
+            defaultPath: `${toSafeFileName(name)}.bpf`,
+            filters: [{ name: "sing-box profile", extensions: ["bpf"] }],
+          });
+          if (!destination) return;
+          const written = await exportProfile(id, destination);
+          toastSuccess("Profile exported", written);
+        },
+        { exclusive: false },
+      );
     },
-    [toastError, toastSuccess],
+    [run, toastSuccess],
   );
 
   const addSubscription = useCallback(
     async (url: string) => {
-      const config = useConfigStore.getState();
-      if (!url.trim() || config.pendingOperation) return false;
-
-      config.setPending(true);
-      try {
+      if (!url.trim()) return false;
+      return run("Error adding subscription", async () => {
         const result = await addSubscriptionCmd(url);
         await applyProfileResult(result);
         toastSuccess(`Subscribed to: ${result.entry.name}`);
-        if (isInsecureSubscriptionUrl(url)) {
-          toastWarning(
-            "This subscription uses plain HTTP",
-            "Its content isn't encrypted in transit and could be tampered with. Use an HTTPS URL if the provider offers one.",
-          );
-        }
-        return true;
-      } catch (err) {
-        toastError(`Error adding subscription: ${getErrorMessage(err)}`);
-        return false;
-      } finally {
-        config.setPending(false);
-      }
+        warnIfInsecure(url);
+      });
     },
-    [toastError, toastSuccess, toastWarning],
+    [run, toastSuccess, warnIfInsecure],
   );
 
   const updateSubscription = useCallback(
     async (id: string) => {
-      const config = useConfigStore.getState();
-      const profile = config.profiles.find((p) => p.id === id);
-      if (!profile?.url || config.pendingOperation) return false;
-
-      config.setPending(true);
-      try {
+      const profile = useConfigStore
+        .getState()
+        .profiles.find((p) => p.id === id);
+      if (!profile?.url) return false;
+      return run("Error updating subscription", async () => {
         const result = await updateSubscriptionCmd(id);
         await applyProfileResult(result);
         // 重载不在这里做：内容变了而且变的正好是当前跑着的那份时，后端的
@@ -218,58 +229,39 @@ export function useConfigs() {
         // 写在前端，于是后台自动更新那条路径上它等于不存在 —— 新内容进了磁盘、
         // 隧道里跑的还是旧的（审计项 H-1）。
         toastSuccess(`Updated subscription: ${result.entry.name}`);
-        return true;
-      } catch (err) {
-        toastError(`Error updating subscription: ${getErrorMessage(err)}`);
-        return false;
-      } finally {
-        config.setPending(false);
-      }
+      });
     },
-    [toastError, toastSuccess],
+    [run, toastSuccess],
   );
 
   const editSubscription = useCallback(
     async (id: string, newUrl: string) => {
-      const config = useConfigStore.getState();
-      if (config.pendingOperation) return;
-
-      config.setPending(true);
-      try {
+      await run("Error updating subscription URL", async () => {
         const profiles = await editSubscriptionUrl(id, newUrl);
         useConfigStore.getState().setProfiles(profiles);
         toastSuccess("Updated subscription URL");
-        if (isInsecureSubscriptionUrl(newUrl)) {
-          toastWarning(
-            "This subscription uses plain HTTP",
-            "Its content isn't encrypted in transit and could be tampered with. Use an HTTPS URL if the provider offers one.",
-          );
-        }
-      } catch (err) {
-        toastError(`Error updating subscription URL: ${getErrorMessage(err)}`);
-      } finally {
-        config.setPending(false);
-      }
+        warnIfInsecure(newUrl);
+      });
     },
-    [toastError, toastSuccess, toastWarning],
+    [run, toastSuccess, warnIfInsecure],
   );
 
   const setAutoUpdate = useCallback(
     async (id: string, enabled: boolean, intervalMinutes?: number) => {
-      try {
-        const profiles = await setSubscriptionAutoUpdate(
-          id,
-          enabled,
-          intervalMinutes ?? null,
-        );
-        useConfigStore.getState().setProfiles(profiles);
-      } catch (err) {
-        toastError(
-          `Error updating auto-update setting: ${getErrorMessage(err)}`,
-        );
-      }
+      await run(
+        "Error updating auto-update setting",
+        async () => {
+          const profiles = await setSubscriptionAutoUpdate(
+            id,
+            enabled,
+            intervalMinutes ?? null,
+          );
+          useConfigStore.getState().setProfiles(profiles);
+        },
+        { exclusive: false },
+      );
     },
-    [toastError],
+    [run],
   );
 
   const renameConfig = useCallback(
@@ -286,18 +278,13 @@ export function useConfigs() {
         return;
       }
 
-      config.setPending(true);
-      try {
+      await run("Error renaming config", async () => {
         const profiles = await renameProfileCmd(id, newName);
         await applyProfiles(profiles, id);
         toastSuccess(`Renamed ${current?.name ?? id} to ${newName}`);
-      } catch (err) {
-        toastError(`Error renaming config: ${getErrorMessage(err)}`);
-      } finally {
-        config.setPending(false);
-      }
+      });
     },
-    [toastError, toastSuccess],
+    [run, toastError, toastSuccess],
   );
 
   const deleteConfig = useCallback(
@@ -317,29 +304,24 @@ export function useConfigs() {
         return;
       }
 
-      config.setPending(true);
-      try {
+      await run("Error deleting config", async () => {
         const profiles = await deleteProfileCmd(id);
         await applyProfiles(profiles);
         toastSuccess(`Deleted config: ${cfg?.name ?? id}`);
-      } catch (err) {
-        toastError(`Error deleting config: ${getErrorMessage(err)}`);
-      } finally {
-        config.setPending(false);
-      }
+      });
     },
-    [toastError, toastSuccess],
+    [run, toastError, toastSuccess],
   );
 
   const openConfigFile = useCallback(
     async (id: string) => {
-      try {
-        await openConfigFileCmd(id);
-      } catch (err) {
-        toastError(`Failed to open config file: ${getErrorMessage(err)}`);
-      }
+      await run(
+        "Failed to open config file",
+        () => openConfigFileCmd(id).then(() => {}),
+        { exclusive: false },
+      );
     },
-    [toastError],
+    [run],
   );
 
   return {
