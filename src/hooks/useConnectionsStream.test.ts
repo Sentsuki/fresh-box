@@ -156,8 +156,8 @@ describe("formatConnectionValue", () => {
   });
 
   it("每一列都有格式化实现", () => {
-    // `formatConnectionValue` 是一个穷举 switch —— 加了新列忘了这里，
-    // TypeScript 会报错，而这条测试保证运行时也真的没有 undefined。
+    // 列定义是 `Record<ConnectionColumnKey, …>`，漏一列 TypeScript 会报错；
+    // 这条测试保证运行时每一列也真的给出字符串，而不是 undefined。
     for (const column of allColumns) {
       expect(
         formatConnectionValue(column.key, entry()),

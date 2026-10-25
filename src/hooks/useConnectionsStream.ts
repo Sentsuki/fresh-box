@@ -31,8 +31,11 @@ export interface ConnectionColumnOption {
 }
 
 interface ConnectionColumnDefinition extends ConnectionColumnOption {
-  defaultDirection: SortDirection;
+  /** 排序键。数值列返回数字，排序按大小比而不是按显示出来的字符串比。 */
   getValue: (c: ConnectionEntry) => number | string;
+  /** 显示（以及搜索、分组）用的文本。省略时就是 `getValue` 的结果本身 ——
+   * 只有排序键和显示文本不一样的列（流量、时长）才需要写。 */
+  format?: (c: ConnectionEntry) => string;
 }
 
 function getConnectionHost(c: ConnectionEntry): string {
@@ -75,6 +78,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.downloadSpeed,
+    format: (c) => formatSpeed(c.downloadSpeed),
   },
   uploadSpeed: {
     key: "uploadSpeed",
@@ -84,6 +88,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.uploadSpeed,
+    format: (c) => formatSpeed(c.uploadSpeed),
   },
   download: {
     key: "download",
@@ -93,6 +98,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.download,
+    format: (c) => formatBytes(c.download),
   },
   upload: {
     key: "upload",
@@ -102,6 +108,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.upload,
+    format: (c) => formatBytes(c.upload),
   },
   chain: {
     key: "chain",
@@ -153,6 +160,7 @@ const columnDefinitions: Record<
     groupable: false,
     defaultDirection: "asc",
     getValue: (c) => c.start,
+    format: (c) => formatRelativeDuration(c.start),
   },
   sniffHost: {
     key: "sniffHost",
@@ -297,58 +305,8 @@ export function formatConnectionValue(
   key: ConnectionColumnKey,
   entry: ConnectionEntry,
 ): string {
-  switch (key) {
-    case "downloadSpeed":
-      return formatSpeed(entry.downloadSpeed);
-    case "uploadSpeed":
-      return formatSpeed(entry.uploadSpeed);
-    case "download":
-      return formatBytes(entry.download);
-    case "upload":
-      return formatBytes(entry.upload);
-    case "chain":
-      return [...entry.chains].reverse().join(" → ");
-    case "start":
-      return formatRelativeDuration(entry.start);
-    case "host":
-      return getConnectionHost(entry);
-    case "destination":
-      return (
-        entry.metadata.remoteDestination ||
-        entry.metadata.destinationIP ||
-        entry.metadata.host
-      );
-    case "source":
-      return `${entry.metadata.sourceIP}:${entry.metadata.sourcePort}`;
-    case "process":
-      return (
-        entry.metadata.process ||
-        entry.metadata.processPath?.split(/[/\\\\]/).pop() ||
-        "-"
-      );
-    case "network":
-      return `${entry.metadata.type} | ${entry.metadata.network}`;
-    case "rule":
-      return entry.rule;
-    case "sniffHost":
-      return entry.metadata.sniffHost || "-";
-    case "outbound":
-      return entry.chains[0] || "-";
-    case "sourcePort":
-      return entry.metadata.sourcePort;
-    case "sourceIP":
-      return entry.metadata.sourceIP;
-    case "destinationType": {
-      const dest = entry.metadata.destinationIP || entry.metadata.host;
-      if (dest.includes(":")) return "IPv6";
-      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
-      return "FQDN";
-    }
-    case "remoteAddress":
-      return entry.metadata.remoteDestination || "-";
-    case "inboundUser":
-      return entry.metadata.inboundUser || entry.metadata.inboundName || "-";
-  }
+  const def = columnDefinitions[key];
+  return def.format ? def.format(entry) : String(def.getValue(entry));
 }
 
 export function useConnectionsStream() {
