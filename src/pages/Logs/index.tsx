@@ -1,18 +1,16 @@
-import {
-  ArrowDownloadRegular,
-  DismissRegular,
-  PauseRegular,
-  PlayRegular,
-  SearchRegular,
-} from "@fluentui/react-icons";
+import { ArrowDownloadRegular, DismissRegular } from "@fluentui/react-icons";
 import { useVirtualizer } from "@tanstack/react-virtual";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useRef } from "react";
 import { Button } from "../../components/ui/Button";
+import { FloatingPauseButton } from "../../components/ui/FloatingPauseButton";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { SearchBox } from "../../components/ui/SearchBox";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { useDeferredMount } from "../../hooks/useDeferredMount";
 import { useLogsStream } from "../../hooks/useLogsStream";
+import { isLogLevel, LOG_LEVELS, type LogLevel } from "../../types/app";
 
-const LEVEL_COLORS: Record<string, string> = {
+const LEVEL_COLORS: Record<LogLevel, string> = {
   panic: "text-(--wb-log-panic)",
   fatal: "text-(--wb-log-fatal)",
   error: "text-(--wb-log-error)",
@@ -22,17 +20,8 @@ const LEVEL_COLORS: Record<string, string> = {
   trace: "text-(--wb-log-trace)",
 };
 
-const LOG_LEVELS = [
-  "panic",
-  "fatal",
-  "error",
-  "warn",
-  "info",
-  "debug",
-  "trace",
-] as const;
-type LogLevelName = (typeof LOG_LEVELS)[number];
-const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({
+// 按钮从最严重排到最详细。
+const LEVEL_OPTIONS = [...LOG_LEVELS].reverse().map((level) => ({
   value: level,
   label: level,
 }));
@@ -53,12 +42,7 @@ export default function Logs() {
   } = useLogsStream();
   const listRef = useRef<HTMLDivElement>(null);
 
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+  const isReady = useDeferredMount();
 
   const rowVirtualizer = useVirtualizer({
     count: visibleLogs.length,
@@ -107,24 +91,17 @@ export default function Logs() {
 
       <div className="flex flex-col gap-4 h-full min-h-0 pr-2 pb-10">
         <div className="flex items-center gap-3 flex-wrap">
-          <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) w-64">
-            <SearchRegular className="text-(--wb-text-tertiary) text-sm" />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Search logs..."
-              className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
-            />
-          </div>
+          <SearchBox
+            value={search}
+            onChange={setSearch}
+            placeholder="Search logs..."
+            className="w-64"
+          />
 
           <div className="flex-1" />
 
           <SegmentedControl
-            value={
-              (LOG_LEVELS as readonly string[]).includes(typeFilter)
-                ? (typeFilter as LogLevelName)
-                : ""
-            }
+            value={isLogLevel(typeFilter) ? typeFilter : ""}
             onValueChange={setTypeFilter}
             options={LEVEL_OPTIONS}
             allowEmpty
@@ -171,7 +148,7 @@ export default function Logs() {
                       key={entry.seq}
                       className={[
                         "py-1 px-2 hover:bg-(--wb-surface-hover) rounded group transition-colors",
-                        LEVEL_COLORS[entry.type] ?? "text-(--wb-text-primary)",
+                        LEVEL_COLORS[entry.type],
                         virtualRow.index % 2 === 0
                           ? "bg-(--wb-surface-active)"
                           : "",
@@ -214,26 +191,10 @@ export default function Logs() {
         </div>
 
         {streamStatus !== "disabled" && (
-          <button
-            onClick={() => setIsPaused(!isPaused)}
-            className={[
-              "fixed bottom-10 right-6 z-50",
-              "w-12 h-12 rounded-full",
-              "flex items-center justify-center",
-              "backdrop-blur-md",
-              isPaused
-                ? "bg-(--wb-accent) text-(--wb-accent-fg) hover:bg-(--wb-accent-hover)"
-                : "bg-(--wb-surface-flyout) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) border border-(--wb-border-subtle)",
-              "transition-all duration-200",
-            ].join(" ")}
-            title={isPaused ? "Resume" : "Pause"}
-          >
-            {isPaused ? (
-              <PlayRegular className="w-5 h-5" />
-            ) : (
-              <PauseRegular className="w-5 h-5" />
-            )}
-          </button>
+          <FloatingPauseButton
+            paused={isPaused}
+            onToggle={() => setIsPaused(!isPaused)}
+          />
         )}
       </div>
     </div>

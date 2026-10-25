@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SettingGroup } from "../../components/ui/SettingCard";
@@ -225,11 +226,7 @@ function ProfileGrid({
   renderCard: (profile: ProfileEntry) => React.ReactNode;
 }) {
   if (profiles.length === 0) {
-    return (
-      <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
-        {emptyHint}
-      </div>
-    );
+    return <EmptyState description={emptyHint} />;
   }
   return (
     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">

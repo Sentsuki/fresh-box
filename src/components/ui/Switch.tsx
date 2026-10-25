@@ -1,4 +1,5 @@
 import { Switch as BaseSwitch } from "@base-ui/react/switch";
+import { cn } from "./cn";
 
 interface SwitchProps {
   checked: boolean;
@@ -25,7 +26,7 @@ export function Switch({
         checked={checked}
         onCheckedChange={(next) => onCheckedChange(next)}
         disabled={disabled}
-        className={[
+        className={cn(
           "relative inline-flex h-5 w-9 shrink-0 cursor-pointer items-center",
           "rounded-full border border-(--wb-border-default)",
           "transition-colors duration-100",
@@ -33,15 +34,15 @@ export function Switch({
           "data-[disabled]:opacity-40 data-[disabled]:cursor-not-allowed",
           "bg-(--wb-surface-hover)",
           "data-[checked]:bg-(--wb-accent) data-[checked]:border-(--wb-accent)",
-        ].join(" ")}
+        )}
       >
         <BaseSwitch.Thumb
-          className={[
+          className={cn(
             "pointer-events-none block h-3.5 w-3.5 rounded-full shadow-sm",
             "transition-transform duration-100",
             "translate-x-0.5 bg-(--wb-text-secondary)",
             "data-[checked]:translate-x-4 data-[checked]:bg-(--wb-accent-fg)",
-          ].join(" ")}
+          )}
         />
       </BaseSwitch.Root>
       {label && (

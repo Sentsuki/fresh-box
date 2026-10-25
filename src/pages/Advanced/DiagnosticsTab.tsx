@@ -3,6 +3,7 @@ import { useEffect, useRef, useState } from "react";
 import { Badge } from "../../components/ui/Badge";
 import { Button } from "../../components/ui/Button";
 import { KeyValue } from "../../components/ui/KeyValue";
+import { Card } from "../../components/ui/Card";
 import { Section } from "../../components/ui/Section";
 import { Select } from "../../components/ui/Select";
 import { Switch } from "../../components/ui/Switch";
@@ -29,6 +30,51 @@ const MAX_RUNTIME_OPTIONS = [20, 30, 60].map((seconds) => ({
   label: `${seconds} seconds`,
 }));
 
+/**
+ * 一次可取消的流式测试：开始、取消、跟随进度。
+ *
+ * 取消 = abort 这个 signal，流随之关闭。不再需要一个单独的 cancel 命令，也
+ * 不需要 Rust 侧维护「当前这次测试」的任务槽位。出错时合成一条「已结束且带
+ * 错误」的进度（`failed` 负责填其余字段），界面按同一套逻辑把错误显示出来。
+ */
+function useStreamingTest<P>(
+  run: (
+    onProgress: (progress: P) => void,
+    signal: AbortSignal,
+  ) => Promise<void>,
+  failed: (error: string) => P,
+) {
+  const [running, setRunning] = useState(false);
+  const [progress, setProgress] = useState<P | null>(null);
+  const abortRef = useRef<AbortController | null>(null);
+
+  // 组件卸载时收掉还在跑的测试，免得流一直挂着。
+  useEffect(() => () => abortRef.current?.abort(), []);
+
+  const start = async () => {
+    setProgress(null);
+    setRunning(true);
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+    try {
+      await run(setProgress, controller.signal);
+      setRunning(false);
+    } catch (err) {
+      if (controller.signal.aborted) return;
+      setRunning(false);
+      setProgress(failed(getErrorMessage(err)));
+    }
+  };
+
+  const stop = () => {
+    abortRef.current?.abort();
+    setRunning(false);
+  };
+
+  return { running, progress, start, stop };
+}
+
 /** Every outbound tag currently offered by the running config's proxy
  * groups — good enough as an "outbound picker" without a dedicated
  * `SubscribeOutbounds` call fresh-box doesn't wire up. Picking a selector
@@ -42,15 +88,20 @@ function useOutboundTags(): string[] {
   return Array.from(tags);
 }
 
+/**
+ * 出站选择。没有跑着的实例时测试走 `StartStandalone*Test`，那条 RPC 压根没有
+ * 出站参数 —— 所以那时直接禁用，比留着一个不起作用的选项诚实。
+ */
 function OutboundPicker({
   value,
   onChange,
-  disabled,
+  testRunning,
 }: {
   value: string;
   onChange: (value: string) => void;
-  disabled?: boolean;
+  testRunning: boolean;
 }) {
+  const isRunning = useSingboxStore((s) => s.isRunning);
   const tags = useOutboundTags();
   const options = [
     { value: "", label: "Default outbound" },
@@ -61,7 +112,7 @@ function OutboundPicker({
       value={value}
       onValueChange={onChange}
       options={options}
-      disabled={disabled}
+      disabled={testRunning || !isRunning}
     />
   );
 }
@@ -83,39 +134,152 @@ function Field({
   );
 }
 
-function NetworkQualityCard() {
+function TextInput({
+  value,
+  onChange,
+  disabled,
+}: {
+  value: string;
+  onChange: (value: string) => void;
+  disabled: boolean;
+}) {
+  return (
+    <input
+      className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
+      value={value}
+      onChange={(e) => onChange(e.target.value)}
+      disabled={disabled}
+      spellCheck={false}
+    />
+  );
+}
+
+/** 开始/取消按钮，以及 sing-box 没在跑时「测的是直连」的说明。 */
+function TestControls({
+  running,
+  onStart,
+  onStop,
+}: {
+  running: boolean;
+  onStart: () => void;
+  onStop: () => void;
+}) {
   const isRunning = useSingboxStore((s) => s.isRunning);
+  return (
+    <div>
+      {running ? (
+        <Button variant="subtle" icon={<StopRegular />} onClick={onStop}>
+          Cancel test
+        </Button>
+      ) : (
+        <Button variant="accent" icon={<PlayRegular />} onClick={onStart}>
+          Start test
+        </Button>
+      )}
+      {!isRunning && (
+        <span className="ml-3 text-xs text-(--wb-text-tertiary)">
+          sing-box isn&apos;t running — this measures the direct connection, not
+          an outbound.
+        </span>
+      )}
+    </div>
+  );
+}
+
+/** 结果区的外框：出错时先把错误摆在最上面。 */
+function Results({
+  error,
+  children,
+}: {
+  error: string;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-col gap-2 pt-2 border-t border-(--wb-border-subtle)">
+      {error && <p className="text-xs text-(--wb-error)">{error}</p>}
+      {children}
+    </div>
+  );
+}
+
+/**
+ * 一项带精度的测量值。还在测这一项时前面带个省略号；测完才给精度徽章 ——
+ * 中途的精度没有意义。
+ */
+function AccuracyMetric({
+  label,
+  value,
+  format,
+  accuracy,
+  finished,
+  measuring = false,
+}: {
+  label: string;
+  value: number;
+  format: (value: number) => string;
+  accuracy: number;
+  finished: boolean;
+  measuring?: boolean;
+}) {
+  return (
+    <KeyValue
+      label={label}
+      value={
+        <span className="inline-flex items-center gap-1.5">
+          {measuring && "…"}
+          {value > 0 ? format(value) : "-"}
+          {finished && value > 0 && (
+            <Badge variant={accuracyVariant(accuracy)}>
+              {accuracyLabel(accuracy)}
+            </Badge>
+          )}
+        </span>
+      }
+    />
+  );
+}
+
+/** NAT 映射/过滤行为。`0` 是「还没测出来」。 */
+function NatBehavior({
+  label,
+  value,
+  toLabel,
+}: {
+  label: string;
+  value: number;
+  toLabel: (value: number) => string;
+}) {
+  const text = toLabel(value);
+  return (
+    <KeyValue
+      label={label}
+      value={
+        value > 0 ? (
+          <Badge variant={natBehaviorVariant(text)}>{text}</Badge>
+        ) : (
+          "-"
+        )
+      }
+    />
+  );
+}
+
+function NetworkQualityCard() {
   const [configURL, setConfigURL] = useState(NETWORK_QUALITY_DEFAULT_URL);
   const [outboundTag, setOutboundTag] = useState("");
   const [serial, setSerial] = useState(false);
   const [http3, setHttp3] = useState(false);
   const [maxRuntimeSeconds, setMaxRuntimeSeconds] = useState(20);
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<NetworkQualityProgress | null>(null);
-  // 取消 = abort 这个 signal，流随之关闭。不再需要一个单独的 cancel 命令，
-  // 也不需要 Rust 侧维护「当前这次测试」的任务槽位。
-  const abortRef = useRef<AbortController | null>(null);
 
-  // 组件卸载时收掉还在跑的测试，免得流一直挂着。
-  useEffect(() => () => abortRef.current?.abort(), []);
-
-  const start = async () => {
-    setProgress(null);
-    setRunning(true);
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await runNetworkQualityTest(
-        { configURL, outboundTag, serial, http3, maxRuntimeSeconds },
-        setProgress,
-        controller.signal,
-      );
-      setRunning(false);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setRunning(false);
-      setProgress({
+  const { running, progress, start, stop } =
+    useStreamingTest<NetworkQualityProgress>(
+      (onProgress, signal) =>
+        runNetworkQualityTest(
+          { configURL, outboundTag, serial, http3, maxRuntimeSeconds },
+          onProgress,
+          signal,
+        ),
+      (error) => ({
         phase: NETWORK_QUALITY_PHASE.done,
         downloadCapacity: 0,
         uploadCapacity: 0,
@@ -124,46 +288,38 @@ function NetworkQualityCard() {
         idleLatencyMs: 0,
         elapsedMs: 0,
         isFinal: true,
-        error: getErrorMessage(err),
+        error,
         downloadCapacityAccuracy: 0,
         uploadCapacityAccuracy: 0,
         downloadRPMAccuracy: 0,
         uploadRPMAccuracy: 0,
-      });
-    }
-  };
-
-  const stop = () => {
-    abortRef.current?.abort();
-    setRunning(false);
-  };
+      }),
+    );
 
   const finished = progress?.isFinal ?? false;
   const phase = progress?.phase ?? NETWORK_QUALITY_PHASE.idle;
+  const measuring = (target: number) =>
+    running && !finished && phase === target;
 
   return (
     <Section
       title="Network Quality"
       description="Measures idle latency, download/upload capacity and responsiveness (RPM) through a chosen outbound."
     >
-      <div className="flex flex-col gap-4 p-4 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer)">
+      <Card className="flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Configuration URL">
-            <input
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
+            <TextInput
               value={configURL}
-              onChange={(e) => setConfigURL(e.target.value)}
+              onChange={setConfigURL}
               disabled={running}
-              spellCheck={false}
             />
           </Field>
           <Field label="Outbound">
-            {/* 没有跑着的实例时走 `StartStandalone*Test`，那条 RPC 压根没有
-                出站参数 —— 禁用比留着一个不起作用的输入框诚实。 */}
             <OutboundPicker
               value={outboundTag}
               onChange={setOutboundTag}
-              disabled={running || !isRunning}
+              testRunning={running}
             />
           </Field>
           <Field label="Max runtime">
@@ -190,37 +346,14 @@ function NetworkQualityCard() {
           </div>
         </div>
 
-        <div>
-          {running ? (
-            <Button
-              variant="subtle"
-              icon={<StopRegular />}
-              onClick={() => void stop()}
-            >
-              Cancel test
-            </Button>
-          ) : (
-            <Button
-              variant="accent"
-              icon={<PlayRegular />}
-              onClick={() => void start()}
-            >
-              Start test
-            </Button>
-          )}
-          {!isRunning && (
-            <span className="ml-3 text-xs text-(--wb-text-tertiary)">
-              sing-box isn&apos;t running — this measures the direct connection,
-              not an outbound.
-            </span>
-          )}
-        </div>
+        <TestControls
+          running={running}
+          onStart={() => void start()}
+          onStop={stop}
+        />
 
         {progress && (
-          <div className="flex flex-col gap-2 pt-2 border-t border-(--wb-border-subtle)">
-            {progress.error && (
-              <p className="text-xs text-(--wb-error)">{progress.error}</p>
-            )}
+          <Results error={progress.error}>
             <KeyValue
               label="Idle latency"
               value={
@@ -229,81 +362,35 @@ function NetworkQualityCard() {
                   : "-"
               }
             />
-            <KeyValue
+            <AccuracyMetric
               label="Download"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  {running &&
-                    !finished &&
-                    phase === NETWORK_QUALITY_PHASE.download &&
-                    "…"}
-                  {progress.downloadCapacity > 0
-                    ? formatBitrate(progress.downloadCapacity)
-                    : "-"}
-                  {finished && progress.downloadCapacity > 0 && (
-                    <Badge
-                      variant={accuracyVariant(
-                        progress.downloadCapacityAccuracy,
-                      )}
-                    >
-                      {accuracyLabel(progress.downloadCapacityAccuracy)}
-                    </Badge>
-                  )}
-                </span>
-              }
+              value={progress.downloadCapacity}
+              format={formatBitrate}
+              accuracy={progress.downloadCapacityAccuracy}
+              finished={finished}
+              measuring={measuring(NETWORK_QUALITY_PHASE.download)}
             />
-            <KeyValue
+            <AccuracyMetric
               label="Upload"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  {running &&
-                    !finished &&
-                    phase === NETWORK_QUALITY_PHASE.upload &&
-                    "…"}
-                  {progress.uploadCapacity > 0
-                    ? formatBitrate(progress.uploadCapacity)
-                    : "-"}
-                  {finished && progress.uploadCapacity > 0 && (
-                    <Badge
-                      variant={accuracyVariant(progress.uploadCapacityAccuracy)}
-                    >
-                      {accuracyLabel(progress.uploadCapacityAccuracy)}
-                    </Badge>
-                  )}
-                </span>
-              }
+              value={progress.uploadCapacity}
+              format={formatBitrate}
+              accuracy={progress.uploadCapacityAccuracy}
+              finished={finished}
+              measuring={measuring(NETWORK_QUALITY_PHASE.upload)}
             />
-            <KeyValue
+            <AccuracyMetric
               label="Download RPM"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  {progress.downloadRPM > 0
-                    ? String(progress.downloadRPM)
-                    : "-"}
-                  {finished && progress.downloadRPM > 0 && (
-                    <Badge
-                      variant={accuracyVariant(progress.downloadRPMAccuracy)}
-                    >
-                      {accuracyLabel(progress.downloadRPMAccuracy)}
-                    </Badge>
-                  )}
-                </span>
-              }
+              value={progress.downloadRPM}
+              format={String}
+              accuracy={progress.downloadRPMAccuracy}
+              finished={finished}
             />
-            <KeyValue
+            <AccuracyMetric
               label="Upload RPM"
-              value={
-                <span className="inline-flex items-center gap-1.5">
-                  {progress.uploadRPM > 0 ? String(progress.uploadRPM) : "-"}
-                  {finished && progress.uploadRPM > 0 && (
-                    <Badge
-                      variant={accuracyVariant(progress.uploadRPMAccuracy)}
-                    >
-                      {accuracyLabel(progress.uploadRPMAccuracy)}
-                    </Badge>
-                  )}
-                </span>
-              }
+              value={progress.uploadRPM}
+              format={String}
+              accuracy={progress.uploadRPMAccuracy}
+              finished={finished}
             />
             {progress.elapsedMs > 0 && (
               <KeyValue
@@ -311,115 +398,59 @@ function NetworkQualityCard() {
                 value={`${(progress.elapsedMs / 1000).toFixed(1)}s`}
               />
             )}
-          </div>
+          </Results>
         )}
-      </div>
+      </Card>
     </Section>
   );
 }
 
 function StunTestCard() {
-  const isRunning = useSingboxStore((s) => s.isRunning);
   const [server, setServer] = useState(STUN_DEFAULT_SERVER);
   const [outboundTag, setOutboundTag] = useState("");
-  const [running, setRunning] = useState(false);
-  const [progress, setProgress] = useState<StunTestProgress | null>(null);
-  // 同网络质量测试：取消就是 abort signal。
-  const abortRef = useRef<AbortController | null>(null);
-  useEffect(() => () => abortRef.current?.abort(), []);
 
-  const start = async () => {
-    setProgress(null);
-    setRunning(true);
-    abortRef.current?.abort();
-    const controller = new AbortController();
-    abortRef.current = controller;
-    try {
-      await runStunTest(
-        { server, outboundTag },
-        setProgress,
-        controller.signal,
-      );
-      setRunning(false);
-    } catch (err) {
-      if (controller.signal.aborted) return;
-      setRunning(false);
-      setProgress({
-        phase: 0,
-        externalAddr: "",
-        latencyMs: 0,
-        natMapping: 0,
-        natFiltering: 0,
-        isFinal: true,
-        error: getErrorMessage(err),
-        natTypeSupported: false,
-      });
-    }
-  };
-
-  const stop = () => {
-    abortRef.current?.abort();
-    setRunning(false);
-  };
+  const { running, progress, start, stop } = useStreamingTest<StunTestProgress>(
+    (onProgress, signal) =>
+      runStunTest({ server, outboundTag }, onProgress, signal),
+    (error) => ({
+      phase: 0,
+      externalAddr: "",
+      latencyMs: 0,
+      natMapping: 0,
+      natFiltering: 0,
+      isFinal: true,
+      error,
+      natTypeSupported: false,
+    }),
+  );
 
   return (
     <Section
       title="STUN Test"
       description="Finds your external address and the outbound's NAT mapping/filtering behavior."
     >
-      <div className="flex flex-col gap-4 p-4 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer)">
+      <Card className="flex flex-col gap-4">
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
           <Field label="Server">
-            <input
-              className="px-3 py-1.5 text-sm rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-base) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) disabled:opacity-50"
-              value={server}
-              onChange={(e) => setServer(e.target.value)}
-              disabled={running}
-              spellCheck={false}
-            />
+            <TextInput value={server} onChange={setServer} disabled={running} />
           </Field>
           <Field label="Outbound">
-            {/* 没有跑着的实例时走 `StartStandalone*Test`，那条 RPC 压根没有
-                出站参数 —— 禁用比留着一个不起作用的输入框诚实。 */}
             <OutboundPicker
               value={outboundTag}
               onChange={setOutboundTag}
-              disabled={running || !isRunning}
+              testRunning={running}
             />
           </Field>
         </div>
 
-        <div>
-          {running ? (
-            <Button
-              variant="subtle"
-              icon={<StopRegular />}
-              onClick={() => void stop()}
-            >
-              Cancel test
-            </Button>
-          ) : (
-            <Button
-              variant="accent"
-              icon={<PlayRegular />}
-              onClick={() => void start()}
-            >
-              Start test
-            </Button>
-          )}
-          {!isRunning && (
-            <span className="ml-3 text-xs text-(--wb-text-tertiary)">
-              sing-box isn&apos;t running — this measures the direct connection,
-              not an outbound.
-            </span>
-          )}
-        </div>
+        <TestControls
+          running={running}
+          onStart={() => void start()}
+          onStop={stop}
+        />
 
         {progress && (
-          <div className="flex flex-col gap-2 pt-2 border-t border-(--wb-border-subtle)">
-            {progress.error && (
-              <p className="text-xs text-(--wb-error)">{progress.error}</p>
-            )}
+          <Results error={progress.error}>
             <KeyValue
               label="External address"
               value={progress.externalAddr || "-"}
@@ -435,43 +466,21 @@ function StunTestCard() {
               />
             ) : (
               <>
-                <KeyValue
+                <NatBehavior
                   label="NAT mapping"
-                  value={
-                    progress.natMapping > 0 ? (
-                      <Badge
-                        variant={natBehaviorVariant(
-                          natMappingLabel(progress.natMapping),
-                        )}
-                      >
-                        {natMappingLabel(progress.natMapping)}
-                      </Badge>
-                    ) : (
-                      "-"
-                    )
-                  }
+                  value={progress.natMapping}
+                  toLabel={natMappingLabel}
                 />
-                <KeyValue
+                <NatBehavior
                   label="NAT filtering"
-                  value={
-                    progress.natFiltering > 0 ? (
-                      <Badge
-                        variant={natBehaviorVariant(
-                          natFilteringLabel(progress.natFiltering),
-                        )}
-                      >
-                        {natFilteringLabel(progress.natFiltering)}
-                      </Badge>
-                    ) : (
-                      "-"
-                    )
-                  }
+                  value={progress.natFiltering}
+                  toLabel={natFilteringLabel}
                 />
               </>
             )}
-          </div>
+          </Results>
         )}
-      </div>
+      </Card>
     </Section>
   );
 }

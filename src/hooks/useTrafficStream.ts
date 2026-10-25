@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { StreamStatus } from "../daemon/subscription";
 
 interface DataPoint {
   /** 平滑后的值，见 `SMOOTHING_ALPHA`。 */
@@ -28,7 +29,7 @@ interface TrafficState {
    * 一关总量就往回掉（审计项 M-07）。 */
   downloadTotal: number;
   uploadTotal: number;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: StreamStatus;
   history: DataPoint[];
 }
 

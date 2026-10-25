@@ -2,6 +2,7 @@ import * as React from "react";
 import { Dialog as BaseDialog } from "@base-ui/react/dialog";
 import { DismissRegular } from "@fluentui/react-icons";
 import { Button } from "./Button";
+import { cn } from "./cn";
 
 interface DialogShellProps {
   open: boolean;
@@ -32,13 +33,13 @@ export function DialogShell({
         <BaseDialog.Backdrop className="fixed inset-0 z-50 bg-black/50 transition-opacity duration-200 data-[starting-style]:opacity-0 data-[ending-style]:opacity-0" />
         <BaseDialog.Viewport className="fixed inset-0 z-50 flex items-center justify-center p-4">
           <BaseDialog.Popup
-            className={[
+            className={cn(
               "flex flex-col w-full rounded-(--wb-radius-lg) bg-(--wb-surface-flyout) border border-(--wb-border-default) shadow-2xl overflow-hidden outline-none",
               "transition-[opacity,scale] duration-200",
               "data-[starting-style]:opacity-0 data-[starting-style]:scale-95",
               "data-[ending-style]:opacity-0 data-[ending-style]:scale-95",
               className,
-            ].join(" ")}
+            )}
           >
             {children}
           </BaseDialog.Popup>

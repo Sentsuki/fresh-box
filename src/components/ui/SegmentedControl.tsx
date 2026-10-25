@@ -1,5 +1,6 @@
 import { Toggle } from "@base-ui/react/toggle";
 import { ToggleGroup } from "@base-ui/react/toggle-group";
+import { cn } from "./cn";
 
 interface SegmentedControlProps<T extends string> {
   /** 当前选中项；`allowEmpty` 时 `""` 表示一个都没选。 */
@@ -32,22 +33,22 @@ export function SegmentedControl<T extends string>({
         if (!picked && !allowEmpty) return;
         onValueChange(picked);
       }}
-      className={[
+      className={cn(
         "flex rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) winui-segmented-control",
         className,
-      ].join(" ")}
+      )}
     >
       {options.map((option) => (
         <Toggle
           key={option.value}
           value={option.value}
-          className={[
+          className={cn(
             "rounded transition-colors",
             "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
             "data-pressed:bg-(--wb-surface-hover) data-pressed:text-(--wb-text-primary)",
             "focus-visible:outline focus-visible:outline-(--wb-accent)",
             itemClassName,
-          ].join(" ")}
+          )}
         >
           {option.label}
         </Toggle>

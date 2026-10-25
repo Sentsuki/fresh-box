@@ -1,3 +1,4 @@
+import { Card } from "../../components/ui/Card";
 import { Section } from "../../components/ui/Section";
 import { Select } from "../../components/ui/Select";
 import { Switch } from "../../components/ui/Switch";
@@ -21,7 +22,7 @@ export function OomSettingsPanel() {
       title="Memory Limit"
       description="Applies the next time sing-box starts. When enabled, exceeding the limit produces an OOM report below."
     >
-      <div className="flex flex-col gap-4 p-4 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer)">
+      <Card className="flex flex-col gap-4">
         <Switch
           checked={diagnostics.oom_killer_enabled}
           onCheckedChange={(value) =>
@@ -52,7 +53,7 @@ export function OomSettingsPanel() {
                 （审计项 M-11）。阶段 5 连同它的设置项一起删除。 */}
           </>
         )}
-      </div>
+      </Card>
     </Section>
   );
 }
@@ -68,7 +69,7 @@ export function PowerSettingsPanel() {
       title="Power Reporting"
       description="Applies the next time sing-box starts. Records a report around unexpected sleep/resume or shutdown events while it was running."
     >
-      <div className="p-4 rounded-(--wb-radius-lg) border border-(--wb-border-subtle) bg-(--wb-surface-layer)">
+      <Card>
         <Switch
           checked={diagnostics.power_report_enabled}
           onCheckedChange={(value) =>
@@ -78,7 +79,7 @@ export function PowerSettingsPanel() {
           }
           label="Enable power reporting"
         />
-      </div>
+      </Card>
     </Section>
   );
 }

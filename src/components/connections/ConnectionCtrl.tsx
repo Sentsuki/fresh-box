@@ -1,10 +1,7 @@
-import {
-  ColumnRegular,
-  DismissRegular,
-  SearchRegular,
-} from "@fluentui/react-icons";
+import { ColumnRegular, DismissRegular } from "@fluentui/react-icons";
 import { Popover } from "@base-ui/react/popover";
 import { Button } from "../../components/ui/Button";
+import { SearchBox } from "../../components/ui/SearchBox";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { Select } from "../../components/ui/Select";
 import { allColumns } from "../../hooks/useConnectionsStream";
@@ -78,23 +75,12 @@ export function ConnectionCtrl({
         </div>
 
         {/* Search Box */}
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) min-w-48">
-          <SearchRegular className="text-(--wb-text-tertiary)" />
-          <input
-            value={search}
-            onChange={(e) => onSearchChange(e.target.value)}
-            placeholder="Filter..."
-            className="flex-1 bg-transparent text-sm outline-none text-(--wb-text-primary) placeholder:text-(--wb-text-disabled)"
-          />
-          {search && (
-            <button
-              onClick={() => onSearchChange("")}
-              className="hover:bg-(--wb-surface-hover) rounded p-0.5"
-            >
-              <DismissRegular className="text-(--wb-text-tertiary) text-xs" />
-            </button>
-          )}
-        </div>
+        <SearchBox
+          value={search}
+          onChange={onSearchChange}
+          placeholder="Filter..."
+          className="min-w-48"
+        />
 
         <div className="flex-1" />
 

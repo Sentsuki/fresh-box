@@ -13,10 +13,10 @@ import { PageHeader } from "../../components/ui/PageHeader";
 import { Tabs, TabContent } from "../../components/ui/Tabs";
 import { useToast } from "../../hooks/useToast";
 import {
-  LOG_LEVELS,
   STACK_OPTIONS,
   usePriorityConfig,
 } from "../../hooks/usePriorityConfig";
+import { LOG_LEVELS } from "../../types/app";
 import {
   clearConfigOverride,
   disableConfigOverride,

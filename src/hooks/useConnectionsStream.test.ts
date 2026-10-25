@@ -17,10 +17,19 @@ vi.mock("../daemon/connectionsStream", () => ({
 
 import {
   allColumns,
+  connectionSortFn,
   formatConnectionValue,
+  type SortableConnectionRow,
   useConnectionsStore,
   useConnectionsStream,
 } from "./useConnectionsStream";
+import {
+  getCoreRowModel,
+  getGroupedRowModel,
+  getSortedRowModel,
+  useLegacyTable,
+  type LegacyColumnDef,
+} from "@tanstack/react-table/legacy";
 import { useSettingsStore } from "../stores/settingsStore";
 import { createDefaultAppSettings } from "../types/app";
 
@@ -167,34 +176,112 @@ describe("formatConnectionValue", () => {
   });
 });
 
-describe("useConnectionsStream", () => {
-  it("按当前排序键排序，方向可反转", () => {
-    useConnectionsStore.getState().setFrame({
-      connections: [
-        entry({ id: "slow", downloadSpeed: 1 }),
-        entry({ id: "fast", downloadSpeed: 100 }),
-      ],
-      closed: [],
-      totalDownloadSpeed: 101,
-      totalUploadSpeed: 0,
-    });
+/** 造一个排序函数能用的行。传了 `leaves` 就是组行。 */
+function row(
+  original: ConnectionEntry,
+  leaves?: ConnectionEntry[],
+): SortableConnectionRow {
+  return {
+    original,
+    getIsGrouped: () => leaves !== undefined,
+    getLeafRows: () => (leaves ?? []).map((leaf) => row(leaf)),
+  };
+}
 
-    const { result, rerender } = renderHook(() => useConnectionsStream());
-    // 默认按下载速度降序。
-    expect(result.current.entries.map((c) => c.id)).toEqual(["fast", "slow"]);
-
-    act(() => {
-      useSettingsStore.setState((s) => ({
-        settings: {
-          ...s.settings,
-          connections: { ...s.settings.connections, sort_direction: "asc" },
-        },
-      }));
-    });
-    rerender();
-    expect(result.current.entries.map((c) => c.id)).toEqual(["slow", "fast"]);
+describe("connectionSortFn", () => {
+  it("数值列按大小比，不是按显示出来的字符串比", () => {
+    // 字符串比的话 "9.00 B/s" > "100 B/s"。
+    const sort = connectionSortFn("downloadSpeed", false);
+    const nine = row(entry({ id: "nine", downloadSpeed: 9 }));
+    const hundred = row(entry({ id: "hundred", downloadSpeed: 100 }));
+    expect(sort(nine, hundred)).toBeLessThan(0);
+    expect(sort(hundred, nine)).toBeGreaterThan(0);
   });
 
+  it("排序列被隐藏也照样能比 —— 用的是列定义，不是表格里的列", () => {
+    const sort = connectionSortFn("inboundUser", false);
+    const a = entry({ id: "a" });
+    a.metadata = { ...a.metadata, inboundUser: "alice" };
+    const b = entry({ id: "b" });
+    b.metadata = { ...b.metadata, inboundUser: "bob" };
+    expect(sort(row(a), row(b))).toBeLessThan(0);
+  });
+
+  it("组行拿组内排在最前的那条来比：降序取最大", () => {
+    // 组 x 的第一条原始数据很慢，但组里有最快的一条 —— 降序时它应该排前面。
+    const groupX = row(entry({ id: "x-slow", downloadSpeed: 1 }), [
+      entry({ id: "x-slow", downloadSpeed: 1 }),
+      entry({ id: "x-fast", downloadSpeed: 500 }),
+    ]);
+    const groupY = row(entry({ id: "y", downloadSpeed: 100 }), [
+      entry({ id: "y", downloadSpeed: 100 }),
+    ]);
+    const desc = connectionSortFn("downloadSpeed", true);
+    // 表格降序时会把结果取反：x 的代表值 500 > 100，取反后 x 在前。
+    expect(desc(groupX, groupY)).toBeGreaterThan(0);
+  });
+
+  it("升序取最小", () => {
+    const groupX = row(entry({ id: "x-fast", downloadSpeed: 500 }), [
+      entry({ id: "x-fast", downloadSpeed: 500 }),
+      entry({ id: "x-slow", downloadSpeed: 1 }),
+    ]);
+    const groupY = row(entry({ id: "y", downloadSpeed: 100 }), [
+      entry({ id: "y", downloadSpeed: 100 }),
+    ]);
+    expect(
+      connectionSortFn("downloadSpeed", false)(groupX, groupY),
+    ).toBeLessThan(0);
+  });
+});
+
+describe("connectionSortFn 接进真实的 TanStack 表格", () => {
+  // 上面的用例用的是手造的行；这条确认 TanStack 真的会对组行调用 sortFn，
+  // 并且降序时取反 —— 少了 `sortUndefined: false` 的话组行根本走不到 sortFn。
+  //
+  // 数据故意这样排：组 y 在原始顺序里排第一（排序没生效就会是 y 在前），组 x
+  // 的第一条是「错的代表值」（只拿组里第一条来比也会是 y 在前）。
+  function groupOrder(desc: boolean, xSpeeds: [number, number]) {
+    const data = [
+      entry({ id: "y", rule: "y", downloadSpeed: 100 }),
+      entry({ id: "x1", rule: "x", downloadSpeed: xSpeeds[0] }),
+      entry({ id: "x2", rule: "x", downloadSpeed: xSpeeds[1] }),
+    ];
+    const columns: LegacyColumnDef<ConnectionEntry>[] = [
+      { id: "rule", accessorFn: (c) => c.rule },
+      {
+        id: "downloadSpeed",
+        accessorFn: (c) => String(c.downloadSpeed),
+        sortFn: connectionSortFn("downloadSpeed", desc),
+        sortUndefined: false,
+      },
+    ];
+    const { result } = renderHook(() =>
+      useLegacyTable({
+        data,
+        columns,
+        getCoreRowModel: getCoreRowModel(),
+        getGroupedRowModel: getGroupedRowModel(),
+        getSortedRowModel: getSortedRowModel(),
+        state: {
+          grouping: ["rule"],
+          sorting: [{ id: "downloadSpeed", desc }],
+        },
+      }),
+    );
+    return result.current.getRowModel().rows.map((r) => r.getValue("rule"));
+  }
+
+  it("降序：组 x 里有 500，排在只有 100 的组 y 前面", () => {
+    expect(groupOrder(true, [1, 500])).toEqual(["x", "y"]);
+  });
+
+  it("升序：组 x 里有 1，同样排在前面", () => {
+    expect(groupOrder(false, [500, 1])).toEqual(["x", "y"]);
+  });
+});
+
+describe("useConnectionsStream", () => {
   it("切换标签页换的是数据源", () => {
     useConnectionsStore.getState().setFrame({
       connections: [entry({ id: "active" })],

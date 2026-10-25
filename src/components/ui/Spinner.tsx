@@ -1,3 +1,5 @@
+import { cn } from "./cn";
+
 interface SpinnerProps {
   size?: "sm" | "md" | "lg";
   className?: string;
@@ -12,11 +14,11 @@ const sizeClasses = {
 export function Spinner({ size = "md", className = "" }: SpinnerProps) {
   return (
     <span
-      className={[
+      className={cn(
         "inline-block rounded-full border-(--wb-border-default) border-t-(--wb-accent) animate-spin",
         sizeClasses[size],
         className,
-      ].join(" ")}
+      )}
       style={{ animationDuration: "0.6s" }}
       role="status"
       aria-label="Loading"

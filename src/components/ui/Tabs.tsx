@@ -1,4 +1,5 @@
 import { Tabs as BaseTabs } from "@base-ui/react/tabs";
+import { cn } from "./cn";
 
 interface Tab {
   value: string;
@@ -30,7 +31,7 @@ export function Tabs({
         defaultValue ?? (value === undefined ? tabs[0]?.value : undefined)
       }
       onValueChange={(v) => onValueChange?.(v as string)}
-      className={["flex flex-col min-h-0", className].join(" ")}
+      className={cn("flex flex-col min-h-0", className)}
     >
       <BaseTabs.List
         activateOnFocus
@@ -40,12 +41,12 @@ export function Tabs({
           <BaseTabs.Tab
             key={tab.value}
             value={tab.value}
-            className={[
+            className={cn(
               "px-3 py-2 text-sm shrink-0 whitespace-nowrap transition-colors duration-100",
               "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
               "focus-visible:outline-none",
               "data-active:text-(--wb-text-primary)",
-            ].join(" ")}
+            )}
           >
             {tab.label}
             {tab.count !== undefined && (
@@ -58,11 +59,11 @@ export function Tabs({
         {/* 位置由 Base UI 量好后通过 --active-tab-* 变量给出，相对 list 容器，
             所以下划线只会出现在 list 这一行里，不会被顶到下面的内容上。 */}
         <BaseTabs.Indicator
-          className={[
+          className={cn(
             "absolute bottom-0 left-0 h-0.5 bg-(--wb-accent) pointer-events-none",
             "w-(--active-tab-width) translate-x-(--active-tab-left)",
             "transition-[translate,width] duration-200 ease-[cubic-bezier(0.2,0.8,0.2,1)]",
-          ].join(" ")}
+          )}
         />
       </BaseTabs.List>
       {children}

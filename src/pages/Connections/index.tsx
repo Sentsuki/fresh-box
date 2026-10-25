@@ -1,6 +1,6 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
-import { PauseRegular, PlayRegular } from "@fluentui/react-icons";
 import { Badge } from "../../components/ui/Badge";
+import { FloatingPauseButton } from "../../components/ui/FloatingPauseButton";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { ConnectionDetailsModal } from "../../components/connections/ConnectionDetailsModal";
 import { ConnectionCtrl } from "../../components/connections/ConnectionCtrl";
@@ -9,6 +9,7 @@ import {
   formatConnectionValue,
   useConnectionsStream,
 } from "../../hooks/useConnectionsStream";
+import { useDeferredMount } from "../../hooks/useDeferredMount";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { startedService } from "../../daemon/clients";
 import type { ConnectionColumnKey, ConnectionEntry } from "../../types/app";
@@ -99,12 +100,7 @@ export default function Connections() {
   // 开关单独存：关闭时 `selectedConnection` 留着，弹窗的退场动画期间还有内容可画。
   const [detailsOpen, setDetailsOpen] = useState(false);
 
-  const [isReady, setIsReady] = useState(false);
-
-  useEffect(() => {
-    const timer = setTimeout(() => setIsReady(true), 10);
-    return () => clearTimeout(timer);
-  }, []);
+  const isReady = useDeferredMount();
 
   // See the identical comment in `pages/Logs/index.tsx` — the global
   // daemon/visibility listeners own this stream's lifecycle; this is just
@@ -270,26 +266,7 @@ export default function Connections() {
           onDisconnect={disconnectConnection}
         />
 
-        <button
-          onClick={togglePause}
-          className={[
-            "fixed bottom-10 right-6 z-50",
-            "w-12 h-12 rounded-full",
-            "flex items-center justify-center",
-            "backdrop-blur-md",
-            isPaused
-              ? "bg-(--wb-accent) text-(--wb-accent-fg) hover:bg-(--wb-accent-hover)"
-              : "bg-(--wb-surface-flyout) text-(--wb-text-primary) hover:bg-(--wb-surface-hover) border border-(--wb-border-subtle)",
-            "transition-all duration-200",
-          ].join(" ")}
-          title={isPaused ? "Resume" : "Pause"}
-        >
-          {isPaused ? (
-            <PlayRegular className="w-5 h-5" />
-          ) : (
-            <PauseRegular className="w-5 h-5" />
-          )}
-        </button>
+        <FloatingPauseButton paused={isPaused} onToggle={togglePause} />
       </div>
     </div>
   );

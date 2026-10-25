@@ -1,8 +1,9 @@
 import { create } from "zustand";
+import type { StreamStatus } from "../daemon/subscription";
 
 interface MemoryState {
   inuse: number;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: StreamStatus;
 }
 
 interface MemoryActions {

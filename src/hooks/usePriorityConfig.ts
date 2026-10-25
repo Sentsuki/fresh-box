@@ -8,30 +8,16 @@ import { queryKeys } from "../services/queryClient";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import type { LogLevel, PriorityConfig } from "../types/app";
+import { isLogLevel, type LogLevel, type PriorityConfig } from "../types/app";
 
 const STACK_OPTIONS = ["mixed", "gvisor", "system"] as const;
 export type StackOption = (typeof STACK_OPTIONS)[number];
-
-const LOG_LEVELS: LogLevel[] = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "panic",
-];
 
 function isStackOption(value: string): value is StackOption {
   return (STACK_OPTIONS as readonly string[]).includes(value);
 }
 
-function isLogLevel(value: string): value is LogLevel {
-  return LOG_LEVELS.includes(value as LogLevel);
-}
-
-export { STACK_OPTIONS, LOG_LEVELS };
+export { STACK_OPTIONS };
 
 /** 页面上要的那几个值：当前配置里有没有这两个字段，以及它们现在的取值。 */
 interface PriorityConfigView {

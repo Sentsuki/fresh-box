@@ -6,6 +6,7 @@ import {
   startConnectionsStream,
   stopConnectionsStream,
 } from "../daemon/connectionsStream";
+import type { StreamStatus } from "../daemon/subscription";
 import {
   formatBytes,
   formatRelativeDuration,
@@ -233,7 +234,7 @@ interface ConnectionsState {
   closed: ConnectionEntry[];
   totalDownloadSpeed: number;
   totalUploadSpeed: number;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: StreamStatus;
   isPaused: boolean;
 }
 
@@ -284,21 +285,46 @@ export const useConnectionsStore = create<
 
 export { startConnectionsStream, stopConnectionsStream };
 
-function sortEntries(
-  entries: ConnectionEntry[],
+/** 按某一列的排序键升序比较两条连接。数值列按大小比，其余按字符串比。 */
+export function compareConnections(
   key: ConnectionColumnKey,
-  direction: SortDirection,
-): ConnectionEntry[] {
+  a: ConnectionEntry,
+  b: ConnectionEntry,
+): number {
   const def = columnDefinitions[key];
-  return [...entries].sort((a, b) => {
-    const av = def.getValue(a);
-    const bv = def.getValue(b);
-    const cmp =
-      typeof av === "number" && typeof bv === "number"
-        ? av - bv
-        : String(av).localeCompare(String(bv));
-    return direction === "asc" ? cmp : -cmp;
-  });
+  const av = def.getValue(a);
+  const bv = def.getValue(b);
+  return typeof av === "number" && typeof bv === "number"
+    ? av - bv
+    : String(av).localeCompare(String(bv));
+}
+
+/** 排序函数用到的那一小部分 TanStack 行接口 —— 单测里可以直接造。 */
+export interface SortableConnectionRow {
+  original: ConnectionEntry;
+  getIsGrouped: () => boolean;
+  getLeafRows: () => SortableConnectionRow[];
+}
+
+/**
+ * 给 TanStack Table 用的排序函数（升序语义，降序由表格自己取反）。
+ *
+ * 分组时表格是先分组再排序，组行的 `original` 只是组里第一条原始数据 ——
+ * 按它比，组与组的先后就是随机的。所以组行改用组内排在最前的那一条来比：
+ * 升序取最小、降序取最大，和以前「先整体排好序再分组」得到的组顺序一致。
+ */
+export function connectionSortFn(key: ConnectionColumnKey, desc: boolean) {
+  const representative = (row: SortableConnectionRow): ConnectionEntry => {
+    if (!row.getIsGrouped()) return row.original;
+    let best = row.original;
+    for (const leaf of row.getLeafRows()) {
+      const cmp = compareConnections(key, leaf.original, best);
+      if (desc ? cmp > 0 : cmp < 0) best = leaf.original;
+    }
+    return best;
+  };
+  return (a: SortableConnectionRow, b: SortableConnectionRow) =>
+    compareConnections(key, representative(a), representative(b));
 }
 
 export function formatConnectionValue(
@@ -330,12 +356,8 @@ export function useConnectionsStream() {
     [settings.visible_columns],
   );
 
+  // 排序交给表格（`ConnectionTable` 里的 `getSortedRowModel`），这里给原始顺序。
   const entries = settings.current_tab === "active" ? active : closed;
-
-  const sortedEntries = useMemo(
-    () => sortEntries(entries, settings.sort_key, settings.sort_direction),
-    [entries, settings.sort_key, settings.sort_direction],
-  );
 
   const groupedColumn: ConnectionColumnOption | null = settings.grouped_column
     ? (columnDefinitions[settings.grouped_column] ?? null)
@@ -375,7 +397,7 @@ export function useConnectionsStream() {
   return {
     active,
     closed,
-    entries: sortedEntries,
+    entries,
     downloadTotal,
     uploadTotal,
     streamStatus,

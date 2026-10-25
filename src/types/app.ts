@@ -98,8 +98,25 @@ export type ConnectionColumnKey =
   | "destinationType"
   | "remoteAddress"
   | "inboundUser";
-export type LogLevel =
-  "trace" | "debug" | "info" | "warn" | "error" | "fatal" | "panic";
+/**
+ * sing-box 的日志级别，从最详细到最严重。配置里的 `log.level`、日志条目的
+ * `type`、日志页的筛选按钮都用这一套名字 —— 以前三处各写一份，WARN 一边叫
+ * "warn" 一边叫 "warning"，按级别筛选就筛不出警告。
+ */
+export const LOG_LEVELS = [
+  "trace",
+  "debug",
+  "info",
+  "warn",
+  "error",
+  "fatal",
+  "panic",
+] as const;
+export type LogLevel = (typeof LOG_LEVELS)[number];
+
+export function isLogLevel(value: string): value is LogLevel {
+  return (LOG_LEVELS as readonly string[]).includes(value);
+}
 
 /** Mirrors `config::profiles::DEFAULT_UPDATE_INTERVAL_MINUTES`. */
 export const DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES = 60;
@@ -443,7 +460,7 @@ export interface CoreConnectionsFrame {
 }
 
 interface CoreLogMessage {
-  type: string;
+  type: LogLevel;
   payload: string;
 }
 

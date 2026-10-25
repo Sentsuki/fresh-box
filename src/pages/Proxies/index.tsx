@@ -9,6 +9,7 @@ import Flag from "react-flagpack";
 import "react-flagpack/dist/style.css";
 import { Button } from "../../components/ui/Button";
 import { CollapsibleCard } from "../../components/ui/CollapsibleCard";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { Select } from "../../components/ui/Select";
@@ -442,25 +443,21 @@ export default function Proxies() {
 
   if (!isRunning) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
-        <span className="font-semibold text-lg text-(--wb-text-primary)">
-          Core is not running
-        </span>
-        <p className="text-sm font-medium text-(--wb-text-secondary)">
-          Please start the core service to view and manage proxies.
-        </p>
-      </div>
+      <EmptyState
+        variant="page"
+        title="Core is not running"
+        description="Please start the core service to view and manage proxies."
+      />
     );
   }
 
   if (!overview) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
-        <Spinner size="lg" />
-        <p className="text-sm font-medium text-(--wb-text-secondary)">
-          Loading routing information...
-        </p>
-      </div>
+      <EmptyState
+        variant="page"
+        icon={<Spinner size="lg" />}
+        description="Loading routing information..."
+      />
     );
   }
 
@@ -495,9 +492,10 @@ export default function Proxies() {
       </PageHeader>
 
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
-          No proxy groups configured or loaded.
-        </div>
+        <EmptyState
+          description="No proxy groups configured or loaded."
+          className="h-64"
+        />
       ) : (
         <div className="flex flex-col gap-3">
           {visibleGroups.map((group) => (

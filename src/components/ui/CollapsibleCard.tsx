@@ -1,5 +1,6 @@
 import { Collapsible } from "@base-ui/react/collapsible";
 import { ChevronDownRegular } from "@fluentui/react-icons";
+import { cn } from "./cn";
 
 interface CollapsibleCardProps {
   open: boolean;
@@ -22,28 +23,28 @@ export function CollapsibleCard({
     <Collapsible.Root
       open={open}
       onOpenChange={(next) => onOpenChange(next)}
-      className={[
+      className={cn(
         "border border-(--wb-border-subtle) rounded-(--wb-radius-lg) overflow-hidden",
         "bg-(--wb-surface-layer)",
         className,
-      ].join(" ")}
+      )}
     >
       <div className="flex items-stretch">
         <Collapsible.Trigger
-          className={[
+          className={cn(
             "flex flex-1 items-center justify-between gap-3 px-4 py-3 min-w-0",
             "hover:bg-(--wb-surface-hover)",
             "transition-colors duration-150 text-left",
             "focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-(--wb-accent)",
             "group",
-          ].join(" ")}
+          )}
         >
           <span className="flex-1 min-w-0">{trigger}</span>
           <ChevronDownRegular
-            className={[
+            className={cn(
               "text-xl shrink-0 text-(--wb-text-secondary) transition-transform duration-300",
               "group-data-panel-open:rotate-180",
-            ].join(" ")}
+            )}
           />
         </Collapsible.Trigger>
         {actions && (
@@ -53,11 +54,11 @@ export function CollapsibleCard({
         )}
       </div>
       <Collapsible.Panel
-        className={[
+        className={cn(
           "overflow-hidden h-(--collapsible-panel-height)",
           "transition-[height] duration-150 ease-in-out",
           "data-starting-style:h-0 data-ending-style:h-0",
-        ].join(" ")}
+        )}
       >
         <div className="p-4 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
           {children}

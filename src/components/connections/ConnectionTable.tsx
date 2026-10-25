@@ -1,17 +1,21 @@
 import { ColumnRegular } from "@fluentui/react-icons";
 import {
   flexRender,
+  type ColumnOrderState,
   type ColumnPinningPosition,
   type ColumnPinningState,
   type ColumnSizingState,
+  type ColumnVisibilityState,
   type ExpandedState,
   type GroupingState,
+  type SortingState,
   type Updater,
 } from "@tanstack/react-table";
 import {
   getCoreRowModel,
   getExpandedRowModel,
   getGroupedRowModel,
+  getSortedRowModel,
   useLegacyTable as useReactTable,
   type LegacyColumnDef as ColumnDef,
 } from "@tanstack/react-table/legacy";
@@ -25,6 +29,8 @@ import {
   type CSSProperties,
 } from "react";
 import {
+  allColumns,
+  connectionSortFn,
   formatConnectionValue,
   type ConnectionColumnOption,
 } from "../../hooks/useConnectionsStream";
@@ -37,7 +43,9 @@ import type {
 } from "../../types/app";
 
 interface ConnectionTableProps {
+  /** 原始顺序的行 —— 排序在表格里做。 */
   rows: ConnectionEntry[];
+  /** 要显示的列，按显示顺序。 */
   columns: ConnectionColumnOption[];
   sortKey: ConnectionColumnKey;
   sortDirection: SortDirection;
@@ -142,8 +150,25 @@ export function ConnectionTable({
     [groupedColumnKey],
   );
   const groupedColOption = useMemo(
-    () => columns.find((c) => c.key === groupedColumnKey) ?? null,
-    [columns, groupedColumnKey],
+    () => allColumns.find((c) => c.key === groupedColumnKey) ?? null,
+    [groupedColumnKey],
+  );
+
+  // 表格里放的是全部列，显示哪些、按什么顺序由这两份状态决定。不能只把可见
+  // 列交给表格：按某列排序之后再把它隐藏，表格就找不到排序列了。
+  const columnVisibility = useMemo<ColumnVisibilityState>(() => {
+    const visible = new Set(columns.map((c) => c.key));
+    return Object.fromEntries(
+      allColumns.map((c) => [c.key, visible.has(c.key)]),
+    );
+  }, [columns]);
+  const columnOrder = useMemo<ColumnOrderState>(
+    () => columns.map((c) => c.key),
+    [columns],
+  );
+  const sorting = useMemo<SortingState>(
+    () => [{ id: sortKey, desc: sortDirection === "desc" }],
+    [sortKey, sortDirection],
   );
   const containerRef = useRef<HTMLDivElement>(null);
   const dragRef = useRef<{
@@ -163,9 +188,15 @@ export function ConnectionTable({
 
   const tableColumns = useMemo<ColumnDef<ConnectionEntry>[]>(
     () =>
-      columns.map((col) => ({
+      allColumns.map((col) => ({
         id: col.key,
         accessorFn: (row) => formatConnectionValue(col.key, row),
+        // 显示用的是格式化后的文本，排序要按原始值比（数值列按大小）。
+        sortFn: connectionSortFn(col.key, sortDirection === "desc"),
+        // 默认的 `sortUndefined: 1` 会让两边取值都是 undefined 的行直接跳过
+        // `sortFn` —— 组行在非分组列上正是 undefined，于是组的顺序就乱了。
+        // 我们的列取值永远是字符串，用不上这个特殊处理。
+        sortUndefined: false,
         size:
           col.key === "host"
             ? 260
@@ -227,11 +258,11 @@ export function ConnectionTable({
         ),
       })),
     [
-      columns,
       groupedColumnKey,
       onPinnedColumnsChange,
       onToggleGrouping,
       pinnedColumnKeys,
+      sortDirection,
     ],
   );
 
@@ -240,12 +271,16 @@ export function ConnectionTable({
     columns: tableColumns,
     getCoreRowModel: getCoreRowModel(),
     getGroupedRowModel: getGroupedRowModel(),
+    getSortedRowModel: getSortedRowModel(),
     getExpandedRowModel: getExpandedRowModel(),
     autoResetExpanded: false,
     enableColumnPinning: true,
     enableColumnResizing: true,
     columnResizeMode: "onChange",
     state: {
+      sorting,
+      columnVisibility,
+      columnOrder,
       columnPinning,
       columnSizing: localColumnSizes,
       grouping: groupingState,

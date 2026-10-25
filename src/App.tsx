@@ -1,4 +1,3 @@
-import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { DaemonGate } from "./components/global/DaemonGate";
 import { ErrorBoundary } from "./components/global/ErrorBoundary";
@@ -8,6 +7,7 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Spinner } from "./components/ui/Spinner";
 import { initializeApp } from "./hooks/useInit";
+import { useTauriEvent } from "./hooks/useTauriEvent";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { listProfiles } from "./services/api";
@@ -73,14 +73,9 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    const unlisten = listen("tray-proxy-switched", () => {
-      void useProxyStore.getState().refreshOverview();
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
+  useTauriEvent("tray-proxy-switched", () => {
+    void useProxyStore.getState().refreshOverview();
+  });
 
   // The backend's background auto-update scheduler (see
   // `spawn_auto_update_scheduler`) fires this after refreshing one or more
@@ -88,16 +83,11 @@ export default function App() {
   // the Profiles page's `lastUpdated` timestamps (and the config's actual
   // content) don't sit stale until the user happens to navigate away and
   // back.
-  useEffect(() => {
-    const unlisten = listen("profiles-auto-updated", () => {
-      void listProfiles().then((profiles) =>
-        useConfigStore.getState().setProfiles(profiles),
-      );
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
+  useTauriEvent("profiles-auto-updated", () => {
+    void listProfiles().then((profiles) =>
+      useConfigStore.getState().setProfiles(profiles),
+    );
+  });
 
   // Startup update flow — runs once settings are hydrated (`initialized`
   // implies `initializeApp()`'s `settings.hydrate()` already completed, see

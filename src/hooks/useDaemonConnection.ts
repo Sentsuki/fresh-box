@@ -1,10 +1,10 @@
-import { listen } from "@tauri-apps/api/event";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
 import { getDaemonState } from "../services/api";
 import type { DaemonConnectionPhase } from "../types/daemon";
 import { useSingboxStore } from "../stores/singboxStore";
 import { isWindowVisible } from "./useWindowVisibility";
 import { startAllStreams, stopAllStreams } from "./streamLifecycle";
+import { useTauriEvent } from "./useTauriEvent";
 import { useToast } from "./useToast";
 
 type Toast = ReturnType<typeof useToast>;
@@ -94,30 +94,24 @@ function applyPhase(
  */
 export function useDaemonConnectionListener() {
   const toast = useToast();
+  const receivedEventRef = useRef(false);
+
+  useTauriEvent<DaemonConnectionPhase>("daemon-state-changed", (phase) => {
+    receivedEventRef.current = true;
+    applyPhase(phase, true, toast);
+  });
 
   useEffect(() => {
-    let unlisten: (() => void) | null = null;
     let cancelled = false;
-    let receivedEvent = false;
-
-    void listen<DaemonConnectionPhase>("daemon-state-changed", (event) => {
-      receivedEvent = true;
-      applyPhase(event.payload, true, toast);
-    }).then((fn) => {
-      if (cancelled) fn();
-      else unlisten = fn;
-    });
-
     // A later event may well resolve before this initial snapshot does —
     // don't let a stale snapshot clobber it.
     void getDaemonState().then((phase) => {
-      if (!cancelled && !receivedEvent) applyPhase(phase, false, toast);
+      if (!cancelled && !receivedEventRef.current) {
+        applyPhase(phase, false, toast);
+      }
     });
-
     return () => {
       cancelled = true;
-      unlisten?.();
     };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  }, [toast]);
 }

@@ -8,6 +8,7 @@ import {
 } from "@fluentui/react-icons";
 import { useEffect, useMemo } from "react";
 import { Badge } from "../../components/ui/Badge";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { useSingbox } from "../../hooks/useSingbox";
 import { useConfigStore } from "../../stores/configStore";
@@ -166,14 +167,11 @@ export default function Overview() {
               </div>
             )
           ) : (
-            <div className="flex flex-col items-center justify-center h-64 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
-              <span className="font-semibold text-lg mb-2 text-(--wb-text-primary)">
-                Core is not running
-              </span>
-              <span>
-                Please start the core service to view dashboard metrics.
-              </span>
-            </div>
+            <EmptyState
+              title="Core is not running"
+              description="Please start the core service to view dashboard metrics."
+              className="h-64"
+            />
           )}
         </div>
       </div>

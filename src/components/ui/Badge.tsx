@@ -1,3 +1,5 @@
+import { cn } from "./cn";
+
 interface BadgeProps {
   children: React.ReactNode;
   variant?: "default" | "accent" | "success" | "warning" | "error" | "subtle";
@@ -26,11 +28,11 @@ export function Badge({
 }: BadgeProps) {
   return (
     <span
-      className={[
+      className={cn(
         "inline-flex items-center px-1.5 py-0.5 text-[11px] font-medium rounded-(--wb-radius-sm) leading-tight",
         variantClasses[variant],
         className,
-      ].join(" ")}
+      )}
     >
       {children}
     </span>

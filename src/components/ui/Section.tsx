@@ -1,3 +1,5 @@
+import { cn } from "./cn";
+
 interface SectionProps {
   title: string;
   description?: string;
@@ -16,7 +18,7 @@ export function Section({
   icon,
 }: SectionProps) {
   return (
-    <section className={["flex flex-col gap-3", className].join(" ")}>
+    <section className={cn("flex flex-col gap-3", className)}>
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-2">
           {icon && (

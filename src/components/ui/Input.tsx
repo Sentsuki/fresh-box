@@ -1,4 +1,5 @@
 import * as React from "react";
+import { cn } from "./cn";
 
 interface InputProps extends React.InputHTMLAttributes<HTMLInputElement> {
   label?: string;
@@ -23,7 +24,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
           )}
           <input
             ref={ref}
-            className={[
+            className={cn(
               "w-full rounded-(--wb-radius-md) border bg-(--wb-surface-base) py-2 text-sm text-(--wb-text-primary) outline-none transition-all duration-200",
               "placeholder:text-(--wb-text-disabled)",
               leftIcon ? "pl-9 pr-3" : "px-3",
@@ -31,7 +32,7 @@ export const Input = React.forwardRef<HTMLInputElement, InputProps>(
                 ? "border-red-500/50 focus:border-red-500"
                 : "border-(--wb-border-default) focus:border-(--wb-accent) focus:ring-1 focus:ring-(--wb-accent)/20",
               className,
-            ].join(" ")}
+            )}
             {...props}
           />
         </div>

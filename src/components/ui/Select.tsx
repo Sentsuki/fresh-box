@@ -1,5 +1,6 @@
 import { Select as BaseSelect } from "@base-ui/react/select";
 import { CheckmarkRegular, ChevronDownRegular } from "@fluentui/react-icons";
+import { cn } from "./cn";
 
 export interface SelectOption<T extends string | number> {
   value: T;
@@ -47,12 +48,12 @@ export function Select<T extends string | number>({
     >
       <BaseSelect.Trigger
         aria-label={ariaLabel}
-        className={[
+        className={cn(
           "inline-flex items-center justify-between gap-2 text-sm text-(--wb-text-primary) outline-none",
           "focus-visible:outline-(--wb-accent) data-disabled:opacity-50 data-disabled:cursor-not-allowed",
           triggerVariants[variant],
           className,
-        ].join(" ")}
+        )}
       >
         <BaseSelect.Value className="truncate" />
         <BaseSelect.Icon className="shrink-0 flex text-(--wb-text-tertiary)">
@@ -62,24 +63,24 @@ export function Select<T extends string | number>({
       <BaseSelect.Portal>
         <BaseSelect.Positioner sideOffset={4} className="z-50 outline-none">
           <BaseSelect.Popup
-            className={[
+            className={cn(
               "min-w-(--anchor-width) max-h-(--available-height) overflow-y-auto custom-scrollbar p-1",
               "rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-flyout) shadow-xl outline-none",
               "origin-(--transform-origin) transition-[opacity,scale] duration-100",
               "data-starting-style:opacity-0 data-starting-style:scale-95",
               "data-ending-style:opacity-0 data-ending-style:scale-95",
-            ].join(" ")}
+            )}
           >
             <BaseSelect.List>
               {options.map((option) => (
                 <BaseSelect.Item
                   key={option.value}
                   value={option.value}
-                  className={[
+                  className={cn(
                     "flex items-center gap-2 pl-2 pr-3 py-1.5 text-sm rounded cursor-default select-none outline-none",
                     "text-(--wb-text-primary) data-highlighted:bg-(--wb-surface-hover)",
                     "data-disabled:opacity-50",
-                  ].join(" ")}
+                  )}
                 >
                   {/* 定宽占位：没选中的项也空出勾的位置，文字才对得齐。 */}
                   <span className="w-4 shrink-0 flex">
