@@ -12,6 +12,7 @@ import { Spinner } from "../../components/ui/Spinner";
 import { useToast } from "../../hooks/useToast";
 import { formatLastUpdated } from "../../services/utils";
 import type { ReportFileView, ReportSummary } from "../../types/app";
+import { getErrorMessage } from "../../services/tauri";
 
 interface ReportsApi {
   list: () => Promise<ReportSummary[]>;
@@ -51,6 +52,8 @@ export function ReportsPanel({
   const toast = useToast();
   const [reports, setReports] = useState<ReportSummary[] | null>(null);
   const [selected, setSelected] = useState<ReportSummary | null>(null);
+  // 开关单独存：关闭时 `selected` 留着，弹窗的退场动画期间标题和按钮不会先消失。
+  const [dialogOpen, setDialogOpen] = useState(false);
   const [files, setFiles] = useState<ReportFileView[] | null>(null);
 
   const reload = useCallback(() => {
@@ -59,9 +62,7 @@ export function ReportsPanel({
       .then(setReports)
       .catch((err) => {
         setReports([]);
-        toast.error(
-          `Failed to load reports: ${err instanceof Error ? err.message : String(err)}`,
-        );
+        toast.error(`Failed to load reports: ${getErrorMessage(err)}`);
       });
     // `api` is a fresh object literal from the caller every render; the
     // panel's own report kind never changes at runtime, so re-running this
@@ -75,13 +76,12 @@ export function ReportsPanel({
 
   const open = async (report: ReportSummary) => {
     setSelected(report);
+    setDialogOpen(true);
     setFiles(null);
     try {
       setFiles(await api.read(report.id));
     } catch (err) {
-      toast.error(
-        `Failed to read report: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to read report: ${getErrorMessage(err)}`);
       setFiles([]);
     }
     if (!report.isRead) reload();
@@ -90,12 +90,10 @@ export function ReportsPanel({
   const remove = async (id: string) => {
     try {
       await api.remove(id);
-      setSelected(null);
+      setDialogOpen(false);
       reload();
     } catch (err) {
-      toast.error(
-        `Failed to delete report: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to delete report: ${getErrorMessage(err)}`);
     }
   };
 
@@ -118,9 +116,7 @@ export function ReportsPanel({
       const written = await api.export(report.id, destination, true, true);
       toast.success("Report exported.", written);
     } catch (err) {
-      toast.error(
-        `Failed to export report: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to export report: ${getErrorMessage(err)}`);
     }
   };
 
@@ -129,9 +125,7 @@ export function ReportsPanel({
       await api.removeAll();
       reload();
     } catch (err) {
-      toast.error(
-        `Failed to delete reports: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to delete reports: ${getErrorMessage(err)}`);
     }
   };
 
@@ -187,8 +181,8 @@ export function ReportsPanel({
       </Section>
 
       <Dialog
-        isOpen={selected !== null}
-        onClose={() => setSelected(null)}
+        isOpen={dialogOpen}
+        onClose={() => setDialogOpen(false)}
         title={selected ? formatLastUpdated(selected.time) : ""}
         icon={<DocumentRegular />}
         footer={
@@ -210,7 +204,7 @@ export function ReportsPanel({
                   Export
                 </Button>
               )}
-              <Button variant="accent" onClick={() => setSelected(null)}>
+              <Button variant="accent" onClick={() => setDialogOpen(false)}>
                 Close
               </Button>
             </>

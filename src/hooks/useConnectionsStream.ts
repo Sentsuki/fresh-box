@@ -6,7 +6,11 @@ import {
   startConnectionsStream,
   stopConnectionsStream,
 } from "../daemon/connectionsStream";
-import { formatRelativeDuration, formatSpeed } from "../services/utils";
+import {
+  formatBytes,
+  formatRelativeDuration,
+  formatSpeed,
+} from "../services/utils";
 import type {
   ConnectionColumnKey,
   ConnectionEntry,
@@ -299,9 +303,9 @@ export function formatConnectionValue(
     case "uploadSpeed":
       return formatSpeed(entry.uploadSpeed);
     case "download":
-      return formatSpeed(entry.download);
+      return formatBytes(entry.download);
     case "upload":
-      return formatSpeed(entry.upload);
+      return formatBytes(entry.upload);
     case "chain":
       return [...entry.chains].reverse().join(" → ");
     case "start":

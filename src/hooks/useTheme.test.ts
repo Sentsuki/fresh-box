@@ -4,7 +4,7 @@ import { renderHook, act } from "@testing-library/react";
 import { createDefaultAppSettings, type ThemeMode } from "../types/app";
 
 /**
- * 主题。三方要保持一致：Fluent 的 theme 对象、`<html>` 上的 `light` 类
+ * 主题。三方要保持一致：hook 返回的生效主题、`<html>` 上的 `light` 类
  * （Tailwind 用它）、以及窗口自己的标题栏/Mica 配色（那是 Windows 画的，
  * webview 管不到）。少同步一处的表现就是「深色界面配浅色标题栏」。
  */
@@ -20,7 +20,7 @@ vi.mock("../services/api", () => ({
   updateMicaTheme: (light: boolean | null) => updateMicaTheme(light),
 }));
 
-import { DARK_THEME, LIGHT_THEME, useTheme } from "./useTheme";
+import { useTheme } from "./useTheme";
 import { useSettingsStore } from "../stores/settingsStore";
 
 let systemPrefersLight = false;
@@ -59,7 +59,7 @@ describe("useTheme", () => {
     const { result } = renderHook(() => useTheme());
     await act(async () => {});
 
-    expect(result.current).toBe(LIGHT_THEME);
+    expect(result.current).toBe("light");
     expect(document.documentElement.classList.contains("light")).toBe(true);
     expect(setTheme).toHaveBeenCalledWith("light");
     expect(updateMicaTheme).toHaveBeenCalledWith(true);
@@ -70,7 +70,7 @@ describe("useTheme", () => {
     const { result } = renderHook(() => useTheme());
     await act(async () => {});
 
-    expect(result.current).toBe(DARK_THEME);
+    expect(result.current).toBe("dark");
     expect(document.documentElement.classList.contains("light")).toBe(false);
     expect(setTheme).toHaveBeenCalledWith("dark");
     expect(updateMicaTheme).toHaveBeenCalledWith(false);
@@ -84,7 +84,7 @@ describe("useTheme", () => {
     const { result } = renderHook(() => useTheme());
     await act(async () => {});
 
-    expect(result.current).toBe(LIGHT_THEME);
+    expect(result.current).toBe("light");
     expect(setTheme).toHaveBeenCalledWith(null);
     expect(updateMicaTheme).toHaveBeenCalledWith(null);
   });
@@ -95,6 +95,6 @@ describe("useTheme", () => {
     const { result } = renderHook(() => useTheme());
     await act(async () => {});
 
-    expect(result.current).toBe(DARK_THEME);
+    expect(result.current).toBe("dark");
   });
 });

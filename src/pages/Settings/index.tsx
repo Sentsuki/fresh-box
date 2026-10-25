@@ -26,7 +26,7 @@ import {
   repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
-import { getErrorKind } from "../../services/tauri";
+import { getErrorKind, getErrorMessage } from "../../services/tauri";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
@@ -106,7 +106,7 @@ export default function Settings() {
   // other failure here) it's not shown as one.
   const reportServiceError = (e: unknown) => {
     if (getErrorKind(e) === "permission_denied") return;
-    setServiceError(e instanceof Error ? e.message : String(e));
+    setServiceError(getErrorMessage(e));
   };
 
   const toggleDaemonService = async () => {
@@ -171,7 +171,7 @@ export default function Settings() {
       }
       await refreshAutostartEnabled();
     } catch (e) {
-      setAutostartError(e instanceof Error ? e.message : String(e));
+      setAutostartError(getErrorMessage(e));
     } finally {
       setIsAutostartBusy(false);
     }

@@ -43,6 +43,7 @@ import { CoreInfoGroup } from "./CoreInfoGroup";
 import DiagnosticsTab from "./DiagnosticsTab";
 import { ReportsPanel } from "./ReportsPanel";
 import { OomSettingsPanel, PowerSettingsPanel } from "./ReportSettings";
+import { getErrorMessage } from "../../services/tauri";
 
 /** TUN Stack / Core Log Level — moved here from Settings: both tune the
  * running sing-box config the same way the JSON editor below does, so they
@@ -175,9 +176,7 @@ function CoreTab() {
         toast.success("Config override enabled");
       }
     } catch (err) {
-      toast.error(
-        `Failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed: ${getErrorMessage(err)}`);
     } finally {
       setTogglingOverride(false);
     }
@@ -190,9 +189,7 @@ function CoreTab() {
       await saveConfigOverride(rawJson);
       toast.success("Config overrides saved");
     } catch (err) {
-      toast.error(
-        `Failed to save: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to save: ${getErrorMessage(err)}`);
     } finally {
       setSaving(false);
     }
@@ -204,9 +201,7 @@ function CoreTab() {
       setRawJson("");
       toast.success("Config override cleared");
     } catch (err) {
-      toast.error(
-        `Failed to clear: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to clear: ${getErrorMessage(err)}`);
     }
   };
 

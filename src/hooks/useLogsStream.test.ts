@@ -212,11 +212,11 @@ describe("搜索与筛选", () => {
 
     act(() => {
       useSettingsStore.setState((s) => ({
-        settings: { ...s.settings, logs: { type_filter: "warning" } },
+        settings: { ...s.settings, logs: { type_filter: "warn" } },
       }));
     });
     rerender();
     expect(result.current.visibleLogs).toHaveLength(1);
-    expect(result.current.visibleLogs[0].type).toBe("warning");
+    expect(result.current.visibleLogs[0].type).toBe("warn");
   });
 });

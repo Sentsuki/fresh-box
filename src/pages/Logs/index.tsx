@@ -9,6 +9,7 @@ import { useVirtualizer } from "@tanstack/react-virtual";
 import { useEffect, useRef, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { SegmentedControl } from "../../components/ui/SegmentedControl";
 import { useLogsStream } from "../../hooks/useLogsStream";
 
 const LEVEL_COLORS: Record<string, string> = {
@@ -16,7 +17,6 @@ const LEVEL_COLORS: Record<string, string> = {
   fatal: "text-(--wb-log-fatal)",
   error: "text-(--wb-log-error)",
   warn: "text-(--wb-log-warn)",
-  warning: "text-(--wb-log-warn)",
   info: "text-(--wb-log-info)",
   debug: "text-(--wb-log-debug)",
   trace: "text-(--wb-log-trace)",
@@ -31,6 +31,11 @@ const LOG_LEVELS = [
   "debug",
   "trace",
 ] as const;
+type LogLevelName = (typeof LOG_LEVELS)[number];
+const LEVEL_OPTIONS = LOG_LEVELS.map((level) => ({
+  value: level,
+  label: level,
+}));
 
 export default function Logs() {
   const {
@@ -114,22 +119,18 @@ export default function Logs() {
 
           <div className="flex-1" />
 
-          <div className="flex gap-1.5 bg-(--wb-surface-layer) p-1 rounded-(--wb-radius-md) border border-(--wb-border-subtle) winui-segmented-control">
-            {LOG_LEVELS.map((level) => (
-              <button
-                key={level}
-                onClick={() => setTypeFilter(typeFilter === level ? "" : level)}
-                className={[
-                  "px-3 py-1 text-xs font-semibold uppercase tracking-wider rounded transition-colors",
-                  typeFilter === level
-                    ? "bg-(--wb-surface-hover) text-(--wb-text-primary)"
-                    : "text-(--wb-text-secondary) hover:text-(--wb-text-primary)",
-                ].join(" ")}
-              >
-                {level}
-              </button>
-            ))}
-          </div>
+          <SegmentedControl
+            value={
+              (LOG_LEVELS as readonly string[]).includes(typeFilter)
+                ? (typeFilter as LogLevelName)
+                : ""
+            }
+            onValueChange={setTypeFilter}
+            options={LEVEL_OPTIONS}
+            allowEmpty
+            className="gap-1.5 p-1"
+            itemClassName="px-3 py-1 text-xs font-semibold uppercase tracking-wider"
+          />
         </div>
 
         <div className="flex-1 min-h-0 rounded-xl border border-(--wb-border-subtle) bg-(--wb-log-bg) shadow-inner p-3 font-mono">

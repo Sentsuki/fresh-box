@@ -94,9 +94,10 @@ export default function Connections() {
 
   const [search, setSearch] = useState("");
   const [sourceIpFilter, setSourceIpFilter] = useState("all");
-  const [showColumns, setShowColumns] = useState(false);
   const [selectedConnection, setSelectedConnection] =
     useState<ConnectionEntry | null>(null);
+  // 开关单独存：关闭时 `selectedConnection` 留着，弹窗的退场动画期间还有内容可画。
+  const [detailsOpen, setDetailsOpen] = useState(false);
 
   const [isReady, setIsReady] = useState(false);
 
@@ -223,14 +224,12 @@ export default function Connections() {
           sourceIpFilter={sourceIpFilter}
           sourceIpOptions={sourceIpOptions}
           isPaused={isPaused}
-          showColumns={showColumns}
           visibleColumnKeys={visibleColumnKeys}
           sortKey={sortKey}
           onSetTab={(tab) => void setConnectionsTab(tab)}
           onSearchChange={setSearch}
           onSourceIpFilterChange={setSourceIpFilter}
           onTogglePause={togglePause}
-          onToggleColumnsPanel={() => setShowColumns((value) => !value)}
           onToggleColumnVisible={toggleColumnVisible}
           onMoveColumn={moveColumn}
           onCloseAll={closeAll}
@@ -255,7 +254,10 @@ export default function Connections() {
                 onColumnSizesChange={(sizes) =>
                   void setConnectionsColumnSizes(sizes)
                 }
-                onRowClick={setSelectedConnection}
+                onRowClick={(row) => {
+                  setSelectedConnection(row);
+                  setDetailsOpen(true);
+                }}
               />
             </div>
           )}
@@ -263,8 +265,8 @@ export default function Connections() {
 
         <ConnectionDetailsModal
           connection={selectedConnection}
-          open={selectedConnection !== null}
-          onClose={() => setSelectedConnection(null)}
+          open={detailsOpen}
+          onClose={() => setDetailsOpen(false)}
           onDisconnect={disconnectConnection}
         />
 

@@ -65,7 +65,7 @@ const LEVEL_NAMES: Record<LogLevel, string> = {
   [LogLevel.PANIC]: "panic",
   [LogLevel.FATAL]: "fatal",
   [LogLevel.ERROR]: "error",
-  [LogLevel.WARN]: "warning",
+  [LogLevel.WARN]: "warn",
   [LogLevel.INFO]: "info",
   [LogLevel.DEBUG]: "debug",
   [LogLevel.TRACE]: "trace",

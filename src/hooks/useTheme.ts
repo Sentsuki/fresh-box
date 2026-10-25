@@ -1,23 +1,13 @@
 import { useEffect, useState } from "react";
-import {
-  webDarkTheme,
-  webLightTheme,
-  type Theme,
-} from "@fluentui/react-components";
 import { getCurrentWindow } from "@tauri-apps/api/window";
 import { updateMicaTheme } from "../services/api";
 import { useSettingsStore } from "../stores/settingsStore";
 
-const BASE_OVERRIDES = {
-  borderRadiusMedium: "6px",
-  borderRadiusLarge: "8px",
-  fontFamilyBase: '"Segoe UI Variable", "Segoe UI", system-ui, sans-serif',
-};
+export type ResolvedTheme = "light" | "dark";
 
-export const DARK_THEME: Theme = { ...webDarkTheme, ...BASE_OVERRIDES };
-export const LIGHT_THEME: Theme = { ...webLightTheme, ...BASE_OVERRIDES };
-
-export function useTheme(): Theme {
+/** 把设置里的主题同步到 `<html>` 的 `light` 类（Tailwind 用它）和窗口自己
+ * 的标题栏/Mica 配色，返回实际生效的那一个。 */
+export function useTheme(): ResolvedTheme {
   const themeMode = useSettingsStore((s) => s.settings.settings.theme_mode);
 
   const [systemIsLight, setSystemIsLight] = useState(
@@ -47,5 +37,5 @@ export function useTheme(): Theme {
     }
   }, [isLight, themeMode]);
 
-  return isLight ? LIGHT_THEME : DARK_THEME;
+  return isLight ? "light" : "dark";
 }

@@ -37,7 +37,7 @@ vi.mock("./clients", () => ({
   startedService: { subscribeConnections: () => undefined },
 }));
 
-// 连接 store 的最小替身 —— 真的那个会拉进 Fluent UI。
+// 连接 store 的最小替身 —— 真的那个会拉进 Base UI 的 toast。
 const store = {
   active: [] as ConnectionEntry[],
   closed: [] as ConnectionEntry[],

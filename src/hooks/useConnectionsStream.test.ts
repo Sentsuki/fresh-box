@@ -6,7 +6,7 @@ import type { ConnectionEntry } from "../types/app";
 vi.mock("../daemon/clients", () => ({
   startedService: { closeConnection: vi.fn(async () => ({})) },
 }));
-// Fluent UI 的 toast 在这条 import 链上；测试用不到，断掉能省十几秒的转换。
+// toast 在这条 import 链上；测试用不到，断掉省得拉进 Base UI。
 vi.mock("./useToast", () => ({
   useToast: () => ({ success: vi.fn(), error: vi.fn(), info: vi.fn() }),
 }));
@@ -146,6 +146,13 @@ describe("formatConnectionValue", () => {
     expect(formatConnectionValue("sniffHost", bare)).toBe("-");
     expect(formatConnectionValue("outbound", bare)).toBe("-");
     expect(formatConnectionValue("inboundUser", bare)).toBe("-");
+  });
+
+  it("累计流量按字节显示，只有速度列带 /s", () => {
+    const e = entry({ download: 2048, upload: 1024, downloadSpeed: 2048 });
+    expect(formatConnectionValue("download", e)).toBe("2.00 KB");
+    expect(formatConnectionValue("upload", e)).toBe("1.00 KB");
+    expect(formatConnectionValue("downloadSpeed", e)).toBe("2.00 KB/s");
   });
 
   it("每一列都有格式化实现", () => {

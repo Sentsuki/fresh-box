@@ -25,6 +25,9 @@ import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES } from "../../types/app";
 
+/** 自动更新间隔的下限（分钟）。 */
+const MIN_AUTO_UPDATE_INTERVAL_MINUTES = 15;
+
 export default function Profiles() {
   const profiles = useConfigStore((s) => s.profiles);
   const selectedProfileId = useSettingsStore(
@@ -433,9 +436,22 @@ function SubscriptionCard({
   onToggleAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
   onRename: (newName: string, newUrl: string) => void;
 }) {
-  const [intervalInput, setIntervalInput] = useState(
-    updateIntervalMinutes ?? DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
-  );
+  const interval =
+    updateIntervalMinutes ?? DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES;
+  // 输入中的草稿是字符串，失焦或回车时才钳到下限并保存 —— 逐键钳的话，清空
+  // 后想敲 "60"，第一个 "6" 就被顶成 15，再敲 "0" 成了 150；而且每敲一键
+  // 都是一次后端写入。
+  const [intervalDraft, setIntervalDraft] = useState<string | null>(null);
+
+  function commitInterval() {
+    if (intervalDraft === null) return;
+    const next = Math.max(
+      MIN_AUTO_UPDATE_INTERVAL_MINUTES,
+      Math.round(Number(intervalDraft)) || MIN_AUTO_UPDATE_INTERVAL_MINUTES,
+    );
+    setIntervalDraft(null);
+    if (next !== interval) onToggleAutoUpdate(true, next);
+  }
   const [editing, setEditing] = useState(false);
   const [updateStatus, setUpdateStatus] = useState<
     "idle" | "updating" | "success"
@@ -560,7 +576,7 @@ function SubscriptionCard({
           id={`auto-update-${name}`}
           checked={autoUpdate}
           onCheckedChange={(checked) =>
-            onToggleAutoUpdate(checked, checked ? intervalInput : undefined)
+            onToggleAutoUpdate(checked, checked ? interval : undefined)
           }
           label="Auto-update"
         />
@@ -568,12 +584,13 @@ function SubscriptionCard({
           <div className="flex items-center gap-1.5 text-xs text-(--wb-text-secondary)">
             <input
               type="number"
-              min={15}
-              value={intervalInput}
-              onChange={(e) => {
-                const next = Math.max(15, Number(e.target.value) || 15);
-                setIntervalInput(next);
-                onToggleAutoUpdate(true, next);
+              min={MIN_AUTO_UPDATE_INTERVAL_MINUTES}
+              value={intervalDraft ?? String(interval)}
+              onChange={(e) => setIntervalDraft(e.target.value)}
+              onBlur={commitInterval}
+              onKeyDown={(e) => {
+                if (e.key === "Enter") commitInterval();
+                else if (e.key === "Escape") setIntervalDraft(null);
               }}
               className="w-14 px-1.5 py-0.5 rounded bg-(--wb-surface-base) border border-(--wb-border-subtle) text-right text-(--wb-text-primary)"
             />

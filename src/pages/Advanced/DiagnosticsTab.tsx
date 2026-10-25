@@ -17,9 +17,9 @@ import {
   natMappingLabel,
   natBehaviorVariant,
 } from "../../services/format";
-import {} from "../../services/api";
 import { NETWORK_QUALITY_PHASE } from "../../types/app";
 import type { NetworkQualityProgress, StunTestProgress } from "../../types/app";
+import { getErrorMessage } from "../../services/tauri";
 
 const NETWORK_QUALITY_DEFAULT_URL =
   "https://mensura.cdn-apple.com/api/v1/gm/config";
@@ -123,7 +123,7 @@ function NetworkQualityCard() {
         idleLatencyMs: 0,
         elapsedMs: 0,
         isFinal: true,
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
         downloadCapacityAccuracy: 0,
         uploadCapacityAccuracy: 0,
         downloadRPMAccuracy: 0,
@@ -355,7 +355,7 @@ function StunTestCard() {
         natMapping: 0,
         natFiltering: 0,
         isFinal: true,
-        error: err instanceof Error ? err.message : String(err),
+        error: getErrorMessage(err),
         natTypeSupported: false,
       });
     }
