@@ -1,5 +1,5 @@
+import { Collapsible } from "@base-ui/react/collapsible";
 import { ChevronDownRegular } from "@fluentui/react-icons";
-import * as RadixCollapsible from "@radix-ui/react-collapsible";
 
 interface CollapsibleCardProps {
   open: boolean;
@@ -19,9 +19,9 @@ export function CollapsibleCard({
   actions,
 }: CollapsibleCardProps) {
   return (
-    <RadixCollapsible.Root
+    <Collapsible.Root
       open={open}
-      onOpenChange={onOpenChange}
+      onOpenChange={(next) => onOpenChange(next)}
       className={[
         "border border-(--wb-border-subtle) rounded-(--wb-radius-lg) overflow-hidden",
         "bg-(--wb-surface-layer)",
@@ -29,7 +29,7 @@ export function CollapsibleCard({
       ].join(" ")}
     >
       <div className="flex items-stretch">
-        <RadixCollapsible.Trigger
+        <Collapsible.Trigger
           className={[
             "flex flex-1 items-center justify-between gap-3 px-4 py-3 min-w-0",
             "hover:bg-(--wb-surface-hover)",
@@ -42,27 +42,27 @@ export function CollapsibleCard({
           <ChevronDownRegular
             className={[
               "text-xl shrink-0 text-(--wb-text-secondary) transition-transform duration-300",
-              "group-data-[state=open]:rotate-180",
+              "group-data-panel-open:rotate-180",
             ].join(" ")}
           />
-        </RadixCollapsible.Trigger>
+        </Collapsible.Trigger>
         {actions && (
           <div className="shrink-0 flex items-center px-3 border-l border-(--wb-border-subtle)">
             {actions}
           </div>
         )}
       </div>
-      <RadixCollapsible.Content
+      <Collapsible.Panel
         className={[
-          "overflow-hidden",
-          "data-[state=open]:animate-[collapsibleOpen_0.15s_ease]",
-          "data-[state=closed]:animate-[collapsibleClose_0.15s_ease]",
+          "overflow-hidden h-(--collapsible-panel-height)",
+          "transition-[height] duration-150 ease-in-out",
+          "data-starting-style:h-0 data-ending-style:h-0",
         ].join(" ")}
       >
         <div className="p-4 bg-(--wb-surface-base) border-t border-(--wb-border-subtle)">
           {children}
         </div>
-      </RadixCollapsible.Content>
-    </RadixCollapsible.Root>
+      </Collapsible.Panel>
+    </Collapsible.Root>
   );
 }
