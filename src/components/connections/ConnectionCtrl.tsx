@@ -6,6 +6,7 @@ import {
 import { Popover } from "@base-ui/react/popover";
 import { Button } from "../../components/ui/Button";
 import { SegmentedControl } from "../../components/ui/SegmentedControl";
+import { Select } from "../../components/ui/Select";
 import { allColumns } from "../../hooks/useConnectionsStream";
 import type { ConnectionColumnKey, ConnectionPageTab } from "../../types/app";
 
@@ -64,18 +65,16 @@ export function ConnectionCtrl({
           <span className="text-xs font-semibold uppercase tracking-wide text-(--wb-text-tertiary)">
             Source IP
           </span>
-          <select
+          <Select
+            variant="ghost"
+            aria-label="Source IP"
             value={sourceIpFilter}
-            onChange={(e) => onSourceIpFilterChange(e.target.value)}
-            className="bg-transparent text-sm outline-none text-(--wb-text-primary)"
-          >
-            <option value="all">All</option>
-            {sourceIpOptions.map((sourceIp) => (
-              <option key={sourceIp} value={sourceIp}>
-                {sourceIp}
-              </option>
-            ))}
-          </select>
+            onValueChange={onSourceIpFilterChange}
+            options={[
+              { value: "all", label: "All" },
+              ...sourceIpOptions.map((ip) => ({ value: ip, label: ip })),
+            ]}
+          />
         </div>
 
         {/* Search Box */}

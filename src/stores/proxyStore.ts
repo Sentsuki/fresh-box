@@ -7,6 +7,7 @@ import {
   awaitNodeDelay,
   closeConnectionsByGroup,
 } from "../daemon/proxyActions";
+import { toast } from "../hooks/useToast";
 import { useSettingsStore } from "./settingsStore";
 
 interface ProxyState {
@@ -23,30 +24,15 @@ interface ProxyState {
 interface ProxyActions {
   /** 代理组现在由 `daemon/groupsStream.ts` 的常驻订阅推送 —— 不再需要拉取。
    * 保留这个入口是因为它是幂等的「确保流开着」，调用点不用改。 */
-  refreshOverview: (showToastOnError?: boolean) => Promise<void>;
+  refreshOverview: () => Promise<void>;
   setOverview: (overview: ProxyOverview) => void;
   clearOverview: () => void;
-  changeMode: (
-    mode: string,
-    onSuccess?: (msg: string) => void,
-    onError?: (msg: string) => void,
-  ) => Promise<void>;
-  switchProxy: (
-    proxyGroup: string,
-    proxyName: string,
-    onSuccess?: (msg: string) => void,
-    onError?: (msg: string) => void,
-  ) => Promise<void>;
-  testDelay: (
-    proxyName: string,
-    onResult?: (msg: string, isOk: boolean) => void,
-    onError?: (msg: string) => void,
-  ) => Promise<void>;
-  testGroupDelay: (
-    proxyGroup: string,
-    onSuccess?: (msg: string) => void,
-    onError?: (msg: string) => void,
-  ) => Promise<void>;
+  // 下面这些动作的结果直接弹 toast：以前是让调用方传 onSuccess/onError 进来，
+  // 只因为 Fluent 的 toast 只能在组件里拿到，`useProxy` 那一层就是专门干这个转接的。
+  changeMode: (mode: string) => Promise<void>;
+  switchProxy: (proxyGroup: string, proxyName: string) => Promise<void>;
+  testDelay: (proxyName: string) => Promise<void>;
+  testGroupDelay: (proxyGroup: string) => Promise<void>;
 }
 
 export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
@@ -79,7 +65,7 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
     });
   },
 
-  changeMode: async (mode, onSuccess, onError) => {
+  changeMode: async (mode) => {
     const state = get();
     if (
       !mode.trim() ||
@@ -93,15 +79,15 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
       await startedService.setClashMode({ mode });
       // 新模式由 `SubscribeClashMode` 推回来，不在这里手动改 —— 让 daemon 当
       // 唯一真相源，就不会出现「点了但没生效却已经显示切换成功」。
-      onSuccess?.(`Proxy mode switched to ${mode}`);
+      toast.success(`Proxy mode switched to ${mode}`);
     } catch (error) {
-      onError?.(`Failed to switch proxy mode: ${getErrorMessage(error)}`);
+      toast.error(`Failed to switch proxy mode: ${getErrorMessage(error)}`);
     } finally {
       set({ activeMode: null });
     }
   },
 
-  switchProxy: async (proxyGroup, proxyName, onSuccess, onError) => {
+  switchProxy: async (proxyGroup, proxyName) => {
     const actionKey = `${proxyGroup}:${proxyName}`;
     if (get().activeSelectionKey === actionKey) return;
     set({ activeSelectionKey: actionKey });
@@ -116,15 +102,15 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
         await closeConnectionsByGroup(proxyGroup);
       }
       // 勾选同样由 `SubscribeGroups` 推回来。
-      onSuccess?.(`Switched ${proxyGroup} to ${proxyName}`);
+      toast.success(`Switched ${proxyGroup} to ${proxyName}`);
     } catch (error) {
-      onError?.(`Failed to switch proxy node: ${getErrorMessage(error)}`);
+      toast.error(`Failed to switch proxy node: ${getErrorMessage(error)}`);
     } finally {
       set({ activeSelectionKey: null });
     }
   },
 
-  testDelay: async (proxyName, onResult, onError) => {
+  testDelay: async (proxyName) => {
     if (get().activeDelayNodes.has(proxyName)) return;
     set((s) => {
       const next = new Set(s.activeDelayNodes);
@@ -149,12 +135,13 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
       }));
 
       if (typeof delay === "number" && delay >= 0) {
-        onResult?.(`${proxyName}: ${delay} ms`, true);
+        toast.success(`${proxyName}: ${delay} ms`);
       } else {
-        onResult?.(`${proxyName}: timeout`, false);
+        // 超时既不是成功也不是错误 —— 节点不通是常态，不值得一条红色提示。
+        toast.info(`${proxyName}: timeout`);
       }
     } catch (error) {
-      onError?.(`Failed to test node latency: ${getErrorMessage(error)}`);
+      toast.error(`Failed to test node latency: ${getErrorMessage(error)}`);
       set((s) => {
         if (!s.overview) return {};
         return {
@@ -178,7 +165,7 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
     }
   },
 
-  testGroupDelay: async (proxyGroup, onSuccess, onError) => {
+  testGroupDelay: async (proxyGroup) => {
     if (get().activeGroupDelay === proxyGroup) return;
     set({ activeGroupDelay: proxyGroup });
 
@@ -194,7 +181,7 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
         nodes = group?.options.map((n) => n.name) ?? [];
 
         if (nodes.length === 0) {
-          onSuccess?.(`${proxyGroup}: no nodes found`);
+          toast.success(`${proxyGroup}: no nodes found`);
           return;
         }
       }
@@ -228,9 +215,11 @@ export const useProxyStore = create<ProxyState & ProxyActions>((set, get) => ({
         errorMessage: null,
       }));
 
-      onSuccess?.(`${proxyGroup}: tested ${Object.keys(results).length} nodes`);
+      toast.success(
+        `${proxyGroup}: tested ${Object.keys(results).length} nodes`,
+      );
     } catch (error) {
-      onError?.(`Failed to test group latency: ${getErrorMessage(error)}`);
+      toast.error(`Failed to test group latency: ${getErrorMessage(error)}`);
     } finally {
       set({ activeGroupDelay: null, groupTestingNodes: new Set() });
     }

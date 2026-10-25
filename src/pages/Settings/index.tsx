@@ -13,7 +13,7 @@ import { useEffect, useState } from "react";
 import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { Select } from "../../components/ui/Select";
+import { Select, type SelectOption } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import {
@@ -31,8 +31,14 @@ import { useSettingsStore } from "../../stores/settingsStore";
 import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
 
+const THEME_OPTIONS: SelectOption<ThemeMode>[] = [
+  { value: "system", label: "Follow System" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+];
+
 /** 期望出口提醒的可选间隔（分钟）。`0` = 关闭。 */
-const EXIT_REMINDER_OPTIONS: { value: number; label: string }[] = [
+const EXIT_REMINDER_OPTIONS: SelectOption<number>[] = [
   { value: 0, label: "Off" },
   { value: 15, label: "15 min" },
   { value: 30, label: "30 min" },
@@ -194,12 +200,9 @@ export default function Settings() {
             control={
               <Select
                 value={currentThemeMode}
-                onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
-              >
-                <option value="system">Follow System</option>
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-              </Select>
+                onValueChange={(mode) => void setThemeMode(mode)}
+                options={THEME_OPTIONS}
+              />
             }
           />
         </SettingGroup>
@@ -240,16 +243,11 @@ export default function Settings() {
             control={
               <Select
                 value={exitReminderMinutes}
-                onChange={(e) =>
-                  void setExitReminderMinutes(Number(e.target.value))
+                onValueChange={(minutes) =>
+                  void setExitReminderMinutes(minutes)
                 }
-              >
-                {EXIT_REMINDER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+                options={EXIT_REMINDER_OPTIONS}
+              />
             }
           />
 

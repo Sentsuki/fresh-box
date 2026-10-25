@@ -75,7 +75,7 @@ export default function App() {
 
   useEffect(() => {
     const unlisten = listen("tray-proxy-switched", () => {
-      void useProxyStore.getState().refreshOverview(false);
+      void useProxyStore.getState().refreshOverview();
     });
     return () => {
       void unlisten.then((fn) => fn());

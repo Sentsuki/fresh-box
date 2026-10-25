@@ -16,6 +16,11 @@ vi.mock("../services/api", () => ({
     setExitExpect(profileId, group, node),
 }));
 
+const toastError = vi.fn((_message: string) => {});
+vi.mock("../hooks/useToast", () => ({
+  toast: { error: (message: string) => toastError(message) },
+}));
+
 import { useExitExpectStore } from "./exitExpectStore";
 
 /**
@@ -26,6 +31,7 @@ import { useExitExpectStore } from "./exitExpectStore";
 beforeEach(() => {
   loadExitExpect.mockReset().mockResolvedValue({});
   setExitExpect.mockReset().mockResolvedValue({});
+  toastError.mockClear();
   useExitExpectStore.setState({ profileId: null, expect: {} });
 });
 
@@ -102,12 +108,12 @@ describe("toggle", () => {
   it("保存失败：回到原样并报错", async () => {
     useExitExpectStore.setState({ profileId: "p", expect: { test: "TW" } });
     setExitExpect.mockRejectedValueOnce("disk full");
-    const onError = vi.fn();
-
-    await useExitExpectStore.getState().toggle("test", "HK", onError);
+    await useExitExpectStore.getState().toggle("test", "HK");
 
     expect(useExitExpectStore.getState().expect).toEqual({ test: "TW" });
-    expect(onError).toHaveBeenCalledWith(expect.stringContaining("disk full"));
+    expect(toastError).toHaveBeenCalledWith(
+      expect.stringContaining("disk full"),
+    );
   });
 
   it("没有选中档案时什么都不做", async () => {

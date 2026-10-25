@@ -3,7 +3,10 @@ import { Select } from "../../components/ui/Select";
 import { Switch } from "../../components/ui/Switch";
 import { useSettingsStore } from "../../stores/settingsStore";
 
-const MEMORY_LIMIT_OPTIONS_MB = [50, 100, 200, 300, 500, 750, 1024];
+const MEMORY_LIMIT_OPTIONS = [50, 100, 200, 300, 500, 750, 1024].map((mb) => ({
+  value: mb,
+  label: `${mb} MB`,
+}));
 
 /** Enables the daemon's soft memory limit (`StartOptions.oom_memory_limit`)
  * and OOM reporting — lives here, right above the OOM report list it
@@ -36,18 +39,13 @@ export function OomSettingsPanel() {
               </span>
               <Select
                 value={diagnostics.oom_memory_limit_mb}
-                onChange={(e) =>
+                onValueChange={(mb) =>
                   void updateSettings((s) => {
-                    s.diagnostics.oom_memory_limit_mb = Number(e.target.value);
+                    s.diagnostics.oom_memory_limit_mb = mb;
                   })
                 }
-              >
-                {MEMORY_LIMIT_OPTIONS_MB.map((mb) => (
-                  <option key={mb} value={mb}>
-                    {mb} MB
-                  </option>
-                ))}
-              </Select>
+                options={MEMORY_LIMIT_OPTIONS}
+              />
             </label>
             {/* 这里曾经有一个「超限时断开连接以释放内存」开关 —— 但
                 `StartOptions` proto 根本没有对应字段，打开它什么都不会发生

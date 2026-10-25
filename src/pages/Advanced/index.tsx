@@ -52,6 +52,15 @@ import { getErrorMessage } from "../../services/tauri";
  * 组名是 "Setup" 而不是原来的 "sing-box Core"：整个标签页现在就叫 sing-box
  * Core，再嵌一个同名分组只会让人以为点错了地方。这一组是「怎么跑」的可调
  * 项，Core 那一组是核心自身的状态。 */
+const STACK_SELECT_OPTIONS = STACK_OPTIONS.map((stack) => ({
+  value: stack,
+  label: stack,
+}));
+const LOG_LEVEL_SELECT_OPTIONS = LOG_LEVELS.map((level) => ({
+  value: level,
+  label: level,
+}));
+
 function CoreSettingsGroup() {
   const {
     isLoading,
@@ -83,18 +92,9 @@ function CoreSettingsGroup() {
           control={
             <Select
               value={selectedStack}
-              onChange={(e) =>
-                void setStackOption(
-                  e.target.value as (typeof STACK_OPTIONS)[number],
-                )
-              }
-            >
-              {STACK_OPTIONS.map((opt) => (
-                <option key={opt} value={opt}>
-                  {opt}
-                </option>
-              ))}
-            </Select>
+              onValueChange={(stack) => void setStackOption(stack)}
+              options={STACK_SELECT_OPTIONS}
+            />
           }
         />
       )}
@@ -108,19 +108,13 @@ function CoreSettingsGroup() {
             <div className="flex items-center gap-3">
               <Select
                 value={selectedLogLevel}
-                onChange={(e) => {
-                  const level = e.target.value as (typeof LOG_LEVELS)[number];
+                onValueChange={(level) => {
                   setSelectedLogLevel(level);
                   void updateLogConfiguration(logDisabled, level);
                 }}
+                options={LOG_LEVEL_SELECT_OPTIONS}
                 disabled={logDisabled}
-              >
-                {LOG_LEVELS.map((l) => (
-                  <option key={l} value={l}>
-                    {l}
-                  </option>
-                ))}
-              </Select>
+              />
               <div className="w-px h-4 bg-(--wb-border-subtle) mx-1" />
               <div className="flex items-center gap-2.5">
                 <span className="text-sm text-(--wb-text-secondary)">

@@ -24,7 +24,10 @@ import { getErrorMessage } from "../../services/tauri";
 const NETWORK_QUALITY_DEFAULT_URL =
   "https://mensura.cdn-apple.com/api/v1/gm/config";
 const STUN_DEFAULT_SERVER = "stun.voipgate.com:3478";
-const MAX_RUNTIME_OPTIONS = [20, 30, 60];
+const MAX_RUNTIME_OPTIONS = [20, 30, 60].map((seconds) => ({
+  value: seconds,
+  label: `${seconds} seconds`,
+}));
 
 /** Every outbound tag currently offered by the running config's proxy
  * groups — good enough as an "outbound picker" without a dedicated
@@ -49,19 +52,17 @@ function OutboundPicker({
   disabled?: boolean;
 }) {
   const tags = useOutboundTags();
+  const options = [
+    { value: "", label: "Default outbound" },
+    ...tags.map((tag) => ({ value: tag, label: tag })),
+  ];
   return (
     <Select
       value={value}
-      onChange={(e) => onChange(e.target.value)}
+      onValueChange={onChange}
+      options={options}
       disabled={disabled}
-    >
-      <option value="">Default outbound</option>
-      {tags.map((tag) => (
-        <option key={tag} value={tag}>
-          {tag}
-        </option>
-      ))}
-    </Select>
+    />
   );
 }
 
@@ -168,15 +169,10 @@ function NetworkQualityCard() {
           <Field label="Max runtime">
             <Select
               value={maxRuntimeSeconds}
-              onChange={(e) => setMaxRuntimeSeconds(Number(e.target.value))}
+              onValueChange={setMaxRuntimeSeconds}
+              options={MAX_RUNTIME_OPTIONS}
               disabled={running}
-            >
-              {MAX_RUNTIME_OPTIONS.map((seconds) => (
-                <option key={seconds} value={seconds}>
-                  {seconds} seconds
-                </option>
-              ))}
-            </Select>
+            />
           </Field>
           <div className="flex items-center gap-6 pt-5">
             <Switch

@@ -11,9 +11,8 @@ import { Button } from "../../components/ui/Button";
 import { CollapsibleCard } from "../../components/ui/CollapsibleCard";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
-import { useProxy } from "../../hooks/useProxy";
-import { useToast } from "../../hooks/useToast";
 import { useExitExpectStore } from "../../stores/exitExpectStore";
 import { useProxyStore } from "../../stores/proxyStore";
 import { useSettingsStore } from "../../stores/settingsStore";
@@ -377,19 +376,21 @@ export default function Proxies() {
   const isRunning = useSingboxStore((s) => s.isRunning);
 
   const activeGroupDelay = useProxyStore((s) => s.activeGroupDelay);
+  // store 的动作是稳定引用，直接取出来用；结果提示在 store 里自己弹。
   const {
     refreshOverview,
     switchProxy,
     testDelay,
     testGroupDelay,
     changeMode,
-  } = useProxy();
+  } = useProxyStore.getState();
+  const { toggle: togglePin, clear: clearExpected } =
+    useExitExpectStore.getState();
 
   const exitExpect = useExitExpectStore((s) => s.expect);
   const selectedProfileId = useSettingsStore(
     (s) => s.settings.profiles.selected_profile_id,
   );
-  const { error: toastError } = useToast();
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
@@ -439,45 +440,6 @@ export default function Proxies() {
     };
   }, [loadMore]);
 
-  const handleSelectNode = useCallback(
-    async (groupName: string, nodeName: string) => {
-      await switchProxy(groupName, nodeName);
-    },
-    [switchProxy],
-  );
-
-  const handleTestNode = useCallback(
-    async (nodeName: string) => {
-      await testDelay(nodeName);
-    },
-    [testDelay],
-  );
-
-  const handleTogglePin = useCallback(
-    async (groupName: string, nodeName: string) => {
-      await useExitExpectStore
-        .getState()
-        .toggle(groupName, nodeName, (msg) => toastError(msg));
-    },
-    [toastError],
-  );
-
-  const handleClearExpected = useCallback(
-    async (groupName: string) => {
-      await useExitExpectStore
-        .getState()
-        .clear(groupName, (msg) => toastError(msg));
-    },
-    [toastError],
-  );
-
-  const handleTestGroup = useCallback(
-    async (groupName: string) => {
-      await testGroupDelay(groupName);
-    },
-    [testGroupDelay],
-  );
-
   if (!isRunning) {
     return (
       <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
@@ -517,17 +479,16 @@ export default function Proxies() {
               <span className="text-sm text-(--wb-text-secondary) font-medium">
                 Mode:
               </span>
-              <select
+              <Select
+                aria-label="Mode"
                 value={currentMode}
-                onChange={(e) => void changeMode(e.target.value)}
-                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
-              >
-                {availableModes.map((m) => (
-                  <option key={m} value={m}>
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(mode) => void changeMode(mode)}
+                options={availableModes.map((mode) => ({
+                  value: mode,
+                  label: mode.charAt(0).toUpperCase() + mode.slice(1),
+                }))}
+                className="font-medium"
+              />
             </div>
           )}
         </div>
@@ -545,11 +506,11 @@ export default function Proxies() {
               group={group}
               isTesting={activeGroupDelay === group.name}
               expected={exitExpect[group.name]}
-              onSelectNode={(node) => void handleSelectNode(group.name, node)}
-              onTestNode={(node) => void handleTestNode(node)}
-              onTestGroup={() => void handleTestGroup(group.name)}
-              onTogglePin={(node) => void handleTogglePin(group.name, node)}
-              onClearExpected={() => void handleClearExpected(group.name)}
+              onSelectNode={(node) => void switchProxy(group.name, node)}
+              onTestNode={(node) => void testDelay(node)}
+              onTestGroup={() => void testGroupDelay(group.name)}
+              onTogglePin={(node) => void togglePin(group.name, node)}
+              onClearExpected={() => void clearExpected(group.name)}
             />
           ))}
           {renderCount < groups.length && (
