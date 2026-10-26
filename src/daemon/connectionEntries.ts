@@ -9,7 +9,7 @@ import type { ConnectionEntry } from "../types/app";
  * 连接事件 → 表格条目，纯数据变换。
  *
  * 单独成文件是为了能测：`connectionsStream.ts` 顶层就要建订阅，一路拉进
- * store、Fluent UI 和 Tauri IPC；这里只依赖生成的 protobuf 类型，`import`
+ * store、Base UI 和 Tauri IPC；这里只依赖生成的 protobuf 类型，`import`
  * 它没有任何副作用。
  *
  * 顺带修掉的（都不是「修」，是不再存在）：

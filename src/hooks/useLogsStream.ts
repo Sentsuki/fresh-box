@@ -1,12 +1,15 @@
 import { useCallback, useEffect, useMemo } from "react";
 import { create } from "zustand";
-import type { LogEntry } from "../types/app";
+import type { LogEntry, LogLevel } from "../types/app";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
 import { loadPriorityConfig } from "../services/api";
 import { startedService } from "../daemon/clients";
-import { createStreamController } from "../daemon/subscription";
-import { LogLevel } from "../gen/daemon/started_service_pb";
+import {
+  createStreamController,
+  type StreamStatus,
+} from "../daemon/subscription";
+import { LogLevel as ProtoLogLevel } from "../gen/daemon/started_service_pb";
 import { extractCategory, stripAnsiCodes } from "./logFormat";
 
 const LOG_LIMIT = 2000;
@@ -19,13 +22,11 @@ interface LogsState {
   _seq: number;
   search: string;
   isPaused: boolean;
-  streamStatus:
-    "disconnected" | "connecting" | "connected" | "error" | "disabled";
+  /** `disabled` 是配置状态而不是流的状态：日志在核心配置里被关掉了。 */
+  streamStatus: StreamStatus | "disabled";
   setSearch: (s: string) => void;
   setIsPaused: (p: boolean) => void;
-  setStreamStatus: (
-    s: "disconnected" | "connecting" | "connected" | "error" | "disabled",
-  ) => void;
+  setStreamStatus: (s: LogsState["streamStatus"]) => void;
   pushEntry: (entry: LogEntry) => void;
   flushBuffer: () => void;
   clearLogs: () => void;
@@ -60,18 +61,18 @@ export const useLogsStore = create<LogsState>((set, get) => ({
   clearLogs: () => set({ logs: [], _buffer: [], _seq: 1, isPaused: false }),
 }));
 
-/** proto 的 `LogLevel` 枚举 → 页面一直在用的那套字符串。 */
-const LEVEL_NAMES: Record<LogLevel, string> = {
-  [LogLevel.PANIC]: "panic",
-  [LogLevel.FATAL]: "fatal",
-  [LogLevel.ERROR]: "error",
-  [LogLevel.WARN]: "warning",
-  [LogLevel.INFO]: "info",
-  [LogLevel.DEBUG]: "debug",
-  [LogLevel.TRACE]: "trace",
+/** proto 的 `LogLevel` 枚举 → `types/app.ts` 里的 `LOG_LEVELS` 那套名字。 */
+const LEVEL_NAMES: Record<ProtoLogLevel, LogLevel> = {
+  [ProtoLogLevel.PANIC]: "panic",
+  [ProtoLogLevel.FATAL]: "fatal",
+  [ProtoLogLevel.ERROR]: "error",
+  [ProtoLogLevel.WARN]: "warn",
+  [ProtoLogLevel.INFO]: "info",
+  [ProtoLogLevel.DEBUG]: "debug",
+  [ProtoLogLevel.TRACE]: "trace",
 };
 
-function appendEntry(level: LogLevel, message: string) {
+function appendEntry(level: ProtoLogLevel, message: string) {
   const store = useLogsStore.getState();
   if (store.isPaused) return;
   const seq = store._seq;

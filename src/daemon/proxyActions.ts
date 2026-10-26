@@ -29,59 +29,23 @@ function findItem(groups: Group[], tag: string) {
  */
 
 /**
- * 触发单个节点的 URL 测速，等到它的结果刷新为止。
+ * 触发 `testTag` 的 URL 测速，在常驻的组订阅上等 `nodes` 各自出结果。
  *
  * `URLTest` 是 fire-and-forget，不返回延迟 —— 结果通过 `SubscribeGroups` 推
  * 回来。判定「这是新结果」靠 `urlTestTime` 变化而不是 `urlTestDelay` 变化：
  * 两次测速完全可能得到同一个延迟值。
  *
- * 顺序很重要：**先记下基线再触发**。反过来的话，结果可能在记基线之前就到了，
- * 于是永远等不到「变化」——`test_proxy_group_delay` 以前就是反的（审计项 M-08）。
- */
-export function awaitNodeDelay(tag: string): Promise<number> {
-  const baseline = findItem(currentGroups(), tag)?.urlTestTime;
-
-  return new Promise<number>((resolve, reject) => {
-    let settled = false;
-    const finish = (fn: () => void) => {
-      if (settled) return;
-      settled = true;
-      unsubscribe();
-      clearTimeout(timer);
-      fn();
-    };
-
-    const unsubscribe = onGroupsChanged((groups) => {
-      const item = findItem(groups, tag);
-      if (item && item.urlTestTime !== baseline) {
-        finish(() => resolve(item.urlTestDelay));
-      }
-    });
-
-    const timer = setTimeout(
-      () =>
-        finish(() =>
-          reject(
-            new Error(`Timed out waiting for a delay result for '${tag}'.`),
-          ),
-        ),
-      DELAY_TEST_TIMEOUT_MS,
-    );
-
-    startedService
-      .uRLTest({ outboundTag: tag })
-      .catch((error: unknown) => finish(() => reject(error)));
-  });
-}
-
-/**
- * 触发整组测速，等到组内所有节点都出结果（或超时）。
+ * 两点和旧实现不同：
+ *   - **先记基线再触发**。反过来的话，结果可能在记基线之前就到了，于是永远
+ *     等不到「变化」——`test_proxy_group_delay` 以前就是反的（审计项 M-08）。
+ *   - **结果齐了就返回**。旧的循环只在超时或流结束时退出，所以不管节点多快，
+ *     组测速固定卡满 5 秒。
  *
- * 比旧实现好在两点：一是先记基线再触发（同上），二是**结果齐了就返回**——
- * 旧的循环只在超时或流结束时退出，所以不管节点多快，组测速固定卡满 5 秒。
+ * 超时不 reject，把已经拿到的那部分交回去 —— 要不要把缺席当失败由调用方定。
+ * 触发调用本身失败才 reject。
  */
-export function awaitGroupDelays(
-  groupTag: string,
+function awaitDelays(
+  testTag: string,
   nodes: string[],
 ): Promise<Record<string, number>> {
   const baseline = new Map<string, bigint | undefined>();
@@ -114,19 +78,37 @@ export function awaitGroupDelays(
     };
 
     const unsubscribe = onGroupsChanged(collect);
-
-    // 超时不算失败：把已经拿到的结果交回去，没测出来的按「超时」处理（调用方
-    // 对缺席的节点填 -1）。整组里有一两个节点不可达是常态。
     const timer = setTimeout(
       () => finish(() => resolve(results)),
       DELAY_TEST_TIMEOUT_MS,
     );
 
     startedService
-      .uRLTest({ outboundTag: groupTag })
+      .uRLTest({ outboundTag: testTag })
       .then(() => collect(currentGroups()))
       .catch((error: unknown) => finish(() => reject(error)));
   });
+}
+
+/** 测单个节点。和整组不同，超时在这里就是失败：没有别的结果可交。 */
+export async function awaitNodeDelay(tag: string): Promise<number> {
+  const results = await awaitDelays(tag, [tag]);
+  if (!(tag in results)) {
+    throw new Error(`Timed out waiting for a delay result for '${tag}'.`);
+  }
+  return results[tag];
+}
+
+/**
+ * 测整组：触发的是组的 tag（daemon 会并发测组内所有节点），而不是逐个节点。
+ * 超时时没测出来的节点不在结果里，调用方按「超时」填 -1 —— 整组里有一两个
+ * 节点不可达是常态。
+ */
+export function awaitGroupDelays(
+  groupTag: string,
+  nodes: string[],
+): Promise<Record<string, number>> {
+  return awaitDelays(groupTag, nodes);
 }
 
 /**

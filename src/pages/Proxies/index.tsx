@@ -4,23 +4,22 @@ import {
   PinRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Flag from "react-flagpack";
 import "react-flagpack/dist/style.css";
 import { Button } from "../../components/ui/Button";
 import { CollapsibleCard } from "../../components/ui/CollapsibleCard";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { JumpingDots } from "../../components/ui/JumpingDots";
 import { PageHeader } from "../../components/ui/PageHeader";
+import { Select } from "../../components/ui/Select";
 import { Spinner } from "../../components/ui/Spinner";
-import { useProxy } from "../../hooks/useProxy";
-import { useToast } from "../../hooks/useToast";
 import { useExitExpectStore } from "../../stores/exitExpectStore";
 import { useProxyStore } from "../../stores/proxyStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
 import type { ProxyGroupOverview, ProxyNodeOverview } from "../../types/app";
-
-const GROUP_BATCH_SIZE = 12;
 
 function delayColor(delay: number | null): string {
   if (delay === null || delay === undefined) return "text-(--wb-text-disabled)";
@@ -369,6 +368,68 @@ const GroupCard = memo(function GroupCard({
   );
 });
 
+/**
+ * 代理组列表，只渲染滚动到视口附近的那几组。
+ *
+ * 组卡片高度不固定（节点数不同、可以折叠），所以每一组挂载后实际量一次，
+ * 折叠/展开时 ResizeObserver 会跟着重新量。列表上面还有页头，和列表在同一个
+ * 滚动容器里 —— `scrollMargin` 就是列表在容器里的起始位置。
+ */
+function GroupList({
+  groups,
+  scrollRef,
+  renderGroup,
+}: {
+  groups: ProxyGroupOverview[];
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  renderGroup: (group: ProxyGroupOverview) => React.ReactNode;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // 页头的高度会随窗口宽度变（描述换行），所以跟着容器尺寸重新量。
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const container = scrollRef.current;
+    if (!list || !container) return;
+    const measure = () => setScrollMargin(list.offsetTop);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollRef]);
+
+  const virtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 220,
+    overscan: 3,
+    gap: 12,
+    scrollMargin,
+    getItemKey: (index) => groups[index].name,
+  });
+
+  return (
+    <div
+      ref={listRef}
+      className="relative w-full"
+      style={{ height: virtualizer.getTotalSize() }}
+    >
+      {virtualizer.getVirtualItems().map((item) => (
+        <div
+          key={item.key}
+          data-index={item.index}
+          ref={virtualizer.measureElement}
+          className="absolute left-0 top-0 w-full"
+          style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
+        >
+          {renderGroup(groups[item.index])}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const EMPTY_GROUPS: ProxyGroupOverview[] = [];
 
 export default function Proxies() {
@@ -377,24 +438,25 @@ export default function Proxies() {
   const isRunning = useSingboxStore((s) => s.isRunning);
 
   const activeGroupDelay = useProxyStore((s) => s.activeGroupDelay);
+  // store 的动作是稳定引用，直接取出来用；结果提示在 store 里自己弹。
   const {
     refreshOverview,
     switchProxy,
     testDelay,
     testGroupDelay,
     changeMode,
-  } = useProxy();
+  } = useProxyStore.getState();
+  const { toggle: togglePin, clear: clearExpected } =
+    useExitExpectStore.getState();
 
   const exitExpect = useExitExpectStore((s) => s.expect);
   const selectedProfileId = useSettingsStore(
     (s) => s.settings.profiles.selected_profile_id,
   );
-  const { error: toastError } = useToast();
 
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [renderCount, setRenderCount] = useState(GROUP_BATCH_SIZE);
 
   useEffect(() => {
     void refreshOverview();
@@ -405,107 +467,30 @@ export default function Proxies() {
     void useExitExpectStore.getState().load(selectedProfileId);
   }, [selectedProfileId]);
 
-  useEffect(() => {
-    setRenderCount(Math.min(groups.length, GROUP_BATCH_SIZE));
-  }, [groups.length]);
-
-  const visibleGroups = useMemo(
-    () => groups.slice(0, renderCount),
-    [groups, renderCount],
-  );
-
-  const loadMore = useCallback(() => {
-    setRenderCount((current) => {
-      if (current >= groups.length) return current;
-      return Math.min(current + GROUP_BATCH_SIZE, groups.length);
-    });
-  }, [groups.length]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const onScroll = () => {
-      const threshold = 200;
-      const reachedBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <
-        threshold;
-      if (reachedBottom) {
-        loadMore();
-      }
-    };
-    container.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      container.removeEventListener("scroll", onScroll);
-    };
-  }, [loadMore]);
-
-  const handleSelectNode = useCallback(
-    async (groupName: string, nodeName: string) => {
-      await switchProxy(groupName, nodeName);
-    },
-    [switchProxy],
-  );
-
-  const handleTestNode = useCallback(
-    async (nodeName: string) => {
-      await testDelay(nodeName);
-    },
-    [testDelay],
-  );
-
-  const handleTogglePin = useCallback(
-    async (groupName: string, nodeName: string) => {
-      await useExitExpectStore
-        .getState()
-        .toggle(groupName, nodeName, (msg) => toastError(msg));
-    },
-    [toastError],
-  );
-
-  const handleClearExpected = useCallback(
-    async (groupName: string) => {
-      await useExitExpectStore
-        .getState()
-        .clear(groupName, (msg) => toastError(msg));
-    },
-    [toastError],
-  );
-
-  const handleTestGroup = useCallback(
-    async (groupName: string) => {
-      await testGroupDelay(groupName);
-    },
-    [testGroupDelay],
-  );
-
   if (!isRunning) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
-        <span className="font-semibold text-lg text-(--wb-text-primary)">
-          Core is not running
-        </span>
-        <p className="text-sm font-medium text-(--wb-text-secondary)">
-          Please start the core service to view and manage proxies.
-        </p>
-      </div>
+      <EmptyState
+        variant="page"
+        title="Core is not running"
+        description="Please start the core service to view and manage proxies."
+      />
     );
   }
 
   if (!overview) {
     return (
-      <div className="flex flex-col items-center justify-center h-full w-full gap-4 opacity-70">
-        <Spinner size="lg" />
-        <p className="text-sm font-medium text-(--wb-text-secondary)">
-          Loading routing information...
-        </p>
-      </div>
+      <EmptyState
+        variant="page"
+        icon={<Spinner size="lg" />}
+        description="Loading routing information..."
+      />
     );
   }
 
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-col h-full overflow-y-auto pr-2 pb-10"
+      className="relative flex flex-col h-full overflow-y-auto pr-2 pb-10"
     >
       <PageHeader
         title="Routing"
@@ -517,47 +502,43 @@ export default function Proxies() {
               <span className="text-sm text-(--wb-text-secondary) font-medium">
                 Mode:
               </span>
-              <select
+              <Select
+                aria-label="Mode"
                 value={currentMode}
-                onChange={(e) => void changeMode(e.target.value)}
-                className="px-3 py-1.5 text-sm font-medium rounded-(--wb-radius-md) border border-(--wb-border-default) bg-(--wb-surface-layer) text-(--wb-text-primary) outline-none focus:border-(--wb-accent) capitalize"
-              >
-                {availableModes.map((m) => (
-                  <option key={m} value={m}>
-                    {m.charAt(0).toUpperCase() + m.slice(1)}
-                  </option>
-                ))}
-              </select>
+                onValueChange={(mode) => void changeMode(mode)}
+                options={availableModes.map((mode) => ({
+                  value: mode,
+                  label: mode.charAt(0).toUpperCase() + mode.slice(1),
+                }))}
+                className="font-medium"
+              />
             </div>
           )}
         </div>
       </PageHeader>
 
       {groups.length === 0 ? (
-        <div className="flex flex-col items-center justify-center h-64 text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-xl shadow-sm">
-          No proxy groups configured or loaded.
-        </div>
+        <EmptyState
+          description="No proxy groups configured or loaded."
+          className="h-64"
+        />
       ) : (
-        <div className="flex flex-col gap-3">
-          {visibleGroups.map((group) => (
+        <GroupList
+          groups={groups}
+          scrollRef={scrollContainerRef}
+          renderGroup={(group) => (
             <GroupCard
-              key={group.name}
               group={group}
               isTesting={activeGroupDelay === group.name}
               expected={exitExpect[group.name]}
-              onSelectNode={(node) => void handleSelectNode(group.name, node)}
-              onTestNode={(node) => void handleTestNode(node)}
-              onTestGroup={() => void handleTestGroup(group.name)}
-              onTogglePin={(node) => void handleTogglePin(group.name, node)}
-              onClearExpected={() => void handleClearExpected(group.name)}
+              onSelectNode={(node) => void switchProxy(group.name, node)}
+              onTestNode={(node) => void testDelay(node)}
+              onTestGroup={() => void testGroupDelay(group.name)}
+              onTogglePin={(node) => void togglePin(group.name, node)}
+              onClearExpected={() => void clearExpected(group.name)}
             />
-          ))}
-          {renderCount < groups.length && (
-            <div className="py-2 text-center text-xs text-(--wb-text-tertiary)">
-              Rendering {renderCount} / {groups.length} groups...
-            </div>
           )}
-        </div>
+        />
       )}
     </div>
   );

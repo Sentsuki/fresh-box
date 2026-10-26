@@ -1,5 +1,6 @@
 import { type ButtonHTMLAttributes, forwardRef } from "react";
 import { Spinner } from "./Spinner";
+import { cn } from "./cn";
 
 interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
   variant?: "default" | "accent" | "subtle" | "ghost" | "danger";
@@ -45,7 +46,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
       <button
         ref={ref}
         disabled={disabled || loading}
-        className={[
+        className={cn(
           "inline-flex items-center justify-center font-normal",
           "transition-colors duration-100",
           "focus-visible:outline focus-visible:outline-(--wb-accent) focus-visible:outline-offset-1",
@@ -53,7 +54,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
           variantClasses[variant],
           sizeClasses[size],
           className,
-        ].join(" ")}
+        )}
         {...props}
       >
         {loading ? (

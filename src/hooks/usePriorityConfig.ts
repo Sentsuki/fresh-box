@@ -1,139 +1,133 @@
-import { useCallback, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   checkConfigFields,
   loadPriorityConfig,
   savePriorityConfig,
 } from "../services/api";
+import { queryKeys } from "../services/queryClient";
 import { getErrorMessage } from "../services/tauri";
 import { useSettingsStore } from "../stores/settingsStore";
 import { useToast } from "./useToast";
-import type { LogLevel, PriorityConfig, ConfigFieldsCheck } from "../types/app";
+import { isLogLevel, type LogLevel, type PriorityConfig } from "../types/app";
 
 const STACK_OPTIONS = ["mixed", "gvisor", "system"] as const;
 export type StackOption = (typeof STACK_OPTIONS)[number];
-
-const LOG_LEVELS: LogLevel[] = [
-  "trace",
-  "debug",
-  "info",
-  "warn",
-  "error",
-  "fatal",
-  "panic",
-];
 
 function isStackOption(value: string): value is StackOption {
   return (STACK_OPTIONS as readonly string[]).includes(value);
 }
 
-function isLogLevel(value: string): value is LogLevel {
-  return LOG_LEVELS.includes(value as LogLevel);
+export { STACK_OPTIONS };
+
+/** 页面上要的那几个值：当前配置里有没有这两个字段，以及它们现在的取值。 */
+interface PriorityConfigView {
+  hasStackField: boolean;
+  hasLogField: boolean;
+  stack: StackOption;
+  logDisabled: boolean;
+  logLevel: LogLevel;
 }
 
-export { STACK_OPTIONS, LOG_LEVELS };
+const NO_FIELDS: PriorityConfigView = {
+  hasStackField: false,
+  hasLogField: false,
+  stack: "mixed",
+  logDisabled: false,
+  logLevel: "info",
+};
 
 export function usePriorityConfig() {
-  const [isLoading, setIsLoading] = useState(false);
-  const [hasStackField, setHasStackField] = useState(false);
-  const [hasLogField, setHasLogField] = useState(false);
-  const [selectedStack, setSelectedStack] = useState<StackOption>("mixed");
-  const [logDisabled, setLogDisabled] = useState(false);
-  const [selectedLogLevel, setSelectedLogLevel] = useState<LogLevel>("info");
-
   const selectedProfileId = useSettingsStore(
     (s) => s.settings.profiles.selected_profile_id,
   );
   const { success, error: toastError } = useToast();
+  const queryClient = useQueryClient();
+  const queryKey = queryKeys.priorityConfig(selectedProfileId);
 
-  const loadConfiguration = useCallback(async () => {
-    setIsLoading(true);
-    try {
-      if (!selectedProfileId) {
-        setHasStackField(false);
-        setHasLogField(false);
-        return;
-      }
-      const [fieldsCheck, priorityConfig]: [ConfigFieldsCheck, PriorityConfig] =
-        await Promise.all([
+  const query = useQuery({
+    queryKey,
+    queryFn: async (): Promise<PriorityConfigView> => {
+      if (!selectedProfileId) return NO_FIELDS;
+      try {
+        const [fieldsCheck, priorityConfig] = await Promise.all([
           checkConfigFields(selectedProfileId),
           loadPriorityConfig(), // backend always returns defaults, never null fields
         ]);
-
-      setHasStackField(fieldsCheck.has_stack_field);
-      setHasLogField(fieldsCheck.has_log_field);
-
-      // Stack: Use value from priority_config
-      if (fieldsCheck.has_stack_field) {
-        const stackValue = priorityConfig.inbounds?.[0]?.stack;
-        if (stackValue && isStackOption(stackValue)) {
-          setSelectedStack(stackValue);
-        }
+        const stack = priorityConfig.inbounds?.[0]?.stack;
+        const level = priorityConfig.log?.level;
+        return {
+          hasStackField: fieldsCheck.has_stack_field,
+          hasLogField: fieldsCheck.has_log_field,
+          stack: stack && isStackOption(stack) ? stack : NO_FIELDS.stack,
+          logDisabled: priorityConfig.log?.disabled ?? false,
+          logLevel: level && isLogLevel(level) ? level : NO_FIELDS.logLevel,
+        };
+      } catch (err) {
+        // 读不到就把这一组藏起来，而不是摆出一组不知道真假的默认值。
+        toastError(`Failed to load configuration: ${getErrorMessage(err)}`);
+        return NO_FIELDS;
       }
+    },
+  });
+  const view = query.data ?? NO_FIELDS;
 
-      // Log: Use value from priority_config (guaranteed by backend defaults)
-      if (priorityConfig.log) {
-        setLogDisabled(priorityConfig.log.disabled);
-        if (isLogLevel(priorityConfig.log.level)) {
-          setSelectedLogLevel(priorityConfig.log.level as LogLevel);
-        }
-      }
-    } catch (err) {
-      setHasStackField(false);
-      setHasLogField(false);
-      toastError(`Failed to load configuration: ${getErrorMessage(err)}`);
-    } finally {
-      setIsLoading(false);
-    }
-  }, [selectedProfileId, toastError]);
-
-  const updatePriorityConfig = useCallback(
-    async (partial: Partial<PriorityConfig>) => {
+  /**
+   * 写一部分 priority config。界面先乐观地改成新值；失败时重新读一遍，让
+   * 界面回到真实状态，而不是停在一个没存进去的选项上。
+   */
+  const update = useMutation({
+    mutationFn: async ({
+      partial,
+    }: {
+      partial: Partial<PriorityConfig>;
+      optimistic: Partial<PriorityConfigView>;
+      message: string;
+      errorPrefix: string;
+    }) => {
       const current = await loadPriorityConfig();
       await savePriorityConfig({ ...current, ...partial });
     },
-    [],
-  );
-
-  const setStackOption = useCallback(
-    async (option: StackOption) => {
-      setSelectedStack(option);
-      if (!hasStackField) return;
-      try {
-        await updatePriorityConfig({ inbounds: [{ stack: option }] });
-        success(`Stack option updated to: ${option}`);
-      } catch (err) {
-        toastError(`Failed to update stack: ${getErrorMessage(err)}`);
-      }
+    onMutate: ({ optimistic }) => {
+      queryClient.setQueryData<PriorityConfigView>(
+        queryKey,
+        (old) => old && { ...old, ...optimistic },
+      );
     },
-    [hasStackField, updatePriorityConfig, success, toastError],
-  );
-
-  const updateLogConfiguration = useCallback(
-    async (disabled: boolean, level: LogLevel) => {
-      if (!hasLogField) return;
-      try {
-        await updatePriorityConfig({ log: { disabled, level } });
-        success(`Log updated: level=${level}, disabled=${String(disabled)}`);
-      } catch (err) {
-        toastError(`Failed to update log config: ${getErrorMessage(err)}`);
-      }
+    onSuccess: (_, { message }) => success(message),
+    onError: (err, { errorPrefix }) => {
+      toastError(`${errorPrefix}: ${getErrorMessage(err)}`);
+      void queryClient.invalidateQueries({ queryKey });
     },
-    [hasLogField, updatePriorityConfig, success, toastError],
-  );
+  });
+
+  const setStackOption = (option: StackOption) => {
+    if (!view.hasStackField) return;
+    update.mutate({
+      partial: { inbounds: [{ stack: option }] },
+      optimistic: { stack: option },
+      message: `Stack option updated to: ${option}`,
+      errorPrefix: "Failed to update stack",
+    });
+  };
+
+  const setLogConfiguration = (disabled: boolean, level: LogLevel) => {
+    if (!view.hasLogField) return;
+    update.mutate({
+      partial: { log: { disabled, level } },
+      optimistic: { logDisabled: disabled, logLevel: level },
+      message: `Log updated: level=${level}, disabled=${String(disabled)}`,
+      errorPrefix: "Failed to update log config",
+    });
+  };
 
   return {
-    isLoading,
-    hasStackField,
-    hasLogField,
-    selectedStack,
-    logDisabled,
-    setLogDisabled,
-    selectedLogLevel,
-    setSelectedLogLevel,
-    stackOptions: STACK_OPTIONS,
-    logLevels: LOG_LEVELS,
-    loadConfiguration,
+    isLoading: query.isPending,
+    hasStackField: view.hasStackField,
+    hasLogField: view.hasLogField,
+    selectedStack: view.stack,
+    logDisabled: view.logDisabled,
+    selectedLogLevel: view.logLevel,
     setStackOption,
-    updateLogConfiguration,
+    setLogConfiguration,
   };
 }

@@ -4,14 +4,17 @@ import {
   DocumentRegular,
 } from "@fluentui/react-icons";
 import { save } from "@tauri-apps/plugin-dialog";
-import { useCallback, useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
+import { useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
 import { Section } from "../../components/ui/Section";
 import { Spinner } from "../../components/ui/Spinner";
 import { useToast } from "../../hooks/useToast";
-import { formatLastUpdated } from "../../services/utils";
+import { formatLastUpdated, toSafeFileName } from "../../services/utils";
 import type { ReportFileView, ReportSummary } from "../../types/app";
+import { queryKeys } from "../../services/queryClient";
+import { getErrorMessage } from "../../services/tauri";
 
 interface ReportsApi {
   list: () => Promise<ReportSummary[]>;
@@ -31,6 +34,8 @@ interface ReportsApi {
 }
 
 interface ReportsPanelProps {
+  /** 这一类报告的标识，用作查询 key —— 同一页上有好几个面板。 */
+  kind: string;
   title: string;
   description: string;
   emptyHint: string;
@@ -42,6 +47,7 @@ interface ReportsPanelProps {
 }
 
 export function ReportsPanel({
+  kind,
   title,
   description,
   emptyHint,
@@ -49,55 +55,49 @@ export function ReportsPanel({
   settingsPanel,
 }: ReportsPanelProps) {
   const toast = useToast();
-  const [reports, setReports] = useState<ReportSummary[] | null>(null);
+  const queryClient = useQueryClient();
   const [selected, setSelected] = useState<ReportSummary | null>(null);
-  const [files, setFiles] = useState<ReportFileView[] | null>(null);
+  // 开关单独存：关闭时 `selected` 留着，弹窗的退场动画期间标题和按钮不会先消失。
+  const [dialogOpen, setDialogOpen] = useState(false);
 
-  const reload = useCallback(() => {
-    api
-      .list()
-      .then(setReports)
-      .catch((err) => {
-        setReports([]);
-        toast.error(
-          `Failed to load reports: ${err instanceof Error ? err.message : String(err)}`,
-        );
-      });
-    // `api` is a fresh object literal from the caller every render; the
-    // panel's own report kind never changes at runtime, so re-running this
-    // on every render would be wasteful without buying anything.
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
+  const listKey = queryKeys.reports(kind);
+  const reports = useQuery({ queryKey: listKey, queryFn: api.list });
 
-  useEffect(() => {
-    reload();
-  }, [reload]);
+  const files = useQuery({
+    queryKey: queryKeys.reportFiles(kind, selected?.id ?? ""),
+    queryFn: async () => {
+      const report = selected as ReportSummary;
+      const result = await api.read(report.id);
+      // 读过一次 daemon 就把它标成已读 —— 列表里那个小圆点要跟着消失。
+      if (!report.isRead) {
+        void queryClient.invalidateQueries({ queryKey: listKey });
+      }
+      return result;
+    },
+    enabled: selected !== null,
+  });
 
-  const open = async (report: ReportSummary) => {
+  const open = (report: ReportSummary) => {
     setSelected(report);
-    setFiles(null);
-    try {
-      setFiles(await api.read(report.id));
-    } catch (err) {
-      toast.error(
-        `Failed to read report: ${err instanceof Error ? err.message : String(err)}`,
-      );
-      setFiles([]);
-    }
-    if (!report.isRead) reload();
+    setDialogOpen(true);
   };
 
-  const remove = async (id: string) => {
-    try {
-      await api.remove(id);
-      setSelected(null);
-      reload();
-    } catch (err) {
-      toast.error(
-        `Failed to delete report: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
+  const remove = useMutation({
+    mutationFn: (id: string) => api.remove(id),
+    onSuccess: () => {
+      setDialogOpen(false);
+      void queryClient.invalidateQueries({ queryKey: listKey });
+    },
+    onError: (err) =>
+      toast.error(`Failed to delete report: ${getErrorMessage(err)}`),
+  });
+
+  const removeAll = useMutation({
+    mutationFn: () => api.removeAll(),
+    onSuccess: () => void queryClient.invalidateQueries({ queryKey: listKey }),
+    onError: (err) =>
+      toast.error(`Failed to delete reports: ${getErrorMessage(err)}`),
+  });
 
   /**
    * 打包一份报告交给用户。
@@ -107,7 +107,7 @@ export function ReportsPanel({
    * 少带一样往往就要再来一轮。
    */
   const exportReport = async (report: ReportSummary) => {
-    const suggested = `${report.id.replace(/[^a-zA-Z0-9._-]/g, "-")}.zip`;
+    const suggested = `${toSafeFileName(report.id)}.zip`;
     const destination = await save({
       defaultPath: suggested,
       filters: [{ name: "Zip archive", extensions: ["zip"] }],
@@ -118,20 +118,7 @@ export function ReportsPanel({
       const written = await api.export(report.id, destination, true, true);
       toast.success("Report exported.", written);
     } catch (err) {
-      toast.error(
-        `Failed to export report: ${err instanceof Error ? err.message : String(err)}`,
-      );
-    }
-  };
-
-  const removeAll = async () => {
-    try {
-      await api.removeAll();
-      reload();
-    } catch (err) {
-      toast.error(
-        `Failed to delete reports: ${err instanceof Error ? err.message : String(err)}`,
-      );
+      toast.error(`Failed to export report: ${getErrorMessage(err)}`);
     }
   };
 
@@ -142,33 +129,38 @@ export function ReportsPanel({
         title={title}
         description={description}
         actions={
-          reports && reports.length > 0 ? (
+          reports.data && reports.data.length > 0 ? (
             <Button
               variant="subtle"
               size="sm"
               icon={<DeleteRegular />}
-              onClick={() => void removeAll()}
+              loading={removeAll.isPending}
+              onClick={() => removeAll.mutate()}
             >
               Delete all
             </Button>
           ) : undefined
         }
       >
-        {reports === null ? (
+        {reports.isPending ? (
           <div className="flex justify-center py-8">
             <Spinner />
           </div>
-        ) : reports.length === 0 ? (
+        ) : reports.isError ? (
+          <p className="text-sm text-(--wb-error) py-6 text-center">
+            Failed to load reports: {getErrorMessage(reports.error)}
+          </p>
+        ) : reports.data.length === 0 ? (
           <p className="text-sm text-(--wb-text-tertiary) py-6 text-center">
             {emptyHint}
           </p>
         ) : (
           <div className="rounded-(--wb-radius-lg) border border-(--wb-border-subtle) overflow-hidden divide-y divide-(--wb-border-subtle)">
-            {reports.map((report) => (
+            {reports.data.map((report) => (
               <button
                 key={report.id}
                 type="button"
-                onClick={() => void open(report)}
+                onClick={() => open(report)}
                 className="w-full flex items-center gap-3 px-4 py-3 text-left bg-(--wb-surface-layer) hover:bg-(--wb-surface-hover) transition-colors"
               >
                 <span
@@ -187,8 +179,8 @@ export function ReportsPanel({
       </Section>
 
       <Dialog
-        isOpen={selected !== null}
-        onClose={() => setSelected(null)}
+        isOpen={dialogOpen}
+        onClose={() => setDialogOpen(false)}
         title={selected ? formatLastUpdated(selected.time) : ""}
         icon={<DocumentRegular />}
         footer={
@@ -197,7 +189,8 @@ export function ReportsPanel({
               <Button
                 variant="subtle"
                 icon={<DeleteRegular />}
-                onClick={() => void remove(selected.id)}
+                loading={remove.isPending}
+                onClick={() => remove.mutate(selected.id)}
               >
                 Delete
               </Button>
@@ -210,22 +203,26 @@ export function ReportsPanel({
                   Export
                 </Button>
               )}
-              <Button variant="accent" onClick={() => setSelected(null)}>
+              <Button variant="accent" onClick={() => setDialogOpen(false)}>
                 Close
               </Button>
             </>
           )
         }
       >
-        {files === null ? (
+        {files.isPending ? (
           <div className="flex justify-center py-6">
             <Spinner />
           </div>
-        ) : files.length === 0 ? (
+        ) : files.isError ? (
+          <p className="text-sm text-(--wb-error)">
+            Failed to read report: {getErrorMessage(files.error)}
+          </p>
+        ) : files.data.length === 0 ? (
           <p className="text-sm text-(--wb-text-tertiary)">Empty</p>
         ) : (
           <div className="flex flex-col gap-4 max-h-[60vh] overflow-y-auto custom-scrollbar">
-            {files.map((file) => (
+            {files.data.map((file) => (
               <div key={file.name} className="flex flex-col gap-1.5">
                 <span className="text-xs font-semibold text-(--wb-text-tertiary) uppercase tracking-wide">
                   {file.name}

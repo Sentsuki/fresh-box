@@ -6,7 +6,12 @@ import {
   startConnectionsStream,
   stopConnectionsStream,
 } from "../daemon/connectionsStream";
-import { formatRelativeDuration, formatSpeed } from "../services/utils";
+import type { StreamStatus } from "../daemon/subscription";
+import {
+  formatBytes,
+  formatRelativeDuration,
+  formatSpeed,
+} from "../services/utils";
 import type {
   ConnectionColumnKey,
   ConnectionEntry,
@@ -27,8 +32,11 @@ export interface ConnectionColumnOption {
 }
 
 interface ConnectionColumnDefinition extends ConnectionColumnOption {
-  defaultDirection: SortDirection;
+  /** 排序键。数值列返回数字，排序按大小比而不是按显示出来的字符串比。 */
   getValue: (c: ConnectionEntry) => number | string;
+  /** 显示（以及搜索、分组）用的文本。省略时就是 `getValue` 的结果本身 ——
+   * 只有排序键和显示文本不一样的列（流量、时长）才需要写。 */
+  format?: (c: ConnectionEntry) => string;
 }
 
 function getConnectionHost(c: ConnectionEntry): string {
@@ -71,6 +79,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.downloadSpeed,
+    format: (c) => formatSpeed(c.downloadSpeed),
   },
   uploadSpeed: {
     key: "uploadSpeed",
@@ -80,6 +89,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.uploadSpeed,
+    format: (c) => formatSpeed(c.uploadSpeed),
   },
   download: {
     key: "download",
@@ -89,6 +99,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.download,
+    format: (c) => formatBytes(c.download),
   },
   upload: {
     key: "upload",
@@ -98,6 +109,7 @@ const columnDefinitions: Record<
     align: "end",
     defaultDirection: "desc",
     getValue: (c) => c.upload,
+    format: (c) => formatBytes(c.upload),
   },
   chain: {
     key: "chain",
@@ -149,6 +161,7 @@ const columnDefinitions: Record<
     groupable: false,
     defaultDirection: "asc",
     getValue: (c) => c.start,
+    format: (c) => formatRelativeDuration(c.start),
   },
   sniffHost: {
     key: "sniffHost",
@@ -221,7 +234,7 @@ interface ConnectionsState {
   closed: ConnectionEntry[];
   totalDownloadSpeed: number;
   totalUploadSpeed: number;
-  streamStatus: "disconnected" | "connecting" | "connected" | "error";
+  streamStatus: StreamStatus;
   isPaused: boolean;
 }
 
@@ -272,79 +285,54 @@ export const useConnectionsStore = create<
 
 export { startConnectionsStream, stopConnectionsStream };
 
-function sortEntries(
-  entries: ConnectionEntry[],
+/** 按某一列的排序键升序比较两条连接。数值列按大小比，其余按字符串比。 */
+export function compareConnections(
   key: ConnectionColumnKey,
-  direction: SortDirection,
-): ConnectionEntry[] {
+  a: ConnectionEntry,
+  b: ConnectionEntry,
+): number {
   const def = columnDefinitions[key];
-  return [...entries].sort((a, b) => {
-    const av = def.getValue(a);
-    const bv = def.getValue(b);
-    const cmp =
-      typeof av === "number" && typeof bv === "number"
-        ? av - bv
-        : String(av).localeCompare(String(bv));
-    return direction === "asc" ? cmp : -cmp;
-  });
+  const av = def.getValue(a);
+  const bv = def.getValue(b);
+  return typeof av === "number" && typeof bv === "number"
+    ? av - bv
+    : String(av).localeCompare(String(bv));
+}
+
+/** 排序函数用到的那一小部分 TanStack 行接口 —— 单测里可以直接造。 */
+export interface SortableConnectionRow {
+  original: ConnectionEntry;
+  getIsGrouped: () => boolean;
+  getLeafRows: () => SortableConnectionRow[];
+}
+
+/**
+ * 给 TanStack Table 用的排序函数（升序语义，降序由表格自己取反）。
+ *
+ * 分组时表格是先分组再排序，组行的 `original` 只是组里第一条原始数据 ——
+ * 按它比，组与组的先后就是随机的。所以组行改用组内排在最前的那一条来比：
+ * 升序取最小、降序取最大，和以前「先整体排好序再分组」得到的组顺序一致。
+ */
+export function connectionSortFn(key: ConnectionColumnKey, desc: boolean) {
+  const representative = (row: SortableConnectionRow): ConnectionEntry => {
+    if (!row.getIsGrouped()) return row.original;
+    let best = row.original;
+    for (const leaf of row.getLeafRows()) {
+      const cmp = compareConnections(key, leaf.original, best);
+      if (desc ? cmp > 0 : cmp < 0) best = leaf.original;
+    }
+    return best;
+  };
+  return (a: SortableConnectionRow, b: SortableConnectionRow) =>
+    compareConnections(key, representative(a), representative(b));
 }
 
 export function formatConnectionValue(
   key: ConnectionColumnKey,
   entry: ConnectionEntry,
 ): string {
-  switch (key) {
-    case "downloadSpeed":
-      return formatSpeed(entry.downloadSpeed);
-    case "uploadSpeed":
-      return formatSpeed(entry.uploadSpeed);
-    case "download":
-      return formatSpeed(entry.download);
-    case "upload":
-      return formatSpeed(entry.upload);
-    case "chain":
-      return [...entry.chains].reverse().join(" → ");
-    case "start":
-      return formatRelativeDuration(entry.start);
-    case "host":
-      return getConnectionHost(entry);
-    case "destination":
-      return (
-        entry.metadata.remoteDestination ||
-        entry.metadata.destinationIP ||
-        entry.metadata.host
-      );
-    case "source":
-      return `${entry.metadata.sourceIP}:${entry.metadata.sourcePort}`;
-    case "process":
-      return (
-        entry.metadata.process ||
-        entry.metadata.processPath?.split(/[/\\\\]/).pop() ||
-        "-"
-      );
-    case "network":
-      return `${entry.metadata.type} | ${entry.metadata.network}`;
-    case "rule":
-      return entry.rule;
-    case "sniffHost":
-      return entry.metadata.sniffHost || "-";
-    case "outbound":
-      return entry.chains[0] || "-";
-    case "sourcePort":
-      return entry.metadata.sourcePort;
-    case "sourceIP":
-      return entry.metadata.sourceIP;
-    case "destinationType": {
-      const dest = entry.metadata.destinationIP || entry.metadata.host;
-      if (dest.includes(":")) return "IPv6";
-      if (/^\d+\.\d+\.\d+\.\d+$/.test(dest)) return "IPv4";
-      return "FQDN";
-    }
-    case "remoteAddress":
-      return entry.metadata.remoteDestination || "-";
-    case "inboundUser":
-      return entry.metadata.inboundUser || entry.metadata.inboundName || "-";
-  }
+  const def = columnDefinitions[key];
+  return def.format ? def.format(entry) : String(def.getValue(entry));
 }
 
 export function useConnectionsStream() {
@@ -368,12 +356,8 @@ export function useConnectionsStream() {
     [settings.visible_columns],
   );
 
+  // 排序交给表格（`ConnectionTable` 里的 `getSortedRowModel`），这里给原始顺序。
   const entries = settings.current_tab === "active" ? active : closed;
-
-  const sortedEntries = useMemo(
-    () => sortEntries(entries, settings.sort_key, settings.sort_direction),
-    [entries, settings.sort_key, settings.sort_direction],
-  );
 
   const groupedColumn: ConnectionColumnOption | null = settings.grouped_column
     ? (columnDefinitions[settings.grouped_column] ?? null)
@@ -413,7 +397,7 @@ export function useConnectionsStream() {
   return {
     active,
     closed,
-    entries: sortedEntries,
+    entries,
     downloadTotal,
     uploadTotal,
     streamStatus,

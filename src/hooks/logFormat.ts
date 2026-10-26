@@ -1,7 +1,7 @@
 /**
  * 日志行的显示层加工。
  *
- * 独立成文件是为了能单测：`useLogsStream.ts` 会拉进 Fluent UI 的 toast 和
+ * 独立成文件是为了能单测：`useLogsStream.ts` 会拉进 Base UI 的 toast 和
  * daemon 客户端，`import` 它就有副作用；这里两个函数都是纯的。
  */
 

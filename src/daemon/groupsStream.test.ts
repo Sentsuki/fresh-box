@@ -33,8 +33,8 @@ vi.mock("./subscription", () => ({
     return { start: () => {}, stop: () => {} };
   },
 }));
-// `proxyStore` 会经由 `proxyActions` → `useConnectionsStream` 拉进整个
-// Fluent UI（那条链要多花七八秒转换）。这个测试用不到里面任何东西，直接断掉。
+// `proxyStore` 会经由 `proxyActions` → `useConnectionsStream` 拉进
+// Base UI 的 toast。这个测试用不到里面任何东西，直接断掉。
 vi.mock("./proxyActions", () => ({
   awaitNodeDelay: vi.fn(),
   awaitGroupDelays: vi.fn(),

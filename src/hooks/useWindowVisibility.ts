@@ -1,8 +1,7 @@
-import { useEffect } from "react";
-import { listen } from "@tauri-apps/api/event";
 import { create } from "zustand";
 import { useSingboxStore } from "../stores/singboxStore";
 import { startAllStreams, stopAllStreams } from "./streamLifecycle";
+import { useTauriEvent } from "./useTauriEvent";
 
 interface WindowVisibilityState {
   isVisible: boolean;
@@ -28,27 +27,14 @@ export function isWindowVisible(): boolean {
  * sing-box is running) when the window is shown again.
  */
 export function useWindowVisibilityListener() {
-  const setVisible = useWindowVisibilityStore((s) => s.setVisible);
+  useTauriEvent<boolean>("window-visibility-changed", (visible) => {
+    useWindowVisibilityStore.getState().setVisible(visible);
 
-  useEffect(() => {
-    let unlisten: (() => void) | null = null;
-
-    void listen<boolean>("window-visibility-changed", (event) => {
-      const visible = event.payload;
-      setVisible(visible);
-
-      if (!visible) {
-        // Pause streams and clear cached state to start fresh when shown again.
-        stopAllStreams(true);
-      } else if (useSingboxStore.getState().isRunning) {
-        startAllStreams();
-      }
-    }).then((fn) => {
-      unlisten = fn;
-    });
-
-    return () => {
-      unlisten?.();
-    };
-  }, [setVisible]);
+    if (!visible) {
+      // Pause streams and clear cached state to start fresh when shown again.
+      stopAllStreams(true);
+    } else if (useSingboxStore.getState().isRunning) {
+      startAllStreams();
+    }
+  });
 }

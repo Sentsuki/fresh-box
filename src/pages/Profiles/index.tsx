@@ -15,6 +15,7 @@ import {
 import { useEffect, useState } from "react";
 import { Button } from "../../components/ui/Button";
 import { Dialog } from "../../components/ui/Dialog";
+import { EmptyState } from "../../components/ui/EmptyState";
 import { Input } from "../../components/ui/Input";
 import { PageHeader } from "../../components/ui/PageHeader";
 import { SettingGroup } from "../../components/ui/SettingCard";
@@ -23,7 +24,13 @@ import { useConfigs } from "../../hooks/useConfigs";
 import { formatLastUpdated } from "../../services/utils";
 import { useConfigStore } from "../../stores/configStore";
 import { useSettingsStore } from "../../stores/settingsStore";
-import { DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES } from "../../types/app";
+import {
+  DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
+  type ProfileEntry,
+} from "../../types/app";
+
+/** 自动更新间隔的下限（分钟）。 */
+const MIN_AUTO_UPDATE_INTERVAL_MINUTES = 15;
 
 export default function Profiles() {
   const profiles = useConfigStore((s) => s.profiles);
@@ -74,6 +81,34 @@ export default function Profiles() {
     setNewSubUrl("");
     setUrlError("");
   }
+
+  /** 名字和地址分两条命令存，只发真正改了的那条。 */
+  async function saveEdits(
+    profile: ProfileEntry,
+    name: string,
+    url: string | null,
+  ) {
+    if (name && name !== profile.name) await renameConfig(profile.id, name);
+    if (url && url !== profile.url) await editSubscription(profile.id, url);
+  }
+
+  const renderCard = (profile: ProfileEntry) => (
+    <ProfileCard
+      key={profile.id}
+      profile={profile}
+      selected={selectedProfileId === profile.id}
+      onSelect={() => void selectConfig(profile)}
+      onOpen={() => void openConfigFile(profile.id)}
+      onDelete={() => void deleteConfig(profile.id)}
+      onExport={() => void exportProfileFile(profile.id, profile.name)}
+      onSave={(name, url) => void saveEdits(profile, name, url)}
+      onUpdate={() => updateSubscription(profile.id)}
+      onSetAutoUpdate={(enabled, minutes) =>
+        void setAutoUpdate(profile.id, enabled, minutes)
+      }
+    />
+  );
+
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
       <PageHeader
@@ -162,173 +197,90 @@ export default function Profiles() {
 
       <div className="flex flex-col gap-8">
         <SettingGroup title="Remote Subscriptions">
-          {subscriptionFiles.length === 0 ? (
-            <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
-              No subscriptions. Click &quot;Add Subscription&quot; to add one.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {subscriptionFiles.map((file) => (
-                <SubscriptionCard
-                  key={file.id}
-                  name={file.name}
-                  url={file.url ?? ""}
-                  lastUpdated={file.lastUpdated ?? undefined}
-                  autoUpdate={file.autoUpdate}
-                  updateIntervalMinutes={
-                    file.updateIntervalMinutes ?? undefined
-                  }
-                  selected={selectedProfileId === file.id}
-                  onSelect={() => void selectConfig(file)}
-                  onUpdate={() => updateSubscription(file.id)}
-                  onOpen={() => void openConfigFile(file.id)}
-                  onDelete={() => void deleteConfig(file.id)}
-                  onExport={() => void exportProfileFile(file.id, file.name)}
-                  onToggleAutoUpdate={(enabled, minutes) =>
-                    void setAutoUpdate(file.id, enabled, minutes)
-                  }
-                  onRename={(newName, newUrl) =>
-                    void renameAndEditSub(
-                      file.id,
-                      file.name,
-                      newName,
-                      newUrl,
-                      renameConfig,
-                      editSubscription,
-                    )
-                  }
-                />
-              ))}
-            </div>
-          )}
+          <ProfileGrid
+            profiles={subscriptionFiles}
+            emptyHint='No subscriptions. Click "Add Subscription" to add one.'
+            renderCard={renderCard}
+          />
         </SettingGroup>
 
         <SettingGroup title="Local Files">
-          {localFiles.length === 0 ? (
-            <div className="py-8 text-center text-sm text-(--wb-text-secondary) bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm">
-              No local config files. Click &quot;Import Local&quot; to add one.
-            </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {localFiles.map((file) => {
-                const isSelected = selectedProfileId === file.id;
-                return (
-                  <LocalFileCard
-                    key={file.id}
-                    name={file.name}
-                    selected={isSelected}
-                    onSelect={() => void selectConfig(file)}
-                    onOpen={() => void openConfigFile(file.id)}
-                    onDelete={() => void deleteConfig(file.id)}
-                    onExport={() => void exportProfileFile(file.id, file.name)}
-                    onRename={(newName) => void renameConfig(file.id, newName)}
-                  />
-                );
-              })}
-            </div>
-          )}
+          <ProfileGrid
+            profiles={localFiles}
+            emptyHint='No local config files. Click "Import Local" to add one.'
+            renderCard={renderCard}
+          />
         </SettingGroup>
       </div>
     </div>
   );
 }
 
-async function renameAndEditSub(
-  id: string,
-  oldName: string,
-  newName: string,
-  newUrl: string,
-  renameConfig: (id: string, newName: string) => Promise<void>,
-  editSubscription: (id: string, url: string) => Promise<void>,
-) {
-  if (newName !== oldName) await renameConfig(id, newName);
-  if (newUrl) await editSubscription(id, newUrl);
+function ProfileGrid({
+  profiles,
+  emptyHint,
+  renderCard,
+}: {
+  profiles: ProfileEntry[];
+  emptyHint: string;
+  renderCard: (profile: ProfileEntry) => React.ReactNode;
+}) {
+  if (profiles.length === 0) {
+    return <EmptyState description={emptyHint} />;
+  }
+  return (
+    <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+      {profiles.map(renderCard)}
+    </div>
+  );
 }
 
-function LocalFileCard({
-  name,
-  selected,
-  onSelect,
-  onOpen,
-  onDelete,
-  onExport,
-  onRename,
-}: {
-  name: string;
+interface ProfileCardProps {
+  profile: ProfileEntry;
   selected: boolean;
   onSelect: () => void;
   onOpen: () => void;
   onDelete: () => void;
   onExport: () => void;
-  onRename: (newName: string) => void;
-}) {
+  /** 编辑表单的保存。本地文件没有地址，`url` 恒为 `null`。 */
+  onSave: (name: string, url: string | null) => void;
+  /** 下面两个只有订阅才会用到。 */
+  onUpdate: () => Promise<boolean>;
+  onSetAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
+}
+
+/**
+ * 一份配置的卡片。本地文件和订阅共用：订阅只是多出地址、更新时间、自动
+ * 更新这一行和「立即更新」按钮，编辑时多一个地址输入框。
+ */
+function ProfileCard({
+  profile,
+  selected,
+  onSelect,
+  onOpen,
+  onDelete,
+  onExport,
+  onSave,
+  onUpdate,
+  onSetAutoUpdate,
+}: ProfileCardProps) {
   const [editing, setEditing] = useState(false);
-  const [nameInput, setNameInput] = useState(name);
-
-  function startEdit(e: React.MouseEvent) {
-    e.stopPropagation();
-    setNameInput(name);
-    setEditing(true);
-  }
-
-  function cancel() {
-    setEditing(false);
-  }
-
-  function save(e: React.MouseEvent) {
-    e.stopPropagation();
-    if (nameInput.trim() && nameInput.trim() !== name) {
-      onRename(nameInput.trim());
-    }
-    setEditing(false);
-  }
-
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      save(e as unknown as React.MouseEvent);
-    } else if (e.key === "Escape") {
-      cancel();
-    }
-  }
+  const isSubscription = !!profile.url;
 
   if (editing) {
     return (
-      <div
-        className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Input
-          label="Rename File"
-          autoFocus
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          leftIcon={<EditRegular />}
-        />
-        <div className="flex gap-2 justify-end mt-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<DismissRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              cancel();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            variant="accent"
-            icon={<SaveRegular />}
-            onClick={save}
-          >
-            Save
-          </Button>
-        </div>
-      </div>
+      <ProfileEditForm
+        profile={profile}
+        onCancel={() => setEditing(false)}
+        onSave={(name, url) => {
+          onSave(name, url);
+          setEditing(false);
+        }}
+      />
     );
   }
+
+  const Icon = isSubscription ? CloudArrowDownRegular : DocumentRegular;
 
   return (
     <div
@@ -347,56 +299,59 @@ function LocalFileCard({
         <div
           className={`p-2 rounded-lg shrink-0 ${selected ? "bg-(--wb-accent) text-white" : "bg-(--wb-surface-base) text-(--wb-text-secondary)"}`}
         >
-          <DocumentRegular className="text-xl" />
+          <Icon className="text-xl" />
         </div>
         <div className="flex-1 min-w-0 pt-0.5">
           {/* 阶段 4 起内容文件按 UUID 命名，路径对用户没有信息量了
-              （`...\profiles3f2....json`），所以不再显示 —— 要看内容点
-              「打开配置文件」。 */}
+              （`...\profiles3f2....json`），所以本地文件不显示路径 —— 要看
+              内容点「打开配置文件」。 */}
           <p className="text-sm font-semibold truncate text-(--wb-text-primary)">
-            {name}
+            {profile.name}
           </p>
+          {isSubscription && (
+            <>
+              <p
+                className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
+                title={profile.url ?? undefined}
+              >
+                {profile.url}
+              </p>
+              {profile.lastUpdated && (
+                <p className="text-[10px] font-medium text-(--wb-text-disabled) mt-1.5 uppercase tracking-wide">
+                  Updated {formatLastUpdated(profile.lastUpdated)}
+                </p>
+              )}
+            </>
+          )}
         </div>
       </div>
 
+      {isSubscription && (
+        <AutoUpdateRow profile={profile} onSetAutoUpdate={onSetAutoUpdate} />
+      )}
+
       <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
         <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
+          {isSubscription && <UpdateButton onUpdate={onUpdate} />}
+          <CardAction
             icon={<OpenRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen();
-            }}
             title="Open in editor"
+            onClick={onOpen}
           />
-          <Button
-            size="sm"
-            variant="ghost"
+          <CardAction
             icon={<EditRegular />}
-            onClick={startEdit}
-            title="Rename"
+            title={isSubscription ? "Edit" : "Rename"}
+            onClick={() => setEditing(true)}
           />
-          <Button
-            size="sm"
-            variant="ghost"
+          <CardAction
             icon={<ShareRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport();
-            }}
             title="Export as a shareable .bpf file"
+            onClick={onExport}
           />
-          <Button
-            size="sm"
-            variant="ghost"
+          <CardAction
             icon={<DeleteRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
             title="Delete"
+            onClick={onDelete}
           />
         </div>
       </div>
@@ -404,84 +359,64 @@ function LocalFileCard({
   );
 }
 
-function SubscriptionCard({
-  name,
-  url,
-  lastUpdated,
-  autoUpdate,
-  updateIntervalMinutes,
-  selected,
-  onSelect,
-  onUpdate,
-  onOpen,
-  onDelete,
-  onExport,
-  onToggleAutoUpdate,
-  onRename,
+/** 卡片底部的图标按钮。点击不冒泡，否则会顺带把这份配置选中。 */
+function CardAction({
+  icon,
+  title,
+  onClick,
 }: {
-  name: string;
-  url: string;
-  lastUpdated?: string;
-  autoUpdate: boolean;
-  updateIntervalMinutes?: number;
-  selected: boolean;
-  onSelect: () => void;
-  onUpdate: () => Promise<boolean | void>;
-  onOpen: () => void;
-  onDelete: () => void;
-  onExport: () => void;
-  onToggleAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
-  onRename: (newName: string, newUrl: string) => void;
+  icon: React.ReactNode;
+  title: string;
+  onClick: () => void;
 }) {
-  const [intervalInput, setIntervalInput] = useState(
-    updateIntervalMinutes ?? DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES,
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      icon={icon}
+      title={title}
+      aria-label={title}
+      onClick={(e) => {
+        e.stopPropagation();
+        onClick();
+      }}
+    />
   );
-  const [editing, setEditing] = useState(false);
-  const [updateStatus, setUpdateStatus] = useState<
-    "idle" | "updating" | "success"
-  >("idle");
-  const [nameInput, setNameInput] = useState(name);
-  const [urlInput, setUrlInput] = useState(url);
+}
 
-  function startEdit(e: React.MouseEvent) {
-    e.stopPropagation();
-    setNameInput(name);
-    setUrlInput(url);
-    setEditing(true);
-  }
+/** 编辑表单。每次进入编辑都是新挂载，所以初值直接取当前的名字和地址。 */
+function ProfileEditForm({
+  profile,
+  onCancel,
+  onSave,
+}: {
+  profile: ProfileEntry;
+  onCancel: () => void;
+  onSave: (name: string, url: string | null) => void;
+}) {
+  const isSubscription = !!profile.url;
+  const [nameInput, setNameInput] = useState(profile.name);
+  const [urlInput, setUrlInput] = useState(profile.url ?? "");
 
-  function cancel() {
-    setEditing(false);
-  }
+  const save = () =>
+    onSave(nameInput.trim(), isSubscription ? urlInput.trim() : null);
 
-  function save(e: React.MouseEvent) {
-    e.stopPropagation();
-    onRename(nameInput.trim() || name, urlInput.trim());
-    setEditing(false);
-  }
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === "Enter") save();
+    else if (e.key === "Escape") onCancel();
+  };
 
-  function handleKeyDown(e: React.KeyboardEvent) {
-    if (e.key === "Enter") {
-      save(e as unknown as React.MouseEvent);
-    } else if (e.key === "Escape") {
-      cancel();
-    }
-  }
-
-  if (editing) {
-    return (
-      <div
-        className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Input
-          label="Name"
-          autoFocus
-          value={nameInput}
-          onChange={(e) => setNameInput(e.target.value)}
-          onKeyDown={handleKeyDown}
-          leftIcon={<EditRegular />}
-        />
+  return (
+    <div className="flex flex-col gap-3 p-4 rounded-(--wb-radius-md) border border-(--wb-border-subtle) bg-(--wb-surface-layer) shadow-sm">
+      <Input
+        label="Name"
+        autoFocus
+        value={nameInput}
+        onChange={(e) => setNameInput(e.target.value)}
+        onKeyDown={handleKeyDown}
+        leftIcon={<EditRegular />}
+      />
+      {isSubscription && (
         <Input
           label="Subscription URL"
           value={urlInput}
@@ -490,167 +425,119 @@ function SubscriptionCard({
           placeholder="https://..."
           leftIcon={<LinkRegular />}
         />
-        <div className="flex gap-2 justify-end mt-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<DismissRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              cancel();
-            }}
-          >
-            Cancel
-          </Button>
-          <Button
-            size="sm"
-            variant="accent"
-            icon={<SaveRegular />}
-            onClick={save}
-          >
-            Save
-          </Button>
-        </div>
+      )}
+      <div className="flex gap-2 justify-end mt-1">
+        <Button
+          size="sm"
+          variant="ghost"
+          icon={<DismissRegular />}
+          onClick={onCancel}
+        >
+          Cancel
+        </Button>
+        <Button
+          size="sm"
+          variant="accent"
+          icon={<SaveRegular />}
+          onClick={save}
+        >
+          Save
+        </Button>
       </div>
+    </div>
+  );
+}
+
+function AutoUpdateRow({
+  profile,
+  onSetAutoUpdate,
+}: {
+  profile: ProfileEntry;
+  onSetAutoUpdate: (enabled: boolean, intervalMinutes?: number) => void;
+}) {
+  const interval =
+    profile.updateIntervalMinutes ?? DEFAULT_AUTO_UPDATE_INTERVAL_MINUTES;
+  // 输入中的草稿是字符串，失焦或回车时才钳到下限并保存 —— 逐键钳的话，清空
+  // 后想敲 "60"，第一个 "6" 就被顶成 15，再敲 "0" 成了 150；而且每敲一键
+  // 都是一次后端写入。
+  const [intervalDraft, setIntervalDraft] = useState<string | null>(null);
+
+  function commitInterval() {
+    if (intervalDraft === null) return;
+    const next = Math.max(
+      MIN_AUTO_UPDATE_INTERVAL_MINUTES,
+      Math.round(Number(intervalDraft)) || MIN_AUTO_UPDATE_INTERVAL_MINUTES,
     );
+    setIntervalDraft(null);
+    if (next !== interval) onSetAutoUpdate(true, next);
   }
 
   return (
     <div
-      className={[
-        "relative overflow-hidden flex flex-col p-4 rounded-(--wb-radius-md) border transition-all duration-200 shadow-sm",
-        selected
-          ? "bg-(--wb-surface-selected) border-(--wb-accent) cursor-default"
-          : "bg-(--wb-surface-layer) border-(--wb-border-subtle) hover:bg-(--wb-surface-hover) cursor-pointer",
-      ].join(" ")}
-      onClick={selected ? undefined : onSelect}
+      className="flex items-center justify-between gap-2 py-1"
+      onClick={(e) => e.stopPropagation()}
     >
-      {selected && (
-        <div className="absolute left-0 top-1/2 -translate-y-1/2 w-[3px] h-24 bg-(--wb-accent) rounded-r-full z-10" />
+      <Switch
+        id={`auto-update-${profile.id}`}
+        checked={profile.autoUpdate}
+        onCheckedChange={(checked) =>
+          onSetAutoUpdate(checked, checked ? interval : undefined)
+        }
+        label="Auto-update"
+      />
+      {profile.autoUpdate && (
+        <div className="flex items-center gap-1.5 text-xs text-(--wb-text-secondary)">
+          <input
+            type="number"
+            min={MIN_AUTO_UPDATE_INTERVAL_MINUTES}
+            value={intervalDraft ?? String(interval)}
+            onChange={(e) => setIntervalDraft(e.target.value)}
+            onBlur={commitInterval}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") commitInterval();
+              else if (e.key === "Escape") setIntervalDraft(null);
+            }}
+            className="w-14 px-1.5 py-0.5 rounded bg-(--wb-surface-base) border border-(--wb-border-subtle) text-right text-(--wb-text-primary)"
+          />
+          min
+        </div>
       )}
-      <div className="flex items-start gap-3 mb-4">
-        <div
-          className={`p-2 rounded-lg shrink-0 ${selected ? "bg-(--wb-accent) text-white" : "bg-(--wb-surface-base) text-(--wb-text-secondary)"}`}
-        >
-          <CloudArrowDownRegular className="text-xl" />
-        </div>
-        <div className="flex-1 min-w-0 pt-0.5">
-          <p className="text-sm font-semibold text-(--wb-text-primary) truncate">
-            {name}
-          </p>
-          <p
-            className="text-xs text-(--wb-text-tertiary) truncate mt-0.5"
-            title={url}
-          >
-            {url}
-          </p>
-          {lastUpdated && (
-            <p className="text-[10px] font-medium text-(--wb-text-disabled) mt-1.5 uppercase tracking-wide">
-              Updated {formatLastUpdated(lastUpdated)}
-            </p>
-          )}
-        </div>
-      </div>
-
-      <div
-        className="flex items-center justify-between gap-2 py-1"
-        onClick={(e) => e.stopPropagation()}
-      >
-        <Switch
-          id={`auto-update-${name}`}
-          checked={autoUpdate}
-          onCheckedChange={(checked) =>
-            onToggleAutoUpdate(checked, checked ? intervalInput : undefined)
-          }
-          label="Auto-update"
-        />
-        {autoUpdate && (
-          <div className="flex items-center gap-1.5 text-xs text-(--wb-text-secondary)">
-            <input
-              type="number"
-              min={15}
-              value={intervalInput}
-              onChange={(e) => {
-                const next = Math.max(15, Number(e.target.value) || 15);
-                setIntervalInput(next);
-                onToggleAutoUpdate(true, next);
-              }}
-              className="w-14 px-1.5 py-0.5 rounded bg-(--wb-surface-base) border border-(--wb-border-subtle) text-right text-(--wb-text-primary)"
-            />
-            min
-          </div>
-        )}
-      </div>
-
-      <div className="mt-auto flex items-center justify-end pt-3 border-t border-(--wb-border-subtle)">
-        <div className="flex gap-1">
-          <Button
-            size="sm"
-            variant="ghost"
-            className="active:scale-90 transition-transform"
-            icon={
-              updateStatus === "updating" ? (
-                <ArrowClockwiseRegular className="animate-spin" />
-              ) : updateStatus === "success" ? (
-                <CheckmarkRegular className="text-(--wb-accent) animate-pop-in" />
-              ) : (
-                <ArrowClockwiseRegular />
-              )
-            }
-            onClick={async (e) => {
-              e.stopPropagation();
-              if (updateStatus !== "idle") return;
-              setUpdateStatus("updating");
-              const success = await onUpdate();
-              if (success) {
-                setUpdateStatus("success");
-                setTimeout(() => setUpdateStatus("idle"), 2000);
-              } else {
-                setUpdateStatus("idle");
-              }
-            }}
-            disabled={updateStatus === "updating"}
-            title="Update"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<OpenRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onOpen();
-            }}
-            title="Open in editor"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<EditRegular />}
-            onClick={startEdit}
-            title="Edit"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<ShareRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onExport();
-            }}
-            title="Export as a shareable .bpf file"
-          />
-          <Button
-            size="sm"
-            variant="ghost"
-            icon={<DeleteRegular />}
-            onClick={(e) => {
-              e.stopPropagation();
-              onDelete();
-            }}
-            title="Delete"
-          />
-        </div>
-      </div>
     </div>
+  );
+}
+
+/** 「立即更新」：转圈 → 成功打勾两秒 → 复位；失败直接复位（错误由 toast 报）。 */
+function UpdateButton({ onUpdate }: { onUpdate: () => Promise<boolean> }) {
+  const [status, setStatus] = useState<"idle" | "updating" | "success">("idle");
+
+  return (
+    <Button
+      size="sm"
+      variant="ghost"
+      className="active:scale-90 transition-transform"
+      icon={
+        status === "updating" ? (
+          <ArrowClockwiseRegular className="animate-spin" />
+        ) : status === "success" ? (
+          <CheckmarkRegular className="text-(--wb-accent) animate-pop-in" />
+        ) : (
+          <ArrowClockwiseRegular />
+        )
+      }
+      onClick={async (e) => {
+        e.stopPropagation();
+        if (status !== "idle") return;
+        setStatus("updating");
+        if (await onUpdate()) {
+          setStatus("success");
+          setTimeout(() => setStatus("idle"), 2000);
+        } else {
+          setStatus("idle");
+        }
+      }}
+      disabled={status === "updating"}
+      title="Update"
+      aria-label="Update"
+    />
   );
 }

@@ -1,4 +1,5 @@
 import type { ReactNode } from "react";
+import { cn } from "./cn";
 
 interface SettingCardProps {
   icon?: ReactNode;
@@ -27,7 +28,7 @@ export function SettingCard({
     <Wrapper
       onClick={isClickable ? onClick : undefined}
       disabled={disabled}
-      className={[
+      className={cn(
         "w-full flex items-center gap-4 px-4 py-3 min-h-[72px]",
         "bg-(--wb-surface-layer) border border-(--wb-border-subtle) rounded-(--wb-radius-md) shadow-sm",
         isClickable
@@ -35,7 +36,7 @@ export function SettingCard({
           : "",
         disabled ? "opacity-50 cursor-not-allowed" : "",
         className,
-      ].join(" ")}
+      )}
     >
       {icon && (
         <div className="shrink-0 text-xl text-(--wb-text-secondary) flex items-center justify-center w-8 h-8">
@@ -76,7 +77,7 @@ export function SettingGroup({
   className = "",
 }: SettingGroupProps) {
   return (
-    <div className={`flex flex-col gap-2 ${className}`}>
+    <div className={cn("flex flex-col gap-2", className)}>
       {title && (
         <h2 className="text-sm font-semibold text-(--wb-text-primary) px-1 pb-1">
           {title}

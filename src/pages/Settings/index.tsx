@@ -9,11 +9,11 @@ import {
   WeatherMoonRegular,
   WrenchRegular,
 } from "@fluentui/react-icons";
-import { useEffect, useState } from "react";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import { getVersion } from "@tauri-apps/api/app";
 import { Button } from "../../components/ui/Button";
 import { PageHeader } from "../../components/ui/PageHeader";
-import { Select } from "../../components/ui/Select";
+import { Select, type SelectOption } from "../../components/ui/Select";
 import { SettingCard, SettingGroup } from "../../components/ui/SettingCard";
 import { Switch } from "../../components/ui/Switch";
 import {
@@ -26,13 +26,20 @@ import {
   repairDaemonService,
   uninstallDaemonService,
 } from "../../services/api";
-import { getErrorKind } from "../../services/tauri";
+import { queryKeys } from "../../services/queryClient";
+import { getErrorKind, getErrorMessage } from "../../services/tauri";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useUpdateStore } from "../../stores/updateStore";
 import type { ThemeMode } from "../../types/app";
 
+const THEME_OPTIONS: SelectOption<ThemeMode>[] = [
+  { value: "system", label: "Follow System" },
+  { value: "dark", label: "Dark" },
+  { value: "light", label: "Light" },
+];
+
 /** 期望出口提醒的可选间隔（分钟）。`0` = 关闭。 */
-const EXIT_REMINDER_OPTIONS: { value: number; label: string }[] = [
+const EXIT_REMINDER_OPTIONS: SelectOption<number>[] = [
   { value: 0, label: "Off" },
   { value: 15, label: "15 min" },
   { value: 30, label: "30 min" },
@@ -58,13 +65,14 @@ export default function Settings() {
 
   const currentThemeMode = settings.settings.theme_mode;
 
-  // App version
-  const [appVersion, setAppVersion] = useState<string | null>(null);
-  useEffect(() => {
-    void getVersion()
-      .then(setAppVersion)
-      .catch(() => null);
-  }, []);
+  const queryClient = useQueryClient();
+
+  const appVersion =
+    useQuery({
+      queryKey: queryKeys.appVersion,
+      queryFn: getVersion,
+      staleTime: Infinity,
+    }).data ?? null;
 
   // App self-update (`tauri-plugin-updater`) — `useUpdateStore` may already
   // be populated here from `App.tsx`'s startup check even before this page
@@ -82,100 +90,61 @@ export default function Settings() {
     (s) => s.setCheckUpdateEnabled,
   );
 
-  // Daemon Windows service (install/uninstall — each triggers a UAC prompt)
-  const [serviceInstalled, setServiceInstalled] = useState<boolean | null>(
-    null,
-  );
-  const [isServiceBusy, setIsServiceBusy] = useState(false);
-  const [serviceError, setServiceError] = useState<string | null>(null);
+  // Daemon Windows service (install/uninstall — each triggers a UAC prompt).
+  // `null` = still checking (or the check failed) — not the same as "not
+  // installed", see the comment on the Install button below.
+  const serviceInstalled =
+    useQuery({
+      queryKey: queryKeys.daemonServiceInstalled,
+      queryFn: isDaemonServiceInstalled,
+    }).data ?? null;
 
-  const refreshServiceInstalled = async () => {
-    try {
-      setServiceInstalled(await isDaemonServiceInstalled());
-    } catch {
-      setServiceInstalled(null);
-    }
-  };
-
-  useEffect(() => {
-    void refreshServiceInstalled();
-  }, []);
-
+  const serviceAction = useMutation({
+    mutationFn: (action: "install" | "uninstall" | "repair") => {
+      switch (action) {
+        case "install":
+          return installDaemonService();
+        case "uninstall":
+          return uninstallDaemonService();
+        // Lighter fix for "installed but unreachable" (stopped, crashed and
+        // didn't come back, ...) than uninstall/reinstall — just restarts
+        // the service in place.
+        case "repair":
+          return repairDaemonService();
+      }
+    },
+    onSettled: () =>
+      queryClient.invalidateQueries({
+        queryKey: queryKeys.daemonServiceInstalled,
+      }),
+  });
+  const isServiceBusy = serviceAction.isPending;
   // A declined UAC prompt surfaces as `CommandError::PermissionDenied` —
   // the user just changed their mind, not a real failure, so (unlike every
   // other failure here) it's not shown as one.
-  const reportServiceError = (e: unknown) => {
-    if (getErrorKind(e) === "permission_denied") return;
-    setServiceError(e instanceof Error ? e.message : String(e));
-  };
-
-  const toggleDaemonService = async () => {
-    setIsServiceBusy(true);
-    setServiceError(null);
-    try {
-      if (serviceInstalled) {
-        await uninstallDaemonService();
-      } else {
-        await installDaemonService();
-      }
-      await refreshServiceInstalled();
-    } catch (e) {
-      reportServiceError(e);
-    } finally {
-      setIsServiceBusy(false);
-    }
-  };
-
-  // Lighter fix for "installed but unreachable" (stopped, crashed and
-  // didn't come back, ...) than the uninstall/reinstall above — just
-  // restarts the service in place.
-  const repairService = async () => {
-    setIsServiceBusy(true);
-    setServiceError(null);
-    try {
-      await repairDaemonService();
-    } catch (e) {
-      reportServiceError(e);
-    } finally {
-      setIsServiceBusy(false);
-    }
-  };
+  const serviceError =
+    serviceAction.error &&
+    getErrorKind(serviceAction.error) !== "permission_denied"
+      ? getErrorMessage(serviceAction.error)
+      : null;
 
   // Launch at Windows startup (registry Run-key entry)
-  const [autostartEnabled, setAutostartEnabled] = useState<boolean | null>(
-    null,
-  );
-  const [isAutostartBusy, setIsAutostartBusy] = useState(false);
-  const [autostartError, setAutostartError] = useState<string | null>(null);
+  const autostartEnabled =
+    useQuery({
+      queryKey: queryKeys.autostartEnabled,
+      queryFn: isAutostartEnabled,
+    }).data ?? null;
 
-  const refreshAutostartEnabled = async () => {
-    try {
-      setAutostartEnabled(await isAutostartEnabled());
-    } catch {
-      setAutostartEnabled(null);
-    }
-  };
-
-  useEffect(() => {
-    void refreshAutostartEnabled();
-  }, []);
-
-  const toggleAutostart = async (checked: boolean) => {
-    setIsAutostartBusy(true);
-    setAutostartError(null);
-    try {
-      if (checked) {
-        await enableAutostart();
-      } else {
-        await disableAutostart();
-      }
-      await refreshAutostartEnabled();
-    } catch (e) {
-      setAutostartError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setIsAutostartBusy(false);
-    }
-  };
+  const autostartAction = useMutation({
+    mutationFn: (enabled: boolean) =>
+      enabled ? enableAutostart() : disableAutostart(),
+    onSettled: () =>
+      queryClient.invalidateQueries({ queryKey: queryKeys.autostartEnabled }),
+  });
+  const isAutostartBusy = autostartAction.isPending;
+  const autostartError = autostartAction.error
+    ? getErrorMessage(autostartAction.error)
+    : null;
 
   return (
     <div className="flex flex-col h-full overflow-y-auto pr-2 pb-10">
@@ -194,12 +163,9 @@ export default function Settings() {
             control={
               <Select
                 value={currentThemeMode}
-                onChange={(e) => void setThemeMode(e.target.value as ThemeMode)}
-              >
-                <option value="system">Follow System</option>
-                <option value="dark">Dark</option>
-                <option value="light">Light</option>
-              </Select>
+                onValueChange={(mode) => void setThemeMode(mode)}
+                options={THEME_OPTIONS}
+              />
             }
           />
         </SettingGroup>
@@ -240,16 +206,11 @@ export default function Settings() {
             control={
               <Select
                 value={exitReminderMinutes}
-                onChange={(e) =>
-                  void setExitReminderMinutes(Number(e.target.value))
+                onValueChange={(minutes) =>
+                  void setExitReminderMinutes(minutes)
                 }
-              >
-                {EXIT_REMINDER_OPTIONS.map((option) => (
-                  <option key={option.value} value={option.value}>
-                    {option.label}
-                  </option>
-                ))}
-              </Select>
+                options={EXIT_REMINDER_OPTIONS}
+              />
             }
           />
 
@@ -277,7 +238,7 @@ export default function Settings() {
                     variant="subtle"
                     icon={<WrenchRegular />}
                     disabled={isServiceBusy}
-                    onClick={() => void repairService()}
+                    onClick={() => serviceAction.mutate("repair")}
                   >
                     Restart Service
                   </Button>
@@ -291,7 +252,11 @@ export default function Settings() {
                   size="sm"
                   variant={serviceInstalled === false ? "accent" : "subtle"}
                   disabled={isServiceBusy || serviceInstalled === null}
-                  onClick={() => void toggleDaemonService()}
+                  onClick={() =>
+                    serviceAction.mutate(
+                      serviceInstalled ? "uninstall" : "install",
+                    )
+                  }
                 >
                   {isServiceBusy
                     ? "Working..."
@@ -321,7 +286,7 @@ export default function Settings() {
               <Switch
                 checked={autostartEnabled === true}
                 disabled={isAutostartBusy || autostartEnabled === null}
-                onCheckedChange={(checked) => void toggleAutostart(checked)}
+                onCheckedChange={(checked) => autostartAction.mutate(checked)}
               />
             }
           />

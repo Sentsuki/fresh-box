@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import { loadExitExpect, setExitExpect } from "../services/api";
+import { toast } from "../hooks/useToast";
 import { getErrorMessage } from "../services/tauri";
 
 /**
@@ -17,21 +18,13 @@ interface ExitExpectState {
 interface ExitExpectActions {
   load: (profileId: string | null) => Promise<void>;
   /** 钉住这个节点；它已经是期望节点时则取消。 */
-  toggle: (
-    group: string,
-    node: string,
-    onError?: (msg: string) => void,
-  ) => Promise<void>;
-  clear: (group: string, onError?: (msg: string) => void) => Promise<void>;
+  toggle: (group: string, node: string) => Promise<void>;
+  clear: (group: string) => Promise<void>;
 }
 
 export const useExitExpectStore = create<ExitExpectState & ExitExpectActions>(
   (set, get) => {
-    async function write(
-      group: string,
-      node: string | null,
-      onError?: (msg: string) => void,
-    ) {
+    async function write(group: string, node: string | null) {
       const { profileId, expect: previous } = get();
       if (!profileId) return;
 
@@ -46,7 +39,7 @@ export const useExitExpectStore = create<ExitExpectState & ExitExpectActions>(
         if (get().profileId === profileId) set({ expect: saved });
       } catch (error) {
         if (get().profileId === profileId) set({ expect: previous });
-        onError?.(
+        toast.error(
           `Failed to save expected outbound: ${getErrorMessage(error)}`,
         );
       }
@@ -68,13 +61,13 @@ export const useExitExpectStore = create<ExitExpectState & ExitExpectActions>(
         }
       },
 
-      toggle: async (group, node, onError) => {
+      toggle: async (group, node) => {
         const next = get().expect[group] === node ? null : node;
-        await write(group, next, onError);
+        await write(group, next);
       },
 
-      clear: async (group, onError) => {
-        await write(group, null, onError);
+      clear: async (group) => {
+        await write(group, null);
       },
     };
   },

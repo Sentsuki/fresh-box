@@ -37,6 +37,19 @@ vi.mock("./settingsStore", () => ({
   },
 }));
 
+const toasts = vi.hoisted(() => ({
+  success: [] as string[],
+  error: [] as string[],
+  info: [] as string[],
+}));
+vi.mock("../hooks/useToast", () => ({
+  toast: {
+    success: (m: string) => toasts.success.push(m),
+    error: (m: string) => toasts.error.push(m),
+    info: (m: string) => toasts.info.push(m),
+  },
+}));
+
 import { useProxyStore } from "./proxyStore";
 
 /** 取当前 overview 里那一组的节点 —— 比 `!` 断言在失败时说得清楚。 */
@@ -73,6 +86,9 @@ beforeEach(() => {
   awaitGroupDelays.mockClear().mockResolvedValue({});
   closeConnectionsByGroup.mockClear();
   autoCloseConnections = true;
+  toasts.success = [];
+  toasts.error = [];
+  toasts.info = [];
   useProxyStore.setState({
     overview: null,
     errorMessage: null,
@@ -88,11 +104,10 @@ beforeEach(() => {
 describe("changeMode", () => {
   it("发出请求，但不自己写模式", async () => {
     useProxyStore.getState().setOverview(overview());
-    const ok = vi.fn();
-    await useProxyStore.getState().changeMode("global", ok);
+    await useProxyStore.getState().changeMode("global");
 
     expect(setClashMode).toHaveBeenCalledWith({ mode: "global" });
-    expect(ok).toHaveBeenCalled();
+    expect(toasts.success).toEqual(["Proxy mode switched to global"]);
     expect(useProxyStore.getState().overview?.current_mode).toBe("rule");
     expect(useProxyStore.getState().activeMode).toBeNull();
   });
@@ -107,11 +122,10 @@ describe("changeMode", () => {
   it("失败时报错并把进行中标记清掉", async () => {
     useProxyStore.getState().setOverview(overview());
     setClashMode.mockRejectedValueOnce(new Error("no instance"));
-    const fail = vi.fn();
+    await useProxyStore.getState().changeMode("global");
 
-    await useProxyStore.getState().changeMode("global", undefined, fail);
-
-    expect(fail).toHaveBeenCalledWith(expect.stringContaining("no instance"));
+    expect(toasts.error).toEqual([expect.stringContaining("no instance")]);
+    expect(toasts.success).toHaveLength(0);
     expect(useProxyStore.getState().activeMode).toBeNull();
   });
 });
@@ -124,6 +138,7 @@ describe("switchProxy", () => {
       outboundTag: "b",
     });
     expect(closeConnectionsByGroup).toHaveBeenCalledWith("manual");
+    expect(toasts.success).toEqual(["Switched manual to b"]);
   });
 
   it("设置关掉时就不断开", async () => {
@@ -148,11 +163,10 @@ describe("switchProxy", () => {
 
   it("失败时不断开连接，并清掉进行中标记", async () => {
     selectOutbound.mockRejectedValueOnce(new Error("boom"));
-    const fail = vi.fn();
-    await useProxyStore.getState().switchProxy("manual", "b", undefined, fail);
+    await useProxyStore.getState().switchProxy("manual", "b");
 
     expect(closeConnectionsByGroup).not.toHaveBeenCalled();
-    expect(fail).toHaveBeenCalledWith(expect.stringContaining("boom"));
+    expect(toasts.error).toEqual([expect.stringContaining("boom")]);
     expect(useProxyStore.getState().activeSelectionKey).toBeNull();
   });
 });
@@ -160,34 +174,32 @@ describe("switchProxy", () => {
 describe("testDelay", () => {
   it("把结果写回对应节点", async () => {
     useProxyStore.getState().setOverview(overview());
-    const result = vi.fn();
-    await useProxyStore.getState().testDelay("b", result);
+    await useProxyStore.getState().testDelay("b");
 
     const nodes = nodesOf();
     expect(nodes.find((n) => n.name === "b")?.delay).toBe(42);
     expect(nodes.find((n) => n.name === "a")?.delay).toBeNull();
-    expect(result).toHaveBeenCalledWith("b: 42 ms", true);
+    expect(toasts.success).toEqual(["b: 42 ms"]);
   });
 
-  it("负延迟当成超时汇报", async () => {
+  it("负延迟当成超时汇报，走 info —— 那既不是成功也不是错误", async () => {
     useProxyStore.getState().setOverview(overview());
     awaitNodeDelay.mockResolvedValueOnce(-1);
-    const result = vi.fn();
-    await useProxyStore.getState().testDelay("b", result);
-    expect(result).toHaveBeenCalledWith("b: timeout", false);
+    await useProxyStore.getState().testDelay("b");
+    expect(toasts.info).toEqual(["b: timeout"]);
+    expect(toasts.success).toHaveLength(0);
+    expect(toasts.error).toHaveLength(0);
   });
 
   it("测速失败时把这个节点标成 -1，而不是留着上一次的值", async () => {
     // 留着旧值等于显示一个已经不成立的延迟 —— 用户会以为节点还是好的。
     useProxyStore.getState().setOverview(overview(50));
     awaitNodeDelay.mockRejectedValueOnce(new Error("timeout"));
-    const fail = vi.fn();
-
-    await useProxyStore.getState().testDelay("b", undefined, fail);
+    await useProxyStore.getState().testDelay("b");
 
     const nodes = nodesOf();
     expect(nodes.find((n) => n.name === "b")?.delay).toBe(-1);
-    expect(fail).toHaveBeenCalled();
+    expect(toasts.error).toHaveLength(1);
     expect(useProxyStore.getState().activeDelayNodes.size).toBe(0);
   });
 
@@ -210,14 +222,12 @@ describe("testGroupDelay", () => {
     // 缺席的节点必须落到 -1 —— 留着旧延迟等于显示一个已经不成立的数字。
     useProxyStore.getState().setOverview(overview(50));
     awaitGroupDelays.mockResolvedValueOnce({ a: 11 });
-    const ok = vi.fn();
-
-    await useProxyStore.getState().testGroupDelay("manual", ok);
+    await useProxyStore.getState().testGroupDelay("manual");
 
     const nodes = nodesOf();
     expect(nodes.find((n) => n.name === "a")?.delay).toBe(11);
     expect(nodes.find((n) => n.name === "b")?.delay).toBe(-1);
-    expect(ok).toHaveBeenCalledWith("manual: tested 1 nodes");
+    expect(toasts.success).toEqual(["manual: tested 1 nodes"]);
   });
 
   it("测试期间标出正在测的节点，结束后清掉", async () => {
@@ -243,12 +253,10 @@ describe("testGroupDelay", () => {
       available_modes: [],
       proxy_groups: [],
     });
-    const ok = vi.fn();
-
-    await useProxyStore.getState().testGroupDelay("manual", ok);
+    await useProxyStore.getState().testGroupDelay("manual");
 
     expect(awaitGroupDelays).not.toHaveBeenCalled();
-    expect(ok).toHaveBeenCalledWith("manual: no nodes found");
+    expect(toasts.success).toEqual(["manual: no nodes found"]);
   });
 
   it("同一组重复点击被忽略", async () => {
@@ -269,11 +277,9 @@ describe("testGroupDelay", () => {
   it("失败时报错并复位", async () => {
     useProxyStore.getState().setOverview(overview());
     awaitGroupDelays.mockRejectedValueOnce(new Error("no instance"));
-    const fail = vi.fn();
+    await useProxyStore.getState().testGroupDelay("manual");
 
-    await useProxyStore.getState().testGroupDelay("manual", undefined, fail);
-
-    expect(fail).toHaveBeenCalledWith(expect.stringContaining("no instance"));
+    expect(toasts.error).toEqual([expect.stringContaining("no instance")]);
     expect(useProxyStore.getState().activeGroupDelay).toBeNull();
   });
 });

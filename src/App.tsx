@@ -1,5 +1,3 @@
-import { FluentProvider } from "@fluentui/react-components";
-import { listen } from "@tauri-apps/api/event";
 import { useEffect } from "react";
 import { DaemonGate } from "./components/global/DaemonGate";
 import { ErrorBoundary } from "./components/global/ErrorBoundary";
@@ -9,6 +7,7 @@ import { Sidebar } from "./components/layout/Sidebar";
 import { TitleBar } from "./components/layout/TitleBar";
 import { Spinner } from "./components/ui/Spinner";
 import { initializeApp } from "./hooks/useInit";
+import { useTauriEvent } from "./hooks/useTauriEvent";
 import { useTheme } from "./hooks/useTheme";
 import { useToast } from "./hooks/useToast";
 import { listProfiles } from "./services/api";
@@ -62,7 +61,7 @@ function PageContent({ page }: { page: string }) {
 export default function App() {
   const initialized = useAppStore((s) => s.initialized);
   const currentPage = useAppStore((s) => s.currentPage);
-  const fluentTheme = useTheme();
+  useTheme();
   const toast = useToast();
   useWindowVisibilityListener();
   useDaemonConnectionListener();
@@ -74,14 +73,9 @@ export default function App() {
     });
   }, []);
 
-  useEffect(() => {
-    const unlisten = listen("tray-proxy-switched", () => {
-      void useProxyStore.getState().refreshOverview(false);
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
+  useTauriEvent("tray-proxy-switched", () => {
+    void useProxyStore.getState().refreshOverview();
+  });
 
   // The backend's background auto-update scheduler (see
   // `spawn_auto_update_scheduler`) fires this after refreshing one or more
@@ -89,16 +83,11 @@ export default function App() {
   // the Profiles page's `lastUpdated` timestamps (and the config's actual
   // content) don't sit stale until the user happens to navigate away and
   // back.
-  useEffect(() => {
-    const unlisten = listen("profiles-auto-updated", () => {
-      void listProfiles().then((profiles) =>
-        useConfigStore.getState().setProfiles(profiles),
-      );
-    });
-    return () => {
-      void unlisten.then((fn) => fn());
-    };
-  }, []);
+  useTauriEvent("profiles-auto-updated", () => {
+    void listProfiles().then((profiles) =>
+      useConfigStore.getState().setProfiles(profiles),
+    );
+  });
 
   // Startup update flow — runs once settings are hydrated (`initialized`
   // implies `initializeApp()`'s `settings.hydrate()` already completed, see
@@ -154,46 +143,34 @@ export default function App() {
   }, [initialized]);
 
   if (!initialized) {
-    return (
-      <FluentProvider
-        theme={fluentTheme}
-        style={{ height: "100%", background: "transparent" }}
-      >
-        <LoadingScreen />
-      </FluentProvider>
-    );
+    return <LoadingScreen />;
   }
 
   return (
-    <FluentProvider
-      theme={fluentTheme}
-      style={{ height: "100%", background: "transparent" }}
+    <div
+      className="flex flex-col h-full w-full overflow-hidden"
+      style={{ background: "var(--wb-surface-base)" }}
     >
-      <div
-        className="flex flex-col h-full w-full overflow-hidden"
-        style={{ background: "var(--wb-surface-base)" }}
-      >
-        <TitleBar />
-        <div className="flex flex-1 min-h-0 overflow-hidden">
-          <Sidebar />
-          <main className="flex-1 min-w-0 overflow-hidden flex flex-col bg-(--wb-surface-base) border-t border-l border-(--wb-border-subtle)">
-            <PageTransition pageKey={currentPage}>
-              <div className="flex-1 overflow-y-auto">
-                <div className="max-w-7xl mx-auto w-full p-5">
-                  <ErrorBoundary key={currentPage}>
-                    {/* daemon 连接相位的唯一闸门 —— 见 DaemonGate 的注释：
+      <TitleBar />
+      <div className="flex flex-1 min-h-0 overflow-hidden">
+        <Sidebar />
+        <main className="flex-1 min-w-0 overflow-hidden flex flex-col bg-(--wb-surface-base) border-t border-l border-(--wb-border-subtle)">
+          <PageTransition pageKey={currentPage}>
+            <div className="flex-1 overflow-y-auto">
+              <div className="max-w-7xl mx-auto w-full p-5">
+                <ErrorBoundary key={currentPage}>
+                  {/* daemon 连接相位的唯一闸门 —— 见 DaemonGate 的注释：
                         相位穷举由类型系统保证，漏掉一个是编译错误。 */}
-                    <DaemonGate>
-                      <PageContent page={currentPage} />
-                    </DaemonGate>
-                  </ErrorBoundary>
-                </div>
+                  <DaemonGate>
+                    <PageContent page={currentPage} />
+                  </DaemonGate>
+                </ErrorBoundary>
               </div>
-            </PageTransition>
-          </main>
-        </div>
-        <GlobalToaster />
+            </div>
+          </PageTransition>
+        </main>
       </div>
-    </FluentProvider>
+      <GlobalToaster />
+    </div>
   );
 }

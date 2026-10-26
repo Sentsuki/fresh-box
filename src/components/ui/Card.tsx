@@ -1,3 +1,5 @@
+import { cn } from "./cn";
+
 interface CardProps {
   children: React.ReactNode;
   className?: string;
@@ -23,7 +25,7 @@ export function Card({
             }
           : undefined
       }
-      className={[
+      className={cn(
         "rounded-(--wb-radius-lg) border p-4",
         "bg-(--wb-surface-layer)",
         selected ? "border-(--wb-accent)" : "border-(--wb-border-subtle)",
@@ -31,7 +33,7 @@ export function Card({
           ? "cursor-pointer hover:bg-(--wb-surface-hover) transition-colors duration-100"
           : "",
         className,
-      ].join(" ")}
+      )}
     >
       {children}
     </div>
