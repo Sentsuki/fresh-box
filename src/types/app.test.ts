@@ -111,6 +111,31 @@ describe("normalizeAppSettings", () => {
     ).toBe("host");
   });
 
+  it("认不出的分组列也归一成 null，而不是借用排序列的默认值", () => {
+    // 以前会被「纠正」成 `downloadSpeed` —— 那一列根本不能分组。
+    expect(
+      normalizeAppSettings(
+        stored({ connections: { grouped_column: "not-a-column" } }),
+      ).connections.grouped_column,
+    ).toBeNull();
+  });
+
+  it("键值表里类型不对的条目单独丢掉，其余保留", () => {
+    const settings = normalizeAppSettings(
+      stored({
+        proxies: {
+          collapsed_groups: { a: true, b: "yes" } as unknown as Record<
+            string,
+            boolean
+          >,
+        },
+        connections: { column_sizes: { host: 260, rule: null } },
+      }),
+    );
+    expect(settings.proxies.collapsed_groups).toEqual({ a: true });
+    expect(settings.connections.column_sizes).toEqual({ host: 260 });
+  });
+
   it("内存上限不是数字时用默认值", () => {
     const defaults = createDefaultAppSettings();
     expect(

@@ -4,7 +4,8 @@ import {
   PinRegular,
   TimerRegular,
 } from "@fluentui/react-icons";
-import { memo, useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useVirtualizer } from "@tanstack/react-virtual";
+import { memo, useEffect, useLayoutEffect, useRef, useState } from "react";
 import Flag from "react-flagpack";
 import "react-flagpack/dist/style.css";
 import { Button } from "../../components/ui/Button";
@@ -19,8 +20,6 @@ import { useProxyStore } from "../../stores/proxyStore";
 import { useSettingsStore } from "../../stores/settingsStore";
 import { useSingboxStore } from "../../stores/singboxStore";
 import type { ProxyGroupOverview, ProxyNodeOverview } from "../../types/app";
-
-const GROUP_BATCH_SIZE = 12;
 
 function delayColor(delay: number | null): string {
   if (delay === null || delay === undefined) return "text-(--wb-text-disabled)";
@@ -369,6 +368,68 @@ const GroupCard = memo(function GroupCard({
   );
 });
 
+/**
+ * 代理组列表，只渲染滚动到视口附近的那几组。
+ *
+ * 组卡片高度不固定（节点数不同、可以折叠），所以每一组挂载后实际量一次，
+ * 折叠/展开时 ResizeObserver 会跟着重新量。列表上面还有页头，和列表在同一个
+ * 滚动容器里 —— `scrollMargin` 就是列表在容器里的起始位置。
+ */
+function GroupList({
+  groups,
+  scrollRef,
+  renderGroup,
+}: {
+  groups: ProxyGroupOverview[];
+  scrollRef: React.RefObject<HTMLDivElement | null>;
+  renderGroup: (group: ProxyGroupOverview) => React.ReactNode;
+}) {
+  const listRef = useRef<HTMLDivElement>(null);
+  const [scrollMargin, setScrollMargin] = useState(0);
+
+  // 页头的高度会随窗口宽度变（描述换行），所以跟着容器尺寸重新量。
+  useLayoutEffect(() => {
+    const list = listRef.current;
+    const container = scrollRef.current;
+    if (!list || !container) return;
+    const measure = () => setScrollMargin(list.offsetTop);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [scrollRef]);
+
+  const virtualizer = useVirtualizer({
+    count: groups.length,
+    getScrollElement: () => scrollRef.current,
+    estimateSize: () => 220,
+    overscan: 3,
+    gap: 12,
+    scrollMargin,
+    getItemKey: (index) => groups[index].name,
+  });
+
+  return (
+    <div
+      ref={listRef}
+      className="relative w-full"
+      style={{ height: virtualizer.getTotalSize() }}
+    >
+      {virtualizer.getVirtualItems().map((item) => (
+        <div
+          key={item.key}
+          data-index={item.index}
+          ref={virtualizer.measureElement}
+          className="absolute left-0 top-0 w-full"
+          style={{ transform: `translateY(${item.start - scrollMargin}px)` }}
+        >
+          {renderGroup(groups[item.index])}
+        </div>
+      ))}
+    </div>
+  );
+}
+
 const EMPTY_GROUPS: ProxyGroupOverview[] = [];
 
 export default function Proxies() {
@@ -396,7 +457,6 @@ export default function Proxies() {
   const availableModes = overview?.available_modes ?? [];
   const currentMode = overview?.current_mode ?? "";
   const scrollContainerRef = useRef<HTMLDivElement>(null);
-  const [renderCount, setRenderCount] = useState(GROUP_BATCH_SIZE);
 
   useEffect(() => {
     void refreshOverview();
@@ -406,40 +466,6 @@ export default function Proxies() {
   useEffect(() => {
     void useExitExpectStore.getState().load(selectedProfileId);
   }, [selectedProfileId]);
-
-  useEffect(() => {
-    setRenderCount(Math.min(groups.length, GROUP_BATCH_SIZE));
-  }, [groups.length]);
-
-  const visibleGroups = useMemo(
-    () => groups.slice(0, renderCount),
-    [groups, renderCount],
-  );
-
-  const loadMore = useCallback(() => {
-    setRenderCount((current) => {
-      if (current >= groups.length) return current;
-      return Math.min(current + GROUP_BATCH_SIZE, groups.length);
-    });
-  }, [groups.length]);
-
-  useEffect(() => {
-    const container = scrollContainerRef.current;
-    if (!container) return;
-    const onScroll = () => {
-      const threshold = 200;
-      const reachedBottom =
-        container.scrollHeight - container.scrollTop - container.clientHeight <
-        threshold;
-      if (reachedBottom) {
-        loadMore();
-      }
-    };
-    container.addEventListener("scroll", onScroll, { passive: true });
-    return () => {
-      container.removeEventListener("scroll", onScroll);
-    };
-  }, [loadMore]);
 
   if (!isRunning) {
     return (
@@ -464,7 +490,7 @@ export default function Proxies() {
   return (
     <div
       ref={scrollContainerRef}
-      className="flex flex-col h-full overflow-y-auto pr-2 pb-10"
+      className="relative flex flex-col h-full overflow-y-auto pr-2 pb-10"
     >
       <PageHeader
         title="Routing"
@@ -497,10 +523,11 @@ export default function Proxies() {
           className="h-64"
         />
       ) : (
-        <div className="flex flex-col gap-3">
-          {visibleGroups.map((group) => (
+        <GroupList
+          groups={groups}
+          scrollRef={scrollContainerRef}
+          renderGroup={(group) => (
             <GroupCard
-              key={group.name}
               group={group}
               isTesting={activeGroupDelay === group.name}
               expected={exitExpect[group.name]}
@@ -510,13 +537,8 @@ export default function Proxies() {
               onTogglePin={(node) => void togglePin(group.name, node)}
               onClearExpected={() => void clearExpected(group.name)}
             />
-          ))}
-          {renderCount < groups.length && (
-            <div className="py-2 text-center text-xs text-(--wb-text-tertiary)">
-              Rendering {renderCount} / {groups.length} groups...
-            </div>
           )}
-        </div>
+        />
       )}
     </div>
   );
